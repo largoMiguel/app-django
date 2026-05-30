@@ -305,12 +305,19 @@ feature/* → PR → development → (CI OK) → PR → production → deploy au
 | Secret | Valor |
 |--------|-------|
 | `SSH_PRIVATE_KEY` | clave privada en `deploy/keys/softone_deploy` (ver `deploy/keys/README.md`) |
-| `CF_ACCESS_CLIENT_ID` | Client ID del Service Token de Cloudflare Access |
-| `CF_ACCESS_CLIENT_SECRET` | Client Secret del Service Token |
+| `CF_ACCESS_CLIENT_ID` | (opcional) Client ID del Service Token de Cloudflare Access |
+| `CF_ACCESS_CLIENT_SECRET` | (opcional) Client Secret del Service Token |
 | `DEPLOY_HOST` | `ssh.softone360.com` |
 | `DEPLOY_USER` | `softone` |
 
-Configuración inicial de Cloudflare Access + DNS SSH: [`deploy/docs/cloudflare-access-setup.md`](deploy/docs/cloudflare-access-setup.md).
+Configuración automática de secrets (PAT con permiso `repo`):
+
+```bash
+export GITHUB_TOKEN=ghp_...
+python3 deploy/scripts/setup-github-secrets-api.py
+```
+
+Configuración inicial de Cloudflare (DNS ya aplicado en servidor): [`deploy/docs/cloudflare-access-setup.md`](deploy/docs/cloudflare-access-setup.md).
 
 ### Flujo alternativo: LAN (misma red local)
 

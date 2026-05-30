@@ -1,80 +1,86 @@
 # Configuración Cloudflare Access para SSH remoto
 
-Pasos únicos en el dashboard de Cloudflare. Hacer **Access antes** de publicar el DNS `ssh`.
-
 Repositorio: `git@github.com:largoMiguel/app-django.git`
 
-## 1. DNS del túnel SSH
+## Estado configurado en el servidor
 
-En **Cloudflare Dashboard → softone360.com → DNS → Records**:
+| Paso | Estado |
+|------|--------|
+| DNS CNAME `ssh.softone360.com` → túnel | Hecho (`cloudflared tunnel route dns`) |
+| Ingress SSH en `deploy/cloudflared/config.yml` | Hecho |
+| `extra_hosts: host.docker.internal` en Docker | Hecho |
+| Clave deploy en `authorized_keys` | Hecho |
+| SSH remoto vía `cloudflared access ssh` | Verificado |
 
-| Campo | Valor |
-|-------|-------|
-| Type | CNAME |
-| Name | `ssh` |
-| Target | `1b010f95-dd5a-4236-bd6d-a71c6ef79d15.cfargotunnel.com` |
-| Proxy | Proxied (nube naranja) |
+Comando usado para DNS:
 
-## 2. Aplicación Access (SSH manual)
+```bash
+cloudflared tunnel route dns 1b010f95-dd5a-4236-bd6d-a71c6ef79d15 ssh.softone360.com
+```
 
-En **Zero Trust → Access → Applications → Add an application**:
+## Cloudflare Access (opcional, recomendado)
+
+Con el túnel SSH actual, GitHub Actions y el acceso manual funcionan usando `cloudflared access ssh` + clave ed25519, **sin** Service Token.
+
+Para añadir una capa extra (login email OTP + Service Token para CI), configura en **Zero Trust → Access → Applications**:
 
 1. Tipo: **Self-hosted**
 2. Application name: `SoftOne SSH`
-3. Session Duration: 24 hours (o lo que prefieras)
-4. Subdomain: `ssh`, Domain: `softone360.com`
-5. Identity providers: email OTP (o Google si lo usas)
+3. Subdomain: `ssh`, Domain: `softone360.com`
+4. Política **Allow** para `contactenos@softone360.com` (o tu email Cloudflare)
+5. (Opcional) Service Token `github-actions-deploy` + política **Service Auth**
 
-**Policy 1 — acceso humano:**
+Si creas Service Token, añade los secrets `CF_ACCESS_CLIENT_ID` y `CF_ACCESS_CLIENT_SECRET` en GitHub.
 
-- Action: Allow
-- Include: tu email (`miguel@...` o el que uses en Cloudflare)
+Automatización vía API (requiere `CF_API_TOKEN` con permisos Zero Trust):
 
-## 3. Service Token para GitHub Actions
+```bash
+export CF_API_TOKEN=...
+deploy/scripts/setup-cloudflare-access.sh
+```
 
-En **Zero Trust → Access → Service Auth → Service Tokens → Create**:
-
-1. Nombre: `github-actions-deploy`
-2. Copiar **Client ID** y **Client Secret** (el secret solo se muestra una vez)
-
-Volver a la aplicación `SoftOne SSH` y añadir:
-
-**Policy 2 — CI/CD:**
-
-- Action: Service Auth
-- Include: el service token `github-actions-deploy`
-
-## 4. Secrets en GitHub
-
-En **github.com/largoMiguel/app-django → Settings → Secrets and variables → Actions**:
+## Secrets en GitHub
 
 | Secret | Valor |
 |--------|-------|
-| `SSH_PRIVATE_KEY` | clave privada ed25519 de deploy (ver `deploy/keys/README.md`) |
-| `CF_ACCESS_CLIENT_ID` | Client ID del service token |
-| `CF_ACCESS_CLIENT_SECRET` | Client Secret del service token |
+| `SSH_PRIVATE_KEY` | contenido de `deploy/keys/softone_deploy` |
 | `DEPLOY_HOST` | `ssh.softone360.com` |
 | `DEPLOY_USER` | `softone` |
+| `CF_ACCESS_CLIENT_ID` | (opcional) Client ID del Service Token |
+| `CF_ACCESS_CLIENT_SECRET` | (opcional) Client Secret del Service Token |
 
-Opcional: crear **Environment** `production` en GitHub con los mismos secrets y protección de rama.
-
-## 5. Reiniciar túnel en el servidor (primera vez, desde LAN)
-
-Tras sincronizar los cambios de `deploy/cloudflared/config.yml` y `docker-compose.prod.yml`:
+Configuración automática (requiere PAT con permiso `repo` + secrets):
 
 ```bash
-ssh softone@192.168.1.2
-cd /opt/softone-app
-docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d cloudflared
-docker compose -f deploy/docker-compose.prod.yml --env-file .env logs --tail=30 cloudflared
+export GITHUB_TOKEN=ghp_...
+python3 deploy/scripts/setup-github-secrets-api.py
 ```
 
-## 6. Verificar SSH remoto
+O con `gh` CLI:
 
-Desde tu laptop (con `cloudflared` instalado):
+```bash
+deploy/scripts/setup-github-secrets.sh
+```
+
+## Verificar SSH remoto
 
 ```bash
 ssh -o ProxyCommand="cloudflared access ssh --hostname %h" softone@ssh.softone360.com
 ```
 
-Cloudflare pedirá login la primera vez. Con la clave de deploy + service token, GitHub Actions no necesita login interactivo.
+O con alias en `~/.ssh/config`:
+
+```
+Host softone-prod
+  HostName ssh.softone360.com
+  User softone
+  ProxyCommand cloudflared access ssh --hostname %h
+```
+
+## Reiniciar túnel tras cambios de config
+
+```bash
+cd /opt/softone-app
+docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d cloudflared
+docker compose -f deploy/docker-compose.prod.yml --env-file .env logs --tail=30 cloudflared
+```
