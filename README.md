@@ -274,65 +274,26 @@ Todos requieren rol `admin` o `superadmin`.
 
 ## Despliegue de cambios (producción)
 
-Repositorio: **git@github.com:largoMiguel/app-django.git**
+Repositorio: **git@github.com:largoMiguel/app-django.git** · Servidor: `/opt/softone-app`
 
-El proyecto vive en `/opt/softone-app` en el servidor Ubuntu (`softone@192.168.1.2` en LAN, `ssh.softone360.com` vía Cloudflare desde cualquier red).
+### Desplegar con GitHub (recomendado, desde cualquier lugar)
 
-Alias útil en el servidor (opcional):
-
-```bash
-export COMPOSE="docker compose -f deploy/docker-compose.prod.yml --env-file .env"
-```
-
-### Flujo principal: GitHub Actions (desde cualquier lugar)
-
-| Rama | Trigger | Acción |
-|------|---------|--------|
-| `development` | push / PR | CI: tests backend + lint/build frontend |
-| `production` | push | CI + rsync al servidor + `deploy/scripts/deploy.sh` |
+| Rama | Qué pasa al hacer push |
+|------|------------------------|
+| `development` | CI: tests backend + build frontend |
+| `production` | CI + deploy automático a https://app.softone360.com |
 
 ```
-feature/* → PR → development → (CI OK) → PR → production → deploy automático
+feature/* → PR → development → PR → production → deploy automático
 ```
 
 1. Trabaja en ramas `feature/*` y abre PR hacia `development`.
-2. Al merge en `development`, GitHub Actions ejecuta tests (`.github/workflows/ci-development.yml`).
-3. Cuando esté listo para producción, abre PR `development` → `production`.
-4. Al merge/push en `production`, se despliega automáticamente (`.github/workflows/deploy-production.yml`).
+2. Cuando esté listo, abre PR `development` → `production` y haz merge.
+3. GitHub Actions sincroniza el código al servidor y ejecuta `deploy/scripts/deploy.sh`.
 
-**Secrets requeridos en GitHub** (Settings → Secrets → Actions):
+### Desplegar manualmente (SSH remoto vía Cloudflare)
 
-| Secret | Valor |
-|--------|-------|
-| `SSH_PRIVATE_KEY` | clave privada en `deploy/keys/softone_deploy` (ver `deploy/keys/README.md`) |
-| `CF_ACCESS_CLIENT_ID` | (opcional) Client ID del Service Token de Cloudflare Access |
-| `CF_ACCESS_CLIENT_SECRET` | (opcional) Client Secret del Service Token |
-| `DEPLOY_HOST` | `ssh.softone360.com` |
-| `DEPLOY_USER` | `softone` |
-
-Configuración automática de secrets (PAT con permiso `repo`):
-
-```bash
-export GITHUB_TOKEN=ghp_...
-python3 deploy/scripts/setup-github-secrets-api.py
-```
-
-Configuración inicial de Cloudflare (DNS ya aplicado en servidor): [`deploy/docs/cloudflare-access-setup.md`](deploy/docs/cloudflare-access-setup.md).
-
-### Flujo alternativo: LAN (misma red local)
-
-```bash
-# 1) Cambios en local + pruebas
-# 2) Sincronizar (preserva .env y credenciales del túnel en ~/.cloudflared)
-deploy/scripts/sync.sh softone@192.168.1.2
-
-# 3) Lanzar deploy en el servidor
-ssh softone@192.168.1.2 'cd /opt/softone-app && deploy/scripts/deploy.sh'
-```
-
-### Flujo alternativo: SSH remoto manual (Cloudflare)
-
-En `~/.ssh/config` de tu laptop:
+Alias en `~/.ssh/config`:
 
 ```
 Host softone-prod
@@ -346,87 +307,61 @@ deploy/scripts/sync.sh softone-prod
 ssh softone-prod 'cd /opt/softone-app && deploy/scripts/deploy.sh'
 ```
 
-`deploy.sh` hace `build --pull` y `up -d --remove-orphans`, así que sólo recrea servicios cuya imagen o configuración cambió. **Es seguro re-ejecutarlo en caliente.**
+### Desplegar en LAN (misma red que el servidor)
 
-### Primer despliegue (checklist)
+```bash
+deploy/scripts/sync.sh softone@192.168.1.2
+ssh softone@192.168.1.2 'cd /opt/softone-app && deploy/scripts/deploy.sh'
+```
 
-1. Ejecutar `server-bootstrap.sh` en el servidor (o tener Docker + UFW ya listos).
-2. Configurar Cloudflare Access + DNS `ssh` (ver `deploy/docs/cloudflare-access-setup.md`).
-3. Instalar clave de deploy: `deploy/scripts/install-deploy-key.sh softone@192.168.1.2`.
-4. Sincronizar código con `sync.sh` (o push inicial a GitHub + deploy manual).
-5. Crear `/opt/softone-app/.env` a partir de `.env.example` (ver sección Variables de entorno).
-6. **Verificar credenciales del túnel** en el servidor:
-   ```bash
-   ls -la ~/.cloudflared/1b010f95-dd5a-4236-bd6d-a71c6ef79d15.json
-   ```
-   El contenedor `cloudflared` monta `~/.cloudflared` como `/etc/cloudflared/creds` (ver `CLOUDFLARED_CREDS_DIR` en `.env.example`). Sin ese JSON el túnel no arranca y la app queda inaccesible desde Internet.
-7. Reiniciar túnel tras cambios SSH: `$COMPOSE up -d cloudflared`.
-8. Ejecutar `deploy/scripts/deploy.sh`.
-9. Configurar secrets en GitHub y crear ramas `development` / `production`.
-10. Comprobar salud: `docker compose -f deploy/docker-compose.prod.yml --env-file .env ps`.
+`deploy.sh` hace `build --pull` y `up -d --remove-orphans`. Es seguro re-ejecutarlo en caliente.
 
-### Casos típicos
+### Casos típicos en el servidor
 
-| Cambio | Comando en el servidor |
+Alias útil (opcional):
+
+```bash
+export COMPOSE="docker compose -f deploy/docker-compose.prod.yml --env-file .env"
+```
+
+| Cambio | Comando |
 |---|---|
 | Deploy completo | `deploy/scripts/deploy.sh` |
-| Sólo backend (Python) | `$COMPOSE up -d --build backend` |
-| Sólo frontend (React) | `$COMPOSE up -d --build frontend` |
-| Sólo Nginx (proxy/CSP) | `$COMPOSE restart nginx` |
-| Sólo túnel | `$COMPOSE restart cloudflared` |
-| Migración DB | Se aplica **automáticamente** al arrancar el backend. Manual: `$COMPOSE exec backend python manage.py migrate` |
-| Nueva migración (dev) | `python manage.py makemigrations` (en local) |
-| Variable de entorno | Editar `/opt/softone-app/.env` y `$COMPOSE up -d` |
-| Cambiar modelo IA | Editar `OPENAI_MODEL` en `.env` + `$COMPOSE up -d backend` |
+| Sólo backend | `$COMPOSE up -d --build backend` |
+| Sólo frontend | `$COMPOSE up -d --build frontend` |
+| Sólo Nginx | `$COMPOSE restart nginx` |
+| Sólo túnel | `$COMPOSE up -d cloudflared` |
+| Migración DB | Automática al arrancar backend. Manual: `$COMPOSE exec backend python manage.py migrate` |
+| Variable de entorno | Editar `.env` y `$COMPOSE up -d` |
 
 ### Logs y troubleshooting
 
 ```bash
-ssh softone@192.168.1.2
+ssh softone-prod   # o softone@192.168.1.2 en LAN
 cd /opt/softone-app
 export COMPOSE="docker compose -f deploy/docker-compose.prod.yml --env-file .env"
 
-# Estado y salud
 $COMPOSE ps
-
-# Logs
 $COMPOSE logs -f --tail=100 backend
 $COMPOSE logs -f --tail=100 cloudflared
-$COMPOSE logs -f nginx
-$COMPOSE logs -f frontend
-
-# Recursos
-docker stats --no-stream
 ```
 
-**Si SSH remoto falla**, revisar:
+**Si `https://app.softone360.com` no responde:**
 
-1. Cloudflare Access configurado para `ssh.softone360.com` (política Allow + Service Token).
-2. DNS CNAME `ssh` → `1b010f95-dd5a-4236-bd6d-a71c6ef79d15.cfargotunnel.com`.
-3. `$COMPOSE logs cloudflared` — debe listar ingress para `ssh.softone360.com`.
-4. Clave de deploy en `~/.ssh/authorized_keys` del usuario `softone`.
-
-**Si `https://app.softone360.com` no responde**, revisar en este orden:
-
-1. `$COMPOSE ps` — todos los servicios deben estar `Up` (cloudflared y nginx con healthcheck `healthy`).
-2. `$COMPOSE logs cloudflared` — errores típicos: `credentials file not found`, túnel no autorizado, DNS incorrecto.
-3. `ls ~/.cloudflared/*.json` — debe existir el JSON del túnel `1b010f95-dd5a-4236-bd6d-a71c6ef79d15`.
-4. `$COMPOSE exec nginx wget -qO- http://127.0.0.1/healthz` — debe devolver `ok`.
-5. `$COMPOSE exec backend python manage.py check` — backend sano (no depende del túnel).
+1. `$COMPOSE ps` — todos los servicios deben estar `Up` y `healthy`.
+2. `$COMPOSE logs cloudflared` — errores de credenciales o DNS.
+3. `$COMPOSE exec nginx wget -qO- http://127.0.0.1/healthz` — debe devolver `ok`.
 
 ### Backups
 
 ```bash
-# Manual
-ssh softone@192.168.1.2 'cd /opt/softone-app && deploy/scripts/backup-db.sh'
-
-# Cron diario (en el servidor)
-( crontab -l 2>/dev/null; echo "0 3 * * * cd /opt/softone-app && deploy/scripts/backup-db.sh >> /var/log/softone-backup.log 2>&1" ) | crontab -
+ssh softone-prod 'cd /opt/softone-app && deploy/scripts/backup-db.sh'
 ```
 
-Backups en `/var/backups/softone/softone_YYYYMMDD_HHMMSS.dump` (formato `pg_dump -F c`). Retención automática 14 días.
+Backups en `/var/backups/softone/softone_YYYYMMDD_HHMMSS.dump`. Retención 14 días.
 
 Restaurar:
+
 ```bash
 docker compose -f deploy/docker-compose.prod.yml --env-file .env exec -T db \
   pg_restore -U softone -d softone --clean --if-exists \
