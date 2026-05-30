@@ -28,3 +28,9 @@ Copiar el contenido completo de `deploy/keys/softone_deploy` (incluyendo las lí
 **GitHub → largoMiguel/app-django → Settings → Secrets → Actions → SSH_PRIVATE_KEY**
 
 Ver también [deploy/docs/cloudflare-access-setup.md](../docs/cloudflare-access-setup.md).
+
+Para configurar secrets SSH en GitHub (con `gh` instalado):
+
+```bash
+deploy/scripts/setup-github-secrets.sh
+```
