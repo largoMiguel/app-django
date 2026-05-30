@@ -1,0 +1,37 @@
+# Entornos / secretos
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+staticfiles/
+media/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# IDE / SO
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# Cloudflared
+deploy/cloudflared/*.json
+
+# Deploy keys (never commit private keys)
+deploy/keys/*
+!deploy/keys/README.md
+!deploy/keys/*.pub
+
+# Local venv at repo root
+venv/
