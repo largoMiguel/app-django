@@ -110,6 +110,7 @@ export function homeForRole(user: AuthUser | null): string {
   const entity = user.entity;
   if (!entity) return "/login";
   if (entity.enable_pqrs) return "/dashboard";
+  if (entity.enable_pdm) return "/pdm";
   if (role === "admin" && entity.enable_users_admin) return "/users";
   return "/login";
 }

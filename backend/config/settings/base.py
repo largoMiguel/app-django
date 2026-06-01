@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "apps.common",
     "apps.entities",
     "apps.pqrs",
+    "apps.pdm",
 ]
 
 MIDDLEWARE = [

@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "@/features/auth/LoginPage";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
@@ -11,6 +12,7 @@ import RequireRole from "@/core/auth/RequireRole";
 import RequireModule from "@/core/auth/RequireModule";
 import AppLayout from "@/components/layout/AppLayout";
 import PublicPQRSPortal from "@/features/pqrs/PublicPQRSPortal";
+import PdmPage from "@/features/pdm/PdmPage";
 import { PERM, useAuthStore, homeForRole } from "@/core/auth/store";
 
 function HomeRedirect() {
@@ -18,7 +20,7 @@ function HomeRedirect() {
   return <Navigate to={homeForRole(user)} replace />;
 }
 
-export default function App() {
+export default function App(): ReactElement {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -42,6 +44,13 @@ export default function App() {
             <Route element={<RequireModule module="enable_pqrs" />}>
               <Route path="/dashboard" element={<PQRSDashboard />} />
               <Route path="/pqrs" element={<PQRSPage />} />
+            </Route>
+          </Route>
+
+          {/* PDM: admin y secretario */}
+          <Route element={<RequireRole roles={["admin", "secretario"]} />}>
+            <Route element={<RequireModule module="enable_pdm" />}>
+              <Route path="/pdm" element={<PdmPage />} />
             </Route>
           </Route>
 
