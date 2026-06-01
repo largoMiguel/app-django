@@ -1,14 +1,15 @@
-import { FileText, LogOut, Building2, Users, FileBarChart2 } from "lucide-react";
+import { FileText, LogOut, Building2, Users, FileBarChart2, BarChart3 } from "lucide-react";
 import softOneLogo from "@/assets/logo_softone360.png";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useAuthStore, primaryRole, canAccess, PERM } from "@/core/auth/store";
 import { authApi } from "@/core/auth/api";
+import { clearClientSession } from "@/core/auth/session";
 
 export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
-  const { user, refreshToken, logout } = useAuthStore();
+  const { user, refreshToken } = useAuthStore();
 
   const role = primaryRole(user);
   const entity = user?.entity;
@@ -27,6 +28,9 @@ export default function Sidebar() {
     canAccess(user, { roles: ["admin"], permissions: [PERM.USER_VIEW] });
   const canViewInformes =
     canViewPqrs && entity?.enable_reports_pdf && canAccess(user, { roles: ["admin"] });
+  const canViewPdm =
+    entity?.enable_pdm &&
+    canAccess(user, { roles: ["admin", "secretario"] });
 
   if (role === "superadmin") {
     menuItems.push({ path: "/superadmin/entities", icon: Building2, label: "Entidades" });
@@ -36,6 +40,9 @@ export default function Sidebar() {
   }
   if (canViewInformes) {
     menuItems.push({ path: "/informes", icon: FileBarChart2, label: "Informes", matchPaths: ["/informes"] });
+  }
+  if (canViewPdm) {
+    menuItems.push({ path: "/pdm", icon: BarChart3, label: "PDM", matchPaths: ["/pdm"] });
   }
   if (canManageUsers) {
     usersMenuItem = { path: "/users", icon: Users, label: "Usuarios" };
@@ -58,7 +65,7 @@ export default function Sidebar() {
     } catch {
       /* ignore */
     }
-    logout();
+    clearClientSession();
     navigate("/login", { replace: true });
   }
 

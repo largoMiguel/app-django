@@ -3,6 +3,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 import { useAuthStore } from "@/core/auth/store";
+import { clearClientSession } from "@/core/auth/session";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
 
@@ -17,7 +18,7 @@ export const PUBLIC_API_BASE =
 let refreshing: Promise<string | null> | null = null;
 
 async function refreshAccess(): Promise<string | null> {
-  const { refreshToken, setTokens, logout } = useAuthStore.getState();
+  const { refreshToken, setTokens } = useAuthStore.getState();
   if (!refreshToken) return null;
   try {
     const { data } = await axios.post(`${API_URL}/auth/refresh`, {
@@ -26,7 +27,7 @@ async function refreshAccess(): Promise<string | null> {
     setTokens(data.access, data.refresh ?? refreshToken);
     return data.access as string;
   } catch {
-    logout();
+    clearClientSession();
     return null;
   }
 }
