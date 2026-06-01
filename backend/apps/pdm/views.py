@@ -108,7 +108,7 @@ def _filter_productos_by_estado(qs, entity_id: int, anio: int, estado: str):
     ids = [
         p.id
         for p in productos
-        if estado_producto_anio(p, anio, aggs_map.get(p.codigo_producto, {}).get(anio)) == estado
+        if estado_producto_anio(p, anio, aggs_map.get(p.codigo_producto, {})) == estado
     ]
     return qs.filter(id__in=ids) if ids else qs.none()
 
@@ -119,10 +119,22 @@ class PdmStatusView(APIView):
     def get(self, request, slug: str):
         entity = _entity_or_404(slug)
         _ensure_user_can_manage_entity(request.user, entity)
-        qs = productos_queryset_for_user(request.user, entity)
-        total = qs.count()
-        latest = qs.order_by("-created_at").values_list("created_at", flat=True).first()
-        return Response({"tiene_datos": total > 0, "total_productos": total, "fecha_ultima_carga": latest})
+        total_entidad = PdmProducto.objects.filter(entity=entity).count()
+        visible = productos_queryset_for_user(request.user, entity).count()
+        latest = (
+            PdmProducto.objects.filter(entity=entity)
+            .order_by("-created_at")
+            .values_list("created_at", flat=True)
+            .first()
+        )
+        return Response(
+            {
+                "tiene_datos": total_entidad > 0,
+                "total_productos": visible,
+                "total_productos_entidad": total_entidad,
+                "fecha_ultima_carga": latest,
+            }
+        )
 
 
 class PdmMetaView(APIView):
@@ -232,7 +244,7 @@ class PdmProductoDetailView(APIView):
         setattr(
             producto,
             "resumen_por_anio",
-            {str(y): resumen_anio(producto, y, aggs_map.get(y)) for y in ANIOS_PDM},
+            {str(y): resumen_anio(producto, y, aggs_map) for y in ANIOS_PDM},
         )
         return Response(PdmProductoSerializer(producto).data)
 

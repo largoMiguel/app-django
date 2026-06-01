@@ -67,6 +67,25 @@ export interface ResumenEjecucionAnual {
 
 export const ANIOS_PDM = [2024, 2025, 2026, 2027] as const;
 
+const META_DECIMALES = 4;
+const META_EPSILON = 1e-6;
+
+export function redondearMeta(valor: number): number {
+  const factor = 10 ** META_DECIMALES;
+  return Math.round(valor * factor) / factor;
+}
+
+export function parseMetaInput(value: string): number {
+  const normalized = value.replace(",", ".").trim();
+  if (!normalized) return 0;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? redondearMeta(parsed) : 0;
+}
+
+export function metaDentroDeDisponible(meta: number, disponible: number): boolean {
+  return meta > 0 && meta <= disponible + META_EPSILON;
+}
+
 export function formatearMoneda(valor: number | string | null | undefined): string {
   const numero = Number(valor || 0);
   return new Intl.NumberFormat("es-CO", {
@@ -78,7 +97,10 @@ export function formatearMoneda(valor: number | string | null | undefined): stri
 }
 
 export function formatearNumero(valor: number | null | undefined): string {
-  return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(Number(valor || 0));
+  return new Intl.NumberFormat("es-CO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  }).format(Number(valor || 0));
 }
 
 export function getColorProgreso(porcentaje: number): string {
@@ -209,6 +231,10 @@ export function obtenerResumenActividadesPorAnio(producto: ResumenProducto, anio
 }
 
 export function getAvanceAnio(producto: ResumenProducto, anio: number, anioRef?: number): number {
+  const tieneActividadesAnio = producto.actividades.some((a) => a.anio === anio);
+  if (tieneActividadesAnio) {
+    return obtenerResumenActividadesPorAnio(producto, anio).porcentaje_avance;
+  }
   if (anioRef !== undefined && anio === anioRef && producto.avance_anio !== undefined) {
     return producto.avance_anio;
   }
@@ -216,16 +242,30 @@ export function getAvanceAnio(producto: ResumenProducto, anio: number, anioRef?:
 }
 
 export function getEstadoProductoAnio(producto: ResumenProducto, anio: number, anioRef?: number): string {
-  if (anioRef !== undefined && anio === anioRef && producto.estado_anio) {
+  const tieneActividadesAnio = producto.actividades.some((a) => a.anio === anio);
+  if (!tieneActividadesAnio && anioRef !== undefined && anio === anioRef && producto.estado_anio) {
     return producto.estado_anio;
   }
   const avance = getAvanceAnio(producto, anio, anioRef);
   const resumen = obtenerResumenActividadesPorAnio(producto, anio);
   if (anio > new Date().getFullYear()) return "POR_EJECUTAR";
-  if (avance === 100) return "COMPLETADO";
+  if (avance >= 100) return "COMPLETADO";
   if (avance === 0 && resumen.total_actividades === 0) return "PENDIENTE";
   if (resumen.total_actividades > 0) return "EN_PROGRESO";
   return "PENDIENTE";
+}
+
+export function getPorcentajeEjecucionGeneral(producto: ResumenProducto): number {
+  const aniosConMeta = ANIOS_PDM.filter((anio) => getMetaAnio(producto, anio) > 0);
+  if (aniosConMeta.length === 0) return producto.porcentaje_ejecucion || 0;
+  if (producto.actividades.length > 0) {
+    const suma = aniosConMeta.reduce(
+      (total, anio) => total + obtenerResumenActividadesPorAnio(producto, anio).porcentaje_avance,
+      0,
+    );
+    return suma / aniosConMeta.length;
+  }
+  return producto.porcentaje_ejecucion || 0;
 }
 
 export function getEjecucionPagosAnio(resumen: ResumenEjecucionAnual | null, anio: number): number {
@@ -246,7 +286,7 @@ export function calcularMetaDisponible(producto: ResumenProducto, anio: number):
   const metaAsignada = producto.actividades
     .filter((a) => a.anio === anio)
     .reduce((sum, a) => sum + Number(a.meta_ejecutar || 0), 0);
-  return Math.max(0, metaProgramada - metaAsignada);
+  return redondearMeta(Math.max(0, metaProgramada - metaAsignada));
 }
 
 export function validarMetaActividad(
@@ -259,16 +299,17 @@ export function validarMetaActividad(
   let metaActual = 0;
   if (actividadId) {
     const actividad = producto.actividades.find((a) => a.id === actividadId);
-    if (actividad) metaActual = Number(actividad.meta_ejecutar || 0);
+    if (actividad) metaActual = redondearMeta(Number(actividad.meta_ejecutar || 0));
   }
-  const disponibleConActual = metaDisponible + metaActual;
-  if (metaEjecutar <= 0) {
+  const disponibleConActual = redondearMeta(metaDisponible + metaActual);
+  const meta = redondearMeta(metaEjecutar);
+  if (meta <= 0) {
     return { valido: false, mensaje: "La meta a ejecutar debe ser mayor a 0", disponible: disponibleConActual };
   }
-  if (metaEjecutar > disponibleConActual) {
+  if (!metaDentroDeDisponible(meta, disponibleConActual)) {
     return {
       valido: false,
-      mensaje: `La meta a ejecutar excede la disponible (${disponibleConActual} ${producto.unidad_medida || ""})`,
+      mensaje: `La meta a ejecutar excede la disponible (${formatearNumero(disponibleConActual)} ${producto.unidad_medida || ""})`,
       disponible: disponibleConActual,
     };
   }

@@ -102,7 +102,7 @@ def avance_general_producto(producto: PdmProducto, aggs_by_anio: dict | None = N
     avance_sum = 0.0
     anios_meta = 0
     for anio in ANIOS_PDM:
-        resumen = resumen_anio(producto, anio, aggs_by_anio.get(anio))
+        resumen = resumen_anio(producto, anio, aggs_by_anio)
         if resumen["meta_programada"] > 0:
             anios_meta += 1
             avance_sum += resumen["porcentaje_avance"]
@@ -111,10 +111,10 @@ def avance_general_producto(producto: PdmProducto, aggs_by_anio: dict | None = N
 
 def producto_list_metrics(producto: PdmProducto, anio: int, aggs_by_anio: dict | None = None) -> dict:
     aggs_by_anio = aggs_by_anio or {}
-    resumen = resumen_anio(producto, anio, aggs_by_anio.get(anio))
+    resumen = resumen_anio(producto, anio, aggs_by_anio)
     return {
         "avance_anio": resumen["porcentaje_avance"],
-        "estado_anio": estado_producto_anio(producto, anio, aggs_by_anio.get(anio)),
+        "estado_anio": estado_producto_anio(producto, anio, aggs_by_anio),
         "meta_anio": resumen["meta_programada"],
         "presupuesto_anio": resumen["presupuesto"],
         "porcentaje_ejecucion": avance_general_producto(producto, aggs_by_anio),

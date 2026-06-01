@@ -33,7 +33,7 @@ class PdmActividadEvidenciaSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "entity", "fecha_registro", "created_at", "updated_at")
+        read_only_fields = ("id", "actividad", "entity", "fecha_registro", "created_at", "updated_at")
 
 
 class PdmActividadSerializer(serializers.ModelSerializer):

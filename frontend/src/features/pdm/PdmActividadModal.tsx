@@ -7,6 +7,9 @@ import { pdmBtnPrimary, pdmBtnSecondary, pdmInput, pdmSelect } from "@/features/
 import {
   calcularMetaDisponible,
   formatearNumero,
+  metaDentroDeDisponible,
+  parseMetaInput,
+  redondearMeta,
   validarMetaActividad,
   type ResumenProducto,
 } from "@/features/pdm/pdmUtils";
@@ -99,7 +102,10 @@ export default function PdmActividadModal({
   onSave,
 }: PdmActividadModalProps) {
   const [form, setForm] = useState<ActividadFormValues>(EMPTY_FORM);
+  const [metaInput, setMetaInput] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+
+  const metaEjecutar = parseMetaInput(metaInput);
 
   const metaDisponible = useMemo(() => {
     if (actividadEnEdicion) {
@@ -119,10 +125,11 @@ export default function PdmActividadModal({
         estado: actividadEnEdicion.estado,
         fecha_inicio: (actividadEnEdicion.fecha_inicio || "").slice(0, 10),
         fecha_fin: (actividadEnEdicion.fecha_fin || "").slice(0, 10),
-        meta_ejecutar: Number(actividadEnEdicion.meta_ejecutar || 0),
+        meta_ejecutar: redondearMeta(Number(actividadEnEdicion.meta_ejecutar || 0)),
         evidencia_url: actividadEnEdicion.evidencia?.url_evidencia || "",
         imagenes: actividadEnEdicion.evidencia?.imagenes ? [...actividadEnEdicion.evidencia.imagenes] : [],
       });
+      setMetaInput(String(actividadEnEdicion.meta_ejecutar ?? ""));
       return;
     }
     setForm({
@@ -131,6 +138,7 @@ export default function PdmActividadModal({
       fecha_inicio: `${anio}-01-01`,
       fecha_fin: `${anio}-12-31`,
     });
+    setMetaInput("");
   }, [open, actividadEnEdicion, anio, esSecretario, secretariaUsuarioId]);
 
   const tieneEvidenciaValida = Boolean(form.evidencia_url.trim() || form.imagenes.length > 0);
@@ -139,14 +147,15 @@ export default function PdmActividadModal({
     form.descripcion.trim().length >= 10 &&
     Boolean(form.responsable_secretaria_id) &&
     Boolean(form.fecha_inicio && form.fecha_fin) &&
-    form.meta_ejecutar > 0 &&
-    form.meta_ejecutar <= metaDisponible &&
+    metaEjecutar > 0 &&
+    metaDentroDeDisponible(metaEjecutar, metaDisponible) &&
     tieneEvidenciaValida;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
-    const validacion = validarMetaActividad(producto, anio, form.meta_ejecutar, actividadEnEdicion?.id);
+    const meta = parseMetaInput(metaInput);
+    const validacion = validarMetaActividad(producto, anio, meta, actividadEnEdicion?.id);
     if (!validacion.valido) {
       setFormError(validacion.mensaje);
       return;
@@ -155,7 +164,7 @@ export default function PdmActividadModal({
       setFormError("Debe proporcionar al menos una URL de evidencia o cargar imágenes.");
       return;
     }
-    await onSave(form);
+    await onSave({ ...form, meta_ejecutar: meta });
   }
 
   const titulo = actividadEnEdicion ? "Editar evidencia de ejecución" : "Nueva evidencia de ejecución";
@@ -258,16 +267,22 @@ export default function PdmActividadModal({
                 />
               </Field>
               <Field label="Meta a ejecutar *">
-                <input className={pdmInput}
+                <input
+                  className={pdmInput}
                   type="number"
-                  step="0.01"
+                  step="any"
                   min={0}
-                  max={metaDisponible}
-                  value={form.meta_ejecutar || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, meta_ejecutar: Number(e.target.value) }))}
-                  placeholder={`Máx. ${metaDisponible}`}
+                  inputMode="decimal"
+                  value={metaInput}
+                  onChange={(e) => {
+                    setMetaInput(e.target.value);
+                    setForm((p) => ({ ...p, meta_ejecutar: parseMetaInput(e.target.value) }));
+                  }}
+                  placeholder={`Máx. ${formatearNumero(metaDisponible)}`}
                 />
-                <p className="mt-1 text-xs text-slate-500">{producto.unidad_medida}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {producto.unidad_medida || "Unidad"} · admite decimales (ej. 0,5)
+                </p>
               </Field>
             </div>
           </div>

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -43,6 +44,11 @@ import type { PdmActividad, PdmEjecucionProducto } from "@/core/api/pdm";
 
 const PAGE_SIZE = 15;
 
+function parseVista(raw: string | null): VistaPdm {
+  if (raw === "productos" || raw === "detalle") return raw;
+  return "dashboard";
+}
+
 export default function PdmPage(): ReactElement {
   const user = useAuthStore((s) => s.user);
   const slug = user?.entity?.slug ?? "";
@@ -53,8 +59,34 @@ export default function PdmPage(): ReactElement {
     isAdmin || isSecretario || (user?.roles ?? []).includes("superadmin") || user?.is_superuser,
   );
   const invalidatePdm = useInvalidatePdm();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const vista = parseVista(searchParams.get("v"));
+  const codigoUrl = searchParams.get("codigo") ?? "";
 
-  const [vista, setVista] = useState<VistaPdm>("dashboard");
+  const navegarVista = useCallback(
+    (next: VistaPdm, opts?: { codigo?: string; replace?: boolean }) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          if (next === "dashboard") {
+            params.delete("v");
+            params.delete("codigo");
+          } else {
+            params.set("v", next);
+            if (next === "detalle" && opts?.codigo) {
+              params.set("codigo", opts.codigo);
+            } else {
+              params.delete("codigo");
+            }
+          }
+          return params;
+        },
+        { replace: opts?.replace ?? false },
+      );
+    },
+    [setSearchParams],
+  );
+
   const [procesandoExcel, setProcesandoExcel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,8 +203,8 @@ export default function PdmPage(): ReactElement {
   }
 
   function volver() {
-    if (vista === "detalle") setVista("productos");
-    else setVista("dashboard");
+    if (vista === "detalle") navegarVista("productos");
+    else navegarVista("dashboard");
   }
 
   async function cargarEjecucionPresupuestal(codigo: string, anio: number) {
@@ -201,6 +233,16 @@ export default function PdmPage(): ReactElement {
     }
   }
 
+  async function recargarProductoDetalle(codigo: string, anio: number) {
+    if (!slug) return;
+    try {
+      const detail = await pdmApi.productoDetail(slug, codigo, anio);
+      setProductoSeleccionado(mapProductoToResumen(detail));
+    } catch {
+      await sincronizarActividadesProducto(codigo, anio);
+    }
+  }
+
   async function sincronizarActividadesProducto(codigo: string, anio?: number) {
     if (!slug) return [];
     setCargandoActividadesBackend(true);
@@ -216,7 +258,7 @@ export default function PdmPage(): ReactElement {
   async function openDetalle(producto: ResumenProducto) {
     setProductoSeleccionado(producto);
     setAnioDetalle(filtroAnio);
-    setVista("detalle");
+    navegarVista("detalle", { codigo: producto.codigo });
     await Promise.all([
       slug
         ? pdmApi
@@ -228,6 +270,30 @@ export default function PdmPage(): ReactElement {
       cargarContratosRPS(producto.codigo, filtroAnio),
     ]);
   }
+
+  useEffect(() => {
+    if (vista !== "detalle" || !codigoUrl || !slug) return;
+    if (productoSeleccionado?.codigo === codigoUrl) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const detail = await pdmApi.productoDetail(slug, codigoUrl, anioDetalle);
+        if (cancelled) return;
+        setProductoSeleccionado(mapProductoToResumen(detail));
+        await Promise.all([
+          cargarEjecucionPresupuestal(codigoUrl, anioDetalle),
+          cargarContratosRPS(codigoUrl, anioDetalle),
+        ]);
+      } catch {
+        if (!cancelled) navegarVista("productos", { replace: true });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [vista, codigoUrl, slug, anioDetalle, productoSeleccionado?.codigo, navegarVista]);
 
   async function seleccionarAnioDetalle(anio: number) {
     setAnioDetalle(anio);
@@ -293,7 +359,7 @@ export default function PdmPage(): ReactElement {
       } else {
         await pdmApi.registrarEvidencia(slug, actividad.id, evidenciaPayload);
       }
-      await sincronizarActividadesProducto(productoSeleccionado.codigo, anioDetalle);
+      await recargarProductoDetalle(productoSeleccionado.codigo, anioDetalle);
       invalidatePdm();
       setMostrarModalActividad(false);
       setActividadEnEdicion(null);
@@ -322,7 +388,7 @@ export default function PdmPage(): ReactElement {
       }
       await pdmApi.upload(slug, buildPdmUploadPayload(parsed));
       invalidatePdm();
-      setVista("dashboard");
+      navegarVista("dashboard", { replace: true });
     } catch (e) {
       setError(formatApiError(e as never, "No se pudo procesar el archivo."));
     } finally {
@@ -333,9 +399,15 @@ export default function PdmPage(): ReactElement {
   }
 
   const loading = loadingStatus || procesandoExcel;
+  const cargandoDetalleUrl =
+    tieneDatos && vista === "detalle" && Boolean(codigoUrl) && productoSeleccionado?.codigo !== codigoUrl;
 
-  if (loading) {
-    return <PdmLoadingOverlay message={procesandoExcel ? "Procesando Excel..." : "Cargando PDM..."} />;
+  if (loading || cargandoDetalleUrl) {
+    return (
+      <PdmLoadingOverlay
+        message={procesandoExcel ? "Procesando Excel..." : cargandoDetalleUrl ? "Cargando producto..." : "Cargando PDM..."}
+      />
+    );
   }
 
   const pageTitle = !tieneDatos
@@ -347,7 +419,9 @@ export default function PdmPage(): ReactElement {
         : "Detalle del producto";
 
   const headerSubtitle = !tieneDatos
-    ? "Cargue el Excel del plan indicativo (5 hojas)"
+    ? isAdmin
+      ? "Cargue el Excel del plan indicativo (5 hojas)"
+      : "El administrador debe cargar el plan indicativo de la entidad"
     : isSecretario && !isAdmin
       ? "Productos asignados a su secretaría"
       : vista === "dashboard"
@@ -382,7 +456,7 @@ export default function PdmPage(): ReactElement {
             </button>
           )}
           {tieneDatos && vista === "dashboard" && (
-            <button type="button" onClick={() => setVista("productos")} className={pdmBtnPrimary}>
+            <button type="button" onClick={() => navegarVista("productos")} className={pdmBtnPrimary}>
               <FileSpreadsheet className="h-4 w-4" /> Ver productos
             </button>
           )}
@@ -399,7 +473,7 @@ export default function PdmPage(): ReactElement {
 
       {error && <PdmAlert tone="error">{error}</PdmAlert>}
 
-      {!tieneDatos && (
+      {!tieneDatos && isAdmin && (
         <PdmCard className="mx-auto max-w-xl">
           <div className="flex flex-col items-center text-center">
             <CloudUpload className="mb-4 h-16 w-16 text-blue-500" />
@@ -430,11 +504,21 @@ export default function PdmPage(): ReactElement {
         </PdmCard>
       )}
 
+      {!tieneDatos && !isAdmin && (
+        <PdmCard className="mx-auto max-w-xl text-center">
+          <h2 className="text-lg font-semibold text-slate-900">Plan de Desarrollo Municipal</h2>
+          <p className="mt-3 text-sm text-slate-600">
+            El plan indicativo aún no ha sido cargado en la entidad. Solicite al administrador que suba el archivo
+            Excel del PDM para habilitar el seguimiento.
+          </p>
+        </PdmCard>
+      )}
+
       {tieneDatos && vista === "dashboard" && estadisticas && (
         <PdmDashboard
           estadisticas={estadisticas}
           resumenEjecucion={resumenEjecucion ?? null}
-          onVerProductos={() => setVista("productos")}
+          onVerProductos={() => navegarVista("productos")}
         />
       )}
 
@@ -522,7 +606,7 @@ export default function PdmPage(): ReactElement {
             setSaving(true);
             try {
               await pdmApi.eliminarActividad(slug, a.id);
-              await sincronizarActividadesProducto(productoSeleccionado.codigo, anioDetalle);
+              await recargarProductoDetalle(productoSeleccionado.codigo, anioDetalle);
               invalidatePdm();
             } catch (e) {
               setError(formatApiError(e as never, "No se pudo eliminar."));

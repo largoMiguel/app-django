@@ -49,10 +49,10 @@ def compute_estado_stats(productos: list[PdmProducto], entity_id: int, anio: int
     stats = {"pendiente": 0, "en_progreso": 0, "completado": 0, "por_ejecutar": 0, "total": 0}
     for p in productos:
         aggs_anio = aggs_map.get(p.codigo_producto, {})
-        if resumen_anio(p, anio, aggs_anio.get(anio)).get("meta_programada", 0) <= 0:
+        if resumen_anio(p, anio, aggs_anio).get("meta_programada", 0) <= 0:
             continue
         stats["total"] += 1
-        estado = estado_producto_anio(p, anio, aggs_anio.get(anio))
+        estado = estado_producto_anio(p, anio, aggs_anio)
         key = {
             "PENDIENTE": "pendiente",
             "EN_PROGRESO": "en_progreso",

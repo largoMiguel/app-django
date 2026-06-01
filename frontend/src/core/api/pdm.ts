@@ -108,6 +108,7 @@ export interface PdmStatsResponse {
 export interface PdmStatusResponse {
   tiene_datos: boolean;
   total_productos: number;
+  total_productos_entidad?: number;
   fecha_ultima_carga?: string | null;
 }
 
@@ -174,7 +175,7 @@ export const pdmApi = {
     api.post(`/pdm/v2/${slug}/upload`, payload).then((r) => r.data),
   actividadesByProducto: (slug: string, codigo: string, anio?: number) =>
     api
-      .get<PdmActividad[]>(`/pdm/v2/${slug}/actividades/${codigo}`, {
+      .get<PdmActividad[]>(`/pdm/v2/${slug}/productos/${encodeURIComponent(codigo)}/actividades`, {
         params: anio ? { anio } : undefined,
       })
       .then((r) => r.data),
