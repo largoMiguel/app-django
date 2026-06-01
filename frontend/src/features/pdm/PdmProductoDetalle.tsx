@@ -6,6 +6,7 @@ import {
   Clock,
   Edit,
   ExternalLink,
+  FileText,
   Inbox,
   Info,
   Loader2,
@@ -487,25 +488,33 @@ export default function PdmProductoDetalle({
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Contratos RPS ({anioDetalle})
               </p>
-              <PdmAlert tone="info">
-                <strong>{contratosRPS.cantidad_contratos}</strong> contrato(s) · Total contratado:{" "}
-                <strong>{formatearMoneda(contratosRPS.total_contratado)}</strong>
-              </PdmAlert>
-              <div className="mt-3 overflow-x-auto">
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-900">
+                <FileText size={16} className="shrink-0 text-blue-600" />
+                <span>
+                  <strong>{contratosRPS.cantidad_contratos}</strong> contrato(s) · Total contratado:{" "}
+                  <strong>{formatearMoneda(contratosRPS.total_contratado)}</strong>
+                </span>
+              </div>
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
                 <table className="w-full min-w-[280px] text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                      <th className="pb-2 pr-2 font-medium">No. CRP</th>
-                      <th className="pb-2 pr-2 font-medium">Concepto</th>
-                      <th className="pb-2 text-right font-medium">Valor</th>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <th className="px-3 py-2 font-medium">No. CRP</th>
+                      <th className="px-3 py-2 font-medium">Concepto</th>
+                      <th className="px-3 py-2 text-right font-medium">Valor</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {contratosRPS.contratos.map((contrato) => (
-                      <tr key={contrato.id} className="border-b border-slate-100 last:border-0">
-                        <td className="py-2 pr-2 font-semibold text-slate-800">{contrato.no_crp}</td>
-                        <td className="py-2 pr-2 text-slate-600">{contrato.concepto || "Sin concepto"}</td>
-                        <td className="py-2 text-right font-bold text-emerald-600">{formatearMoneda(contrato.valor)}</td>
+                    {contratosRPS.contratos.map((contrato, idx) => (
+                      <tr
+                        key={contrato.id}
+                        className={`border-b border-slate-100 last:border-0 ${idx % 2 === 1 ? "bg-slate-50/80" : "bg-white"}`}
+                      >
+                        <td className="px-3 py-2.5 font-semibold text-slate-800">{contrato.no_crp}</td>
+                        <td className="px-3 py-2.5 text-slate-600">{contrato.concepto || "Sin concepto"}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-emerald-600">
+                          {formatearMoneda(contrato.valor)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

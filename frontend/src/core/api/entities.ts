@@ -64,7 +64,8 @@ export const entitiesApi = {
     api.post<Entity>("/entities/", payload).then((r) => r.data),
   update: (id: number, payload: Partial<Entity>) =>
     api.patch<Entity>(`/entities/${id}/`, payload).then((r) => r.data),
-  remove: (id: number) => api.delete(`/entities/${id}/`),
+  remove: (id: number, confirmSlug: string) =>
+    api.delete(`/entities/${id}/`, { params: { confirm: confirmSlug } }),
   mine: () => api.get<Entity>("/entities/mine/").then((r) => r.data),
 };
 

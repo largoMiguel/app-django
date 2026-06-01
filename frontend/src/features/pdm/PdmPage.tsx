@@ -729,8 +729,14 @@ export default function PdmPage(): ReactElement {
                   if (!archivoContratos || !slug) return;
                   setSaving(true);
                   try {
-                    await pdmApi.uploadContratos(slug, archivoContratos, anioContratos);
+                    const result = await pdmApi.uploadContratos(slug, archivoContratos, anioContratos);
                     setModalContratos(false);
+                    setArchivoContratos(null);
+                    if (productoSeleccionado && vista === "detalle") {
+                      await cargarContratosRPS(productoSeleccionado.codigo, anioContratos);
+                    }
+                    setError(null);
+                    alert(result.mensaje || "Contratos RPS cargados.");
                   } catch (e) {
                     setError(formatApiError(e as never, "Error al cargar."));
                   } finally {
@@ -753,6 +759,10 @@ export default function PdmPage(): ReactElement {
           ))}
         </select>
         <input type="file" className="mt-4 block w-full text-sm" accept=".xlsx,.xls,.csv" onChange={(e) => setArchivoContratos(e.target.files?.[0] || null)} />
+        <p className="mt-3 text-xs text-slate-500">
+          Columnas: <strong>PRODUCTO</strong>, <strong>NO CRP</strong> (o CRP / NO CRP/CRP), <strong>VALOR</strong>.
+          Opcionales: CONCEPTO, CONTRATISTA. Los encabezados pueden estar en filas intermedias del Excel.
+        </p>
       </PdmModal>
 
       {productoSeleccionado && (

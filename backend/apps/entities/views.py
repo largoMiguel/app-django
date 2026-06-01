@@ -1,14 +1,15 @@
 """ViewSets para Entity y Secretaria."""
 from __future__ import annotations
 
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.common.pagination import StandardPageNumberPagination
 from apps.common.roles import is_platform_superadmin
+from .deletion import delete_entity_completely
 from .models import Entity, Secretaria
 from .permissions import IsEntityAdmin, IsSuperAdmin
 from .serializers import EntitySerializer, SecretariaSerializer
@@ -33,6 +34,21 @@ class EntityViewSet(viewsets.ModelViewSet):
         if not entity:
             return Response({"detail": "Usuario sin entidad asignada"}, status=404)
         return Response(EntitySerializer(entity).data)
+
+    def destroy(self, request, *args, **kwargs):
+        entity = self.get_object()
+        confirm = str(request.query_params.get("confirm", "")).strip()
+        if confirm != entity.slug:
+            raise ValidationError(
+                {
+                    "confirm": (
+                        f"Confirme enviando ?confirm={entity.slug} "
+                        "para eliminar la entidad y todos sus datos."
+                    )
+                }
+            )
+        delete_entity_completely(entity)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class SecretariaViewSet(viewsets.ModelViewSet):

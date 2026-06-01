@@ -126,7 +126,7 @@ export default function EntityDetailPage() {
         </div>
       </div>
 
-      {tab === "info" && <InfoTab entity={entity} onSaved={load} />}
+        {tab === "info" && <InfoTab entity={entity} onSaved={load} onDeleted={() => navigate("/superadmin/entities")} />}
       {tab === "users" && <UsersTab entity={entity} />}
       {tab === "secretarias" && <SecretariasTab entity={entity} />}
     </div>
@@ -161,7 +161,15 @@ function TabBtn({
 
 // ---------------- INFO TAB ----------------
 
-function InfoTab({ entity, onSaved }: { entity: Entity; onSaved: () => void }) {
+function InfoTab({
+  entity,
+  onSaved,
+  onDeleted,
+}: {
+  entity: Entity;
+  onSaved: () => void;
+  onDeleted: () => void;
+}) {
   const [form, setForm] = useState<Partial<Entity>>(entity);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -186,6 +194,7 @@ function InfoTab({ entity, onSaved }: { entity: Entity; onSaved: () => void }) {
   }
 
   return (
+    <>
     <form onSubmit={save} className="space-y-5 rounded-lg border border-slate-200 bg-white p-5">
       <section>
         <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-600 border-b border-slate-200 pb-1.5">
@@ -330,6 +339,71 @@ function InfoTab({ entity, onSaved }: { entity: Entity; onSaved: () => void }) {
         </button>
       </div>
     </form>
+
+    <DeleteEntitySection entity={entity} onDeleted={onDeleted} />
+    </>
+  );
+}
+
+function DeleteEntitySection({ entity, onDeleted }: { entity: Entity; onDeleted: () => void }) {
+  const [confirmSlug, setConfirmSlug] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    if (confirmSlug !== entity.slug) {
+      setError(`Escriba exactamente "${entity.slug}" para confirmar.`);
+      return;
+    }
+    if (
+      !confirm(
+        `¿Eliminar permanentemente "${entity.name}"?\n\nSe borrarán PQRS, PDM, usuarios, secretarías y archivos asociados. Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      await entitiesApi.remove(entity.id, entity.slug);
+      onDeleted();
+    } catch (err) {
+      setError(formatApiError(err, "No se pudo eliminar la entidad."));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-lg border border-red-200 bg-red-50/50 p-5">
+      <h3 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-red-800">
+        <Trash2 className="h-4 w-4" /> Zona peligrosa
+      </h3>
+      <p className="mb-4 text-sm text-red-900/80">
+        Elimina la entidad y <strong>todos</strong> sus datos: PQRS, PDM, usuarios, secretarías y archivos en media.
+        No se puede deshacer.
+      </p>
+      <label className="mb-3 block text-sm text-red-900">
+        Escriba <span className="font-mono font-semibold">{entity.slug}</span> para confirmar
+        <input
+          value={confirmSlug}
+          onChange={(e) => setConfirmSlug(e.target.value)}
+          className="mt-1 w-full max-w-md rounded-md border border-red-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+          placeholder={entity.slug}
+        />
+      </label>
+      {error && (
+        <div className="mb-3 rounded border border-red-200 bg-white px-3 py-2 text-sm text-red-700">{error}</div>
+      )}
+      <button
+        type="button"
+        disabled={deleting || confirmSlug !== entity.slug}
+        onClick={() => void handleDelete()}
+        className="flex items-center gap-1.5 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+      >
+        <Trash2 className="h-4 w-4" /> {deleting ? "Eliminando…" : "Eliminar entidad permanentemente"}
+      </button>
+    </section>
   );
 }
 
