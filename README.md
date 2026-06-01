@@ -411,7 +411,7 @@ Es **destructivo** y pide confirmación (`SI`) antes de borrar nada.
 
 ```
 default-src 'self';
-img-src 'self' data: https:;
+img-src 'self' data: blob: https:;
 style-src 'self' 'unsafe-inline';
 script-src 'self';
 script-src-attr 'unsafe-inline';
