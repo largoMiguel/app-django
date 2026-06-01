@@ -21,6 +21,9 @@ docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" build --pull
 echo "==> Levantando servicios…"
 docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" up -d --remove-orphans
 
+echo "==> Recargando nginx (conf montada por volumen)…"
+docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T nginx nginx -s reload
+
 echo "==> Estado:"
 docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" ps
 
