@@ -1,8 +1,19 @@
 /** Convierte errores de axios/DRF en mensajes legibles para el usuario. */
 export function formatApiError(err: unknown, fallback = "Ocurrió un error. Intenta de nuevo."): string {
+  if (err instanceof Error && err.message && !(err as { response?: unknown }).response) {
+    return err.message;
+  }
+
   const data = (err as { response?: { data?: unknown } })?.response?.data;
-  if (!data) return fallback;
-  if (typeof data === "string") return data;
+  if (!data) {
+    const message = (err as { message?: unknown })?.message;
+    return typeof message === "string" && message ? message : fallback;
+  }
+  if (typeof data === "string") {
+    const trimmed = data.trimStart();
+    if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) return fallback;
+    return data;
+  }
   if (typeof data !== "object" || data === null) return fallback;
 
   const obj = data as Record<string, unknown>;
