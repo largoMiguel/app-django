@@ -8,7 +8,8 @@ from django.http import FileResponse, Http404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
-from apps.pqrs.access import user_can_access_media_path
+from apps.pdm.access import user_can_access_pdm_media_path
+from apps.pqrs.access import user_can_access_media_path as user_can_access_pqrs_media_path
 
 
 class ProtectedMediaView(APIView):
@@ -17,7 +18,9 @@ class ProtectedMediaView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, path: str):
-        if not user_can_access_media_path(request.user, path):
+        if not user_can_access_pqrs_media_path(request.user, path) and not user_can_access_pdm_media_path(
+            request.user, path
+        ):
             raise Http404("Archivo no encontrado.")
 
         media_root = Path(settings.MEDIA_ROOT).resolve()

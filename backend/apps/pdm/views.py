@@ -31,6 +31,11 @@ from .access import (
     user_can_access_producto,
 )
 from .ejecucion_parser import _looks_like_codigo_fuente, parse_ejecucion_excel, rows_from_ejecucion_dataframe
+from .evidencia_storage import (
+    _files_from_request,
+    attach_evidencia_archivos,
+    sync_evidencia_archivos_from_request,
+)
 from .filters import PdmProductoFilterSet
 from .metrics import ANIOS_PDM, actividad_aggs_for_productos, producto_list_metrics, resumen_anio
 from .stats import compute_estado_stats, compute_pdm_stats, filter_options_from_productos
@@ -231,7 +236,7 @@ class PdmProductoDetailView(APIView):
         actividades = (
             actividades_queryset_for_user(request.user, entity)
             .filter(codigo_producto=codigo_producto)
-            .prefetch_related("evidencia")
+            .prefetch_related("evidencia__archivos")
             .order_by("anio", "id")
         )
         setattr(producto, "pdm_actividades_filtradas", list(actividades))
@@ -368,7 +373,10 @@ class PdmActividadDetailView(APIView):
 
 class PdmEvidenciaView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [JSONParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def _serialize(self, evidencia, request):
+        return PdmActividadEvidenciaSerializer(evidencia, context={"request": request}).data
 
     def post(self, request, slug: str, actividad_id: int):
         entity = _entity_or_404(slug)
@@ -378,12 +386,26 @@ class PdmEvidenciaView(APIView):
             raise PermissionDenied("No tiene permisos para esta actividad.")
         if PdmActividadEvidencia.objects.filter(actividad=actividad).exists():
             raise ValidationError({"detail": "La actividad ya tiene evidencia registrada."})
-        ser = PdmActividadEvidenciaSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        evidencia = PdmActividadEvidencia.objects.create(actividad=actividad, entity=entity, **ser.validated_data)
+
+        descripcion = str(request.data.get("descripcion") or "").strip()
+        url_evidencia = str(request.data.get("url_evidencia") or "").strip() or None
+        files = _files_from_request(request)
+        if not descripcion:
+            raise ValidationError({"descripcion": "Este campo es requerido."})
+        if not url_evidencia and not files:
+            raise ValidationError({"archivos": "Debe adjuntar al menos una imagen o una URL externa."})
+
+        evidencia = PdmActividadEvidencia.objects.create(
+            actividad=actividad,
+            entity=entity,
+            descripcion=descripcion,
+            url_evidencia=url_evidencia,
+        )
+        attach_evidencia_archivos(evidencia, files, request.user)
         actividad.estado = ActividadEstado.COMPLETADA
         actividad.save(update_fields=["estado", "updated_at"])
-        return Response(PdmActividadEvidenciaSerializer(evidencia).data, status=status.HTTP_201_CREATED)
+        evidencia.refresh_from_db()
+        return Response(self._serialize(evidencia, request), status=status.HTTP_201_CREATED)
 
     def get(self, request, slug: str, actividad_id: int):
         entity = _entity_or_404(slug)
@@ -391,8 +413,12 @@ class PdmEvidenciaView(APIView):
         actividad = get_object_or_404(PdmActividad, id=actividad_id, entity=entity)
         if not user_can_access_actividad(request.user, entity, actividad):
             raise PermissionDenied("No tiene permisos para esta actividad.")
-        evidencia = get_object_or_404(PdmActividadEvidencia, actividad_id=actividad_id, entity=entity)
-        return Response(PdmActividadEvidenciaSerializer(evidencia).data)
+        evidencia = get_object_or_404(
+            PdmActividadEvidencia.objects.prefetch_related("archivos"),
+            actividad_id=actividad_id,
+            entity=entity,
+        )
+        return Response(self._serialize(evidencia, request))
 
     def put(self, request, slug: str, actividad_id: int):
         entity = _entity_or_404(slug)
@@ -400,11 +426,26 @@ class PdmEvidenciaView(APIView):
         actividad = get_object_or_404(PdmActividad, id=actividad_id, entity=entity)
         if not user_can_access_actividad(request.user, entity, actividad):
             raise PermissionDenied("No tiene permisos para esta actividad.")
-        evidencia = get_object_or_404(PdmActividadEvidencia, actividad_id=actividad_id, entity=entity)
-        ser = PdmActividadEvidenciaSerializer(evidencia, data=request.data, partial=True)
-        ser.is_valid(raise_exception=True)
-        ser.save()
-        return Response(ser.data)
+        evidencia = get_object_or_404(
+            PdmActividadEvidencia.objects.prefetch_related("archivos"),
+            actividad_id=actividad_id,
+            entity=entity,
+        )
+
+        if "descripcion" in request.data:
+            descripcion = str(request.data.get("descripcion") or "").strip()
+            if not descripcion:
+                raise ValidationError({"descripcion": "Este campo es requerido."})
+            evidencia.descripcion = descripcion
+        if "url_evidencia" in request.data:
+            evidencia.url_evidencia = str(request.data.get("url_evidencia") or "").strip() or None
+        evidencia.save()
+
+        sync_evidencia_archivos_from_request(evidencia, request, request.user)
+        evidencia.refresh_from_db()
+        if not (evidencia.url_evidencia or evidencia.archivos.exists()):
+            raise ValidationError({"archivos": "Debe conservar al menos una imagen o una URL externa."})
+        return Response(self._serialize(evidencia, request))
 
 
 class PdmAsignarResponsableView(APIView):

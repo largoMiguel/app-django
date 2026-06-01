@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Calendar,
   CheckCircle2,
@@ -16,7 +16,8 @@ import {
   User,
   X,
 } from "lucide-react";
-import type { PdmActividad, PdmContrato, PdmEjecucionProducto } from "@/core/api/pdm";
+import type { PdmActividad, PdmContrato, PdmEjecucionProducto, PdmEvidenciaArchivo } from "@/core/api/pdm";
+import { fetchAuthenticatedFile } from "@/core/api/client";
 import {
   PdmAlert,
   PdmBadge,
@@ -36,7 +37,6 @@ import {
   getAvanceAnio,
   getColorEstadoActividad,
   getColorProgreso,
-  getPorcentajeEjecucionGeneral,
   getPresupuestoAnio,
   getTextoEstadoActividad,
   type ResumenActividadesAnio,
@@ -206,16 +206,11 @@ export default function PdmProductoDetalle({
               </div>
               <div>
                 <FieldLabel>% de Avance</FieldLabel>
-                <p className="mt-0.5 text-2xl font-bold text-slate-900">
-                  {getPorcentajeEjecucionGeneral(producto).toFixed(1)}%
-                </p>
+                <p className="mt-0.5 text-2xl font-bold text-slate-900">{producto.porcentaje_ejecucion.toFixed(1)}%</p>
               </div>
             </div>
 
-            <PdmProgressBar
-              value={getPorcentajeEjecucionGeneral(producto)}
-              tone={getColorProgreso(getPorcentajeEjecucionGeneral(producto))}
-            />
+            <PdmProgressBar value={producto.porcentaje_ejecucion} tone={getColorProgreso(producto.porcentaje_ejecucion)} />
           </div>
         </PdmCard>
 
@@ -326,7 +321,7 @@ export default function PdmProductoDetalle({
                   )}
                 </div>
               ) : (
-                <div className="actividades-list space-y-3">
+                <div className="space-y-4">
                   {resumenAnioDetalle.actividades.map((actividad) => (
                     <ActividadCard
                       key={actividad.id}
@@ -565,31 +560,82 @@ function FuentePresupuestalTable({ fuente }: { fuente: PdmEjecucionProducto["fue
   );
 }
 
-function verImagenGrande(imagenUrl: string) {
-  const ventana = window.open("", "_blank");
-  if (!ventana) return;
-  ventana.document.write(`
-    <html>
-      <head>
-        <title>Evidencia - Imagen</title>
-        <style>
-          body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
-          img { max-width: 100%; max-height: 100vh; object-fit: contain; }
-        </style>
-      </head>
-      <body>
-        <img src="${imagenUrl.replace(/"/g, "&quot;")}" alt="Evidencia">
-      </body>
-    </html>
-  `);
+function AuthenticatedImage({
+  url,
+  alt,
+  className = "",
+  onClick,
+}: {
+  url: string;
+  alt: string;
+  className?: string;
+  onClick?: () => void;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let blobUrl: string | null = null;
+    void fetchAuthenticatedFile(url).then((blob) => {
+      if (cancelled) return;
+      blobUrl = URL.createObjectURL(blob);
+      setSrc(blobUrl);
+    });
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [url]);
+
+  if (!src) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-100 ${className}`}>
+        <Loader2 size={18} className="animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  return <img src={src} alt={alt} className={className} onClick={onClick} />;
 }
 
-function obtenerImagenesEvidencia(evidencia: NonNullable<PdmActividad["evidencia"]>): string[] {
-  return evidencia.imagenes_s3_urls?.length
-    ? evidencia.imagenes_s3_urls
-    : evidencia.imagenes?.length
-      ? evidencia.imagenes
-      : [];
+function AuthenticatedImageModal({ url, onClose }: { url: string; onClose: () => void }) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let blobUrl: string | null = null;
+    void fetchAuthenticatedFile(url).then((blob) => {
+      if (cancelled) return;
+      blobUrl = URL.createObjectURL(blob);
+      setSrc(blobUrl);
+    });
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [url]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        aria-label="Cerrar"
+      >
+        <X size={24} />
+      </button>
+      {src ? (
+        <img src={src} alt="Evidencia ampliada" className="max-h-[90vh] max-w-full object-contain" onClick={(e) => e.stopPropagation()} />
+      ) : (
+        <Loader2 size={32} className="animate-spin text-white" />
+      )}
+    </div>
+  );
 }
 
 function ActividadCard({
@@ -609,9 +655,9 @@ function ActividadCard({
   onEliminar: () => void;
   onCargarEvidencia: () => void;
 }) {
-  const [imagenModal, setImagenModal] = useState<string | null>(null);
+  const [imagenModal, setImagenModal] = useState<PdmEvidenciaArchivo | null>(null);
   const tieneEvidencia = actividad.tiene_evidencia || actividad.evidencia;
-  const imagenes = actividad.evidencia ? obtenerImagenesEvidencia(actividad.evidencia) : [];
+  const archivos = actividad.evidencia?.archivos || [];
 
   return (
     <>
@@ -727,20 +773,19 @@ function ActividadCard({
                       </a>
                     </div>
                   )}
-                  {imagenes.length > 0 && (
+                  {archivos.length > 0 && (
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-                      {imagenes.map((imagen, idx) => (
+                      {archivos.map((archivo) => (
                         <button
-                          key={`${actividad.id}-${idx}`}
+                          key={archivo.id}
                           type="button"
-                          onClick={() => setImagenModal(imagen)}
+                          onClick={() => setImagenModal(archivo)}
                           className="overflow-hidden rounded-md border border-slate-300 bg-[#f0f0f0] p-0 transition hover:opacity-90"
                         >
-                          <img
-                            src={imagen}
-                            alt={`Evidencia ${idx + 1}`}
+                          <AuthenticatedImage
+                            url={archivo.url}
+                            alt={archivo.nombre}
                             className="min-h-[100px] w-full cursor-pointer object-cover"
-                            onDoubleClick={() => verImagenGrande(imagen)}
                           />
                         </button>
                       ))}
@@ -753,28 +798,7 @@ function ActividadCard({
         </div>
       </div>
 
-      {imagenModal && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setImagenModal(null)}
-          role="presentation"
-        >
-          <button
-            type="button"
-            onClick={() => setImagenModal(null)}
-            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
-            aria-label="Cerrar"
-          >
-            <X size={24} />
-          </button>
-          <img
-            src={imagenModal}
-            alt="Evidencia ampliada"
-            className="max-h-[90vh] max-w-full object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      {imagenModal && <AuthenticatedImageModal url={imagenModal.url} onClose={() => setImagenModal(null)} />}
     </>
   );
 }

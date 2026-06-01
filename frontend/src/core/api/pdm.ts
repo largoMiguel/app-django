@@ -1,11 +1,20 @@
 import { api } from "@/core/api/client";
 
+export interface PdmEvidenciaArchivo {
+  id: number;
+  nombre: string;
+  nombre_original?: string;
+  url: string;
+  content_type?: string;
+  size?: number;
+  created_at?: string;
+}
+
 export interface PdmActividadEvidencia {
   id: number;
   descripcion?: string | null;
   url_evidencia?: string | null;
-  imagenes?: string[] | null;
-  imagenes_s3_urls?: string[] | null;
+  archivos?: PdmEvidenciaArchivo[];
   fecha_registro?: string | null;
 }
 
@@ -187,10 +196,48 @@ export const pdmApi = {
     api.delete(`/pdm/v2/${slug}/actividades/${actividadId}`),
   getEvidencia: (slug: string, actividadId: number) =>
     api.get<PdmActividadEvidencia>(`/pdm/v2/${slug}/actividades/${actividadId}/evidencia`).then((r) => r.data),
-  registrarEvidencia: (slug: string, actividadId: number, payload: Partial<PdmActividadEvidencia>) =>
-    api.post<PdmActividadEvidencia>(`/pdm/v2/${slug}/actividades/${actividadId}/evidencia`, payload).then((r) => r.data),
-  actualizarEvidencia: (slug: string, actividadId: number, payload: Partial<PdmActividadEvidencia>) =>
-    api.put<PdmActividadEvidencia>(`/pdm/v2/${slug}/actividades/${actividadId}/evidencia`, payload).then((r) => r.data),
+  registrarEvidencia: (
+    slug: string,
+    actividadId: number,
+    payload: {
+      descripcion: string;
+      url_evidencia?: string;
+      archivos?: File[];
+    },
+  ) => {
+    const form = new FormData();
+    form.append("descripcion", payload.descripcion);
+    if (payload.url_evidencia) form.append("url_evidencia", payload.url_evidencia);
+    payload.archivos?.forEach((file) => form.append("archivos", file));
+    return api
+      .post<PdmActividadEvidencia>(`/pdm/v2/${slug}/actividades/${actividadId}/evidencia`, form, {
+        timeout: 120_000,
+      })
+      .then((r) => r.data);
+  },
+  actualizarEvidencia: (
+    slug: string,
+    actividadId: number,
+    payload: {
+      descripcion: string;
+      url_evidencia?: string;
+      archivos?: File[];
+      archivos_eliminar?: number[];
+    },
+  ) => {
+    const form = new FormData();
+    form.append("descripcion", payload.descripcion);
+    form.append("url_evidencia", payload.url_evidencia || "");
+    payload.archivos?.forEach((file) => form.append("archivos", file));
+    if (payload.archivos_eliminar?.length) {
+      form.append("archivos_eliminar", payload.archivos_eliminar.join(","));
+    }
+    return api
+      .put<PdmActividadEvidencia>(`/pdm/v2/${slug}/actividades/${actividadId}/evidencia`, form, {
+        timeout: 120_000,
+      })
+      .then((r) => r.data);
+  },
   asignarResponsable: (slug: string, codigoProducto: string, secretariaId: number) =>
     api
       .patch(
