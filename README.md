@@ -281,7 +281,7 @@ Repositorio: **git@github.com:largoMiguel/app-django.git** · Servidor: `/opt/so
 | Rama | Qué pasa en GitHub Actions |
 |------|---------------------------|
 | `development` | Sin workflows automáticos (trabajo local / push manual) |
-| `main` | Push: tests + deploy automático a https://app.softone360.com |
+| `main` | Push: deploy automático a https://app.softone360.com (sin CI previo) |
 | PR hacia `main` | CI (tests backend + build frontend) antes del merge |
 
 ```
