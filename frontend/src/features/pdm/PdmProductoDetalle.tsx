@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Calendar,
   CheckCircle2,
@@ -34,6 +34,7 @@ import {
   formatearNumero,
   formatFechaCorta,
   formatFechaHora,
+  fuentePresupuestalTieneValores,
   getAniosConMetas,
   getAvanceAnio,
   getColorEstadoActividad,
@@ -118,6 +119,22 @@ export default function PdmProductoDetalle({
   onAbrirBpin,
   unidad,
 }: PdmProductoDetalleProps) {
+  const fuentesActivas = useMemo(
+    () => ejecucionPresupuestal?.fuentes_detalle?.filter(fuentePresupuestalTieneValores) ?? [],
+    [ejecucionPresupuestal],
+  );
+  const totalesFuentesActivas = useMemo(
+    () =>
+      fuentesActivas.reduce(
+        (acc, f) => ({
+          pto_definitivo: acc.pto_definitivo + (f.pto_definitivo ?? 0),
+          pagos: acc.pagos + (f.pagos ?? 0),
+        }),
+        { pto_definitivo: 0, pagos: 0 },
+      ),
+    [fuentesActivas],
+  );
+
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       {/* Main column */}
@@ -340,6 +357,12 @@ export default function PdmProductoDetalle({
             </div>
           )}
         </PdmCard>
+
+        <ContratosRPSSection
+          anioDetalle={anioDetalle}
+          contratosRPS={contratosRPS}
+          cargandoContratos={cargandoContratos}
+        />
       </div>
 
       {/* Sidebar */}
@@ -419,34 +442,42 @@ export default function PdmProductoDetalle({
             </div>
           ) : ejecucionPresupuestal ? (
             <>
-              {ejecucionPresupuestal.fuentes_detalle?.length ? (
-                <div className="space-y-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fuentes Presupuestales</p>
-                  {ejecucionPresupuestal.fuentes_detalle.map((fuente, idx) => (
-                    <div key={`${fuente.nombre}-${idx}`} className={idx > 0 ? "border-t border-slate-100 pt-4" : undefined}>
-                      <p className="mb-2 text-sm font-semibold text-slate-800">{etiquetaFuentePresupuestal(fuente)}</p>
+              {fuentesActivas.length ? (
+                <div className="space-y-2">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">Fuentes Presupuestales</p>
+                  {fuentesActivas.map((fuente, idx) => (
+                    <div
+                      key={`${fuente.nombre}-${idx}`}
+                      className={`rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2 ${idx > 0 ? "mt-1" : ""}`}
+                    >
+                      <p className="mb-1 line-clamp-2 text-xs font-semibold leading-snug text-slate-800">
+                        {etiquetaFuentePresupuestal(fuente)}
+                      </p>
                       {esCodigoFuentePresupuestal(fuente.nombre) && (
-                        <p className="mb-2 text-xs text-slate-500">
-                          Código fuente: {fuente.nombre}. Vuelva a cargar el Excel de ejecución para mostrar el nombre
-                          descriptivo.
+                        <p className="mb-1 text-[0.65rem] leading-snug text-slate-500">
+                          Código: {fuente.nombre}. Recargue ejecución para nombre descriptivo.
                         </p>
                       )}
                       <FuentePresupuestalTable fuente={fuente} />
                     </div>
                   ))}
-                  {ejecucionPresupuestal.fuentes_detalle.length > 1 && (
-                    <div className="border-t border-slate-100 pt-4">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Total Consolidado</p>
-                      <table className="w-full text-sm">
+                  {fuentesActivas.length > 1 && (
+                    <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                      <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                        Total Consolidado
+                      </p>
+                      <table className="w-full text-xs">
                         <tbody>
                           <tr>
-                            <td className="py-1 text-slate-500">Pto. Definitivo:</td>
-                            <td className="py-1 text-right font-semibold">{formatearMoneda(ejecucionPresupuestal.totales.pto_definitivo)}</td>
+                            <td className="py-0.5 text-slate-500">Pto. Definitivo:</td>
+                            <td className="py-0.5 text-right font-semibold">
+                              {formatearMoneda(totalesFuentesActivas.pto_definitivo)}
+                            </td>
                           </tr>
                           <tr>
-                            <td className="py-1 font-medium text-blue-600">Pagos:</td>
-                            <td className="py-1 text-right font-bold text-blue-600">
-                              {formatearMoneda(ejecucionPresupuestal.totales.pagos)}
+                            <td className="py-0.5 font-medium text-blue-600">Pagos:</td>
+                            <td className="py-0.5 text-right font-bold text-blue-600">
+                              {formatearMoneda(totalesFuentesActivas.pagos)}
                             </td>
                           </tr>
                         </tbody>
@@ -455,7 +486,7 @@ export default function PdmProductoDetalle({
                   )}
                 </div>
               ) : (
-                <PdmAlert tone="info">Ejecución presupuestal disponible sin desglose por fuente.</PdmAlert>
+                <PdmAlert tone="info">Sin fuentes presupuestales con valores para este producto.</PdmAlert>
               )}
             </>
           ) : (
@@ -477,92 +508,117 @@ export default function PdmProductoDetalle({
               </PdmAlert>
             </div>
           )}
-
-          {cargandoContratos ? (
-            <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
-              <Loader2 size={14} className="animate-spin" />
-              Cargando contratos RPS...
-            </div>
-          ) : contratosRPS && contratosRPS.cantidad_contratos > 0 ? (
-            <div className="mt-5 border-t border-slate-100 pt-5">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Contratos RPS ({anioDetalle})
-              </p>
-              <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-900">
-                <FileText size={16} className="shrink-0 text-blue-600" />
-                <span>
-                  <strong>{contratosRPS.cantidad_contratos}</strong> contrato(s) · Total contratado:{" "}
-                  <strong>{formatearMoneda(contratosRPS.total_contratado)}</strong>
-                </span>
-              </div>
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <table className="w-full min-w-[280px] text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                      <th className="px-3 py-2 font-medium">No. CRP</th>
-                      <th className="px-3 py-2 font-medium">Concepto</th>
-                      <th className="px-3 py-2 text-right font-medium">Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {contratosRPS.contratos.map((contrato, idx) => (
-                      <tr
-                        key={contrato.id}
-                        className={`border-b border-slate-100 last:border-0 ${idx % 2 === 1 ? "bg-slate-50/80" : "bg-white"}`}
-                      >
-                        <td className="px-3 py-2.5 font-semibold text-slate-800">{contrato.no_crp}</td>
-                        <td className="px-3 py-2.5 text-slate-600">{contrato.concepto || "Sin concepto"}</td>
-                        <td className="px-3 py-2.5 text-right font-bold text-emerald-600">
-                          {formatearMoneda(contrato.valor)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
         </PdmCard>
       </div>
     </div>
   );
 }
 
+function ContratosRPSSection({
+  anioDetalle,
+  contratosRPS,
+  cargandoContratos,
+}: {
+  anioDetalle: number;
+  contratosRPS: ContratosRPSResumen | null;
+  cargandoContratos: boolean;
+}) {
+  if (cargandoContratos) {
+    return (
+      <PdmCard title={`Contratos RPS (${anioDetalle})`} icon={<FileText size={16} className="text-blue-600" />}>
+        <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
+          <Loader2 size={16} className="animate-spin text-blue-600" />
+          Cargando contratos RPS...
+        </div>
+      </PdmCard>
+    );
+  }
+
+  if (!contratosRPS || contratosRPS.cantidad_contratos === 0) {
+    return null;
+  }
+
+  return (
+    <PdmCard
+      title={`Contratos RPS (${anioDetalle})`}
+      icon={<FileText size={16} className="text-blue-600" />}
+      headerClassName="bg-blue-50/80"
+    >
+      <div className="mb-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-cyan-50 px-4 py-3 text-sm text-blue-950 shadow-sm">
+        <FileText size={18} className="shrink-0 text-blue-600" />
+        <span>
+          <strong className="text-base">{contratosRPS.cantidad_contratos}</strong> contrato(s) · Total contratado:{" "}
+          <strong className="text-base text-emerald-700">{formatearMoneda(contratosRPS.total_contratado)}</strong>
+        </span>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+        <table className="w-full min-w-[320px] text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-600">
+              <th className="px-4 py-2.5 font-semibold">No. CRP</th>
+              <th className="px-4 py-2.5 font-semibold">Concepto</th>
+              <th className="px-4 py-2.5 text-right font-semibold">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {contratosRPS.contratos.map((contrato, idx) => (
+              <tr
+                key={contrato.id}
+                className={`border-b border-slate-100 transition last:border-0 hover:bg-blue-50/40 ${
+                  idx % 2 === 1 ? "bg-slate-50/70" : "bg-white"
+                }`}
+              >
+                <td className="px-4 py-3 align-top font-bold text-slate-900">{contrato.no_crp}</td>
+                <td className="px-4 py-3 align-top text-slate-700 leading-snug">
+                  {contrato.concepto || "Sin concepto"}
+                </td>
+                <td className="px-4 py-3 align-top text-right font-bold text-emerald-600 whitespace-nowrap">
+                  {formatearMoneda(contrato.valor)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </PdmCard>
+  );
+}
+
 function FuentePresupuestalTable({ fuente }: { fuente: PdmEjecucionProducto["fuentes_detalle"][number] }) {
   return (
-    <table className="w-full text-sm">
+    <table className="w-full text-xs leading-tight">
       <tbody>
         <tr>
-          <td className="py-1 text-slate-500">Pto. Inicial:</td>
-          <td className="py-1 text-right">{formatearMoneda(fuente.pto_inicial)}</td>
+          <td className="py-0.5 text-slate-500">Pto. Inicial:</td>
+          <td className="py-0.5 text-right">{formatearMoneda(fuente.pto_inicial)}</td>
         </tr>
         <tr>
-          <td className="py-1 text-emerald-600">Adición:</td>
-          <td className="py-1 text-right text-emerald-600">+{formatearMoneda(fuente.adicion)}</td>
+          <td className="py-0.5 text-emerald-600">Adición:</td>
+          <td className="py-0.5 text-right text-emerald-600">+{formatearMoneda(fuente.adicion)}</td>
         </tr>
         <tr>
-          <td className="py-1 text-red-600">Reducción:</td>
-          <td className="py-1 text-right text-red-600">-{formatearMoneda(fuente.reduccion)}</td>
+          <td className="py-0.5 text-red-600">Reducción:</td>
+          <td className="py-0.5 text-right text-red-600">-{formatearMoneda(fuente.reduccion)}</td>
         </tr>
         {fuente.credito > 0 && (
           <tr>
-            <td className="py-1 text-slate-500">Crédito:</td>
-            <td className="py-1 text-right">{formatearMoneda(fuente.credito)}</td>
+            <td className="py-0.5 text-slate-500">Crédito:</td>
+            <td className="py-0.5 text-right">{formatearMoneda(fuente.credito)}</td>
           </tr>
         )}
         {fuente.contracredito > 0 && (
           <tr>
-            <td className="py-1 text-slate-500">Contracrédito:</td>
-            <td className="py-1 text-right">{formatearMoneda(fuente.contracredito)}</td>
+            <td className="py-0.5 text-slate-500">Contracrédito:</td>
+            <td className="py-0.5 text-right">{formatearMoneda(fuente.contracredito)}</td>
           </tr>
         )}
         <tr>
-          <td className="py-1 font-semibold text-slate-800">Pto. Definitivo:</td>
-          <td className="py-1 text-right font-semibold">{formatearMoneda(fuente.pto_definitivo)}</td>
+          <td className="py-0.5 font-semibold text-slate-800">Pto. Definitivo:</td>
+          <td className="py-0.5 text-right font-semibold">{formatearMoneda(fuente.pto_definitivo)}</td>
         </tr>
         <tr>
-          <td className="py-1 font-medium text-blue-600">Pagos:</td>
-          <td className="py-1 text-right font-bold text-blue-600">{formatearMoneda(fuente.pagos)}</td>
+          <td className="py-0.5 font-medium text-blue-600">Pagos:</td>
+          <td className="py-0.5 text-right font-bold text-blue-600">{formatearMoneda(fuente.pagos)}</td>
         </tr>
       </tbody>
     </table>

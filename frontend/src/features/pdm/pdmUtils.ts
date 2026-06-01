@@ -408,3 +408,23 @@ export function etiquetaFuentePresupuestal(fuente: { nombre: string; codigo_fuen
   }
   return fuente.nombre || fuente.codigo_fuente || "Sin Fuente";
 }
+
+export function fuentePresupuestalTieneValores(fuente: {
+  pto_inicial?: number;
+  adicion?: number;
+  reduccion?: number;
+  credito?: number;
+  contracredito?: number;
+  pto_definitivo?: number;
+  pagos?: number;
+}): boolean {
+  return (
+    (fuente.pto_inicial ?? 0) !== 0 ||
+    (fuente.adicion ?? 0) !== 0 ||
+    (fuente.reduccion ?? 0) !== 0 ||
+    (fuente.credito ?? 0) !== 0 ||
+    (fuente.contracredito ?? 0) !== 0 ||
+    (fuente.pto_definitivo ?? 0) !== 0 ||
+    (fuente.pagos ?? 0) !== 0
+  );
+}

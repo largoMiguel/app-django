@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { Loader2, X } from "lucide-react";
+import { useRef, type ReactNode } from "react";
+import { CloudUpload, FileSpreadsheet, Loader2, X } from "lucide-react";
 
 export function PdmPageShell({ children }: { children: ReactNode }) {
   return <div className="mx-auto w-full max-w-[1600px] space-y-6 px-1 pb-8 sm:px-0">{children}</div>;
@@ -270,6 +270,70 @@ export function PdmYearPills({ years, selected, onSelect }: { years: readonly nu
           {anio}
         </button>
       ))}
+    </div>
+  );
+}
+
+export function PdmFilePicker({
+  accept,
+  file,
+  onChange,
+  hint,
+  emptyLabel = "Seleccionar archivo",
+}: {
+  accept: string;
+  file: File | null;
+  onChange: (file: File | null) => void;
+  hint?: ReactNode;
+  emptyLabel?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="mt-4">
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={(e) => onChange(e.target.files?.[0] || null)}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/50"
+      >
+        {file ? (
+          <>
+            <FileSpreadsheet className="h-10 w-10 text-emerald-600" />
+            <span className="text-sm font-medium text-slate-800">{file.name}</span>
+            <span className="text-xs text-slate-500">Clic para cambiar archivo</span>
+          </>
+        ) : (
+          <>
+            <CloudUpload className="h-10 w-10 text-blue-500" />
+            <span className="text-sm font-medium text-slate-700">{emptyLabel}</span>
+            <span className="text-xs text-slate-500">Excel (.xlsx, .xls) o CSV</span>
+          </>
+        )}
+      </button>
+      {file && (
+        <div className="mt-2 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+          <span className="truncate text-slate-700">{file.name}</span>
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null);
+              if (inputRef.current) inputRef.current.value = "";
+            }}
+            className="ml-2 shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            aria-label="Quitar archivo"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+      {hint && <div className="mt-3 text-xs text-slate-500">{hint}</div>}
     </div>
   );
 }

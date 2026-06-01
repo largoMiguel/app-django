@@ -39,7 +39,7 @@ import {
   type ResumenProducto,
   type VistaPdm,
 } from "@/features/pdm/pdmUtils";
-import { PdmAlert, PdmCard, PdmLoadingOverlay, PdmModal } from "@/features/pdm/components/PdmUi";
+import { PdmAlert, PdmCard, PdmFilePicker, PdmLoadingOverlay, PdmModal } from "@/features/pdm/components/PdmUi";
 import type { PdmActividad, PdmEjecucionProducto } from "@/core/api/pdm";
 
 const PAGE_SIZE = 15;
@@ -702,11 +702,11 @@ export default function PdmPage(): ReactElement {
             </option>
           ))}
         </select>
-        <input
-          type="file"
-          className="mt-4 block w-full text-sm"
+        <PdmFilePicker
           accept=".xlsx,.xls,.csv"
-          onChange={(e) => setArchivoEjecucion(e.target.files?.[0] || null)}
+          file={archivoEjecucion}
+          onChange={setArchivoEjecucion}
+          emptyLabel="Seleccionar Excel de ejecución"
         />
       </PdmModal>
 
@@ -758,11 +758,24 @@ export default function PdmPage(): ReactElement {
             </option>
           ))}
         </select>
-        <input type="file" className="mt-4 block w-full text-sm" accept=".xlsx,.xls,.csv" onChange={(e) => setArchivoContratos(e.target.files?.[0] || null)} />
-        <p className="mt-3 text-xs text-slate-500">
-          Columnas: <strong>PRODUCTO</strong>, <strong>NO CRP</strong> (o CRP / NO CRP/CRP), <strong>VALOR</strong>.
-          Opcionales: CONCEPTO, CONTRATISTA. Los encabezados pueden estar en filas intermedias del Excel.
-        </p>
+        <div className="mt-3">
+          <PdmAlert tone="info">
+            Actualiza contratos existentes y agrega nuevos según producto y No. CRP (no elimina los que no vengan en el
+            archivo).
+          </PdmAlert>
+        </div>
+        <PdmFilePicker
+          accept=".xlsx,.xls,.csv"
+          file={archivoContratos}
+          onChange={setArchivoContratos}
+          emptyLabel="Seleccionar Excel de contratos RPS"
+          hint={
+            <>
+              Columnas: <strong>PRODUCTO</strong>, <strong>NO CRP</strong> (o CRP / NO CRP/CRP), <strong>VALOR</strong>.
+              Opcionales: CONCEPTO, CONTRATISTA.
+            </>
+          }
+        />
       </PdmModal>
 
       {productoSeleccionado && (

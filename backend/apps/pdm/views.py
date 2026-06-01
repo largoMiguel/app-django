@@ -607,27 +607,32 @@ class PdmContratosUploadView(APIView):
         content = archivo.read()
         anio = int(request.query_params.get("anio") or timezone.now().year)
         grouped = parse_contratos_rps(content, archivo.name, anio)
+        actualizados = 0
+        creados = 0
         with transaction.atomic():
-            eliminados = PDMContratoRPS.objects.filter(entity=entity, anio=anio).delete()[0]
-            nuevos = [
-                PDMContratoRPS(
+            for _, r in grouped.iterrows():
+                _, created = PDMContratoRPS.objects.update_or_create(
                     entity=entity,
+                    anio=int(r["AÑO"]),
                     codigo_producto=str(r["PRODUCTO"]),
                     no_crp=str(r["NO CRP"]),
-                    concepto=str(r["CONCEPTO"]) or None,
-                    valor=Decimal(str(_to_float(r["VALOR"]))),
-                    contratista=str(r["CONTRATISTA"]) or None,
-                    anio=int(r["AÑO"]),
+                    defaults={
+                        "concepto": str(r["CONCEPTO"]) or None,
+                        "valor": Decimal(str(_to_float(r["VALOR"]))),
+                        "contratista": str(r["CONTRATISTA"]) or None,
+                    },
                 )
-                for _, r in grouped.iterrows()
-            ]
-            PDMContratoRPS.objects.bulk_create(nuevos)
+                if created:
+                    creados += 1
+                else:
+                    actualizados += 1
         contratos = list(PDMContratoRPS.objects.filter(entity=entity, anio=anio).order_by("codigo_producto", "no_crp"))
         return Response(
             {
-                "mensaje": f"{len(contratos)} contratos RPS guardados para año {anio}",
-                "registros_insertados": len(contratos),
-                "registros_eliminados": eliminados,
+                "mensaje": f"{len(grouped)} filas procesadas: {creados} nuevos, {actualizados} actualizados (año {anio})",
+                "registros_insertados": creados,
+                "registros_actualizados": actualizados,
+                "registros_eliminados": 0,
                 "errores": [],
                 "procesados": len(grouped),
                 "contratos_agrupados": len(contratos),
