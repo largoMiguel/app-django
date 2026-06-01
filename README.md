@@ -278,18 +278,19 @@ Repositorio: **git@github.com:largoMiguel/app-django.git** · Servidor: `/opt/so
 
 ### Desplegar con GitHub (recomendado, desde cualquier lugar)
 
-| Rama | Qué pasa al hacer push |
-|------|------------------------|
-| `development` | CI: tests backend + build frontend |
-| `main` | CI + deploy automático a https://app.softone360.com |
+| Rama | Qué pasa en GitHub Actions |
+|------|---------------------------|
+| `development` | Sin workflows automáticos (trabajo local / push manual) |
+| `main` | Push: tests + deploy automático a https://app.softone360.com |
+| PR hacia `main` | CI (tests backend + build frontend) antes del merge |
 
 ```
 development (trabajo diario) → PR → main → deploy automático
 ```
 
-1. Haz commits y PRs hacia `development`.
-2. Cuando esté listo, abre PR `development` → `main` y haz merge.
-3. GitHub Actions sincroniza el código al servidor y ejecuta `deploy/scripts/deploy.sh`.
+1. Haz commits y push hacia `development` (no dispara Actions).
+2. Abre PR `development` → `main` (corre CI en el PR).
+3. Al hacer merge a `main`, GitHub Actions despliega al servidor con `deploy/scripts/deploy.sh`.
 
 ### Desplegar manualmente (SSH remoto vía Cloudflare)
 
