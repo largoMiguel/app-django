@@ -1,4 +1,4 @@
-import { FileText, LogOut, Building2, Users, FileBarChart2, BarChart3 } from "lucide-react";
+import { FileText, LogOut, Building2, Users, BarChart3 } from "lucide-react";
 import softOneLogo from "@/assets/logo_softone360.png";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
@@ -26,8 +26,6 @@ export default function Sidebar() {
   const canManageUsers =
     entity?.enable_users_admin &&
     canAccess(user, { roles: ["admin"], permissions: [PERM.USER_VIEW] });
-  const canViewInformes =
-    canViewPqrs && entity?.enable_reports_pdf && canAccess(user, { roles: ["admin"] });
   const canViewPdm =
     entity?.enable_pdm &&
     canAccess(user, { roles: ["admin", "secretario"] });
@@ -37,9 +35,6 @@ export default function Sidebar() {
   }
   if (canViewPqrs) {
     menuItems.push({ path: "/dashboard", icon: FileText, label: "PQRS", matchPaths: ["/dashboard", "/pqrs"] });
-  }
-  if (canViewInformes) {
-    menuItems.push({ path: "/informes", icon: FileBarChart2, label: "Informes", matchPaths: ["/informes"] });
   }
   if (canViewPdm) {
     menuItems.push({ path: "/pdm", icon: BarChart3, label: "PDM", matchPaths: ["/pdm"] });
