@@ -35,6 +35,8 @@ def _parse_archivos_eliminar(raw) -> list[int]:
 
 
 def attach_evidencia_archivos(evidencia, files: list, user) -> None:
+    if not files:
+        return
     existentes = evidencia.archivos.count()
     disponibles = MAX_EVIDENCIA_ARCHIVOS - existentes
     if disponibles <= 0:

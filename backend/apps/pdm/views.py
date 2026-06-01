@@ -30,6 +30,7 @@ from .access import (
     user_can_access_actividad,
     user_can_access_producto,
 )
+from .contratos_parser import parse_contratos_rps
 from .ejecucion_parser import _looks_like_codigo_fuente, parse_ejecucion_excel, rows_from_ejecucion_dataframe
 from .evidencia_storage import (
     _files_from_request,
@@ -592,22 +593,8 @@ class PdmContratosUploadView(APIView):
         if not archivo:
             raise ValidationError({"file": "Archivo requerido."})
         content = archivo.read()
-        df = pd.read_csv(io.BytesIO(content)) if archivo.name.lower().endswith(".csv") else pd.read_excel(io.BytesIO(content))
-        df.columns = [str(c).strip().upper().replace("_", " ") for c in df.columns]
-        no_crp_col = "NO CRP" if "NO CRP" in df.columns else ("CRP" if "CRP" in df.columns else None)
-        if "PRODUCTO" not in df.columns or "VALOR" not in df.columns or not no_crp_col:
-            raise ValidationError({"detail": "Columnas requeridas: PRODUCTO, NO CRP/CRP, VALOR"})
         anio = int(request.query_params.get("anio") or timezone.now().year)
-        df["AÑO"] = anio
-        df = df.dropna(subset=["PRODUCTO", no_crp_col, "VALOR"])
-        df["PRODUCTO"] = df["PRODUCTO"].astype(str).str.strip()
-        df["NO CRP"] = df[no_crp_col].astype(str).str.strip()
-        df["VALOR"] = pd.to_numeric(df["VALOR"], errors="coerce").fillna(0)
-        if "CONCEPTO" not in df.columns:
-            df["CONCEPTO"] = ""
-        if "CONTRATISTA" not in df.columns:
-            df["CONTRATISTA"] = ""
-        grouped = df.groupby(["PRODUCTO", "NO CRP", "AÑO"], as_index=False).agg({"VALOR": "sum", "CONCEPTO": "first", "CONTRATISTA": "first"})
+        grouped = parse_contratos_rps(content, archivo.name, anio)
         with transaction.atomic():
             eliminados = PDMContratoRPS.objects.filter(entity=entity, anio=anio).delete()[0]
             nuevos = [
@@ -630,7 +617,7 @@ class PdmContratosUploadView(APIView):
                 "registros_insertados": len(contratos),
                 "registros_eliminados": eliminados,
                 "errores": [],
-                "procesados": len(df),
+                "procesados": len(grouped),
                 "contratos_agrupados": len(contratos),
                 "contratos": [
                     {
