@@ -5,6 +5,7 @@ import re
 
 from django.db.models import Q
 
+from apps.common.media_paths import is_safe_media_relative_path
 from apps.common.roles import is_platform_superadmin, user_roles
 
 from .models import PQRS
@@ -56,7 +57,7 @@ def pqrs_queryset_for_user(user, qs):
 def user_can_access_media_path(user, path: str) -> bool:
     """Valida acceso a un archivo bajo MEDIA_ROOT."""
     path = path.lstrip("/")
-    if ".." in path or path.startswith("/"):
+    if not is_safe_media_relative_path(path):
         return False
 
     entity_match = re.match(

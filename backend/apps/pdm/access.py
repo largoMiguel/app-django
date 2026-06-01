@@ -5,6 +5,7 @@ import re
 
 from django.db.models import Q, QuerySet
 
+from apps.common.media_paths import is_safe_media_relative_path
 from apps.common.roles import is_platform_superadmin, user_roles
 from apps.entities.models import Entity
 
@@ -55,7 +56,7 @@ def user_can_access_actividad(user, entity: Entity, actividad: PdmActividad) -> 
 def user_can_access_pdm_media_path(user, path: str) -> bool:
     """Valida acceso a archivos media de evidencias PDM."""
     path = path.lstrip("/")
-    if ".." in path or path.startswith("/"):
+    if not is_safe_media_relative_path(path):
         return False
 
     match = re.match(
