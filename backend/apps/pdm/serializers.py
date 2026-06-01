@@ -6,18 +6,37 @@ from rest_framework import serializers
 from .models import (
     PdmActividad,
     PdmActividadEvidencia,
+    PdmEvidenciaArchivo,
     PdmIniciativaSGR,
     PdmProducto,
 )
 
 
-class PdmIniciativaSGRSerializer(serializers.ModelSerializer):
+class PdmEvidenciaArchivoSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    nombre = serializers.SerializerMethodField()
+
     class Meta:
-        model = PdmIniciativaSGR
-        exclude = ("entity",)
+        model = PdmEvidenciaArchivo
+        fields = ("id", "nombre", "nombre_original", "content_type", "size", "url", "created_at")
+        read_only_fields = fields
+
+    def get_url(self, obj):
+        request = self.context.get("request")
+        if not obj.archivo:
+            return None
+        url = obj.archivo.url
+        if request and not url.startswith("http"):
+            return request.build_absolute_uri(url)
+        return url
+
+    def get_nombre(self, obj):
+        return obj.nombre_original or (obj.archivo.name.rsplit("/", 1)[-1] if obj.archivo else "")
 
 
 class PdmActividadEvidenciaSerializer(serializers.ModelSerializer):
+    archivos = PdmEvidenciaArchivoSerializer(many=True, read_only=True)
+
     class Meta:
         model = PdmActividadEvidencia
         fields = (
@@ -26,14 +45,18 @@ class PdmActividadEvidenciaSerializer(serializers.ModelSerializer):
             "entity",
             "descripcion",
             "url_evidencia",
-            "imagenes",
-            "imagenes_s3_urls",
-            "migrated_to_s3",
+            "archivos",
             "fecha_registro",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "entity", "fecha_registro", "created_at", "updated_at")
+        read_only_fields = ("id", "actividad", "entity", "fecha_registro", "created_at", "updated_at", "archivos")
+
+
+class PdmIniciativaSGRSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PdmIniciativaSGR
+        exclude = ("entity",)
 
 
 class PdmActividadSerializer(serializers.ModelSerializer):

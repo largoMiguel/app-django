@@ -286,7 +286,8 @@ export default function PdmPage(): ReactElement {
       const evidenciaPayload = {
         descripcion: values.descripcion.trim(),
         url_evidencia: values.evidencia_url.trim() || undefined,
-        imagenes: values.imagenes.length ? values.imagenes : [],
+        archivos: values.imagenes_nuevas,
+        archivos_eliminar: values.archivos_eliminar,
       };
       if (actividadEnEdicion?.evidencia?.id || actividadEnEdicion?.tiene_evidencia) {
         await pdmApi.actualizarEvidencia(slug, actividad.id, evidenciaPayload);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ClipboardCheck, Loader2 } from "lucide-react";
-import type { PdmActividad } from "@/core/api/pdm";
+import type { PdmActividad, PdmEvidenciaArchivo } from "@/core/api/pdm";
+import { fetchAuthenticatedFile } from "@/core/api/client";
 import type { Secretaria } from "@/core/api/entities";
 import { PdmAlert, PdmCard, PdmModal } from "@/features/pdm/components/PdmUi";
 import { pdmBtnPrimary, pdmBtnSecondary, pdmInput, pdmSelect } from "@/features/pdm/pdmLayout";
@@ -20,7 +21,8 @@ export interface ActividadFormValues {
   fecha_fin: string;
   meta_ejecutar: number;
   evidencia_url: string;
-  imagenes: string[];
+  imagenes_nuevas: File[];
+  archivos_eliminar: number[];
 }
 
 interface PdmActividadModalProps {
@@ -45,28 +47,50 @@ const EMPTY_FORM: ActividadFormValues = {
   fecha_fin: "",
   meta_ejecutar: 0,
   evidencia_url: "",
-  imagenes: [],
+  imagenes_nuevas: [],
+  archivos_eliminar: [],
 };
+
+const MAX_IMAGENES_EVIDENCIA = 4;
 
 const labelClass = "mb-1 block text-xs font-medium text-slate-600";
 const textareaClass =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
 
-function readImagesAsBase64(files: FileList | null): Promise<string[]> {
-  if (!files?.length) return Promise.resolve([]);
-  return Promise.all(
-    Array.from(files)
-      .slice(0, 4)
-      .map(
-        (file) =>
-          new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result || ""));
-            reader.onerror = () => reject(new Error("No se pudo leer una imagen."));
-            reader.readAsDataURL(file);
-          }),
-      ),
-  );
+function AuthenticatedImagePreview({
+  url,
+  alt,
+  className = "",
+}: {
+  url: string;
+  alt: string;
+  className?: string;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let blobUrl: string | null = null;
+    void fetchAuthenticatedFile(url).then((blob) => {
+      if (cancelled) return;
+      blobUrl = URL.createObjectURL(blob);
+      setSrc(blobUrl);
+    });
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [url]);
+
+  if (!src) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-100 ${className}`}>
+        <Loader2 size={18} className="animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  return <img src={src} alt={alt} className={className} />;
 }
 
 function Field({
@@ -99,6 +123,8 @@ export default function PdmActividadModal({
   onSave,
 }: PdmActividadModalProps) {
   const [form, setForm] = useState<ActividadFormValues>(EMPTY_FORM);
+  const [archivosExistentes, setArchivosExistentes] = useState<PdmEvidenciaArchivo[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
   const metaDisponible = useMemo(() => {
@@ -121,8 +147,10 @@ export default function PdmActividadModal({
         fecha_fin: (actividadEnEdicion.fecha_fin || "").slice(0, 10),
         meta_ejecutar: Number(actividadEnEdicion.meta_ejecutar || 0),
         evidencia_url: actividadEnEdicion.evidencia?.url_evidencia || "",
-        imagenes: actividadEnEdicion.evidencia?.imagenes ? [...actividadEnEdicion.evidencia.imagenes] : [],
+        imagenes_nuevas: [],
+        archivos_eliminar: [],
       });
+      setArchivosExistentes(actividadEnEdicion.evidencia?.archivos || []);
       return;
     }
     setForm({
@@ -131,9 +159,20 @@ export default function PdmActividadModal({
       fecha_inicio: `${anio}-01-01`,
       fecha_fin: `${anio}-12-31`,
     });
+    setArchivosExistentes([]);
   }, [open, actividadEnEdicion, anio, esSecretario, secretariaUsuarioId]);
 
-  const tieneEvidenciaValida = Boolean(form.evidencia_url.trim() || form.imagenes.length > 0);
+  useEffect(() => {
+    const urls = form.imagenes_nuevas.map((file) => URL.createObjectURL(file));
+    setPreviewUrls(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [form.imagenes_nuevas]);
+
+  const totalImagenes =
+    archivosExistentes.filter((a) => !form.archivos_eliminar.includes(a.id)).length + form.imagenes_nuevas.length;
+  const slotsDisponibles = Math.max(0, MAX_IMAGENES_EVIDENCIA - totalImagenes);
+
+  const tieneEvidenciaValida = Boolean(form.evidencia_url.trim() || totalImagenes > 0);
   const canSubmit =
     form.nombre.trim().length >= 5 &&
     form.descripcion.trim().length >= 10 &&
@@ -291,26 +330,69 @@ export default function PdmActividadModal({
                 type="file"
                 accept="image/*"
                 multiple
+                disabled={slotsDisponibles <= 0}
                 className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-700"
                 onChange={(e) => {
-                  void readImagesAsBase64(e.target.files).then((imagenes) =>
-                    setForm((p) => ({ ...p, imagenes: [...p.imagenes, ...imagenes].slice(0, 4) })),
-                  );
+                  const selected = Array.from(e.target.files || []);
+                  if (!selected.length) return;
+                  setForm((p) => {
+                    const existentes = archivosExistentes.filter((a) => !p.archivos_eliminar.includes(a.id)).length;
+                    const disponibles = Math.max(0, MAX_IMAGENES_EVIDENCIA - existentes - p.imagenes_nuevas.length);
+                    const toAdd = selected.slice(0, disponibles);
+                    return {
+                      ...p,
+                      imagenes_nuevas: [...p.imagenes_nuevas, ...toAdd],
+                    };
+                  });
                   e.target.value = "";
                 }}
               />
+              {slotsDisponibles <= 0 && (
+                <p className="mt-1 text-xs text-amber-700">Límite de 4 imágenes alcanzado.</p>
+              )}
             </Field>
 
-            {form.imagenes.length > 0 && (
+            {(archivosExistentes.length > 0 || form.imagenes_nuevas.length > 0) && (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {form.imagenes.map((imagen, index) => (
-                  <div key={`${index}-${imagen.slice(0, 16)}`} className="relative overflow-hidden rounded-lg border border-slate-200">
-                    <img src={imagen} alt={`Evidencia ${index + 1}`} className="aspect-square w-full object-cover" />
+                {archivosExistentes.map((archivo) => {
+                  if (form.archivos_eliminar.includes(archivo.id)) return null;
+                  return (
+                    <div key={archivo.id} className="relative overflow-hidden rounded-lg border border-slate-200">
+                      <AuthenticatedImagePreview
+                        url={archivo.url}
+                        alt={archivo.nombre}
+                        className="aspect-square w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-1 top-1 rounded bg-red-600 px-1.5 py-0.5 text-xs text-white"
+                        onClick={() =>
+                          setForm((p) => ({
+                            ...p,
+                            archivos_eliminar: [...p.archivos_eliminar, archivo.id],
+                          }))
+                        }
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  );
+                })}
+                {form.imagenes_nuevas.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="relative overflow-hidden rounded-lg border border-slate-200">
+                    <img
+                      src={previewUrls[index]}
+                      alt={`Nueva evidencia ${index + 1}`}
+                      className="aspect-square w-full object-cover"
+                    />
                     <button
                       type="button"
                       className="absolute right-1 top-1 rounded bg-red-600 px-1.5 py-0.5 text-xs text-white"
                       onClick={() =>
-                        setForm((p) => ({ ...p, imagenes: p.imagenes.filter((_, i) => i !== index) }))
+                        setForm((p) => ({
+                          ...p,
+                          imagenes_nuevas: p.imagenes_nuevas.filter((_, i) => i !== index),
+                        }))
                       }
                     >
                       Quitar

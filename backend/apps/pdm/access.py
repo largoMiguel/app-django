@@ -1,6 +1,8 @@
 """Control de acceso y queryset base por entidad/rol — módulo PDM."""
 from __future__ import annotations
 
+import re
+
 from django.db.models import Q, QuerySet
 
 from apps.common.roles import is_platform_superadmin, user_roles
@@ -48,6 +50,33 @@ def user_can_access_actividad(user, entity: Entity, actividad: PdmActividad) -> 
     if _is_secretario(user):
         return user_can_access_producto(user, entity, actividad.codigo_producto)
     return False
+
+
+def user_can_access_pdm_media_path(user, path: str) -> bool:
+    """Valida acceso a archivos media de evidencias PDM."""
+    path = path.lstrip("/")
+    if ".." in path or path.startswith("/"):
+        return False
+
+    match = re.match(
+        r"^entities/(?P<entity_id>\d+)/pdm/evidencias/(?P<actividad_id>\d+)/",
+        path,
+    )
+    if not match:
+        return False
+
+    entity = Entity.objects.filter(pk=int(match.group("entity_id"))).first()
+    if entity is None:
+        return False
+
+    actividad = PdmActividad.objects.filter(
+        pk=int(match.group("actividad_id")),
+        entity_id=entity.id,
+    ).first()
+    if actividad is None:
+        return False
+
+    return user_can_access_actividad(user, entity, actividad)
 
 
 def codigos_producto_for_user(user, entity: Entity) -> list[str]:

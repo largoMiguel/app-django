@@ -1,15 +1,23 @@
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
+  Calendar,
   CheckCircle2,
+  Clock,
   Edit,
+  ExternalLink,
   Inbox,
   Info,
   Loader2,
   Plus,
   Scale,
+  Target,
   Trash2,
+  User,
+  X,
 } from "lucide-react";
-import type { PdmActividad, PdmContrato, PdmEjecucionProducto } from "@/core/api/pdm";
+import type { PdmActividad, PdmContrato, PdmEjecucionProducto, PdmEvidenciaArchivo } from "@/core/api/pdm";
+import { fetchAuthenticatedFile } from "@/core/api/client";
 import {
   PdmAlert,
   PdmBadge,
@@ -552,6 +560,84 @@ function FuentePresupuestalTable({ fuente }: { fuente: PdmEjecucionProducto["fue
   );
 }
 
+function AuthenticatedImage({
+  url,
+  alt,
+  className = "",
+  onClick,
+}: {
+  url: string;
+  alt: string;
+  className?: string;
+  onClick?: () => void;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let blobUrl: string | null = null;
+    void fetchAuthenticatedFile(url).then((blob) => {
+      if (cancelled) return;
+      blobUrl = URL.createObjectURL(blob);
+      setSrc(blobUrl);
+    });
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [url]);
+
+  if (!src) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-100 ${className}`}>
+        <Loader2 size={18} className="animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  return <img src={src} alt={alt} className={className} onClick={onClick} />;
+}
+
+function AuthenticatedImageModal({ url, onClose }: { url: string; onClose: () => void }) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let blobUrl: string | null = null;
+    void fetchAuthenticatedFile(url).then((blob) => {
+      if (cancelled) return;
+      blobUrl = URL.createObjectURL(blob);
+      setSrc(blobUrl);
+    });
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [url]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        aria-label="Cerrar"
+      >
+        <X size={24} />
+      </button>
+      {src ? (
+        <img src={src} alt="Evidencia ampliada" className="max-h-[90vh] max-w-full object-contain" onClick={(e) => e.stopPropagation()} />
+      ) : (
+        <Loader2 size={32} className="animate-spin text-white" />
+      )}
+    </div>
+  );
+}
+
 function ActividadCard({
   actividad,
   unidad,
@@ -569,112 +655,150 @@ function ActividadCard({
   onEliminar: () => void;
   onCargarEvidencia: () => void;
 }) {
+  const [imagenModal, setImagenModal] = useState<PdmEvidenciaArchivo | null>(null);
   const tieneEvidencia = actividad.tiene_evidencia || actividad.evidencia;
+  const archivos = actividad.evidencia?.archivos || [];
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-slate-900">{actividad.nombre}</h3>
-            <PdmBadge tone={getColorEstadoActividad(actividad.estado)}>{getTextoEstadoActividad(actividad.estado)}</PdmBadge>
-            {tieneEvidencia && (
-              <PdmBadge tone="success">
-                <CheckCircle2 size={12} className="mr-1 inline" />
-                Con Evidencia
-              </PdmBadge>
-            )}
+    <>
+      <div className="actividad-card overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition duration-300 hover:translate-x-1 hover:shadow-md">
+        <div className="border-l-4 border-[#4e73df] p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <h6 className="mb-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+                {actividad.nombre}
+                <PdmBadge tone={getColorEstadoActividad(actividad.estado)}>
+                  {getTextoEstadoActividad(actividad.estado)}
+                </PdmBadge>
+                {actividad.evidencia && (
+                  <PdmBadge tone="success">
+                    <CheckCircle2 size={12} className="mr-1 inline" />
+                    Con Evidencia
+                  </PdmBadge>
+                )}
+              </h6>
+              <p className="mb-2 text-sm text-slate-500">{actividad.descripcion || "Sin descripción"}</p>
+              <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+                <div className="flex items-start gap-1.5">
+                  <User size={12} className="mt-0.5 shrink-0 text-slate-400" />
+                  <span>
+                    <strong>Responsable:</strong> {actividad.responsable_secretaria_nombre || "Sin asignar"}
+                  </span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <Calendar size={12} className="mt-0.5 shrink-0 text-slate-400" />
+                  <span>
+                    <strong>Fechas:</strong> {formatFechaCorta(actividad.fecha_inicio)} - {formatFechaCorta(actividad.fecha_fin)}
+                  </span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <Target size={12} className="mt-0.5 shrink-0 text-slate-400" />
+                  <span>
+                    <strong>Meta:</strong> {formatearNumero(actividad.meta_ejecutar)} {unidad}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex shrink-0 gap-1.5 sm:ml-3">
+              {puedeCrearEvidencia && (!actividad.tiene_evidencia || isAdmin) && (
+                <PdmBtn
+                  variant="outline"
+                  size="sm"
+                  onClick={onEditar}
+                  title={actividad.tiene_evidencia ? "Editar Evidencia (Admin)" : "Agregar Evidencia"}
+                >
+                  <Edit size={14} />
+                </PdmBtn>
+              )}
+              {(!actividad.tiene_evidencia || isAdmin) && (
+                <PdmBtn
+                  variant="danger"
+                  size="sm"
+                  onClick={onEliminar}
+                  title={actividad.tiene_evidencia ? "Eliminar (Admin - incluye evidencia)" : "Eliminar"}
+                >
+                  <Trash2 size={14} />
+                </PdmBtn>
+              )}
+            </div>
           </div>
-          <p className="text-sm text-slate-500">{actividad.descripcion || "Sin descripción"}</p>
-          <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-3">
-            <span>
-              <strong className="text-slate-700">Responsable:</strong> {actividad.responsable_secretaria_nombre || "Sin asignar"}
-            </span>
-            <span>
-              <strong className="text-slate-700">Fechas:</strong> {formatFechaCorta(actividad.fecha_inicio)} -{" "}
-              {formatFechaCorta(actividad.fecha_fin)}
-            </span>
-            <span>
-              <strong className="text-slate-700">Meta:</strong> {formatearNumero(actividad.meta_ejecutar)} {unidad}
-            </span>
-          </div>
-        </div>
-        <div className="flex shrink-0 gap-1.5">
-          {puedeCrearEvidencia && (!actividad.tiene_evidencia || isAdmin) && (
-            <PdmBtn
-              variant="outline"
-              size="sm"
-              onClick={onEditar}
-              title={actividad.tiene_evidencia ? "Editar Evidencia (Admin)" : "Agregar Evidencia"}
-            >
-              <Edit size={14} />
-            </PdmBtn>
-          )}
-          {(!actividad.tiene_evidencia || isAdmin) && (
-            <PdmBtn variant="danger" size="sm" onClick={onEliminar}>
-              <Trash2 size={14} />
-            </PdmBtn>
+
+          {tieneEvidencia && (
+            <div className="mt-3 rounded-lg bg-slate-100 p-3">
+              {actividad.tiene_evidencia && !actividad.evidencia && !actividad.cargandoEvidencia && (
+                <button
+                  type="button"
+                  onClick={onCargarEvidencia}
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 py-3 text-sm text-slate-500 transition hover:text-slate-700"
+                >
+                  <CheckCircle2 size={16} className="text-emerald-600" />
+                  Tiene evidencia - Clic para cargar
+                </button>
+              )}
+
+              {actividad.cargandoEvidencia && (
+                <div className="flex items-center justify-center gap-2 py-3 text-sm text-slate-500">
+                  <Loader2 size={16} className="animate-spin text-blue-600" />
+                  Cargando evidencia...
+                </div>
+              )}
+
+              {actividad.evidencia && (
+                <div>
+                  <h6 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+                    <CheckCircle2 size={16} />
+                    Evidencia de Cumplimiento
+                  </h6>
+                  {actividad.evidencia.descripcion &&
+                    actividad.evidencia.descripcion.trim().toLowerCase() !==
+                      (actividad.descripcion || "").trim().toLowerCase() && (
+                      <p className="mb-2 text-sm text-slate-700">
+                        <strong>Descripción evidencia:</strong> {actividad.evidencia.descripcion}
+                      </p>
+                    )}
+                  <p className="mb-2 flex items-center gap-1.5 text-xs text-slate-500">
+                    <Clock size={12} />
+                    Registrado el {formatFechaHora(actividad.evidencia.fecha_registro)}
+                  </p>
+                  {actividad.evidencia.url_evidencia && (
+                    <div className="mb-2">
+                      <a
+                        href={actividad.evidencia.url_evidencia}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-white px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                      >
+                        <ExternalLink size={12} />
+                        Ver Evidencia Externa
+                      </a>
+                    </div>
+                  )}
+                  {archivos.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                      {archivos.map((archivo) => (
+                        <button
+                          key={archivo.id}
+                          type="button"
+                          onClick={() => setImagenModal(archivo)}
+                          className="overflow-hidden rounded-md border border-slate-300 bg-[#f0f0f0] p-0 transition hover:opacity-90"
+                        >
+                          <AuthenticatedImage
+                            url={archivo.url}
+                            alt={archivo.nombre}
+                            className="min-h-[100px] w-full cursor-pointer object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
 
-      {tieneEvidencia && (
-        <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
-          {actividad.tiene_evidencia && !actividad.evidencia && !actividad.cargandoEvidencia && (
-            <button
-              type="button"
-              onClick={onCargarEvidencia}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800"
-            >
-              <CheckCircle2 size={14} />
-              Tiene evidencia - Clic para cargar
-            </button>
-          )}
-          {actividad.cargandoEvidencia && (
-            <span className="flex items-center gap-2 text-sm text-slate-500">
-              <Loader2 size={14} className="animate-spin" />
-              Cargando evidencia...
-            </span>
-          )}
-          {actividad.evidencia && (
-            <>
-              <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
-                <CheckCircle2 size={16} />
-                Evidencia de Cumplimiento
-              </h4>
-              {actividad.evidencia.descripcion &&
-                actividad.evidencia.descripcion.trim().toLowerCase() !== (actividad.descripcion || "").trim().toLowerCase() && (
-                  <p className="mb-2 text-sm text-slate-600">
-                    <strong>Descripción evidencia:</strong> {actividad.evidencia.descripcion}
-                  </p>
-                )}
-              <p className="mb-3 text-xs text-slate-500">Registrado el {formatFechaHora(actividad.evidencia.fecha_registro)}</p>
-              {actividad.evidencia.url_evidencia && (
-                <a
-                  href={actividad.evidencia.url_evidencia}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mb-3 inline-flex items-center rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Ver Evidencia Externa
-                </a>
-              )}
-              {(actividad.evidencia.imagenes || actividad.evidencia.imagenes_s3_urls)?.length ? (
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {(actividad.evidencia.imagenes_s3_urls || actividad.evidencia.imagenes || []).map((imagen, idx) => (
-                    <img
-                      key={`${actividad.id}-${idx}`}
-                      src={imagen}
-                      alt={`Evidencia ${idx + 1}`}
-                      className="h-24 w-full rounded-lg border border-slate-200 object-cover"
-                    />
-                  ))}
-                </div>
-              ) : null}
-            </>
-          )}
-        </div>
-      )}
-    </div>
+      {imagenModal && <AuthenticatedImageModal url={imagenModal.url} onClose={() => setImagenModal(null)} />}
+    </>
   );
 }

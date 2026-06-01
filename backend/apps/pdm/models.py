@@ -1,6 +1,9 @@
 """Modelos del módulo PDM (Plan de Desarrollo Municipal)."""
 from __future__ import annotations
 
+import os
+
+from django.conf import settings
 from django.db import models
 
 
@@ -173,6 +176,13 @@ class PdmActividad(models.Model):
         ]
 
 
+def pdm_evidencia_archivo_upload_path(instance, filename: str) -> str:
+    """Ruta: entities/<entity_id>/pdm/evidencias/<actividad_id>/<filename>."""
+    evidencia = instance.evidencia
+    safe_name = os.path.basename(filename)
+    return f"entities/{evidencia.entity_id}/pdm/evidencias/{evidencia.actividad_id}/{safe_name}"
+
+
 class PdmActividadEvidencia(models.Model):
     """Evidencia de cumplimiento asociada a una actividad."""
 
@@ -190,9 +200,6 @@ class PdmActividadEvidencia(models.Model):
     )
     descripcion = models.TextField()
     url_evidencia = models.CharField(max_length=1024, blank=True, null=True)
-    imagenes = models.JSONField(blank=True, null=True)
-    imagenes_s3_urls = models.JSONField(blank=True, null=True)
-    migrated_to_s3 = models.BooleanField(default=False)
     fecha_registro = models.DateTimeField(auto_now_add=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)
@@ -204,6 +211,41 @@ class PdmActividadEvidencia(models.Model):
         indexes = [
             models.Index(fields=("entity", "actividad"), name="pdm_evid_entity_act_idx"),
         ]
+
+
+class PdmEvidenciaArchivo(models.Model):
+    """Imágenes de evidencia PDM (máx. 4 por evidencia)."""
+
+    evidencia = models.ForeignKey(
+        PdmActividadEvidencia,
+        on_delete=models.CASCADE,
+        related_name="archivos",
+        db_column="evidencia_id",
+    )
+    archivo = models.FileField(upload_to=pdm_evidencia_archivo_upload_path, max_length=500)
+    nombre_original = models.CharField(max_length=255, blank=True, default="")
+    content_type = models.CharField(max_length=120, blank=True, default="")
+    size = models.PositiveIntegerField(default=0)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pdm_evidencia_archivos_subidos",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "pdm_evidencia_archivos"
+        verbose_name = "Archivo evidencia PDM"
+        verbose_name_plural = "Archivos evidencia PDM"
+        ordering = ["created_at", "id"]
+        indexes = [
+            models.Index(fields=["evidencia"], name="pdm_evarch_evid_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.evidencia_id} — {self.nombre_original or self.archivo.name}"
 
 
 class PDMEjecucionPresupuestal(models.Model):
