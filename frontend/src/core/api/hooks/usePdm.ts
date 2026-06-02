@@ -23,7 +23,7 @@ export const pdmKeys = {
     [...pdmKeys.all, "ejecucion-producto", codigo, anio] as const,
   contratos: (slug: string, anio?: number, codigo?: string) =>
     [...pdmKeys.all, "contratos", slug, anio, codigo] as const,
-  ejecucionAnual: () => [...pdmKeys.all, "ejecucion-anual"] as const,
+  ejecucionAnual: (slug: string) => [...pdmKeys.all, "ejecucion-anual", slug] as const,
 };
 
 const META_STALE_MS = 5 * 60_000;
@@ -93,11 +93,13 @@ export function usePdmContratos(slug: string, anio?: number, codigo?: string, en
   });
 }
 
-export function usePdmResumenEjecucionAnual(enabled = true) {
+export function usePdmResumenEjecucionAnual(slug: string, enabled = true) {
   return useQuery<ResumenEjecucionAnual | null>({
-    queryKey: pdmKeys.ejecucionAnual(),
+    queryKey: pdmKeys.ejecucionAnual(slug),
     queryFn: () => pdmApi.resumenEjecucionAnualEntidad(),
-    enabled,
+    enabled: Boolean(slug) && enabled,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -118,7 +120,10 @@ export function useInvalidatePdmQueries() {
       qc.invalidateQueries({ queryKey: [...pdmKeys.all, "productos", slug] }),
     invalidateProducto: (slug: string, codigo: string, anio?: number) =>
       qc.invalidateQueries({ queryKey: pdmKeys.producto(slug, codigo, anio) }),
-    invalidateEjecucionAnual: () => qc.invalidateQueries({ queryKey: pdmKeys.ejecucionAnual() }),
+    invalidateEjecucionAnual: (slug?: string) =>
+      slug
+        ? qc.invalidateQueries({ queryKey: pdmKeys.ejecucionAnual(slug) })
+        : qc.invalidateQueries({ queryKey: [...pdmKeys.all, "ejecucion-anual"] }),
     invalidateEjecucionProducto: (codigo: string, anio?: number) =>
       qc.invalidateQueries({ queryKey: pdmKeys.ejecucionProducto(codigo, anio) }),
     invalidateContratos: (slug: string, anio?: number, codigo?: string) =>
@@ -131,8 +136,10 @@ export function useInvalidatePdmQueries() {
     afterUploadPlan: (_slug: string) => {
       void qc.invalidateQueries({ queryKey: pdmKeys.all });
     },
-    afterUploadEjecucion: () => {
-      void qc.invalidateQueries({ queryKey: pdmKeys.ejecucionAnual() });
+    afterUploadEjecucion: (slug?: string) => {
+      void qc.invalidateQueries({
+        queryKey: slug ? pdmKeys.ejecucionAnual(slug) : [...pdmKeys.all, "ejecucion-anual"],
+      });
       void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "ejecucion-producto"] });
     },
     afterAsignarResponsable: (slug: string) => {

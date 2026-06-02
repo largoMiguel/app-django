@@ -4,14 +4,13 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
-from django.db.models import Q, QuerySet, Sum
+from django.db.models import QuerySet, Sum
 
 from apps.common.media_paths import is_safe_media_relative_path
 from apps.common.roles import is_platform_superadmin, user_roles
 from apps.entities.models import Entity
 
 from .models import PdmActividad, PdmProducto, PDMEjecucionPresupuestal
-from .producto_codigo import PRODUCTO_KEY_FIELDS, producto_key_to_label_map, producto_keys_from_queryset, producto_lookup_keys
 
 
 def _is_admin(user) -> bool:
@@ -32,15 +31,18 @@ def productos_queryset_for_user(user, entity: Entity) -> QuerySet[PdmProducto]:
     return qs
 
 
+def codigos_producto_for_user(user, entity: Entity) -> list[str]:
+    return list(productos_queryset_for_user(user, entity).values_list("codigo_producto", flat=True))
+
+
 def ejecucion_queryset_for_user(user, entity: Entity) -> QuerySet[PDMEjecucionPresupuestal]:
     """Ejecución presupuestal de la entidad; secretario solo filas de sus productos asignados."""
     qs = PDMEjecucionPresupuestal.objects.filter(entity=entity)
     if _is_secretario(user) and not _is_admin(user):
-        productos_qs = productos_queryset_for_user(user, entity)
-        keys = producto_keys_from_queryset(productos_qs)
-        if not keys:
+        codigos = codigos_producto_for_user(user, entity)
+        if not codigos:
             return qs.none()
-        return qs.filter(Q(codigo_producto__in=keys) | Q(bpin__in=keys))
+        return qs.filter(codigo_producto__in=codigos)
     return qs
 
 
@@ -53,14 +55,18 @@ def ejecucion_agrupada_por_campo_producto(
 ) -> list[dict]:
     """Suma pagos de ejecución (todos los años) agrupados por línea o sector del producto PDM."""
     productos_qs = productos_queryset_for_user(user, entity)
-    key_to_label = producto_key_to_label_map(productos_qs, field_name, default_label)
-    if not key_to_label:
+    codigo_to_label = {
+        str(row["codigo_producto"]).strip(): row[field_name] or default_label
+        for row in productos_qs.values("codigo_producto", field_name)
+        if str(row["codigo_producto"]).strip()
+    }
+    if not codigo_to_label:
         return []
 
     grouped: dict[str, float] = defaultdict(float)
     rows = (
         ejecucion_queryset_for_user(user, entity)
-        .values("codigo_producto", "bpin")
+        .values("codigo_producto")
         .annotate(pagos=Sum("pagos"))
     )
     for row in rows:
@@ -68,8 +74,7 @@ def ejecucion_agrupada_por_campo_producto(
         if pagos <= 0:
             continue
         codigo = str(row["codigo_producto"]).strip()
-        bpin = str(row["bpin"]).strip() if row.get("bpin") else ""
-        label = key_to_label.get(codigo) or (key_to_label.get(bpin) if bpin else None)
+        label = codigo_to_label.get(codigo)
         if not label:
             continue
         grouped[label] += pagos
@@ -133,19 +138,3 @@ def user_can_access_pdm_media_path(user, path: str) -> bool:
         return False
 
     return user_can_access_actividad(user, entity, actividad)
-
-
-def codigos_producto_for_user(user, entity: Entity) -> list[str]:
-    return list(productos_queryset_for_user(user, entity).values_list("codigo_producto", flat=True))
-
-
-def ejecucion_keys_for_producto(entity: Entity, codigo_producto: str) -> set[str]:
-    """Claves con las que puede estar registrada la ejecución de un producto PDM."""
-    row = (
-        PdmProducto.objects.filter(entity=entity, codigo_producto=codigo_producto)
-        .values(*PRODUCTO_KEY_FIELDS)
-        .first()
-    )
-    if not row:
-        return {str(codigo_producto).strip()} if str(codigo_producto).strip() else set()
-    return producto_lookup_keys(row)

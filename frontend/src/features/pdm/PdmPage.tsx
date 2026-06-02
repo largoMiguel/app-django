@@ -209,7 +209,7 @@ export default function PdmPage(): ReactElement {
     enabled: needsSecretarias,
   });
 
-  const { data: resumenEjecucion } = usePdmResumenEjecucionAnual(tieneDatos && vista === "dashboard");
+  const { data: resumenEjecucion } = usePdmResumenEjecucionAnual(slug, tieneDatos && vista === "dashboard");
 
   const codigoDetalle = vista === "detalle" ? codigoUrl : "";
   const detalleEnabled = tieneDatos && vista === "detalle" && Boolean(codigoDetalle && slug);
@@ -737,7 +737,7 @@ export default function PdmPage(): ReactElement {
                   setSaving(true);
                   try {
                     const result = await pdmApi.uploadEjecucion(archivoEjecucion, anioEjecucion);
-                    invalidatePdm.afterUploadEjecucion();
+                    invalidatePdm.afterUploadEjecucion(slug);
                     setModalEjecucion(false);
                     setArchivoEjecucion(null);
                     setError(null);
