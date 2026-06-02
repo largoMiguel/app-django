@@ -37,7 +37,7 @@ from .evidencia_storage import (
 )
 from .filters import PdmProductoFilterSet
 from .metrics import ANIOS_PDM, actividad_aggs_for_productos, estado_producto_anio, producto_list_metrics, resumen_anio
-from .stats import compute_estado_stats, compute_pdm_stats_from_queryset, filter_options_from_productos
+from .stats import compute_estado_stats, compute_pdm_stats_from_queryset, filter_options_from_productos, productos_for_stats
 from .models import (
     ActividadEstado,
     PDMContratoRPS,
@@ -60,19 +60,6 @@ _PRESUPUESTO_JSON_FIELDS = (
     "presupuesto_2025",
     "presupuesto_2026",
     "presupuesto_2027",
-)
-
-_ESTADO_STATS_ONLY_FIELDS = (
-    "id",
-    "codigo_producto",
-    "programacion_2024",
-    "programacion_2025",
-    "programacion_2026",
-    "programacion_2027",
-    "total_2024",
-    "total_2025",
-    "total_2026",
-    "total_2027",
 )
 
 
@@ -201,7 +188,7 @@ class PdmStatsView(APIView):
             anio = int(anio_param) if anio_param else datetime.now().year
         except (TypeError, ValueError):
             anio = datetime.now().year
-        productos_estado = list(productos_qs.only(*_ESTADO_STATS_ONLY_FIELDS))
+        productos_estado = productos_for_stats(productos_qs)
         stats["estado_por_anio"] = compute_estado_stats(productos_estado, entity.id, anio)
         stats["anio_seguimiento"] = anio
         return Response(stats)

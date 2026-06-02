@@ -3,18 +3,48 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from django.db.models import F, QuerySet, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models import QuerySet, Sum
 
 from .metrics import ANIOS_PDM, actividad_aggs_for_productos, estado_producto_anio, resumen_anio
 from .models import PdmProducto
 
-_PRESUPUESTO_TOTAL_EXPR = (
-    Coalesce(F("total_2024"), Value(0.0))
-    + Coalesce(F("total_2025"), Value(0.0))
-    + Coalesce(F("total_2026"), Value(0.0))
-    + Coalesce(F("total_2027"), Value(0.0))
+_ESTADO_STATS_FIELDS = (
+    "id",
+    "codigo_producto",
+    "linea_estrategica",
+    "sector_mga",
+    "programacion_2024",
+    "programacion_2025",
+    "programacion_2026",
+    "programacion_2027",
+    "total_2024",
+    "total_2025",
+    "total_2026",
+    "total_2027",
 )
+
+
+def _sum_presupuesto_grouped(productos_qs: QuerySet[PdmProducto], group_field: str, default_label: str, label_key: str) -> list[dict]:
+    rows = (
+        productos_qs.values(group_field)
+        .annotate(
+            t2024=Sum("total_2024"),
+            t2025=Sum("total_2025"),
+            t2026=Sum("total_2026"),
+            t2027=Sum("total_2027"),
+        )
+        .order_by()
+    )
+    grouped = [
+        {
+            label_key: row[group_field] or default_label,
+            "total": float(
+                (row["t2024"] or 0) + (row["t2025"] or 0) + (row["t2026"] or 0) + (row["t2027"] or 0)
+            ),
+        }
+        for row in rows
+    ]
+    return sorted(grouped, key=lambda item: item["total"], reverse=True)
 
 
 def compute_pdm_stats_from_queryset(productos_qs: QuerySet[PdmProducto], iniciativas_count: int, lineas_count: int) -> dict:
@@ -33,36 +63,22 @@ def compute_pdm_stats_from_queryset(productos_qs: QuerySet[PdmProducto], iniciat
     }
     presupuesto_total = sum(presupuesto_por_anio.values())
 
-    presupuesto_por_linea = sorted(
-        [
-            {"linea": row["linea_estrategica"] or "Sin línea", "total": float(row["total"] or 0)}
-            for row in productos_qs.values("linea_estrategica")
-            .annotate(total=Sum(_PRESUPUESTO_TOTAL_EXPR))
-            .order_by()
-        ],
-        key=lambda x: x["total"],
-        reverse=True,
-    )
-    presupuesto_por_sector = sorted(
-        [
-            {"sector": row["sector_mga"] or "Sin sector", "total": float(row["total"] or 0)}
-            for row in productos_qs.values("sector_mga")
-            .annotate(total=Sum(_PRESUPUESTO_TOTAL_EXPR))
-            .order_by()
-        ],
-        key=lambda x: x["total"],
-        reverse=True,
-    )
-
     return {
         "total_lineas_estrategicas": lineas_count,
         "total_productos": productos_qs.count(),
         "total_iniciativas_sgr": iniciativas_count,
         "presupuesto_total": presupuesto_total,
         "presupuesto_por_anio": {str(k): v for k, v in presupuesto_por_anio.items()},
-        "presupuesto_por_linea": presupuesto_por_linea,
-        "presupuesto_por_sector": presupuesto_por_sector,
+        "presupuesto_por_linea": _sum_presupuesto_grouped(productos_qs, "linea_estrategica", "Sin línea", "linea"),
+        "presupuesto_por_sector": _sum_presupuesto_grouped(productos_qs, "sector_mga", "Sin sector", "sector"),
     }
+
+
+def productos_for_stats(productos_qs: QuerySet[PdmProducto]) -> list[PdmProducto]:
+    """Productos mínimos para estado/stats sin conflicto select_related + only()."""
+    return list(
+        PdmProducto.objects.filter(pk__in=productos_qs.values("pk")).only(*_ESTADO_STATS_FIELDS)
+    )
 
 
 def compute_pdm_stats(productos: list[PdmProducto], iniciativas_count: int, lineas_count: int) -> dict:
