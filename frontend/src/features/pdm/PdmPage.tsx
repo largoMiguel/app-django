@@ -40,7 +40,6 @@ import {
   type VistaPdm,
 } from "@/features/pdm/pdmUtils";
 import { PdmAlert, PdmCard, PdmFilePicker, PdmLoadingOverlay, PdmModal } from "@/features/pdm/components/PdmUi";
-<<<<<<< HEAD
 import type { PdmActividad } from "@/core/api/pdm";
 
 const PdmDashboard = lazy(() => import("@/features/pdm/PdmDashboard"));
@@ -48,9 +47,6 @@ const PdmProductosView = lazy(() => import("@/features/pdm/PdmProductosView"));
 const PdmProductoDetalle = lazy(() => import("@/features/pdm/PdmProductoDetalle"));
 const PdmActividadModal = lazy(() => import("@/features/pdm/PdmActividadModal"));
 const PdmBpinModal = lazy(() => import("@/features/pdm/PdmBpinModal"));
-=======
-import type { PdmActividad, PdmEjecucionProducto } from "@/core/api/pdm";
->>>>>>> development
 
 const PAGE_SIZE = 15;
 const BUSQUEDA_DEBOUNCE_MS = 400;
@@ -728,11 +724,7 @@ export default function PdmPage(): ReactElement {
                     setModalContratos(false);
                     setArchivoContratos(null);
                     if (productoSeleccionado && vista === "detalle") {
-<<<<<<< HEAD
                       invalidatePdm.invalidateContratos(slug, anioContratos, productoSeleccionado.codigo);
-=======
-                      await cargarContratosRPS(productoSeleccionado.codigo, anioContratos);
->>>>>>> development
                     }
                     setError(null);
                     alert(result.mensaje || "Contratos RPS cargados.");
