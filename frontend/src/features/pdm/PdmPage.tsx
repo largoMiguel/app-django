@@ -301,14 +301,11 @@ export default function PdmPage(): ReactElement {
     if (!productoSeleccionado) return [];
     const pdm = getPresupuestoAnio(productoSeleccionado, anioDetalle);
     const ptoDefinitivo = Number(ejecucionPresupuestal?.totales?.pto_definitivo || 0);
-    const pagos = Number(ejecucionPresupuestal?.totales?.pagos || 0);
     return [
       {
         anio: anioDetalle,
         pdm,
         ptoDefinitivo,
-        pagos,
-        porcentaje: ptoDefinitivo > 0 ? (pagos / ptoDefinitivo) * 100 : 0,
       },
     ];
   }, [productoSeleccionado, anioDetalle, ejecucionPresupuestal]);

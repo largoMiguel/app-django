@@ -53,7 +53,7 @@ def ejecucion_agrupada_por_campo_producto(
     default_label: str,
     label_key: str,
 ) -> list[dict]:
-    """Suma pagos de ejecución (todos los años) agrupados por línea o sector del producto PDM."""
+    """Suma pto. definitivo de ejecución (todos los años) agrupados por línea o sector del producto PDM."""
     productos_qs = productos_queryset_for_user(user, entity)
     codigo_to_label = {
         str(row["codigo_producto"]).strip(): row[field_name] or default_label
@@ -67,17 +67,17 @@ def ejecucion_agrupada_por_campo_producto(
     rows = (
         ejecucion_queryset_for_user(user, entity)
         .values("codigo_producto")
-        .annotate(pagos=Sum("pagos"))
+        .annotate(total=Sum("pto_definitivo"))
     )
     for row in rows:
-        pagos = float(row["pagos"] or 0)
-        if pagos <= 0:
+        total = float(row["total"] or 0)
+        if total <= 0:
             continue
         codigo = str(row["codigo_producto"]).strip()
         label = codigo_to_label.get(codigo)
         if not label:
             continue
-        grouped[label] += pagos
+        grouped[label] += total
 
     return sorted(
         [{label_key: label, "total": total} for label, total in grouped.items() if total > 0],

@@ -2,8 +2,8 @@ import { BarChart3, Box, Calendar, DollarSign, GitBranch, Layers, PieChart } fro
 import {
   ANIOS_PDM,
   formatearMoneda,
-  getEjecucionPagosAnio,
-  getEjecucionTotalPagos,
+  getEjecucionDefinitivoAnio,
+  getEjecucionTotalDefinitivo,
   type EstadisticasPdm,
   type ResumenEjecucionAnual,
 } from "@/features/pdm/pdmUtils";
@@ -17,7 +17,7 @@ interface PdmDashboardProps {
 
 export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProductos }: PdmDashboardProps) {
   const yearColors = ["blue", "info", "warning", "success"] as const;
-  const ejecucionTotal = getEjecucionTotalPagos(resumenEjecucion);
+  const ejecucionTotal = getEjecucionTotalDefinitivo(resumenEjecucion);
   const ejecucionPorLinea = resumenEjecucion?.ejecucion_por_linea ?? [];
   const ejecucionPorSector = resumenEjecucion?.ejecucion_por_sector ?? [];
 
@@ -44,7 +44,7 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
         />
         <PdmStatCard
           label="Presupuesto Total (Ejecución)"
-          value={formatearMoneda(getEjecucionTotalPagos(resumenEjecucion))}
+          value={formatearMoneda(getEjecucionTotalDefinitivo(resumenEjecucion))}
           icon={<DollarSign size={24} className="text-emerald-600" />}
           onClick={onVerProductos}
         />
@@ -69,13 +69,13 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
       <PdmCard title="Ejecución por Año (Cuatrienio)">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {ANIOS_PDM.map((anio, idx) => {
-            const pagos = getEjecucionPagosAnio(resumenEjecucion, anio);
-            const total = getEjecucionTotalPagos(resumenEjecucion);
-            const pct = total ? (pagos / total) * 100 : 0;
+            const definitivo = getEjecucionDefinitivoAnio(resumenEjecucion, anio);
+            const total = getEjecucionTotalDefinitivo(resumenEjecucion);
+            const pct = total ? (definitivo / total) * 100 : 0;
             return (
               <div key={anio} className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{anio}</p>
-                <p className="mt-1 text-lg font-bold text-slate-900">{formatearMoneda(pagos)}</p>
+                <p className="mt-1 text-lg font-bold text-slate-900">{formatearMoneda(definitivo)}</p>
                 <PdmProgressBar value={pct} tone={yearColors[idx]} showLabel={false} />
               </div>
             );

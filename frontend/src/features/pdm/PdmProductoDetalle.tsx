@@ -49,8 +49,6 @@ export interface ComparativaPresupuestalRow {
   anio: number;
   pdm: number;
   ptoDefinitivo: number;
-  pagos: number;
-  porcentaje: number;
 }
 
 export interface ContratosRPSResumen {
@@ -92,12 +90,6 @@ function FieldValue({ children, className = "" }: { children: ReactNode; classNa
   return <p className={`mt-0.5 text-sm font-medium text-slate-800 ${className}`}>{children}</p>;
 }
 
-function pctEjecutadoColor(pct: number): string {
-  if (pct >= 95) return "text-emerald-600";
-  if (pct >= 70) return "text-amber-600";
-  return "text-red-600";
-}
-
 export default function PdmProductoDetalle({
   producto,
   anioDetalle,
@@ -128,9 +120,8 @@ export default function PdmProductoDetalle({
       fuentesActivas.reduce(
         (acc, f) => ({
           pto_definitivo: acc.pto_definitivo + (f.pto_definitivo ?? 0),
-          pagos: acc.pagos + (f.pagos ?? 0),
         }),
-        { pto_definitivo: 0, pagos: 0 },
+        { pto_definitivo: 0 },
       ),
     [fuentesActivas],
   );
@@ -408,9 +399,7 @@ export default function PdmProductoDetalle({
                       <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                         <th className="pb-2 pr-2 font-medium">Año</th>
                         <th className="pb-2 pr-2 text-right font-medium">Presupuesto PPI</th>
-                        <th className="pb-2 pr-2 text-right font-medium">Pto. Definitivo</th>
-                        <th className="pb-2 pr-2 text-right font-medium">Pagos Reales</th>
-                        <th className="pb-2 text-right font-medium">% Ejecutado</th>
+                        <th className="pb-2 text-right font-medium">Pto. Definitivo</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -418,10 +407,8 @@ export default function PdmProductoDetalle({
                         <tr key={comp.anio} className="border-b border-slate-100 last:border-0">
                           <td className="py-2 pr-2 font-semibold text-slate-800">{comp.anio}</td>
                           <td className="py-2 pr-2 text-right text-slate-700">{formatearMoneda(comp.pdm)}</td>
-                          <td className="py-2 pr-2 text-right text-slate-700">{formatearMoneda(comp.ptoDefinitivo)}</td>
-                          <td className="py-2 pr-2 text-right font-bold text-blue-600">{formatearMoneda(comp.pagos)}</td>
-                          <td className={`py-2 text-right font-bold ${pctEjecutadoColor(comp.porcentaje)}`}>
-                            {comp.porcentaje.toFixed(0)}%
+                          <td className="py-2 pr-2 text-right font-semibold text-slate-800">
+                            {formatearMoneda(comp.ptoDefinitivo)}
                           </td>
                         </tr>
                       ))}
@@ -430,8 +417,7 @@ export default function PdmProductoDetalle({
                 </div>
                 <PdmAlert tone="info">
                   <strong>Nota:</strong> El <strong>Pto. Definitivo</strong> es el presupuesto real asignado al producto
-                  (después de adiciones y reducciones). Los <strong className="text-blue-600">Pagos Reales</strong> son lo
-                  efectivamente ejecutado. El <strong>% Ejecutado</strong> se calcula: Pagos / Pto. Definitivo.
+                  (después de adiciones y reducciones). Se compara con el presupuesto del Plan Indicativo (PPI).
                 </PdmAlert>
               </>
             )}
@@ -476,12 +462,6 @@ export default function PdmProductoDetalle({
                             <td className="py-0.5 text-slate-500">Pto. Definitivo:</td>
                             <td className="py-0.5 text-right font-semibold">
                               {formatearMoneda(totalesFuentesActivas.pto_definitivo)}
-                            </td>
-                          </tr>
-                          <tr>
-                            <td className="py-0.5 font-medium text-blue-600">Pagos:</td>
-                            <td className="py-0.5 text-right font-bold text-blue-600">
-                              {formatearMoneda(totalesFuentesActivas.pagos)}
                             </td>
                           </tr>
                         </tbody>
@@ -619,10 +599,6 @@ function FuentePresupuestalTable({ fuente }: { fuente: PdmEjecucionProducto["fue
         <tr>
           <td className="py-0.5 font-semibold text-slate-800">Pto. Definitivo:</td>
           <td className="py-0.5 text-right font-semibold">{formatearMoneda(fuente.pto_definitivo)}</td>
-        </tr>
-        <tr>
-          <td className="py-0.5 font-medium text-blue-600">Pagos:</td>
-          <td className="py-0.5 text-right font-bold text-blue-600">{formatearMoneda(fuente.pagos)}</td>
         </tr>
       </tbody>
     </table>

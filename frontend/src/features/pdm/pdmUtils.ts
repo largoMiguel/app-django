@@ -275,13 +275,23 @@ export function getEstadoProductoAnio(producto: ResumenProducto, anio: number, a
   return "PENDIENTE";
 }
 
-export function getEjecucionPagosAnio(resumen: ResumenEjecucionAnual | null, anio: number): number {
+export function getEjecucionDefinitivoAnio(resumen: ResumenEjecucionAnual | null, anio: number): number {
   const item = resumen?.anios.find((a) => a.anio === anio);
-  return Number(item?.pagos || 0);
+  return Number(item?.pto_definitivo || 0);
 }
 
+export function getEjecucionTotalDefinitivo(resumen: ResumenEjecucionAnual | null): number {
+  return Number(resumen?.totales?.pto_definitivo || 0);
+}
+
+/** @deprecated Use getEjecucionDefinitivoAnio */
+export function getEjecucionPagosAnio(resumen: ResumenEjecucionAnual | null, anio: number): number {
+  return getEjecucionDefinitivoAnio(resumen, anio);
+}
+
+/** @deprecated Use getEjecucionTotalDefinitivo */
 export function getEjecucionTotalPagos(resumen: ResumenEjecucionAnual | null): number {
-  return Number(resumen?.totales?.pagos || 0);
+  return getEjecucionTotalDefinitivo(resumen);
 }
 
 export function getAniosConMetas(producto: ResumenProducto): number {
@@ -431,7 +441,6 @@ export function fuentePresupuestalTieneValores(fuente: {
     (fuente.reduccion ?? 0) !== 0 ||
     (fuente.credito ?? 0) !== 0 ||
     (fuente.contracredito ?? 0) !== 0 ||
-    (fuente.pto_definitivo ?? 0) !== 0 ||
-    (fuente.pagos ?? 0) !== 0
+    (fuente.pto_definitivo ?? 0) !== 0
   );
 }
