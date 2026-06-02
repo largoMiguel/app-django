@@ -17,6 +17,9 @@ interface PdmDashboardProps {
 
 export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProductos }: PdmDashboardProps) {
   const yearColors = ["blue", "info", "warning", "success"] as const;
+  const ejecucionTotal = getEjecucionTotalPagos(resumenEjecucion);
+  const ejecucionPorLinea = resumenEjecucion?.ejecucion_por_linea ?? [];
+  const ejecucionPorSector = resumenEjecucion?.ejecucion_por_sector ?? [];
 
   return (
     <div className="space-y-6">
@@ -83,40 +86,48 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
       <div className="grid gap-6 lg:grid-cols-2">
         <PdmCard title="Presupuesto por Línea Estratégica" icon={<PieChart size={16} />}>
           <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
-            {estadisticas.presupuesto_por_linea.map((item) => (
-              <div key={item.linea}>
-                <div className="mb-1 flex justify-between gap-2 text-sm">
-                  <span className="truncate text-slate-700" title={item.linea}>
-                    {item.linea}
-                  </span>
-                  <strong className="shrink-0 text-slate-900">{formatearMoneda(item.total)}</strong>
+            {ejecucionPorLinea.length === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-500">Sin datos de ejecución por línea estratégica.</p>
+            ) : (
+              ejecucionPorLinea.map((item) => (
+                <div key={item.linea}>
+                  <div className="mb-1 flex justify-between gap-2 text-sm">
+                    <span className="truncate text-slate-700" title={item.linea}>
+                      {item.linea}
+                    </span>
+                    <strong className="shrink-0 text-slate-900">{formatearMoneda(item.total)}</strong>
+                  </div>
+                  <PdmProgressBar
+                    value={ejecucionTotal ? (item.total / ejecucionTotal) * 100 : 0}
+                    tone="blue"
+                    showLabel={false}
+                  />
                 </div>
-                <PdmProgressBar
-                  value={estadisticas.presupuesto_total ? (item.total / estadisticas.presupuesto_total) * 100 : 0}
-                  tone="blue"
-                  showLabel={false}
-                />
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </PdmCard>
         <PdmCard title="Presupuesto por Sector" icon={<BarChart3 size={16} />}>
           <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
-            {estadisticas.presupuesto_por_sector.slice(0, 12).map((item) => (
-              <div key={item.sector}>
-                <div className="mb-1 flex justify-between gap-2 text-sm">
-                  <span className="truncate text-slate-700" title={item.sector}>
-                    {item.sector}
-                  </span>
-                  <strong className="shrink-0 text-slate-900">{formatearMoneda(item.total)}</strong>
+            {ejecucionPorSector.length === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-500">Sin datos de ejecución por sector.</p>
+            ) : (
+              ejecucionPorSector.slice(0, 12).map((item) => (
+                <div key={item.sector}>
+                  <div className="mb-1 flex justify-between gap-2 text-sm">
+                    <span className="truncate text-slate-700" title={item.sector}>
+                      {item.sector}
+                    </span>
+                    <strong className="shrink-0 text-slate-900">{formatearMoneda(item.total)}</strong>
+                  </div>
+                  <PdmProgressBar
+                    value={ejecucionTotal ? (item.total / ejecucionTotal) * 100 : 0}
+                    tone="success"
+                    showLabel={false}
+                  />
                 </div>
-                <PdmProgressBar
-                  value={estadisticas.presupuesto_total ? (item.total / estadisticas.presupuesto_total) * 100 : 0}
-                  tone="success"
-                  showLabel={false}
-                />
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </PdmCard>
       </div>

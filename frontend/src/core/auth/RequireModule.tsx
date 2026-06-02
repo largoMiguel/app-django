@@ -1,5 +1,5 @@
 import { Navigate, Outlet } from "react-router-dom";
-import { useAuthStore } from "./store";
+import { homeForRole, useAuthStore } from "./store";
 import { isModuleEnabled, isUserModuleEnabled, type EntityModuleFlag } from "./modules";
 
 interface Props {
@@ -22,30 +22,8 @@ export default function RequireModule({ module }: Props) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!isModuleEnabled(entity, module)) {
-    return (
-      <div className="flex h-full items-center justify-center p-8 text-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Módulo no disponible</h1>
-          <p className="mt-2 text-slate-500">
-            Este módulo no está habilitado para tu entidad. Contacta a tu administrador.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isUserModuleEnabled(user, module)) {
-    return (
-      <div className="flex h-full items-center justify-center p-8 text-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Acceso restringido</h1>
-          <p className="mt-2 text-slate-500">
-            Tu usuario no tiene habilitado este módulo. Contacta a tu administrador.
-          </p>
-        </div>
-      </div>
-    );
+  if (!isModuleEnabled(entity, module) || !isUserModuleEnabled(user, module)) {
+    return <Navigate to={homeForRole(user)} replace />;
   }
 
   return <Outlet />;

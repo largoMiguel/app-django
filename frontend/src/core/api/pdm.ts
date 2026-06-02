@@ -134,6 +134,8 @@ export interface PdmContrato {
 export interface PdmEjecucionResumenAnual {
   anios: { anio: number; pto_definitivo: number; pagos: number }[];
   totales: { pto_definitivo: number; pagos: number };
+  ejecucion_por_linea?: { linea: string; total: number }[];
+  ejecucion_por_sector?: { sector: string; total: number }[];
 }
 
 export interface PdmEjecucionFuente {

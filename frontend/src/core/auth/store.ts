@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { normalizeAuthUser } from "./permissions";
+import { isUserModuleEnabled } from "./modules";
+import { normalizeAuthUser, canAccess, PERM } from "./permissions";
 
 export type { PermissionCode } from "./permissions";
 export {
@@ -109,8 +110,30 @@ export function homeForRole(user: AuthUser | null): string {
   if (role === "superadmin") return "/superadmin/entities";
   const entity = user.entity;
   if (!entity) return "/login";
-  if (entity.enable_pqrs) return "/dashboard";
-  if (entity.enable_pdm) return "/pdm";
-  if (role === "admin" && entity.enable_users_admin) return "/users";
+
+  if (
+    entity.enable_pqrs &&
+    isUserModuleEnabled(user, "enable_pqrs") &&
+    canAccess(user, {
+      roles: ["admin", "secretario", "ciudadano"],
+      permissions: [PERM.PQRS_VIEW],
+    })
+  ) {
+    return "/dashboard";
+  }
+  if (
+    entity.enable_pdm &&
+    isUserModuleEnabled(user, "enable_pdm") &&
+    canAccess(user, { roles: ["admin", "secretario"] })
+  ) {
+    return "/pdm";
+  }
+  if (
+    entity.enable_users_admin &&
+    isUserModuleEnabled(user, "enable_users_admin") &&
+    canAccess(user, { roles: ["admin"], permissions: [PERM.USER_VIEW] })
+  ) {
+    return "/users";
+  }
   return "/login";
 }

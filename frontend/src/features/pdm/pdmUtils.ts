@@ -64,6 +64,8 @@ export interface ResumenActividadesAnio {
 export interface ResumenEjecucionAnual {
   anios: { anio: number; pto_definitivo: number; pagos: number }[];
   totales: { pto_definitivo: number; pagos: number };
+  ejecucion_por_linea?: { linea: string; total: number }[];
+  ejecucion_por_sector?: { sector: string; total: number }[];
 }
 
 export const ANIOS_PDM = [2024, 2025, 2026, 2027] as const;

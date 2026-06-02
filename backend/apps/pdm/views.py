@@ -553,20 +553,32 @@ def _ejecucion_qs_for_user(user):
     return qs
 
 
-def _presupuesto_por_anio_from_productos(user, entity: Entity) -> dict[int, float]:
-    """Presupuesto anual agregado de productos visibles al usuario."""
-    totals = productos_queryset_for_user(user, entity).aggregate(
-        total_2024=Sum("total_2024"),
-        total_2025=Sum("total_2025"),
-        total_2026=Sum("total_2026"),
-        total_2027=Sum("total_2027"),
-    )
-    return {
-        2024: _to_float(totals["total_2024"]),
-        2025: _to_float(totals["total_2025"]),
-        2026: _to_float(totals["total_2026"]),
-        2027: _to_float(totals["total_2027"]),
+def _ejecucion_grouped_by_product_field(user, entity: Entity, field_name: str, default_label: str, label_key: str) -> list[dict]:
+    """Suma pagos de ejecución (4 años) agrupados por campo del producto PDM."""
+    by_codigo = {
+        str(row["codigo_producto"]).strip(): _to_float(row["pagos"])
+        for row in _ejecucion_qs_for_user(user)
+        .values("codigo_producto")
+        .annotate(pagos=Sum("pagos"))
+        if str(row["codigo_producto"]).strip()
     }
+    if not by_codigo:
+        return []
+
+    grouped: dict[str, float] = defaultdict(float)
+    productos = productos_queryset_for_user(user, entity).filter(codigo_producto__in=by_codigo.keys()).values(
+        "codigo_producto", field_name
+    )
+    for prod in productos:
+        codigo = str(prod["codigo_producto"]).strip()
+        label = prod[field_name] or default_label
+        grouped[label] += by_codigo.get(codigo, 0.0)
+
+    return sorted(
+        [{label_key: label, "total": total} for label, total in grouped.items()],
+        key=lambda item: item["total"],
+        reverse=True,
+    )
 
 
 class PdmEjecucionResumenAnualEntidadView(APIView):
@@ -593,17 +605,6 @@ class PdmEjecucionResumenAnualEntidadView(APIView):
             }
             for y in (2024, 2025, 2026, 2027)
         ]
-        total_pagos = sum(x["pagos"] for x in anios)
-        if total_pagos == 0 and _is_secretario(request.user) and not _is_admin(request.user):
-            presupuesto = _presupuesto_por_anio_from_productos(request.user, entity)
-            anios = [
-                {
-                    "anio": y,
-                    "pto_definitivo": presupuesto.get(y, 0.0),
-                    "pagos": presupuesto.get(y, 0.0),
-                }
-                for y in (2024, 2025, 2026, 2027)
-            ]
         return Response(
             {
                 "anios": anios,
@@ -611,6 +612,12 @@ class PdmEjecucionResumenAnualEntidadView(APIView):
                     "pto_definitivo": sum(x["pto_definitivo"] for x in anios),
                     "pagos": sum(x["pagos"] for x in anios),
                 },
+                "ejecucion_por_linea": _ejecucion_grouped_by_product_field(
+                    request.user, entity, "linea_estrategica", "Sin línea", "linea"
+                ),
+                "ejecucion_por_sector": _ejecucion_grouped_by_product_field(
+                    request.user, entity, "sector_mga", "Sin sector", "sector"
+                ),
             }
         )
 
