@@ -112,8 +112,8 @@ function AnalisisContent({
   const pieEstadoData = useMemo(
     () =>
       [
-        { name: "EN_PROGRESO", value: estado.en_progreso, color: ESTADO_COLORS.EN_PROGRESO },
         { name: "PENDIENTE", value: estado.pendiente, color: ESTADO_COLORS.PENDIENTE },
+        { name: "EN_PROGRESO", value: estado.en_progreso, color: ESTADO_COLORS.EN_PROGRESO },
         { name: "COMPLETADO", value: estado.completado, color: ESTADO_COLORS.COMPLETADO },
         { name: "POR_EJECUTAR", value: estado.por_ejecutar, color: ESTADO_COLORS.POR_EJECUTAR },
       ].filter((d) => d.value > 0),
@@ -140,16 +140,15 @@ function AnalisisContent({
     [data.metas_por_anio],
   );
 
-  const topOds = useMemo(() => data.por_ods.slice(0, 10), [data.por_ods]);
   const odsPieData = useMemo(
     () =>
-      topOds.map((o, idx) => ({
+      data.por_ods.map((o, idx) => ({
         name: truncateLabel(o.ods, 32),
         fullName: o.ods,
         value: o.productos,
         color: ODS_COLORS[idx % ODS_COLORS.length],
       })),
-    [topOds],
+    [data.por_ods],
   );
 
   const pctPagadoGlobal =
@@ -203,18 +202,14 @@ function AnalisisContent({
             <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin datos</div>
           ) : (
             <>
-              <ResponsiveContainer width="100%" height={260}>
+              <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
                   <Pie
                     data={pieEstadoData}
                     cx="50%"
-                    cy="50%"
-                    outerRadius={100}
+                    cy="45%"
+                    outerRadius={85}
                     dataKey="value"
-                    label={({ name, value, percent }) =>
-                      `${name}: ${value} (${((percent ?? 0) * 100).toFixed(0)}%)`
-                    }
-                    labelLine={false}
                   >
                     {pieEstadoData.map((entry) => (
                       <Cell key={entry.name} fill={entry.color} />
@@ -248,26 +243,28 @@ function AnalisisContent({
           {sectorChartData.length === 0 ? (
             <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin datos</div>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={sectorChartData} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
+            <ResponsiveContainer width="100%" height={360}>
+              <BarChart data={sectorChartData} margin={{ top: 10, right: 10, left: 0, bottom: 90 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis
                   dataKey="sectorShort"
                   tick={{ fontSize: 9, fill: "#64748b" }}
-                  angle={-35}
+                  angle={-40}
                   textAnchor="end"
                   interval={0}
+                  height={80}
                 />
                 <YAxis
                   tick={{ fontSize: 10, fill: "#64748b" }}
                   allowDecimals={false}
+                  width={36}
                   label={{ value: "Número de Productos", angle: -90, position: "insideLeft", style: { fontSize: 10 } }}
                 />
                 <Tooltip
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.sector ?? ""}
                 />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 11, paddingBottom: 8 }} />
                 <Bar dataKey="completados" name="Completados" stackId="a" fill={ESTADO_COLORS.COMPLETADO} />
                 <Bar dataKey="en_progreso" name="En Progreso" stackId="a" fill={ESTADO_COLORS.EN_PROGRESO} />
                 <Bar dataKey="pendientes" name="Pendientes" stackId="a" fill={ESTADO_COLORS.PENDIENTE} />
@@ -288,17 +285,18 @@ function AnalisisContent({
         {metasChartData.every((m) => m.programada === 0) ? (
           <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin datos</div>
         ) : (
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={metasChartData} margin={{ top: 20, right: 20, left: 10, bottom: 10 }}>
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={metasChartData} margin={{ top: 40, right: 20, left: 10, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} label={{ value: "Año", position: "insideBottom", offset: -5 }} />
+              <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} />
               <YAxis
                 tick={{ fontSize: 10, fill: "#64748b" }}
                 allowDecimals={false}
+                width={36}
                 label={{ value: "Número de Metas (productos)", angle: -90, position: "insideLeft", style: { fontSize: 10 } }}
               />
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Legend verticalAlign="top" align="center" wrapperStyle={{ fontSize: 11, paddingBottom: 12 }} />
               <Bar
                 dataKey="programada"
                 name="Meta Total Programada"
@@ -343,29 +341,27 @@ function AnalisisContent({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard
-          title="Top 10 ODS"
+          title="ODS"
           icon={<PieChartIcon size={16} className="text-amber-600" />}
           headerClassName="border-b border-amber-100 bg-amber-50/90"
         >
           <p className="mb-4 text-center text-sm font-medium text-slate-600">
-            Top 10 Objetivos de Desarrollo Sostenible ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+            Objetivos de Desarrollo Sostenible ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
           </p>
           {odsPieData.length === 0 ? (
             <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin datos</div>
           ) : (
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
               <div className="min-w-0 flex-1">
-                <ResponsiveContainer width="100%" height={280}>
+                <ResponsiveContainer width="100%" height={Math.max(280, odsPieData.length * 28)}>
                   <PieChart>
                     <Pie
                       data={odsPieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
+                      innerRadius={55}
+                      outerRadius={90}
                       dataKey="value"
-                      label={({ value, percent }) => `${value} (${((percent ?? 0) * 100).toFixed(0)}%)`}
-                      labelLine={false}
                     >
                       {odsPieData.map((entry, idx) => (
                         <Cell key={entry.fullName} fill={ODS_COLORS[idx % ODS_COLORS.length]} />
@@ -375,8 +371,8 @@ function AnalisisContent({
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="max-h-64 space-y-1.5 overflow-y-auto lg:w-48">
-                {topOds.map((o, idx) => (
+              <div className="max-h-72 space-y-1.5 overflow-y-auto lg:w-52">
+                {data.por_ods.map((o, idx) => (
                   <div key={o.ods} className="flex items-start gap-2 text-xs text-slate-600">
                     <span
                       className="mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm"

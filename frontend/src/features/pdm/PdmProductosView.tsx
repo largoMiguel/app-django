@@ -15,7 +15,7 @@ import {
   getTextoEstadoProducto,
   type ResumenProducto,
 } from "@/features/pdm/pdmUtils";
-import { PdmBadge, PdmCard, PdmProgressBar, PdmStatCard, PdmYearPills } from "@/features/pdm/components/PdmUi";
+import { PdmBadge, PdmCard, PdmProgressBar, PdmSelect, PdmStatCard } from "@/features/pdm/components/PdmUi";
 import { pdmBtnSecondary, pdmInput, pdmSelect } from "@/features/pdm/pdmLayout";
 
 interface PdmProductosViewProps {
@@ -150,8 +150,21 @@ export default function PdmProductosView({
 }: PdmProductosViewProps) {
   return (
     <div className="space-y-6">
-      <PdmCard title="Año de Seguimiento" icon={<Calendar size={16} />}>
-        <PdmYearPills years={ANIOS_PDM} selected={filtroAnio} onSelect={onFiltroAnio} />
+      <PdmCard>
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="min-w-[160px] flex-1 sm:max-w-xs">
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+              Año de Seguimiento
+            </label>
+            <PdmSelect value={String(filtroAnio)} onChange={(e) => onFiltroAnio(Number(e.target.value))}>
+              {ANIOS_PDM.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </PdmSelect>
+          </div>
+        </div>
       </PdmCard>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

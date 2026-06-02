@@ -121,20 +121,31 @@ def _avance_producto(producto: PdmProducto, aggs: dict, anio: int | None) -> flo
 def _estado_producto(producto: PdmProducto, aggs: dict, anio: int | None) -> str:
     if anio is not None:
         return estado_producto_anio(producto, anio, aggs)
-    avance = avance_general_producto(producto, aggs)
-    if avance >= 100:
-        return "COMPLETADO"
     now_year = datetime.now().year
-    has_past_present = any(
-        _tiene_meta_anio(producto, y, aggs) and y <= now_year for y in ANIOS_PDM
-    )
-    has_future = any(_tiene_meta_anio(producto, y, aggs) and y > now_year for y in ANIOS_PDM)
-    if not has_past_present and has_future:
+    anios_con_meta = [y for y in ANIOS_PDM if _tiene_meta_anio(producto, y, aggs)]
+    if not anios_con_meta:
+        return "PENDIENTE"
+    pasados = [y for y in anios_con_meta if y <= now_year]
+    futuros = [y for y in anios_con_meta if y > now_year]
+    if not pasados and futuros:
         return "POR_EJECUTAR"
-    total_actividades = sum(int(aggs.get(y, {}).get("total_actividades", 0)) for y in ANIOS_PDM)
-    if total_actividades > 0:
+    estados_pasados = [estado_producto_anio(producto, y, aggs) for y in pasados]
+    if any(e == "EN_PROGRESO" for e in estados_pasados):
         return "EN_PROGRESO"
+    if any(e == "COMPLETADO" for e in estados_pasados):
+        return "COMPLETADO"
     return "PENDIENTE"
+
+
+def _producto_al_100(producto: PdmProducto, aggs: dict, anio: int | None) -> bool:
+    if anio is not None:
+        return resumen_anio(producto, anio, aggs).get("porcentaje_avance", 0) >= 100
+    now_year = datetime.now().year
+    return any(
+        resumen_anio(producto, y, aggs).get("porcentaje_avance", 0) >= 100
+        for y in ANIOS_PDM
+        if _tiene_meta_anio(producto, y, aggs) and y <= now_year
+    )
 
 
 def _producto_cuenta_para_filtro(producto: PdmProducto, aggs: dict, anio: int | None) -> bool:
@@ -197,7 +208,7 @@ def compute_pdm_analytics(
             estado_distribucion[key] += 1
         estado_distribucion["total"] += 1
         avance_sum += avance
-        if avance >= 100:
+        if _producto_al_100(p, aggs, anio):
             completados += 1
 
         ej = ejecucion_map.get(p.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})

@@ -131,6 +131,21 @@ def _attach_list_metrics(productos: list, entity_id: int, anio: int) -> None:
         setattr(prod, "pto_definitivo_anio", ejecucion_map.get(prod.codigo_producto, 0.0))
 
 
+_META_FIELD_BY_ANIO = {
+    2024: "programacion_2024",
+    2025: "programacion_2025",
+    2026: "programacion_2026",
+    2027: "programacion_2027",
+}
+
+
+def _filter_productos_con_meta_anio(qs, anio: int):
+    field = _META_FIELD_BY_ANIO.get(anio)
+    if not field:
+        return qs.none()
+    return qs.filter(**{f"{field}__gt": 0})
+
+
 def _filter_productos_by_estado(qs, entity_id: int, anio: int, estado: str):
     productos = list(qs)
     if not productos or not estado:
@@ -265,6 +280,7 @@ class PdmProductosListView(APIView):
         qs = _productos_list_queryset(request.user, entity)
         filterset = PdmProductoFilterSet(request.query_params, queryset=qs)
         qs = filterset.qs
+        qs = _filter_productos_con_meta_anio(qs, anio)
         if estado:
             qs = _filter_productos_by_estado(qs, entity.id, anio, estado)
 

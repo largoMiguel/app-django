@@ -157,6 +157,9 @@ export function useInvalidatePdmQueries() {
         queryKey: slug ? pdmKeys.ejecucionAnual(slug) : [...pdmKeys.all, "ejecucion-anual"],
       });
       void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "ejecucion-producto"] });
+      void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "analisis"] });
+      void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "stats"] });
+      void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "productos"] });
     },
     afterAsignarResponsable: (slug: string) => {
       void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "productos", slug] });
