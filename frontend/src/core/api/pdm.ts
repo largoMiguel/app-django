@@ -163,6 +163,13 @@ export interface PdmEjecucionProducto {
   };
 }
 
+export interface PdmContratosResumen {
+  contratos: PdmContrato[];
+  total_contratado: number;
+  cantidad_contratos: number;
+  anio: number;
+}
+
 export const pdmApi = {
   status: (slug: string) =>
     api.get<PdmStatusResponse>(`/pdm/v2/${slug}/status`).then((r) => r.data),
@@ -269,7 +276,7 @@ export const pdmApi = {
   },
   contratos: (slug: string, anio?: number, codigoProducto?: string) =>
     api
-      .get<{ contratos: PdmContrato[]; total_contratado: number; cantidad_contratos: number; anio: number }>(
+      .get<PdmContratosResumen>(
         `/pdm/contratos/${slug}/contratos`,
         { params: { ...(anio ? { anio } : {}), ...(codigoProducto ? { codigo_producto: codigoProducto } : {}) } },
       )

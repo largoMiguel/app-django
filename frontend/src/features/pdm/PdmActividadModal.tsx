@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CheckCircle2, ClipboardCheck, Loader2 } from "lucide-react";
 import type { PdmActividad, PdmEvidenciaArchivo } from "@/core/api/pdm";
-import { fetchAuthenticatedFile } from "@/core/api/client";
+import { useAuthenticatedImage } from "@/features/pdm/useAuthenticatedImage";
 import type { Secretaria } from "@/core/api/entities";
 import { PdmAlert, PdmCard, PdmModal } from "@/features/pdm/components/PdmUi";
 import { pdmBtnPrimary, pdmBtnSecondary, pdmInput, pdmSelect } from "@/features/pdm/pdmLayout";
@@ -66,21 +66,7 @@ function AuthenticatedImagePreview({
   alt: string;
   className?: string;
 }) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    let blobUrl: string | null = null;
-    void fetchAuthenticatedFile(url).then((blob) => {
-      if (cancelled) return;
-      blobUrl = URL.createObjectURL(blob);
-      setSrc(blobUrl);
-    });
-    return () => {
-      cancelled = true;
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    };
-  }, [url]);
+  const src = useAuthenticatedImage(url);
 
   if (!src) {
     return (
@@ -99,7 +85,7 @@ function Field({
   className = "",
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (

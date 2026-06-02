@@ -5,12 +5,6 @@ export const pdmBtnSecondary =
 export const pdmBtnPrimary =
   "flex items-center gap-2 rounded-[0.3rem] bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2f9fc2] disabled:opacity-50";
 
-export const pdmBtnWarning =
-  "flex items-center gap-1.5 rounded-[0.3rem] border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-50 disabled:opacity-50";
-
-export const pdmBtnSuccess =
-  "flex items-center gap-1.5 rounded-[0.3rem] border border-emerald-500 bg-white px-4 py-2 text-sm font-medium text-emerald-800 transition-colors hover:bg-emerald-50 disabled:opacity-50";
-
 export const pdmInput =
   "w-full rounded-[0.3rem] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-[#3eafd4] focus:outline-none focus:ring-2 focus:ring-[#3eafd4]/25";
 

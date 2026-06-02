@@ -48,7 +48,8 @@ def _find_column(columns: list[str], candidates: tuple[str, ...]) -> str | None:
 
 
 def _detect_header_row(df_raw: pd.DataFrame) -> int:
-    for idx, row in df_raw.iterrows():
+    for idx in range(len(df_raw)):
+        row = df_raw.iloc[idx]
         row_str = " ".join(str(x).upper() for x in row if pd.notna(x))
         if any(keyword in row_str for keyword in HEADER_KEYWORDS):
             return int(idx)

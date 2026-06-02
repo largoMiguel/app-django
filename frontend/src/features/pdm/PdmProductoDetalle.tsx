@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import {
   Calendar,
   CheckCircle2,
@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import type { PdmActividad, PdmContrato, PdmEjecucionProducto, PdmEvidenciaArchivo } from "@/core/api/pdm";
-import { fetchAuthenticatedFile } from "@/core/api/client";
+import { useAuthenticatedImage } from "@/features/pdm/useAuthenticatedImage";
 import {
   PdmAlert,
   PdmBadge,
@@ -133,6 +133,10 @@ export default function PdmProductoDetalle({
         { pto_definitivo: 0, pagos: 0 },
       ),
     [fuentesActivas],
+  );
+  const avancesPorAnio = useMemo(
+    () => Object.fromEntries(ANIOS_PDM.map((anio) => [anio, getAvanceAnio(producto, anio)])),
+    [producto],
   );
 
   return (
@@ -271,7 +275,7 @@ export default function PdmProductoDetalle({
                     anioDetalle === anio ? "bg-white/20 text-white" : "bg-cyan-100 text-cyan-800"
                   }`}
                 >
-                  {getAvanceAnio(producto, anio).toFixed(0)}%
+                  {avancesPorAnio[anio].toFixed(0)}%
                 </span>
               </button>
             ))}
@@ -636,21 +640,7 @@ function AuthenticatedImage({
   className?: string;
   onClick?: () => void;
 }) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    let blobUrl: string | null = null;
-    void fetchAuthenticatedFile(url).then((blob) => {
-      if (cancelled) return;
-      blobUrl = URL.createObjectURL(blob);
-      setSrc(blobUrl);
-    });
-    return () => {
-      cancelled = true;
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    };
-  }, [url]);
+  const src = useAuthenticatedImage(url);
 
   if (!src) {
     return (
@@ -664,21 +654,7 @@ function AuthenticatedImage({
 }
 
 function AuthenticatedImageModal({ url, onClose }: { url: string; onClose: () => void }) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    let blobUrl: string | null = null;
-    void fetchAuthenticatedFile(url).then((blob) => {
-      if (cancelled) return;
-      blobUrl = URL.createObjectURL(blob);
-      setSrc(blobUrl);
-    });
-    return () => {
-      cancelled = true;
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    };
-  }, [url]);
+  const src = useAuthenticatedImage(url);
 
   return (
     <div
@@ -703,7 +679,7 @@ function AuthenticatedImageModal({ url, onClose }: { url: string; onClose: () =>
   );
 }
 
-function ActividadCard({
+const ActividadCard = memo(function ActividadCard({
   actividad,
   unidad,
   puedeCrearEvidencia,
@@ -866,4 +842,4 @@ function ActividadCard({
       {imagenModal && <AuthenticatedImageModal url={imagenModal.url} onClose={() => setImagenModal(null)} />}
     </>
   );
-}
+});

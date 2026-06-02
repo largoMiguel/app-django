@@ -246,7 +246,7 @@ function parsearProductosPlanIndicativo(sheet: XLSX.WorkSheet): PdmProductoExcel
   return resultado;
 }
 
-function parsearWorkbook(workbook: XLSX.WorkBook): PdmExcelData {
+export function parsearWorkbook(workbook: XLSX.WorkBook): PdmExcelData {
   const pdmData: PdmExcelData = {
     lineas_estrategicas: [],
     indicadores_resultado: [],

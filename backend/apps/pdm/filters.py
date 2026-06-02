@@ -1,4 +1,8 @@
-"""Filtros server-side para listado de productos PDM."""
+"""Filtros server-side para listado de productos PDM.
+
+Filtros iexact/icontains sobre TextField no usan índices btree estándar;
+en PostgreSQL conviene evaluar índices GIN/trigram si el volumen crece.
+"""
 from __future__ import annotations
 
 import django_filters

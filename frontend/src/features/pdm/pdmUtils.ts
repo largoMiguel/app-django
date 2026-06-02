@@ -1,4 +1,4 @@
-import type { PdmActividad, PdmProducto } from "@/core/api/pdm";
+import type { PdmActividad, PdmProducto, ResumenAnioBackend } from "@/core/api/pdm";
 
 export type VistaPdm = "dashboard" | "productos" | "detalle";
 
@@ -30,6 +30,7 @@ export interface ResumenProducto {
   porcentaje_ejecucion: number;
   responsable_secretaria?: number | null;
   responsable_secretaria_nombre?: string | null;
+  resumen_por_anio?: Record<string, ResumenAnioBackend>;
   actividades: PdmActividad[];
 }
 
@@ -73,13 +74,6 @@ const META_EPSILON = 1e-6;
 export function redondearMeta(valor: number): number {
   const factor = 10 ** META_DECIMALES;
   return Math.round(valor * factor) / factor;
-}
-
-export function parseMetaInput(value: string): number {
-  const normalized = value.replace(",", ".").trim();
-  if (!normalized) return 0;
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? redondearMeta(parsed) : 0;
 }
 
 export function metaDentroDeDisponible(meta: number, disponible: number): boolean {
@@ -170,6 +164,7 @@ export function mapProductoToResumen(producto: PdmProducto): ResumenProducto {
     estado_anio: producto.estado_anio,
     responsable_secretaria: producto.responsable_secretaria,
     responsable_secretaria_nombre: producto.responsable_secretaria_nombre,
+    resumen_por_anio: producto.resumen_por_anio,
     actividades: producto.actividades || [],
   };
 }
@@ -204,8 +199,30 @@ export function getPresupuestoAnio(producto: ResumenProducto, anio: number): num
   }
 }
 
+export function resumenBackendPorAnio(
+  producto: ResumenProducto,
+  anio: number,
+): ResumenAnioBackend | null {
+  return producto.resumen_por_anio?.[String(anio)] ?? null;
+}
+
 export function obtenerResumenActividadesPorAnio(producto: ResumenProducto, anio: number): ResumenActividadesAnio {
+  const backend = resumenBackendPorAnio(producto, anio);
   const actividades = producto.actividades.filter((a) => a.anio === anio);
+  if (backend) {
+    return {
+      anio,
+      meta_programada: backend.meta_programada,
+      meta_asignada: backend.meta_asignada,
+      meta_disponible: backend.meta_disponible,
+      meta_ejecutada: backend.meta_ejecutada,
+      total_actividades: backend.total_actividades,
+      actividades_completadas: backend.actividades_completadas,
+      porcentaje_avance: backend.porcentaje_avance,
+      actividades,
+    };
+  }
+
   const metaProgramada = getMetaAnio(producto, anio);
   const metaAsignada = actividades.reduce((sum, a) => sum + Number(a.meta_ejecutar || 0), 0);
   const actividadesCompletadas = actividades.filter(
@@ -231,6 +248,8 @@ export function obtenerResumenActividadesPorAnio(producto: ResumenProducto, anio
 }
 
 export function getAvanceAnio(producto: ResumenProducto, anio: number, anioRef?: number): number {
+  const backend = resumenBackendPorAnio(producto, anio);
+  if (backend) return backend.porcentaje_avance;
   const tieneActividadesAnio = producto.actividades.some((a) => a.anio === anio);
   if (tieneActividadesAnio) {
     return obtenerResumenActividadesPorAnio(producto, anio).porcentaje_avance;
@@ -242,30 +261,16 @@ export function getAvanceAnio(producto: ResumenProducto, anio: number, anioRef?:
 }
 
 export function getEstadoProductoAnio(producto: ResumenProducto, anio: number, anioRef?: number): string {
-  const tieneActividadesAnio = producto.actividades.some((a) => a.anio === anio);
-  if (!tieneActividadesAnio && anioRef !== undefined && anio === anioRef && producto.estado_anio) {
+  if (!producto.actividades.some((a) => a.anio === anio) && anioRef !== undefined && anio === anioRef && producto.estado_anio) {
     return producto.estado_anio;
   }
   const avance = getAvanceAnio(producto, anio, anioRef);
   const resumen = obtenerResumenActividadesPorAnio(producto, anio);
-  if (anio > new Date().getFullYear()) return "POR_EJECUTAR";
+  if (anio > new Date().getFullYear() && resumen.meta_programada > 0) return "POR_EJECUTAR";
   if (avance >= 100) return "COMPLETADO";
   if (avance === 0 && resumen.total_actividades === 0) return "PENDIENTE";
   if (resumen.total_actividades > 0) return "EN_PROGRESO";
   return "PENDIENTE";
-}
-
-export function getPorcentajeEjecucionGeneral(producto: ResumenProducto): number {
-  const aniosConMeta = ANIOS_PDM.filter((anio) => getMetaAnio(producto, anio) > 0);
-  if (aniosConMeta.length === 0) return producto.porcentaje_ejecucion || 0;
-  if (producto.actividades.length > 0) {
-    const suma = aniosConMeta.reduce(
-      (total, anio) => total + obtenerResumenActividadesPorAnio(producto, anio).porcentaje_avance,
-      0,
-    );
-    return suma / aniosConMeta.length;
-  }
-  return producto.porcentaje_ejecucion || 0;
 }
 
 export function getEjecucionPagosAnio(resumen: ResumenEjecucionAnual | null, anio: number): number {

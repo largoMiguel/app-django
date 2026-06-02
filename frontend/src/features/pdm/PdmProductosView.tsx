@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Box, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock, Loader2, Search, X } from "lucide-react";
 import type { Secretaria } from "@/core/api/entities";
 import type { PdmMetaResponse } from "@/core/api/pdm";
@@ -49,6 +50,71 @@ interface PdmProductosViewProps {
   onOpenDetalle: (p: ResumenProducto) => void;
   onAsignar: (p: ResumenProducto, secretariaId: number) => void;
 }
+
+const ProductoRow = memo(function ProductoRow({
+  producto,
+  filtroAnio,
+  isAdmin,
+  saving,
+  secretarias,
+  onOpenDetalle,
+  onAsignar,
+}: {
+  producto: ResumenProducto;
+  filtroAnio: number;
+  isAdmin: boolean;
+  saving: boolean;
+  secretarias: Secretaria[];
+  onOpenDetalle: (p: ResumenProducto) => void;
+  onAsignar: (p: ResumenProducto, secretariaId: number) => void;
+}) {
+  const avance = getAvanceAnio(producto, filtroAnio, filtroAnio);
+  const estado = getEstadoProductoAnio(producto, filtroAnio, filtroAnio);
+
+  return (
+    <tr className="cursor-pointer transition hover:bg-blue-50/50" onClick={() => onOpenDetalle(producto)}>
+      <td className="px-4 py-3">
+        <PdmBadge tone="secondary">{producto.codigo}</PdmBadge>
+      </td>
+      <td className="max-w-xs px-4 py-3">
+        <p className="font-medium text-slate-900 line-clamp-2">{producto.producto}</p>
+        <p className="text-xs text-slate-500 line-clamp-1">{producto.sector}</p>
+      </td>
+      <td className="hidden px-4 py-3 text-center md:table-cell">
+        {formatearNumero(producto.meta_cuatrienio || 0)}
+      </td>
+      <td className="px-4 py-3 text-center">{formatearNumero(getMetaAnio(producto, filtroAnio))}</td>
+      <td className="hidden px-4 py-3 text-right font-medium text-emerald-700 lg:table-cell">
+        {formatearMoneda(getPresupuestoAnio(producto, filtroAnio))}
+      </td>
+      <td className="min-w-[120px] px-4 py-3">
+        <PdmProgressBar value={avance} tone={getColorProgreso(avance)} />
+      </td>
+      <td className="px-4 py-3 text-center">
+        <PdmBadge tone={getColorEstadoProducto(estado)}>{getTextoEstadoProducto(estado)}</PdmBadge>
+      </td>
+      <td className="hidden px-4 py-3 xl:table-cell" onClick={(e) => e.stopPropagation()}>
+        {isAdmin ? (
+          <select
+            className={pdmSelect}
+            value={producto.responsable_secretaria || ""}
+            disabled={saving}
+            onChange={(e) => void onAsignar(producto, Number(e.target.value))}
+          >
+            <option value="">Asignar...</option>
+            {secretarias.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-xs text-slate-600">{producto.responsable_secretaria_nombre || "—"}</span>
+        )}
+      </td>
+    </tr>
+  );
+});
 
 export default function PdmProductosView({
   filtroAnio,
@@ -242,56 +308,18 @@ export default function PdmProductosView({
                     </td>
                   </tr>
                 ) : (
-                  productos.map((producto) => {
-                    const avance = getAvanceAnio(producto, filtroAnio, filtroAnio);
-                    const estado = getEstadoProductoAnio(producto, filtroAnio, filtroAnio);
-                    return (
-                      <tr
-                        key={producto.id}
-                        className="cursor-pointer transition hover:bg-blue-50/50"
-                        onClick={() => onOpenDetalle(producto)}
-                      >
-                        <td className="px-4 py-3">
-                          <PdmBadge tone="secondary">{producto.codigo}</PdmBadge>
-                        </td>
-                        <td className="max-w-xs px-4 py-3">
-                          <p className="font-medium text-slate-900 line-clamp-2">{producto.producto}</p>
-                          <p className="text-xs text-slate-500 line-clamp-1">{producto.sector}</p>
-                        </td>
-                        <td className="hidden px-4 py-3 text-center md:table-cell">
-                          {formatearNumero(producto.meta_cuatrienio || 0)}
-                        </td>
-                        <td className="px-4 py-3 text-center">{formatearNumero(getMetaAnio(producto, filtroAnio))}</td>
-                        <td className="hidden px-4 py-3 text-right font-medium text-emerald-700 lg:table-cell">
-                          {formatearMoneda(getPresupuestoAnio(producto, filtroAnio))}
-                        </td>
-                        <td className="min-w-[120px] px-4 py-3">
-                          <PdmProgressBar value={avance} tone={getColorProgreso(avance)} />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <PdmBadge tone={getColorEstadoProducto(estado)}>{getTextoEstadoProducto(estado)}</PdmBadge>
-                        </td>
-                        <td className="hidden px-4 py-3 xl:table-cell" onClick={(e) => e.stopPropagation()}>
-                          {isAdmin ? (
-                            <select className={pdmSelect}
-                              value={producto.responsable_secretaria || ""}
-                              disabled={saving}
-                              onChange={(e) => void onAsignar(producto, Number(e.target.value))}
-                            >
-                              <option value="">Asignar...</option>
-                              {secretarias.map((s) => (
-                                <option key={s.id} value={s.id}>
-                                  {s.nombre}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="text-xs text-slate-600">{producto.responsable_secretaria_nombre || "—"}</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
+                  productos.map((producto) => (
+                    <ProductoRow
+                      key={producto.id}
+                      producto={producto}
+                      filtroAnio={filtroAnio}
+                      isAdmin={isAdmin}
+                      saving={saving}
+                      secretarias={secretarias}
+                      onOpenDetalle={onOpenDetalle}
+                      onAsignar={onAsignar}
+                    />
+                  ))
                 )}
               </tbody>
             </table>

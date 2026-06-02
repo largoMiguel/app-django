@@ -353,56 +353,67 @@ def parse_ejecucion_excel(contents: bytes, filename: str) -> tuple[pd.DataFrame,
 def rows_from_ejecucion_dataframe(df_filtrado: pd.DataFrame, anio: int) -> tuple[list[dict[str, Any]], list[str]]:
     has_dependencia = any(_normalize_text(c) == "DEPENDENCIA" for c in df_filtrado.columns)
     has_bpin = any(_normalize_text(c) == "BPIN" for c in df_filtrado.columns)
-    registros_unicos: dict[tuple[str, str], dict[str, Any]] = {}
     errores: list[str] = []
 
-    for idx, row in df_filtrado.iterrows():
-        try:
-            codigo_producto = extraer_codigo_producto(row["PRODUCTO"])
-            if not codigo_producto:
-                errores.append(f"Fila {idx + 2}: No se pudo extraer código de producto de '{row['PRODUCTO']}'")
-                continue
+    work = df_filtrado.copy()
+    work["_row_num"] = work.index + 2
+    work["_codigo_producto"] = work["PRODUCTO"].apply(extraer_codigo_producto)
+    work["_descripcion_fte"] = work.apply(resolver_descripcion_fte, axis=1)
 
-            descripcion_fte = resolver_descripcion_fte(row)
-            clave = (codigo_producto, descripcion_fte)
+    invalid_mask = work["_codigo_producto"] == ""
+    for _, invalid in work.loc[invalid_mask, ["_row_num", "PRODUCTO"]].iterrows():
+        errores.append(
+            f"Fila {int(invalid['_row_num'])}: No se pudo extraer código de producto de '{invalid['PRODUCTO']}'"
+        )
+    work = work.loc[~invalid_mask].copy()
+    if work.empty:
+        return [], errores
 
-            if clave in registros_unicos:
-                registros_unicos[clave]["pto_inicial"] += limpiar_numero(row["PTO INICIAL"])
-                registros_unicos[clave]["adicion"] += limpiar_numero(row["ADICION"])
-                registros_unicos[clave]["reduccion"] += limpiar_numero(row["REDUCCION"])
-                registros_unicos[clave]["credito"] += limpiar_numero(row["CREDITO"])
-                registros_unicos[clave]["contracredito"] += limpiar_numero(row["CONTRACREDITO"])
-                registros_unicos[clave]["pagos"] += limpiar_numero(row["PAGOS"])
-            else:
-                registros_unicos[clave] = {
-                    "codigo_producto": codigo_producto,
-                    "descripcion_fte": descripcion_fte,
-                    "pto_inicial": limpiar_numero(row["PTO INICIAL"]),
-                    "adicion": limpiar_numero(row["ADICION"]),
-                    "reduccion": limpiar_numero(row["REDUCCION"]),
-                    "credito": limpiar_numero(row["CREDITO"]),
-                    "contracredito": limpiar_numero(row["CONTRACREDITO"]),
-                    "pagos": limpiar_numero(row["PAGOS"]),
-                    "sector": str(row["SECTOR"]).strip() if pd.notna(row["SECTOR"]) else None,
-                    "dependencia": str(row["DEPENDENCIA"]).strip()
-                    if has_dependencia and pd.notna(row.get("DEPENDENCIA"))
-                    else None,
-                    "bpin": str(row["BPIN"]).strip() if has_bpin and pd.notna(row.get("BPIN")) else None,
-                    "anio": anio,
-                }
-        except Exception as exc:  # noqa: BLE001
-            errores.append(f"Fila {idx + 2}: {exc}")
+    numeric_cols = ["PTO INICIAL", "ADICION", "REDUCCION", "CREDITO", "CONTRACREDITO", "PAGOS"]
+    for col in numeric_cols:
+        work[col] = work[col].apply(limpiar_numero)
+
+    grouped = work.groupby(["_codigo_producto", "_descripcion_fte"], as_index=False).agg(
+        {
+            "PTO INICIAL": "sum",
+            "ADICION": "sum",
+            "REDUCCION": "sum",
+            "CREDITO": "sum",
+            "CONTRACREDITO": "sum",
+            "PAGOS": "sum",
+            "SECTOR": "first",
+            **({"DEPENDENCIA": "first"} if has_dependencia else {}),
+            **({"BPIN": "first"} if has_bpin else {}),
+        }
+    )
 
     rows: list[dict[str, Any]] = []
-    for datos in registros_unicos.values():
+    for _, row in grouped.iterrows():
         pto_def = calcular_pto_definitivo_componentes(
-            float(datos["pto_inicial"]),
-            float(datos["adicion"]),
-            float(datos["reduccion"]),
-            float(datos["credito"]),
-            float(datos["contracredito"]),
+            float(row["PTO INICIAL"]),
+            float(row["ADICION"]),
+            float(row["REDUCCION"]),
+            float(row["CREDITO"]),
+            float(row["CONTRACREDITO"]),
         )
-        datos["pto_definitivo"] = Decimal(str(pto_def))
-        rows.append(datos)
+        rows.append(
+            {
+                "codigo_producto": row["_codigo_producto"],
+                "descripcion_fte": row["_descripcion_fte"],
+                "pto_inicial": row["PTO INICIAL"],
+                "adicion": row["ADICION"],
+                "reduccion": row["REDUCCION"],
+                "credito": row["CREDITO"],
+                "contracredito": row["CONTRACREDITO"],
+                "pagos": row["PAGOS"],
+                "pto_definitivo": Decimal(str(pto_def)),
+                "sector": str(row["SECTOR"]).strip() if pd.notna(row["SECTOR"]) else None,
+                "dependencia": str(row["DEPENDENCIA"]).strip()
+                if has_dependencia and pd.notna(row.get("DEPENDENCIA"))
+                else None,
+                "bpin": str(row["BPIN"]).strip() if has_bpin and pd.notna(row.get("BPIN")) else None,
+                "anio": anio,
+            }
+        )
 
     return rows, errores

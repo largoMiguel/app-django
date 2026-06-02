@@ -32,7 +32,11 @@ def productos_queryset_for_user(user, entity: Entity) -> QuerySet[PdmProducto]:
 
 def actividades_queryset_for_user(user, entity: Entity) -> QuerySet[PdmActividad]:
     """Actividades visibles según productos asignados al secretario."""
-    qs = PdmActividad.objects.filter(entity=entity).select_related("responsable_secretaria")
+    qs = (
+        PdmActividad.objects.filter(entity=entity)
+        .select_related("responsable_secretaria")
+        .prefetch_related("evidencia")
+    )
     if _is_secretario(user) and not _is_admin(user):
         codigos = productos_queryset_for_user(user, entity).values_list("codigo_producto", flat=True)
         qs = qs.filter(codigo_producto__in=codigos)

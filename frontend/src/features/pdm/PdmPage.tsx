@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -15,50 +15,61 @@ import { pdmApi } from "@/core/api/pdm";
 import { secretariasApi } from "@/core/api/entities";
 import { formatApiError } from "@/core/api/errors";
 import {
-  useInvalidatePdm,
+  useInvalidatePdmQueries,
+  usePdmContratos,
+  usePdmEjecucionProducto,
   usePdmMeta,
+  usePdmProductoDetail,
   usePdmProductos,
+  usePdmResumenEjecucionAnual,
   usePdmStats,
   usePdmStatus,
 } from "@/core/api/hooks/usePdm";
 import PdmAccionesMenu from "@/features/pdm/PdmAccionesMenu";
-import PdmActividadModal, { type ActividadFormValues } from "@/features/pdm/PdmActividadModal";
-import PdmBpinModal from "@/features/pdm/PdmBpinModal";
-import PdmDashboard from "@/features/pdm/PdmDashboard";
-import PdmProductoDetalle, { type ContratosRPSResumen } from "@/features/pdm/PdmProductoDetalle";
-import PdmProductosView from "@/features/pdm/PdmProductosView";
+import type { ActividadFormValues } from "@/features/pdm/PdmActividadModal";
+import type { ContratosRPSResumen } from "@/features/pdm/PdmProductoDetalle";
 import { pdmBtnPrimary, pdmBtnSecondary, pdmSelect } from "@/features/pdm/pdmLayout";
-import { buildPdmUploadPayload, procesarArchivoExcel } from "@/features/pdm/pdmExcelParser";
+import { procesarArchivoExcelEnWorker } from "@/features/pdm/pdmExcelWorker";
 import {
   ANIOS_PDM,
   getPresupuestoAnio,
   mapProductoToResumen,
   obtenerResumenActividadesPorAnio,
   statsFromApi,
-  type ResumenEjecucionAnual,
   type ResumenProducto,
   type VistaPdm,
 } from "@/features/pdm/pdmUtils";
 import { PdmAlert, PdmCard, PdmFilePicker, PdmLoadingOverlay, PdmModal } from "@/features/pdm/components/PdmUi";
-import type { PdmActividad, PdmEjecucionProducto } from "@/core/api/pdm";
+import type { PdmActividad } from "@/core/api/pdm";
+
+const PdmDashboard = lazy(() => import("@/features/pdm/PdmDashboard"));
+const PdmProductosView = lazy(() => import("@/features/pdm/PdmProductosView"));
+const PdmProductoDetalle = lazy(() => import("@/features/pdm/PdmProductoDetalle"));
+const PdmActividadModal = lazy(() => import("@/features/pdm/PdmActividadModal"));
+const PdmBpinModal = lazy(() => import("@/features/pdm/PdmBpinModal"));
 
 const PAGE_SIZE = 15;
+const BUSQUEDA_DEBOUNCE_MS = 400;
 
 function parseVista(raw: string | null): VistaPdm {
   if (raw === "productos" || raw === "detalle") return raw;
   return "dashboard";
 }
 
+function VistaSuspense({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PdmLoadingOverlay message="Cargando vista..." />}>{children}</Suspense>;
+}
+
 export default function PdmPage(): ReactElement {
-  const user = useAuthStore((s) => s.user);
-  const slug = user?.entity?.slug ?? "";
-  const entityId = user?.entity?.id;
-  const isAdmin = (user?.roles ?? []).includes("admin");
-  const isSecretario = (user?.roles ?? []).includes("secretario");
-  const puedeCrearEvidencia = Boolean(
-    isAdmin || isSecretario || (user?.roles ?? []).includes("superadmin") || user?.is_superuser,
-  );
-  const invalidatePdm = useInvalidatePdm();
+  const slug = useAuthStore((s) => s.user?.entity?.slug ?? "");
+  const entityId = useAuthStore((s) => s.user?.entity?.id);
+  const roles = useAuthStore((s) => s.user?.roles ?? []);
+  const isSuperuser = useAuthStore((s) => s.user?.is_superuser ?? false);
+  const secretariaUsuarioId = useAuthStore((s) => s.user?.secretaria?.id);
+  const isAdmin = roles.includes("admin");
+  const isSecretario = roles.includes("secretario");
+  const puedeCrearEvidencia = Boolean(isAdmin || isSecretario || roles.includes("superadmin") || isSuperuser);
+  const invalidatePdm = useInvalidatePdmQueries();
   const [searchParams, setSearchParams] = useSearchParams();
   const vista = parseVista(searchParams.get("v"));
   const codigoUrl = searchParams.get("codigo") ?? "";
@@ -100,7 +111,8 @@ export default function PdmPage(): ReactElement {
   const [filtroTipoAcumulacion, setFiltroTipoAcumulacion] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroBusqueda, setFiltroBusqueda] = useState("");
-  const [productoSeleccionado, setProductoSeleccionado] = useState<ResumenProducto | null>(null);
+  const [filtroBusquedaDebounced, setFiltroBusquedaDebounced] = useState("");
+  const [productoListPreview, setProductoListPreview] = useState<ResumenProducto | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [modalContratos, setModalContratos] = useState(false);
@@ -111,12 +123,7 @@ export default function PdmPage(): ReactElement {
   const [archivoEjecucion, setArchivoEjecucion] = useState<File | null>(null);
   const [mostrarModalActividad, setMostrarModalActividad] = useState(false);
   const [actividadEnEdicion, setActividadEnEdicion] = useState<PdmActividad | null>(null);
-  const [cargandoActividadesBackend, setCargandoActividadesBackend] = useState(false);
   const [guardandoEvidencia, setGuardandoEvidencia] = useState(false);
-  const [ejecucionPresupuestal, setEjecucionPresupuestal] = useState<PdmEjecucionProducto | null>(null);
-  const [cargandoEjecucion, setCargandoEjecucion] = useState(false);
-  const [contratosRPS, setContratosRPS] = useState<ContratosRPSResumen | null>(null);
-  const [cargandoContratos, setCargandoContratos] = useState(false);
   const [mostrarModalBpin, setMostrarModalBpin] = useState(false);
   const [proyectoBpin, setProyectoBpin] = useState<ProyectoBpin | null>(null);
   const [cargandoBpin, setCargandoBpin] = useState(false);
@@ -127,16 +134,25 @@ export default function PdmPage(): ReactElement {
   const { data: status, isLoading: loadingStatus } = usePdmStatus(slug, Boolean(slug));
   const tieneDatos = Boolean(status?.tiene_datos);
 
-  const { data: meta } = usePdmMeta(slug, tieneDatos);
+  const { data: meta } = usePdmMeta(slug, tieneDatos && vista === "productos");
   const { data: statsData } = usePdmStats(slug, filtroAnio, tieneDatos && vista !== "detalle");
-  const estadisticas = statsData ? statsFromApi(statsData) : null;
-  const statsEstado = statsData?.estado_por_anio ?? {
-    pendiente: 0,
-    en_progreso: 0,
-    completado: 0,
-    por_ejecutar: 0,
-    total: 0,
-  };
+  const estadisticas = useMemo(() => (statsData ? statsFromApi(statsData) : null), [statsData]);
+  const statsEstado = useMemo(
+    () =>
+      statsData?.estado_por_anio ?? {
+        pendiente: 0,
+        en_progreso: 0,
+        completado: 0,
+        por_ejecutar: 0,
+        total: 0,
+      },
+    [statsData],
+  );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setFiltroBusquedaDebounced(filtroBusqueda), BUSQUEDA_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [filtroBusqueda]);
 
   const listParams = useMemo(
     () => ({
@@ -149,7 +165,7 @@ export default function PdmPage(): ReactElement {
       ...(filtroOds ? { ods: filtroOds } : {}),
       ...(filtroTipoAcumulacion ? { tipo_acumulacion: filtroTipoAcumulacion } : {}),
       ...(filtroEstado ? { estado: filtroEstado } : {}),
-      ...(filtroBusqueda.trim() ? { search: filtroBusqueda.trim() } : {}),
+      ...(filtroBusquedaDebounced.trim() ? { search: filtroBusquedaDebounced.trim() } : {}),
     }),
     [
       currentPage,
@@ -160,7 +176,7 @@ export default function PdmPage(): ReactElement {
       filtroOds,
       filtroTipoAcumulacion,
       filtroEstado,
-      filtroBusqueda,
+      filtroBusquedaDebounced,
     ],
   );
 
@@ -176,23 +192,62 @@ export default function PdmPage(): ReactElement {
   const totalCount = productosPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
+  const needsSecretarias = Boolean(entityId) && (isAdmin || mostrarModalActividad) && (vista === "productos" || mostrarModalActividad);
   const { data: secretarias = [] } = useQuery({
     queryKey: ["secretarias", entityId],
     queryFn: () => secretariasApi.list(entityId!),
-    enabled: Boolean(entityId),
+    enabled: needsSecretarias,
   });
 
-  const { data: resumenEjecucion } = useQuery<ResumenEjecucionAnual | null>({
-    queryKey: ["pdm", "ejecucion-anual"],
-    queryFn: () => pdmApi.resumenEjecucionAnualEntidad(),
-    enabled: tieneDatos,
-  });
+  const { data: resumenEjecucion } = usePdmResumenEjecucionAnual(tieneDatos && vista === "dashboard");
+
+  const codigoDetalle = vista === "detalle" ? codigoUrl : "";
+  const detalleEnabled = tieneDatos && vista === "detalle" && Boolean(codigoDetalle && slug);
+  const { data: productoDetailData, isLoading: loadingProductoDetail } = usePdmProductoDetail(
+    slug,
+    codigoDetalle,
+    anioDetalle,
+    detalleEnabled,
+  );
+  const { data: ejecucionPresupuestal = null, isLoading: cargandoEjecucion } = usePdmEjecucionProducto(
+    codigoDetalle,
+    anioDetalle,
+    detalleEnabled,
+  );
+  const { data: contratosRPS = null, isLoading: cargandoContratos } = usePdmContratos(
+    slug,
+    anioDetalle,
+    codigoDetalle,
+    detalleEnabled,
+  );
+
+  const productoSeleccionado = useMemo(() => {
+    if (productoDetailData) return mapProductoToResumen(productoDetailData);
+    return productoListPreview;
+  }, [productoDetailData, productoListPreview]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filtroAnio, filtroLinea, filtroSector, filtroSecretaria, filtroOds, filtroTipoAcumulacion, filtroEstado, filtroBusqueda]);
+  }, [
+    filtroAnio,
+    filtroLinea,
+    filtroSector,
+    filtroSecretaria,
+    filtroOds,
+    filtroTipoAcumulacion,
+    filtroEstado,
+    filtroBusquedaDebounced,
+  ]);
 
-  function limpiarFiltros() {
+  useEffect(() => {
+    if (vista !== "detalle") {
+      setProductoListPreview(null);
+      setMostrarModalActividad(false);
+      setActividadEnEdicion(null);
+    }
+  }, [vista]);
+
+  const limpiarFiltros = useCallback(() => {
     setFiltroLinea("");
     setFiltroSector("");
     setFiltroSecretaria("");
@@ -200,113 +255,26 @@ export default function PdmPage(): ReactElement {
     setFiltroTipoAcumulacion("");
     setFiltroEstado("");
     setFiltroBusqueda("");
-  }
+    setFiltroBusquedaDebounced("");
+  }, []);
 
-  function volver() {
+  const volver = useCallback(() => {
     if (vista === "detalle") navegarVista("productos");
     else navegarVista("dashboard");
-  }
+  }, [navegarVista, vista]);
 
-  async function cargarEjecucionPresupuestal(codigo: string, anio: number) {
-    setCargandoEjecucion(true);
-    setEjecucionPresupuestal(null);
-    try {
-      setEjecucionPresupuestal(await pdmApi.ejecucionPorProducto(codigo, anio));
-    } catch {
-      setEjecucionPresupuestal(null);
-    } finally {
-      setCargandoEjecucion(false);
-    }
-  }
+  const openDetalle = useCallback(
+    (producto: ResumenProducto) => {
+      setProductoListPreview(producto);
+      setAnioDetalle(filtroAnio);
+      navegarVista("detalle", { codigo: producto.codigo });
+    },
+    [filtroAnio, navegarVista],
+  );
 
-  async function cargarContratosRPS(codigo: string, anio: number) {
-    if (!slug) return;
-    setCargandoContratos(true);
-    setContratosRPS(null);
-    try {
-      const data = await pdmApi.contratos(slug, anio, codigo);
-      setContratosRPS({ ...data, anio: data.anio ?? anio });
-    } catch {
-      setContratosRPS(null);
-    } finally {
-      setCargandoContratos(false);
-    }
-  }
-
-  async function recargarProductoDetalle(codigo: string, anio: number) {
-    if (!slug) return;
-    try {
-      const detail = await pdmApi.productoDetail(slug, codigo, anio);
-      setProductoSeleccionado(mapProductoToResumen(detail));
-    } catch {
-      await sincronizarActividadesProducto(codigo, anio);
-    }
-  }
-
-  async function sincronizarActividadesProducto(codigo: string, anio?: number) {
-    if (!slug) return [];
-    setCargandoActividadesBackend(true);
-    try {
-      const actividades = await pdmApi.actividadesByProducto(slug, codigo, anio);
-      setProductoSeleccionado((prev) => (prev && prev.codigo === codigo ? { ...prev, actividades } : prev));
-      return actividades;
-    } finally {
-      setCargandoActividadesBackend(false);
-    }
-  }
-
-  async function openDetalle(producto: ResumenProducto) {
-    setProductoSeleccionado(producto);
-    setAnioDetalle(filtroAnio);
-    navegarVista("detalle", { codigo: producto.codigo });
-    await Promise.all([
-      slug
-        ? pdmApi
-            .productoDetail(slug, producto.codigo, filtroAnio)
-            .then((detail) => setProductoSeleccionado(mapProductoToResumen(detail)))
-            .catch(() => undefined)
-        : Promise.resolve(),
-      cargarEjecucionPresupuestal(producto.codigo, filtroAnio),
-      cargarContratosRPS(producto.codigo, filtroAnio),
-    ]);
-  }
-
-  useEffect(() => {
-    if (vista !== "detalle" || !codigoUrl || !slug) return;
-    if (productoSeleccionado?.codigo === codigoUrl) return;
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const detail = await pdmApi.productoDetail(slug, codigoUrl, anioDetalle);
-        if (cancelled) return;
-        setProductoSeleccionado(mapProductoToResumen(detail));
-        await Promise.all([
-          cargarEjecucionPresupuestal(codigoUrl, anioDetalle),
-          cargarContratosRPS(codigoUrl, anioDetalle),
-        ]);
-      } catch {
-        if (!cancelled) navegarVista("productos", { replace: true });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [vista, codigoUrl, slug, anioDetalle, productoSeleccionado?.codigo, navegarVista]);
-
-  async function seleccionarAnioDetalle(anio: number) {
+  const seleccionarAnioDetalle = useCallback((anio: number) => {
     setAnioDetalle(anio);
-    if (!productoSeleccionado || !slug) return;
-    await Promise.all([
-      pdmApi
-        .productoDetail(slug, productoSeleccionado.codigo, anio)
-        .then((detail) => setProductoSeleccionado(mapProductoToResumen(detail)))
-        .catch(() => undefined),
-      cargarEjecucionPresupuestal(productoSeleccionado.codigo, anio),
-      cargarContratosRPS(productoSeleccionado.codigo, anio),
-    ]);
-  }
+  }, []);
 
   const resumenAnioDetalle = useMemo(() => {
     if (!productoSeleccionado) return null;
@@ -329,79 +297,169 @@ export default function PdmPage(): ReactElement {
     ];
   }, [productoSeleccionado, anioDetalle, ejecucionPresupuestal]);
 
-  async function guardarActividad(values: ActividadFormValues) {
-    if (!slug || !productoSeleccionado) return;
-    setGuardandoEvidencia(true);
-    setSaving(true);
-    setError(null);
-    try {
-      const payload = {
-        codigo_producto: productoSeleccionado.codigo,
-        anio: anioDetalle,
-        nombre: values.nombre.trim(),
-        descripcion: values.descripcion.trim(),
-        responsable_secretaria: values.responsable_secretaria_id,
-        estado: "COMPLETADA" as const,
-        fecha_inicio: new Date(values.fecha_inicio).toISOString(),
-        fecha_fin: new Date(values.fecha_fin).toISOString(),
-        meta_ejecutar: values.meta_ejecutar,
-      };
-      const actividad = actividadEnEdicion
-        ? await pdmApi.actualizarActividad(slug, actividadEnEdicion.id, payload)
-        : await pdmApi.crearActividad(slug, payload);
-      const evidenciaPayload = {
-        descripcion: values.descripcion.trim(),
-        url_evidencia: values.evidencia_url.trim() || undefined,
-        archivos: values.imagenes_nuevas,
-        archivos_eliminar: values.archivos_eliminar,
-      };
-      if (actividadEnEdicion?.evidencia?.id || actividadEnEdicion?.tiene_evidencia) {
-        await pdmApi.actualizarEvidencia(slug, actividad.id, evidenciaPayload);
-      } else {
-        await pdmApi.registrarEvidencia(slug, actividad.id, evidenciaPayload);
+  const guardarActividad = useCallback(
+    async (values: ActividadFormValues) => {
+      if (!slug || !productoSeleccionado) return;
+      setGuardandoEvidencia(true);
+      setSaving(true);
+      setError(null);
+      try {
+        const payload = {
+          codigo_producto: productoSeleccionado.codigo,
+          anio: anioDetalle,
+          nombre: values.nombre.trim(),
+          descripcion: values.descripcion.trim(),
+          responsable_secretaria: values.responsable_secretaria_id,
+          estado: "COMPLETADA" as const,
+          fecha_inicio: new Date(values.fecha_inicio).toISOString(),
+          fecha_fin: new Date(values.fecha_fin).toISOString(),
+          meta_ejecutar: values.meta_ejecutar,
+        };
+        const actividad = actividadEnEdicion
+          ? await pdmApi.actualizarActividad(slug, actividadEnEdicion.id, payload)
+          : await pdmApi.crearActividad(slug, payload);
+        const evidenciaPayload = {
+          descripcion: values.descripcion.trim(),
+          url_evidencia: values.evidencia_url.trim() || undefined,
+          archivos: values.imagenes_nuevas,
+          archivos_eliminar: values.archivos_eliminar,
+        };
+        if (actividadEnEdicion?.evidencia?.id || actividadEnEdicion?.tiene_evidencia) {
+          await pdmApi.actualizarEvidencia(slug, actividad.id, evidenciaPayload);
+        } else {
+          await pdmApi.registrarEvidencia(slug, actividad.id, evidenciaPayload);
+        }
+        invalidatePdm.afterActividadMutation(slug, productoSeleccionado.codigo, anioDetalle);
+        setMostrarModalActividad(false);
+        setActividadEnEdicion(null);
+      } catch (e) {
+        setError(formatApiError(e, "No se pudo guardar la actividad."));
+      } finally {
+        setGuardandoEvidencia(false);
+        setSaving(false);
       }
-      await recargarProductoDetalle(productoSeleccionado.codigo, anioDetalle);
-      invalidatePdm();
-      setMostrarModalActividad(false);
-      setActividadEnEdicion(null);
-    } catch (e) {
-      setError(formatApiError(e as never, "No se pudo guardar la actividad."));
-    } finally {
-      setGuardandoEvidencia(false);
-      setSaving(false);
-    }
-  }
+    },
+    [actividadEnEdicion, anioDetalle, invalidatePdm, productoSeleccionado, slug],
+  );
 
-  async function handleExcelSelected(file: File | null) {
-    if (!file || !slug) return;
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    if (ext !== "xlsx" && ext !== "xls") {
-      setError("Seleccione un archivo Excel válido (.xlsx o .xls).");
-      return;
-    }
-    setProcesandoExcel(true);
-    setSaving(true);
-    setError(null);
-    try {
-      const parsed = await procesarArchivoExcel(file);
-      if (parsed.productos_plan_indicativo.length === 0) {
-        throw new Error("No se encontraron productos en la hoja 'Plan Indicativo - Productos'.");
+  const handleExcelSelected = useCallback(
+    async (file: File | null) => {
+      if (!file || !slug) return;
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      if (ext !== "xlsx" && ext !== "xls") {
+        setError("Seleccione un archivo Excel válido (.xlsx o .xls).");
+        return;
       }
-      await pdmApi.upload(slug, buildPdmUploadPayload(parsed));
-      invalidatePdm();
-      navegarVista("dashboard", { replace: true });
-    } catch (e) {
-      setError(formatApiError(e as never, "No se pudo procesar el archivo."));
-    } finally {
-      setProcesandoExcel(false);
-      setSaving(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }
+      setProcesandoExcel(true);
+      setSaving(true);
+      setError(null);
+      try {
+        const parsed = await procesarArchivoExcelEnWorker(file);
+        if (parsed.productos_plan_indicativo.length === 0) {
+          throw new Error("No se encontraron productos en la hoja 'Plan Indicativo - Productos'.");
+        }
+        const { buildPdmUploadPayload } = await import("@/features/pdm/pdmExcelParser");
+        await pdmApi.upload(slug, buildPdmUploadPayload(parsed));
+        invalidatePdm.afterUploadPlan(slug);
+        navegarVista("dashboard", { replace: true });
+      } catch (e) {
+        setError(formatApiError(e, "No se pudo procesar el archivo."));
+      } finally {
+        setProcesandoExcel(false);
+        setSaving(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [invalidatePdm, navegarVista, slug],
+  );
+
+  const handleAsignar = useCallback(
+    async (p: ResumenProducto, sid: number) => {
+      if (!slug || !sid) return;
+      setSaving(true);
+      try {
+        await pdmApi.asignarResponsable(slug, p.codigo, sid);
+        invalidatePdm.afterAsignarResponsable(slug);
+      } catch (e) {
+        setError(formatApiError(e, "No se pudo asignar."));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [invalidatePdm, slug],
+  );
+
+  const handleEliminarActividad = useCallback(
+    async (a: PdmActividad) => {
+      if (!slug || !productoSeleccionado || !window.confirm("¿Eliminar actividad?")) return;
+      setSaving(true);
+      try {
+        await pdmApi.eliminarActividad(slug, a.id);
+        invalidatePdm.afterActividadMutation(slug, productoSeleccionado.codigo, anioDetalle);
+      } catch (e) {
+        setError(formatApiError(e, "No se pudo eliminar."));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [anioDetalle, invalidatePdm, productoSeleccionado, slug],
+  );
+
+  const handleCargarEvidencia = useCallback(
+    async (a: PdmActividad) => {
+      if (!slug || !productoSeleccionado) return;
+      try {
+        await pdmApi.getEvidencia(slug, a.id);
+        invalidatePdm.invalidateProducto(slug, productoSeleccionado.codigo, anioDetalle);
+      } catch {
+        /* ignore */
+      }
+    },
+    [anioDetalle, invalidatePdm, productoSeleccionado, slug],
+  );
+
+  const handleEditarActividad = useCallback(
+    (a: PdmActividad) => {
+      void (async () => {
+        let act = a;
+        if (a.tiene_evidencia && !a.evidencia && slug) {
+          try {
+            act = { ...a, evidencia: await pdmApi.getEvidencia(slug, a.id) };
+          } catch {
+            /* ignore */
+          }
+        }
+        setActividadEnEdicion(act);
+        setMostrarModalActividad(true);
+      })();
+    },
+    [slug],
+  );
+
+  const handleAbrirBpin = useCallback((bpin: string) => {
+    setMostrarModalBpin(true);
+    setCargandoBpin(true);
+    setProyectoBpin(null);
+    setErrorBpin(null);
+    setConsultaUrlBpin(null);
+    setPortalUrlBpin(null);
+    void bpinApi
+      .get(bpin)
+      .then((r) => {
+        setProyectoBpin(r.proyecto);
+        setConsultaUrlBpin(r.consulta_url);
+        setPortalUrlBpin(r.portal_url);
+        setErrorBpin(r.proyecto ? null : r.detail || "No se encontró información para este código BPIN.");
+      })
+      .catch((e) => {
+        setProyectoBpin(null);
+        setErrorBpin(formatApiError(e, "Error al consultar datos.gov.co."));
+      })
+      .finally(() => setCargandoBpin(false));
+  }, []);
 
   const loading = loadingStatus || procesandoExcel;
-  const cargandoDetalleUrl =
-    tieneDatos && vista === "detalle" && Boolean(codigoUrl) && productoSeleccionado?.codigo !== codigoUrl;
+  const cargandoDetalleUrl = detalleEnabled && (loadingProductoDetail || !productoSeleccionado);
 
   if (loading || cargandoDetalleUrl) {
     return (
@@ -509,153 +567,86 @@ export default function PdmPage(): ReactElement {
         <PdmCard className="mx-auto max-w-xl text-center">
           <h2 className="text-lg font-semibold text-slate-900">Plan de Desarrollo Municipal</h2>
           <p className="mt-3 text-sm text-slate-600">
-            El plan indicativo aún no ha sido cargado en la entidad. Solicite al administrador que suba el archivo
-            Excel del PDM para habilitar el seguimiento.
+            El plan indicativo aún no ha sido cargado en la entidad. Solicite al administrador que suba el archivo Excel
+            del PDM para habilitar el seguimiento.
           </p>
         </PdmCard>
       )}
 
       {tieneDatos && vista === "dashboard" && estadisticas && (
-        <PdmDashboard
-          estadisticas={estadisticas}
-          resumenEjecucion={resumenEjecucion ?? null}
-          onVerProductos={() => navegarVista("productos")}
-        />
+        <VistaSuspense>
+          <PdmDashboard
+            estadisticas={estadisticas}
+            resumenEjecucion={resumenEjecucion ?? null}
+            onVerProductos={() => navegarVista("productos")}
+          />
+        </VistaSuspense>
       )}
 
       {tieneDatos && vista === "productos" && (
-        <PdmProductosView
-          filtroAnio={filtroAnio}
-          onFiltroAnio={setFiltroAnio}
-          meta={meta}
-          secretarias={secretarias}
-          isAdmin={isAdmin}
-          saving={saving}
-          productos={resumenProductos}
-          totalCount={totalCount}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          isLoading={loadingProductos}
-          statsEstado={statsEstado}
-          filtroLinea={filtroLinea}
-          filtroSector={filtroSector}
-          filtroSecretaria={filtroSecretaria}
-          filtroOds={filtroOds}
-          filtroTipoAcumulacion={filtroTipoAcumulacion}
-          filtroEstado={filtroEstado}
-          filtroBusqueda={filtroBusqueda}
-          onFiltroLinea={setFiltroLinea}
-          onFiltroSector={setFiltroSector}
-          onFiltroSecretaria={setFiltroSecretaria}
-          onFiltroOds={setFiltroOds}
-          onFiltroTipoAcumulacion={setFiltroTipoAcumulacion}
-          onFiltroEstado={setFiltroEstado}
-          onFiltroBusqueda={setFiltroBusqueda}
-          onLimpiarFiltros={limpiarFiltros}
-          onPageChange={setCurrentPage}
-          onOpenDetalle={(p) => void openDetalle(p)}
-          onAsignar={async (p, sid) => {
-            if (!slug || !sid) return;
-            setSaving(true);
-            try {
-              await pdmApi.asignarResponsable(slug, p.codigo, sid);
-              invalidatePdm();
-            } catch (e) {
-              setError(formatApiError(e as never, "No se pudo asignar."));
-            } finally {
-              setSaving(false);
-            }
-          }}
-        />
+        <VistaSuspense>
+          <PdmProductosView
+            filtroAnio={filtroAnio}
+            onFiltroAnio={setFiltroAnio}
+            meta={meta}
+            secretarias={secretarias}
+            isAdmin={isAdmin}
+            saving={saving}
+            productos={resumenProductos}
+            totalCount={totalCount}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            isLoading={loadingProductos}
+            statsEstado={statsEstado}
+            filtroLinea={filtroLinea}
+            filtroSector={filtroSector}
+            filtroSecretaria={filtroSecretaria}
+            filtroOds={filtroOds}
+            filtroTipoAcumulacion={filtroTipoAcumulacion}
+            filtroEstado={filtroEstado}
+            filtroBusqueda={filtroBusqueda}
+            onFiltroLinea={setFiltroLinea}
+            onFiltroSector={setFiltroSector}
+            onFiltroSecretaria={setFiltroSecretaria}
+            onFiltroOds={setFiltroOds}
+            onFiltroTipoAcumulacion={setFiltroTipoAcumulacion}
+            onFiltroEstado={setFiltroEstado}
+            onFiltroBusqueda={setFiltroBusqueda}
+            onLimpiarFiltros={limpiarFiltros}
+            onPageChange={setCurrentPage}
+            onOpenDetalle={openDetalle}
+            onAsignar={handleAsignar}
+          />
+        </VistaSuspense>
       )}
 
       {tieneDatos && vista === "detalle" && productoSeleccionado && resumenAnioDetalle && (
-        <PdmProductoDetalle
-          producto={productoSeleccionado}
-          anioDetalle={anioDetalle}
-          onAnioDetalle={(a) => void seleccionarAnioDetalle(a)}
-          resumenAnioDetalle={resumenAnioDetalle}
-          comparativaPresupuestal={comparativaPresupuestal}
-          ejecucionPresupuestal={ejecucionPresupuestal}
-          cargandoEjecucion={cargandoEjecucion}
-          contratosRPS={contratosRPS}
-          cargandoContratos={cargandoContratos}
-          cargandoActividadesBackend={cargandoActividadesBackend}
-          saving={saving}
-          puedeCrearEvidencia={puedeCrearEvidencia}
-          isAdmin={isAdmin}
-          onNuevaActividad={() => {
-            setActividadEnEdicion(null);
-            setMostrarModalActividad(true);
-          }}
-          onEditarActividad={(a) => {
-            void (async () => {
-              let act = a;
-              if (a.tiene_evidencia && !a.evidencia && slug) {
-                try {
-                  act = { ...a, evidencia: await pdmApi.getEvidencia(slug, a.id) };
-                } catch {
-                  /* ignore */
-                }
-              }
-              setActividadEnEdicion(act);
+        <VistaSuspense>
+          <PdmProductoDetalle
+            producto={productoSeleccionado}
+            anioDetalle={anioDetalle}
+            onAnioDetalle={seleccionarAnioDetalle}
+            resumenAnioDetalle={resumenAnioDetalle}
+            comparativaPresupuestal={comparativaPresupuestal}
+            ejecucionPresupuestal={ejecucionPresupuestal}
+            cargandoEjecucion={cargandoEjecucion}
+            contratosRPS={contratosRPS as ContratosRPSResumen | null}
+            cargandoContratos={cargandoContratos}
+            cargandoActividadesBackend={loadingProductoDetail}
+            saving={saving}
+            puedeCrearEvidencia={puedeCrearEvidencia}
+            isAdmin={isAdmin}
+            onNuevaActividad={() => {
+              setActividadEnEdicion(null);
               setMostrarModalActividad(true);
-            })();
-          }}
-          onEliminarActividad={async (a) => {
-            if (!slug || !window.confirm("¿Eliminar actividad?")) return;
-            setSaving(true);
-            try {
-              await pdmApi.eliminarActividad(slug, a.id);
-              await recargarProductoDetalle(productoSeleccionado.codigo, anioDetalle);
-              invalidatePdm();
-            } catch (e) {
-              setError(formatApiError(e as never, "No se pudo eliminar."));
-            } finally {
-              setSaving(false);
-            }
-          }}
-          onCargarEvidencia={async (a) => {
-            if (!slug) return;
-            try {
-              const ev = await pdmApi.getEvidencia(slug, a.id);
-              setProductoSeleccionado((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      actividades: prev.actividades.map((x) =>
-                        x.id === a.id ? { ...x, evidencia: ev, tiene_evidencia: true } : x,
-                      ),
-                    }
-                  : prev,
-              );
-            } catch {
-              /* ignore */
-            }
-          }}
-          unidad={productoSeleccionado.unidad_medida || "N/D"}
-          onAbrirBpin={(bpin) => {
-            setMostrarModalBpin(true);
-            setCargandoBpin(true);
-            setProyectoBpin(null);
-            setErrorBpin(null);
-            setConsultaUrlBpin(null);
-            setPortalUrlBpin(null);
-            void bpinApi
-              .get(bpin)
-              .then((r) => {
-                setProyectoBpin(r.proyecto);
-                setConsultaUrlBpin(r.consulta_url);
-                setPortalUrlBpin(r.portal_url);
-                setErrorBpin(r.proyecto ? null : r.detail || "No se encontró información para este código BPIN.");
-              })
-              .catch((e) => {
-                setProyectoBpin(null);
-                setErrorBpin(formatApiError(e as never, "Error al consultar datos.gov.co."));
-              })
-              .finally(() => setCargandoBpin(false));
-          }}
-        />
+            }}
+            onEditarActividad={handleEditarActividad}
+            onEliminarActividad={handleEliminarActividad}
+            onCargarEvidencia={handleCargarEvidencia}
+            unidad={productoSeleccionado.unidad_medida || "N/D"}
+            onAbrirBpin={handleAbrirBpin}
+          />
+        </VistaSuspense>
       )}
 
       <PdmModal
@@ -678,10 +669,10 @@ export default function PdmPage(): ReactElement {
                   setSaving(true);
                   try {
                     await pdmApi.uploadEjecucion(archivoEjecucion, anioEjecucion);
-                    invalidatePdm();
+                    invalidatePdm.afterUploadEjecucion();
                     setModalEjecucion(false);
                   } catch (e) {
-                    setError(formatApiError(e as never, "Error al cargar."));
+                    setError(formatApiError(e, "Error al cargar."));
                   } finally {
                     setSaving(false);
                   }
@@ -733,12 +724,12 @@ export default function PdmPage(): ReactElement {
                     setModalContratos(false);
                     setArchivoContratos(null);
                     if (productoSeleccionado && vista === "detalle") {
-                      await cargarContratosRPS(productoSeleccionado.codigo, anioContratos);
+                      invalidatePdm.invalidateContratos(slug, anioContratos, productoSeleccionado.codigo);
                     }
                     setError(null);
                     alert(result.mensaje || "Contratos RPS cargados.");
                   } catch (e) {
-                    setError(formatApiError(e as never, "Error al cargar."));
+                    setError(formatApiError(e, "Error al cargar."));
                   } finally {
                     setSaving(false);
                   }
@@ -778,39 +769,43 @@ export default function PdmPage(): ReactElement {
         />
       </PdmModal>
 
-      {productoSeleccionado && (
-        <PdmActividadModal
-          open={mostrarModalActividad}
-          anio={anioDetalle}
-          producto={productoSeleccionado}
-          secretarias={secretarias}
-          actividadEnEdicion={actividadEnEdicion}
-          secretariaUsuarioId={user?.secretaria?.id}
-          esSecretario={isSecretario}
-          saving={guardandoEvidencia || saving}
-          onClose={() => {
-            setMostrarModalActividad(false);
-            setActividadEnEdicion(null);
-          }}
-          onSave={guardarActividad}
-        />
+      {vista === "detalle" && productoSeleccionado && mostrarModalActividad && (
+        <VistaSuspense>
+          <PdmActividadModal
+            open={mostrarModalActividad}
+            anio={anioDetalle}
+            producto={productoSeleccionado}
+            secretarias={secretarias}
+            actividadEnEdicion={actividadEnEdicion}
+            secretariaUsuarioId={secretariaUsuarioId}
+            esSecretario={isSecretario}
+            saving={guardandoEvidencia || saving}
+            onClose={() => {
+              setMostrarModalActividad(false);
+              setActividadEnEdicion(null);
+            }}
+            onSave={guardarActividad}
+          />
+        </VistaSuspense>
       )}
 
-      <PdmBpinModal
-        open={mostrarModalBpin}
-        cargando={cargandoBpin}
-        proyecto={proyectoBpin}
-        error={errorBpin}
-        consultaUrl={consultaUrlBpin}
-        portalUrl={portalUrlBpin}
-        onClose={() => {
-          setMostrarModalBpin(false);
-          setProyectoBpin(null);
-          setErrorBpin(null);
-          setConsultaUrlBpin(null);
-          setPortalUrlBpin(null);
-        }}
-      />
+      <VistaSuspense>
+        <PdmBpinModal
+          open={mostrarModalBpin}
+          cargando={cargandoBpin}
+          proyecto={proyectoBpin}
+          error={errorBpin}
+          consultaUrl={consultaUrlBpin}
+          portalUrl={portalUrlBpin}
+          onClose={() => {
+            setMostrarModalBpin(false);
+            setProyectoBpin(null);
+            setErrorBpin(null);
+            setConsultaUrlBpin(null);
+            setPortalUrlBpin(null);
+          }}
+        />
+      </VistaSuspense>
     </div>
   );
 }

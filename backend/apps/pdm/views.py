@@ -1,14 +1,12 @@
 """Endpoints del módulo PDM."""
 from __future__ import annotations
 
-import io
-import re
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 
-import pandas as pd
 from django.db import transaction
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import permissions, status
@@ -38,8 +36,8 @@ from .evidencia_storage import (
     sync_evidencia_archivos_from_request,
 )
 from .filters import PdmProductoFilterSet
-from .metrics import ANIOS_PDM, actividad_aggs_for_productos, producto_list_metrics, resumen_anio
-from .stats import compute_estado_stats, compute_pdm_stats, filter_options_from_productos
+from .metrics import ANIOS_PDM, actividad_aggs_for_productos, estado_producto_anio, producto_list_metrics, resumen_anio
+from .stats import compute_estado_stats, compute_pdm_stats_from_queryset, filter_options_from_productos
 from .models import (
     ActividadEstado,
     PDMContratoRPS,
@@ -56,7 +54,34 @@ from .serializers import (
     PdmProductoListSerializer,
     PdmProductoSerializer,
 )
-from .metrics import estado_producto_anio
+
+_PRESUPUESTO_JSON_FIELDS = (
+    "presupuesto_2024",
+    "presupuesto_2025",
+    "presupuesto_2026",
+    "presupuesto_2027",
+)
+
+_ESTADO_STATS_ONLY_FIELDS = (
+    "id",
+    "codigo_producto",
+    "programacion_2024",
+    "programacion_2025",
+    "programacion_2026",
+    "programacion_2027",
+    "total_2024",
+    "total_2025",
+    "total_2026",
+    "total_2027",
+)
+
+
+def _productos_list_queryset(user, entity: Entity):
+    return (
+        productos_queryset_for_user(user, entity)
+        .defer(*_PRESUPUESTO_JSON_FIELDS)
+        .order_by("codigo_producto")
+    )
 
 
 def _entity_or_404(slug: str) -> Entity:
@@ -168,16 +193,16 @@ class PdmStatsView(APIView):
         entity = _entity_or_404(slug)
         _ensure_user_can_manage_entity(request.user, entity)
         productos_qs = productos_queryset_for_user(request.user, entity)
-        productos = list(productos_qs)
         lineas_count = productos_qs.values("linea_estrategica").distinct().count()
         iniciativas_count = PdmIniciativaSGR.objects.filter(entity=entity).count()
-        stats = compute_pdm_stats(productos, iniciativas_count, lineas_count)
+        stats = compute_pdm_stats_from_queryset(productos_qs, iniciativas_count, lineas_count)
         anio_param = request.query_params.get("anio")
         try:
             anio = int(anio_param) if anio_param else datetime.now().year
         except (TypeError, ValueError):
             anio = datetime.now().year
-        stats["estado_por_anio"] = compute_estado_stats(productos, entity.id, anio)
+        productos_estado = list(productos_qs.only(*_ESTADO_STATS_ONLY_FIELDS))
+        stats["estado_por_anio"] = compute_estado_stats(productos_estado, entity.id, anio)
         stats["anio_seguimiento"] = anio
         return Response(stats)
 
@@ -200,7 +225,7 @@ class PdmProductosListView(APIView):
             anio = datetime.now().year
         estado = (request.query_params.get("estado") or "").strip().upper()
 
-        qs = productos_queryset_for_user(request.user, entity).order_by("codigo_producto")
+        qs = _productos_list_queryset(request.user, entity)
         filterset = PdmProductoFilterSet(request.query_params, queryset=qs)
         qs = filterset.qs
         if estado:
@@ -547,14 +572,32 @@ class PdmEjecucionResumenAnualEntidadView(APIView):
     def get(self, request):
         require_user_module(request.user, "pdm", message="El módulo PDM no está habilitado para tu usuario.")
         qs = _ejecucion_qs_for_user(request.user)
-        grouped = defaultdict(lambda: {"pto_definitivo": 0.0, "pagos": 0.0})
-        for row in qs:
-            if not row.anio:
-                continue
-            grouped[int(row.anio)]["pto_definitivo"] += _to_float(row.pto_definitivo)
-            grouped[int(row.anio)]["pagos"] += _to_float(row.pagos)
-        anios = [{"anio": y, "pto_definitivo": grouped[y]["pto_definitivo"], "pagos": grouped[y]["pagos"]} for y in (2024, 2025, 2026, 2027)]
-        return Response({"anios": anios, "totales": {"pto_definitivo": sum(x["pto_definitivo"] for x in anios), "pagos": sum(x["pagos"] for x in anios)}})
+        grouped = {
+            int(row["anio"]): {
+                "pto_definitivo": _to_float(row["pto_definitivo"]),
+                "pagos": _to_float(row["pagos"]),
+            }
+            for row in qs.filter(anio__isnull=False)
+            .values("anio")
+            .annotate(pto_definitivo=Sum("pto_definitivo"), pagos=Sum("pagos"))
+        }
+        anios = [
+            {
+                "anio": y,
+                "pto_definitivo": grouped.get(y, {}).get("pto_definitivo", 0.0),
+                "pagos": grouped.get(y, {}).get("pagos", 0.0),
+            }
+            for y in (2024, 2025, 2026, 2027)
+        ]
+        return Response(
+            {
+                "anios": anios,
+                "totales": {
+                    "pto_definitivo": sum(x["pto_definitivo"] for x in anios),
+                    "pagos": sum(x["pagos"] for x in anios),
+                },
+            }
+        )
 
 
 class PdmEjecucionProductoView(APIView):
@@ -571,23 +614,40 @@ class PdmEjecucionProductoView(APIView):
             qs = qs.filter(anio=anio)
         if not qs.exists():
             return Response({"detail": f"No se encontró información de ejecución para {codigo_producto}"}, status=status.HTTP_404_NOT_FOUND)
-        by_fte = defaultdict(lambda: {"pto_inicial": 0.0, "adicion": 0.0, "reduccion": 0.0, "credito": 0.0, "contracredito": 0.0, "pto_definitivo": 0.0, "pagos": 0.0})
-        for row in qs:
-            key = row.descripcion_fte or "Sin Fuente"
-            by_fte[key]["pto_inicial"] += _to_float(row.pto_inicial)
-            by_fte[key]["adicion"] += _to_float(row.adicion)
-            by_fte[key]["reduccion"] += _to_float(row.reduccion)
-            by_fte[key]["credito"] += _to_float(row.credito)
-            by_fte[key]["contracredito"] += _to_float(row.contracredito)
-            by_fte[key]["pto_definitivo"] += _to_float(row.pto_definitivo)
-            by_fte[key]["pagos"] += _to_float(row.pagos)
+        sum_fields = (
+            "pto_inicial",
+            "adicion",
+            "reduccion",
+            "credito",
+            "contracredito",
+            "pto_definitivo",
+            "pagos",
+        )
+        aggregated = (
+            qs.values("descripcion_fte")
+            .annotate(
+                pto_inicial=Sum("pto_inicial"),
+                adicion=Sum("adicion"),
+                reduccion=Sum("reduccion"),
+                credito=Sum("credito"),
+                contracredito=Sum("contracredito"),
+                pto_definitivo=Sum("pto_definitivo"),
+                pagos=Sum("pagos"),
+            )
+            .order_by("descripcion_fte")
+        )
         fuentes_detalle = []
-        for k, v in sorted(by_fte.items(), key=lambda x: x[0]):
-            item = {"nombre": k, "codigo_fuente": k if _looks_like_codigo_fuente(k) else None, **v}
+        for row in aggregated:
+            key = row["descripcion_fte"] or "Sin Fuente"
+            item = {
+                "nombre": key,
+                "codigo_fuente": key if _looks_like_codigo_fuente(key) else None,
+                **{field: _to_float(row[field]) for field in sum_fields},
+            }
             fuentes_detalle.append(item)
         totales = defaultdict(float)
         for f in fuentes_detalle:
-            for key in ("pto_inicial", "adicion", "reduccion", "credito", "contracredito", "pto_definitivo", "pagos"):
+            for key in sum_fields:
                 totales[key] += f[key]
         return Response({"codigo_producto": codigo_producto, "fuentes": [f["nombre"] for f in fuentes_detalle], "fuentes_detalle": fuentes_detalle, "totales": dict(totales)})
 
@@ -607,25 +667,48 @@ class PdmContratosUploadView(APIView):
         content = archivo.read()
         anio = int(request.query_params.get("anio") or timezone.now().year)
         grouped = parse_contratos_rps(content, archivo.name, anio)
-        actualizados = 0
+        rows = grouped.to_dict("records")
+        existing_map = {
+            (c.anio, c.codigo_producto, c.no_crp): c
+            for c in PDMContratoRPS.objects.filter(entity=entity, anio=anio)
+        }
+        to_create: list[PDMContratoRPS] = []
+        to_update: list[PDMContratoRPS] = []
         creados = 0
+        actualizados = 0
         with transaction.atomic():
-            for _, r in grouped.iterrows():
-                _, created = PDMContratoRPS.objects.update_or_create(
-                    entity=entity,
-                    anio=int(r["AÑO"]),
-                    codigo_producto=str(r["PRODUCTO"]),
-                    no_crp=str(r["NO CRP"]),
-                    defaults={
-                        "concepto": str(r["CONCEPTO"]) or None,
-                        "valor": Decimal(str(_to_float(r["VALOR"]))),
-                        "contratista": str(r["CONTRATISTA"]) or None,
-                    },
-                )
-                if created:
+            for r in rows:
+                row_anio = int(r["AÑO"])
+                codigo_producto = str(r["PRODUCTO"])
+                no_crp = str(r["NO CRP"])
+                concepto = str(r["CONCEPTO"]) or None
+                valor = Decimal(str(_to_float(r["VALOR"])))
+                contratista = str(r["CONTRATISTA"]) or None
+                key = (row_anio, codigo_producto, no_crp)
+                existing = existing_map.get(key)
+                if existing is None:
+                    to_create.append(
+                        PDMContratoRPS(
+                            entity=entity,
+                            anio=row_anio,
+                            codigo_producto=codigo_producto,
+                            no_crp=no_crp,
+                            concepto=concepto,
+                            valor=valor,
+                            contratista=contratista,
+                        )
+                    )
                     creados += 1
                 else:
+                    existing.concepto = concepto
+                    existing.valor = valor
+                    existing.contratista = contratista
+                    to_update.append(existing)
                     actualizados += 1
+            if to_create:
+                PDMContratoRPS.objects.bulk_create(to_create)
+            if to_update:
+                PDMContratoRPS.objects.bulk_update(to_update, fields=["concepto", "valor", "contratista", "updated_at"])
         contratos = list(PDMContratoRPS.objects.filter(entity=entity, anio=anio).order_by("codigo_producto", "no_crp"))
         return Response(
             {
@@ -671,6 +754,29 @@ class PdmContratosView(APIView):
             if not user_can_access_producto(request.user, entity, codigo):
                 raise PermissionDenied("No tiene permisos para este producto.")
             qs = qs.filter(codigo_producto=codigo)
-        contratos = list(qs.order_by("codigo_producto", "no_crp"))
-        return Response({"contratos": [{"id": c.id, "no_crp": c.no_crp, "codigo_producto": c.codigo_producto, "concepto": c.concepto, "valor": _to_float(c.valor), "contratista": c.contratista, "anio": c.anio} for c in contratos], "total_contratado": sum(_to_float(c.valor) for c in contratos), "cantidad_contratos": len(contratos), "anio": int(anio) if anio else (contratos[0].anio if contratos else 0)})
+        qs = qs.order_by("codigo_producto", "no_crp")
+        contratos_rows = list(
+            qs.values("id", "no_crp", "codigo_producto", "concepto", "valor", "contratista", "anio")
+        )
+        total_contratado = _to_float(qs.aggregate(total=Sum("valor"))["total"])
+        contratos = [
+            {
+                "id": c["id"],
+                "no_crp": c["no_crp"],
+                "codigo_producto": c["codigo_producto"],
+                "concepto": c["concepto"],
+                "valor": _to_float(c["valor"]),
+                "contratista": c["contratista"],
+                "anio": c["anio"],
+            }
+            for c in contratos_rows
+        ]
+        return Response(
+            {
+                "contratos": contratos,
+                "total_contratado": total_contratado,
+                "cantidad_contratos": len(contratos),
+                "anio": int(anio) if anio else (contratos[0]["anio"] if contratos else 0),
+            }
+        )
 

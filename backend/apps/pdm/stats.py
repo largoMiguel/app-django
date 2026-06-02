@@ -3,8 +3,66 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from django.db.models import F, QuerySet, Sum, Value
+from django.db.models.functions import Coalesce
+
 from .metrics import ANIOS_PDM, actividad_aggs_for_productos, estado_producto_anio, resumen_anio
-from .models import PdmIniciativaSGR, PdmProducto
+from .models import PdmProducto
+
+_PRESUPUESTO_TOTAL_EXPR = (
+    Coalesce(F("total_2024"), Value(0.0))
+    + Coalesce(F("total_2025"), Value(0.0))
+    + Coalesce(F("total_2026"), Value(0.0))
+    + Coalesce(F("total_2027"), Value(0.0))
+)
+
+
+def compute_pdm_stats_from_queryset(productos_qs: QuerySet[PdmProducto], iniciativas_count: int, lineas_count: int) -> dict:
+    """Agrega presupuestos en la base de datos sin materializar todos los productos."""
+    totals = productos_qs.aggregate(
+        total_2024=Sum("total_2024"),
+        total_2025=Sum("total_2025"),
+        total_2026=Sum("total_2026"),
+        total_2027=Sum("total_2027"),
+    )
+    presupuesto_por_anio = {
+        2024: float(totals["total_2024"] or 0),
+        2025: float(totals["total_2025"] or 0),
+        2026: float(totals["total_2026"] or 0),
+        2027: float(totals["total_2027"] or 0),
+    }
+    presupuesto_total = sum(presupuesto_por_anio.values())
+
+    presupuesto_por_linea = sorted(
+        [
+            {"linea": row["linea_estrategica"] or "Sin línea", "total": float(row["total"] or 0)}
+            for row in productos_qs.values("linea_estrategica")
+            .annotate(total=Sum(_PRESUPUESTO_TOTAL_EXPR))
+            .order_by()
+        ],
+        key=lambda x: x["total"],
+        reverse=True,
+    )
+    presupuesto_por_sector = sorted(
+        [
+            {"sector": row["sector_mga"] or "Sin sector", "total": float(row["total"] or 0)}
+            for row in productos_qs.values("sector_mga")
+            .annotate(total=Sum(_PRESUPUESTO_TOTAL_EXPR))
+            .order_by()
+        ],
+        key=lambda x: x["total"],
+        reverse=True,
+    )
+
+    return {
+        "total_lineas_estrategicas": lineas_count,
+        "total_productos": productos_qs.count(),
+        "total_iniciativas_sgr": iniciativas_count,
+        "presupuesto_total": presupuesto_total,
+        "presupuesto_por_anio": {str(k): v for k, v in presupuesto_por_anio.items()},
+        "presupuesto_por_linea": presupuesto_por_linea,
+        "presupuesto_por_sector": presupuesto_por_sector,
+    }
 
 
 def compute_pdm_stats(productos: list[PdmProducto], iniciativas_count: int, lineas_count: int) -> dict:
