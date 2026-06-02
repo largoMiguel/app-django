@@ -4,6 +4,7 @@ import {
   formatearMoneda,
   getEjecucionDefinitivoAnio,
   getEjecucionTotalDefinitivo,
+  PDM_SIN_PRODUCTO_EN_PLAN,
   type EstadisticasPdm,
   type ResumenEjecucionAnual,
 } from "@/features/pdm/pdmUtils";
@@ -17,10 +18,15 @@ interface PdmDashboardProps {
 
 export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProductos }: PdmDashboardProps) {
   const yearColors = ["blue", "info", "warning", "success"] as const;
-  const ejecucionTotal = getEjecucionTotalDefinitivo(resumenEjecucion);
-  const ejecucionPorLinea = resumenEjecucion?.ejecucion_por_linea ?? [];
-  const ejecucionPorSector = resumenEjecucion?.ejecucion_por_sector ?? [];
+  const ejecucionPorLinea = (resumenEjecucion?.ejecucion_por_linea ?? []).filter(
+    (item) => item.linea !== PDM_SIN_PRODUCTO_EN_PLAN,
+  );
+  const ejecucionPorSector = (resumenEjecucion?.ejecucion_por_sector ?? []).filter(
+    (item) => item.sector !== PDM_SIN_PRODUCTO_EN_PLAN,
+  );
   const ejecucionSinProductoPlan = resumenEjecucion?.ejecucion_sin_producto_plan ?? [];
+  const ejecucionChartTotal = ejecucionPorLinea.reduce((sum, item) => sum + item.total, 0);
+  const ejecucionSectorChartTotal = ejecucionPorSector.reduce((sum, item) => sum + item.total, 0);
 
   return (
     <div className="space-y-6">
@@ -87,9 +93,7 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
       {ejecucionSinProductoPlan.length > 0 && (
         <PdmCard title="Ejecución sin producto en el Plan Indicativo" icon={<AlertTriangle size={16} className="text-amber-600" />}>
           <p className="mb-3 text-sm text-slate-600">
-            Estos códigos tienen ejecución cargada pero <strong>no existen en el Plan Indicativo</strong>. Por eso
-            aparecen como &quot;Sin producto en plan&quot; en los gráficos y el filtro de productos muestra (0) sin
-            línea/sector.
+            Estos códigos tienen ejecución cargada pero <strong>no existen en el Plan Indicativo</strong>.
           </p>
           <div className="overflow-x-auto rounded-lg border border-amber-100">
             <table className="min-w-full text-sm">
@@ -129,7 +133,7 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
                     <strong className="shrink-0 text-slate-900">{formatearMoneda(item.total)}</strong>
                   </div>
                   <PdmProgressBar
-                    value={ejecucionTotal ? (item.total / ejecucionTotal) * 100 : 0}
+                    value={ejecucionChartTotal ? (item.total / ejecucionChartTotal) * 100 : 0}
                     tone="blue"
                     showLabel={false}
                   />
@@ -152,7 +156,7 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
                     <strong className="shrink-0 text-slate-900">{formatearMoneda(item.total)}</strong>
                   </div>
                   <PdmProgressBar
-                    value={ejecucionTotal ? (item.total / ejecucionTotal) * 100 : 0}
+                    value={ejecucionSectorChartTotal ? (item.total / ejecucionSectorChartTotal) * 100 : 0}
                     tone="success"
                     showLabel={false}
                   />

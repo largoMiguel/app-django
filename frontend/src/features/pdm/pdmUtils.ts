@@ -75,6 +75,9 @@ export const ANIOS_PDM = [2024, 2025, 2026, 2027] as const;
 /** Valor enviado al API para filtrar productos sin línea/sector en el plan. */
 export const PDM_SIN_CLASIFICAR = "__sin__";
 
+/** Etiqueta de ejecución huérfana (código no presente en el plan). */
+export const PDM_SIN_PRODUCTO_EN_PLAN = "Sin producto en plan";
+
 const META_DECIMALES = 4;
 const META_EPSILON = 1e-6;
 
