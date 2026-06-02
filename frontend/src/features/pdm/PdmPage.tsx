@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
+  BarChart3,
   CheckCircle2,
   CloudUpload,
   FileSpreadsheet,
@@ -44,6 +45,7 @@ import { PdmAlert, PdmCard, PdmFilePicker, PdmLoadingOverlay, PdmModal } from "@
 import type { PdmActividad } from "@/core/api/pdm";
 
 const PdmDashboard = lazy(() => import("@/features/pdm/PdmDashboard"));
+const PdmAnalisis = lazy(() => import("@/features/pdm/PdmAnalisis"));
 const PdmProductosView = lazy(() => import("@/features/pdm/PdmProductosView"));
 const PdmProductoDetalle = lazy(() => import("@/features/pdm/PdmProductoDetalle"));
 const PdmActividadModal = lazy(() => import("@/features/pdm/PdmActividadModal"));
@@ -59,7 +61,7 @@ type UploadFeedback = {
 };
 
 function parseVista(raw: string | null): VistaPdm {
-  if (raw === "productos" || raw === "detalle") return raw;
+  if (raw === "productos" || raw === "detalle" || raw === "analisis") return raw;
   return "dashboard";
 }
 
@@ -112,6 +114,8 @@ export default function PdmPage(): ReactElement {
   const [uploadFeedback, setUploadFeedback] = useState<UploadFeedback | null>(null);
   const [cargandoEvidenciaIds, setCargandoEvidenciaIds] = useState<Set<number>>(() => new Set());
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear());
+  const [filtroAnioAnalisis, setFiltroAnioAnalisis] = useState<number | "all">(new Date().getFullYear());
+  const [filtroSecretariaAnalisis, setFiltroSecretariaAnalisis] = useState("");
   const [anioDetalle, setAnioDetalle] = useState(new Date().getFullYear());
   const [currentPage, setCurrentPage] = useState(1);
   const [filtroLinea, setFiltroLinea] = useState("");
@@ -202,7 +206,10 @@ export default function PdmPage(): ReactElement {
   const totalCount = productosPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  const needsSecretarias = Boolean(entityId) && (isAdmin || mostrarModalActividad) && (vista === "productos" || mostrarModalActividad);
+  const needsSecretarias =
+    Boolean(entityId) &&
+    (isAdmin || mostrarModalActividad) &&
+    (vista === "productos" || vista === "analisis" || mostrarModalActividad);
   const { data: secretarias = [] } = useQuery({
     queryKey: ["secretarias", entityId],
     queryFn: () => secretariasApi.list(entityId!),
@@ -520,9 +527,11 @@ export default function PdmPage(): ReactElement {
     ? "Plan de Desarrollo Municipal"
     : vista === "dashboard"
       ? "Seguimiento PDM"
-      : vista === "productos"
-        ? "Productos"
-        : "Detalle del producto";
+      : vista === "analisis"
+        ? "Análisis PDM"
+        : vista === "productos"
+          ? "Productos"
+          : "Detalle del producto";
 
   const headerSubtitle = !tieneDatos
     ? isAdmin
@@ -532,9 +541,11 @@ export default function PdmPage(): ReactElement {
       ? "Productos asignados a su secretaría"
       : vista === "dashboard"
         ? "Seguimiento del Plan de Desarrollo Municipal"
-        : vista === "productos"
-          ? "Consulta y filtrado de productos por año"
-          : "Detalle, actividades y ejecución del producto";
+        : vista === "analisis"
+          ? "Dashboard analítico del Plan de Desarrollo Municipal"
+          : vista === "productos"
+            ? "Consulta y filtrado de productos por año"
+            : "Detalle, actividades y ejecución del producto";
 
   return (
     <div className="space-y-6">
@@ -561,9 +572,14 @@ export default function PdmPage(): ReactElement {
               <ArrowLeft className="h-4 w-4" /> Volver
             </button>
           )}
-          {tieneDatos && vista === "dashboard" && (
+          {tieneDatos && (vista === "dashboard" || vista === "analisis") && (
             <button type="button" onClick={() => navegarVista("productos")} className={pdmBtnPrimary}>
               <FileSpreadsheet className="h-4 w-4" /> Ver productos
+            </button>
+          )}
+          {tieneDatos && vista === "dashboard" && (
+            <button type="button" onClick={() => navegarVista("analisis")} className={pdmBtnSecondary}>
+              <BarChart3 className="h-4 w-4" /> Análisis
             </button>
           )}
           {tieneDatos && isAdmin && (
@@ -644,6 +660,20 @@ export default function PdmPage(): ReactElement {
             estadisticas={estadisticas}
             resumenEjecucion={resumenEjecucion ?? null}
             onVerProductos={() => navegarVista("productos")}
+          />
+        </VistaSuspense>
+      )}
+
+      {tieneDatos && vista === "analisis" && (
+        <VistaSuspense>
+          <PdmAnalisis
+            slug={slug}
+            filtroAnio={filtroAnioAnalisis}
+            onFiltroAnio={setFiltroAnioAnalisis}
+            filtroSecretaria={filtroSecretariaAnalisis}
+            onFiltroSecretaria={setFiltroSecretariaAnalisis}
+            secretarias={secretarias}
+            isAdmin={isAdmin}
           />
         </VistaSuspense>
       )}

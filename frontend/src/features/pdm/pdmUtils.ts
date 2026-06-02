@@ -1,6 +1,6 @@
 import type { PdmActividad, PdmProducto, ResumenAnioBackend } from "@/core/api/pdm";
 
-export type VistaPdm = "dashboard" | "productos" | "detalle";
+export type VistaPdm = "dashboard" | "productos" | "detalle" | "analisis";
 
 export interface ResumenProducto {
   id: number;
@@ -68,6 +68,45 @@ export interface ResumenEjecucionAnual {
   ejecucion_por_linea?: { linea: string; total: number }[];
   ejecucion_por_sector?: { sector: string; total: number }[];
   ejecucion_sin_producto_plan?: { codigo_producto: string; pto_definitivo: number }[];
+}
+
+export interface PdmAnalisisEstadoDistribucion {
+  pendiente: number;
+  en_progreso: number;
+  completado: number;
+  por_ejecutar: number;
+  total: number;
+}
+
+export interface PdmAnalisisResponse {
+  anio_filtro: number | null;
+  total_productos: number;
+  avance_global: number;
+  presupuesto: { pto_definitivo: number; pagos: number };
+  estado_distribucion: PdmAnalisisEstadoDistribucion;
+  metas_por_anio: { anio: number; programada: number; ejecutada: number; pct: number }[];
+  por_linea: { linea: string; productos: number; avance_pct: number }[];
+  por_sector_estado: { sector: string; completados: number; en_progreso: number; pendientes: number }[];
+  por_ods: { ods: string; productos: number; avance_pct: number; presupuesto: number }[];
+  presupuestal_por_anio: {
+    anio: number;
+    plan: number;
+    ejecucion: number;
+    pagos: number;
+    pct_pagado: number;
+  }[];
+  por_secretaria: {
+    secretaria_id: number;
+    secretaria: string;
+    productos: number;
+    completados: number;
+    en_progreso: number;
+    pendientes: number;
+    por_ejecutar: number;
+    avance_pct: number;
+    pto_definitivo: number;
+    pagos: number;
+  }[];
 }
 
 export const ANIOS_PDM = [2024, 2025, 2026, 2027] as const;

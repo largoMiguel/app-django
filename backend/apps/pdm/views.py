@@ -48,6 +48,7 @@ from .metrics import (
     producto_list_metrics,
     resumen_anio,
 )
+from .analytics import compute_pdm_analytics
 from .stats import compute_estado_stats, compute_pdm_stats_from_queryset, filter_options_from_productos, productos_for_stats
 from .models import (
     ActividadEstado,
@@ -205,6 +206,42 @@ class PdmStatsView(APIView):
         stats["estado_por_anio"] = compute_estado_stats(productos_estado, entity.id, anio)
         stats["anio_seguimiento"] = anio
         return Response(stats)
+
+
+class PdmAnalisisView(APIView):
+    """Analítica agregada para la vista de Análisis PDM."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, slug: str):
+        entity = _entity_or_404(slug)
+        _ensure_user_can_manage_entity(request.user, entity)
+        productos_qs = productos_queryset_for_user(request.user, entity)
+
+        anio_param = (request.query_params.get("anio") or "").strip().lower()
+        anio: int | None
+        if not anio_param or anio_param in ("all", "todos", "todos_los_anios"):
+            anio = None
+        else:
+            try:
+                anio = int(anio_param)
+            except (TypeError, ValueError):
+                anio = None
+
+        secretaria_param = request.query_params.get("secretaria")
+        if secretaria_param and _is_admin(request.user):
+            try:
+                productos_qs = productos_qs.filter(responsable_secretaria_id=int(secretaria_param))
+            except (TypeError, ValueError):
+                pass
+
+        data = compute_pdm_analytics(
+            productos_qs,
+            entity.id,
+            anio,
+            include_por_secretaria=_is_admin(request.user),
+        )
+        return Response(data)
 
 
 class PdmProductosListView(APIView):

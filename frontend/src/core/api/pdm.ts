@@ -117,6 +117,43 @@ export interface PdmStatsResponse {
   anio_seguimiento: number;
 }
 
+export interface PdmAnalisisResponse {
+  anio_filtro: number | null;
+  total_productos: number;
+  avance_global: number;
+  presupuesto: { pto_definitivo: number; pagos: number };
+  estado_distribucion: {
+    pendiente: number;
+    en_progreso: number;
+    completado: number;
+    por_ejecutar: number;
+    total: number;
+  };
+  metas_por_anio: { anio: number; programada: number; ejecutada: number; pct: number }[];
+  por_linea: { linea: string; productos: number; avance_pct: number }[];
+  por_sector_estado: { sector: string; completados: number; en_progreso: number; pendientes: number }[];
+  por_ods: { ods: string; productos: number; avance_pct: number; presupuesto: number }[];
+  presupuestal_por_anio: {
+    anio: number;
+    plan: number;
+    ejecucion: number;
+    pagos: number;
+    pct_pagado: number;
+  }[];
+  por_secretaria: {
+    secretaria_id: number;
+    secretaria: string;
+    productos: number;
+    completados: number;
+    en_progreso: number;
+    pendientes: number;
+    por_ejecutar: number;
+    avance_pct: number;
+    pto_definitivo: number;
+    pagos: number;
+  }[];
+}
+
 export interface PdmStatusResponse {
   tiene_datos: boolean;
   total_productos: number;
@@ -183,6 +220,17 @@ export const pdmApi = {
     api.get<PdmMetaResponse>(`/pdm/v2/${slug}/meta`).then((r) => r.data),
   stats: (slug: string, anio?: number) =>
     api.get<PdmStatsResponse>(`/pdm/v2/${slug}/stats`, { params: anio ? { anio } : undefined }).then((r) => r.data),
+  analisis: (slug: string, params?: { anio?: number | "all"; secretaria?: number }) =>
+    api
+      .get<PdmAnalisisResponse>(`/pdm/v2/${slug}/analisis`, {
+        params: {
+          ...(params?.anio !== undefined
+            ? { anio: params.anio === "all" ? "all" : params.anio }
+            : {}),
+          ...(params?.secretaria ? { secretaria: params.secretaria } : {}),
+        },
+      })
+      .then((r) => r.data),
   listProductos: (slug: string, params?: Record<string, string | number | undefined>) =>
     api
       .get<PaginatedPdmProductos>(`/pdm/v2/${slug}/productos`, { params })

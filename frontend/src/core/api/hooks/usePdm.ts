@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   pdmApi,
   type PaginatedPdmProductos,
+  type PdmAnalisisResponse,
   type PdmContratosResumen,
   type PdmEjecucionProducto,
   type PdmMetaResponse,
@@ -15,6 +16,8 @@ export const pdmKeys = {
   status: (slug: string) => [...pdmKeys.all, "status", slug] as const,
   meta: (slug: string) => [...pdmKeys.all, "meta", slug] as const,
   stats: (slug: string, anio?: number) => [...pdmKeys.all, "stats", slug, anio] as const,
+  analisis: (slug: string, anio?: number | "all", secretaria?: number) =>
+    [...pdmKeys.all, "analisis", slug, anio, secretaria] as const,
   productos: (slug: string, params: Record<string, string | number | undefined>) =>
     [...pdmKeys.all, "productos", slug, params] as const,
   producto: (slug: string, codigo: string, anio?: number) =>
@@ -49,6 +52,19 @@ export function usePdmStats(slug: string, anio?: number, enabled = true) {
   return useQuery<PdmStatsResponse>({
     queryKey: pdmKeys.stats(slug, anio),
     queryFn: () => pdmApi.stats(slug, anio),
+    enabled: Boolean(slug) && enabled,
+  });
+}
+
+export function usePdmAnalisis(
+  slug: string,
+  anio: number | "all",
+  secretaria?: number,
+  enabled = true,
+) {
+  return useQuery<PdmAnalisisResponse>({
+    queryKey: pdmKeys.analisis(slug, anio, secretaria),
+    queryFn: () => pdmApi.analisis(slug, { anio, secretaria }),
     enabled: Boolean(slug) && enabled,
   });
 }
