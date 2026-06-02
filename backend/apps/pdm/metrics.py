@@ -5,7 +5,7 @@ from datetime import datetime
 
 from django.db.models import Count, Q, Sum
 
-from .models import ActividadEstado, PdmActividad, PdmProducto
+from .models import ActividadEstado, PdmActividad, PdmProducto, PDMEjecucionPresupuestal
 
 ANIOS_PDM = (2024, 2025, 2026, 2027)
 
@@ -32,6 +32,22 @@ def _presupuesto_anio(producto: PdmProducto, anio: int) -> float:
         }.get(anio, 0)
         or 0
     )
+
+
+def ejecucion_definitivo_for_productos(entity_id: int, codigos: list[str], anio: int) -> dict[str, float]:
+    """Suma pto. definitivo de ejecución por codigo_producto para un año."""
+    if not codigos:
+        return {}
+    rows = (
+        PDMEjecucionPresupuestal.objects.filter(
+            entity_id=entity_id,
+            codigo_producto__in=codigos,
+            anio=anio,
+        )
+        .values("codigo_producto")
+        .annotate(total=Sum("pto_definitivo"))
+    )
+    return {row["codigo_producto"]: float(row["total"] or 0) for row in rows}
 
 
 def actividad_aggs_for_productos(entity_id: int, codigos: list[str]) -> dict[str, dict[int, dict]]:

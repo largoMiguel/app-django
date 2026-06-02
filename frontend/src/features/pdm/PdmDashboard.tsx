@@ -84,7 +84,7 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
       </PdmCard>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <PdmCard title="Presupuesto por Línea Estratégica" icon={<PieChart size={16} />}>
+        <PdmCard title="Ejecución por Línea Estratégica (Cuatrienio)" icon={<PieChart size={16} />}>
           <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
             {ejecucionPorLinea.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500">Sin datos de ejecución por línea estratégica.</p>
@@ -107,7 +107,7 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
             )}
           </div>
         </PdmCard>
-        <PdmCard title="Presupuesto por Sector" icon={<BarChart3 size={16} />}>
+        <PdmCard title="Ejecución por Sector (Cuatrienio)" icon={<BarChart3 size={16} />}>
           <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
             {ejecucionPorSector.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500">Sin datos de ejecución por sector.</p>

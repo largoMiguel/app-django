@@ -64,6 +64,7 @@ export interface PdmProducto {
   estado_anio?: string;
   meta_anio?: number;
   presupuesto_anio?: number;
+  pto_definitivo_anio?: number;
   resumen_por_anio?: Record<string, ResumenAnioBackend>;
   actividades?: PdmActividad[];
 }

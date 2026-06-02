@@ -10,8 +10,8 @@ import {
   getColorEstadoProducto,
   getColorProgreso,
   getEstadoProductoAnio,
+  getEjecucionDefinitivoProductoAnio,
   getMetaAnio,
-  getPresupuestoAnio,
   getTextoEstadoProducto,
   type ResumenProducto,
 } from "@/features/pdm/pdmUtils";
@@ -85,7 +85,7 @@ const ProductoRow = memo(function ProductoRow({
       </td>
       <td className="px-4 py-3 text-center">{formatearNumero(getMetaAnio(producto, filtroAnio))}</td>
       <td className="hidden px-4 py-3 text-right font-medium text-emerald-700 lg:table-cell">
-        {formatearMoneda(getPresupuestoAnio(producto, filtroAnio))}
+        {formatearMoneda(getEjecucionDefinitivoProductoAnio(producto))}
       </td>
       <td className="min-w-[120px] px-4 py-3">
         <PdmProgressBar value={avance} tone={getColorProgreso(avance)} />
@@ -294,7 +294,7 @@ export default function PdmProductosView({
                   <th className="px-4 py-3 text-left font-semibold text-slate-600">Producto</th>
                   <th className="hidden px-4 py-3 text-center font-semibold text-slate-600 md:table-cell">Meta cuat.</th>
                   <th className="px-4 py-3 text-center font-semibold text-slate-600">Meta {filtroAnio}</th>
-                  <th className="hidden px-4 py-3 text-right font-semibold text-slate-600 lg:table-cell">Presupuesto</th>
+                  <th className="hidden px-4 py-3 text-right font-semibold text-slate-600 lg:table-cell">Pto. Definitivo</th>
                   <th className="px-4 py-3 font-semibold text-slate-600">Avance</th>
                   <th className="px-4 py-3 text-center font-semibold text-slate-600">Estado</th>
                   <th className="hidden px-4 py-3 font-semibold text-slate-600 xl:table-cell">Responsable</th>

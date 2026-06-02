@@ -39,7 +39,14 @@ from .evidencia_storage import (
     sync_evidencia_archivos_from_request,
 )
 from .filters import PdmProductoFilterSet
-from .metrics import ANIOS_PDM, actividad_aggs_for_productos, estado_producto_anio, producto_list_metrics, resumen_anio
+from .metrics import (
+    ANIOS_PDM,
+    actividad_aggs_for_productos,
+    ejecucion_definitivo_for_productos,
+    estado_producto_anio,
+    producto_list_metrics,
+    resumen_anio,
+)
 from .stats import compute_estado_stats, compute_pdm_stats_from_queryset, filter_options_from_productos, productos_for_stats
 from .models import (
     ActividadEstado,
@@ -113,11 +120,13 @@ def _to_float(v):
 def _attach_list_metrics(productos: list, entity_id: int, anio: int) -> None:
     codigos = [p.codigo_producto for p in productos]
     aggs_map = actividad_aggs_for_productos(entity_id, codigos)
+    ejecucion_map = ejecucion_definitivo_for_productos(entity_id, codigos, anio)
     for prod in productos:
         aggs_anio = aggs_map.get(prod.codigo_producto, {})
         metrics = producto_list_metrics(prod, anio, aggs_anio)
         for key, value in metrics.items():
             setattr(prod, key, value)
+        setattr(prod, "pto_definitivo_anio", ejecucion_map.get(prod.codigo_producto, 0.0))
 
 
 def _filter_productos_by_estado(qs, entity_id: int, anio: int, estado: str):

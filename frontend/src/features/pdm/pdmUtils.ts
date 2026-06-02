@@ -27,6 +27,7 @@ export interface ResumenProducto {
   total_2026: number;
   total_2027: number;
   total_cuatrienio: number;
+  pto_definitivo_anio?: number;
   porcentaje_ejecucion: number;
   responsable_secretaria?: number | null;
   responsable_secretaria_nombre?: string | null;
@@ -161,6 +162,7 @@ export function mapProductoToResumen(producto: PdmProducto): ResumenProducto {
     total_2026: producto.total_2026,
     total_2027: producto.total_2027,
     total_cuatrienio: totalCuatrienio,
+    pto_definitivo_anio: producto.pto_definitivo_anio,
     porcentaje_ejecucion: producto.porcentaje_ejecucion || 0,
     avance_anio: producto.avance_anio,
     estado_anio: producto.estado_anio,
@@ -199,6 +201,10 @@ export function getPresupuestoAnio(producto: ResumenProducto, anio: number): num
     default:
       return 0;
   }
+}
+
+export function getEjecucionDefinitivoProductoAnio(producto: ResumenProducto): number {
+  return Number(producto.pto_definitivo_anio || 0);
 }
 
 export function resumenBackendPorAnio(

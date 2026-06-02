@@ -74,9 +74,7 @@ def ejecucion_agrupada_por_campo_producto(
         if total <= 0:
             continue
         codigo = str(row["codigo_producto"]).strip()
-        label = codigo_to_label.get(codigo)
-        if not label:
-            continue
+        label = codigo_to_label.get(codigo) or default_label
         grouped[label] += total
 
     return sorted(
