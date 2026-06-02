@@ -23,7 +23,10 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from .access import (
     actividades_queryset_for_user,
+    codigos_ejecucion_for_productos,
     codigos_producto_for_user,
+    ejecucion_pagos_por_producto_codigo,
+    ejecucion_queryset_for_user,
     productos_queryset_for_user,
     user_can_access_actividad,
     user_can_access_producto,
@@ -544,35 +547,31 @@ class PdmEjecucionUploadView(APIView):
 
 
 def _ejecucion_qs_for_user(user):
-    qs = PDMEjecucionPresupuestal.objects.filter(entity_id=user.entity_id)
-    if _is_secretario(user) and not _is_admin(user) and user.entity_id:
-        entity = Entity.objects.filter(id=user.entity_id).first()
-        if entity:
-            codigos = [str(c).strip() for c in codigos_producto_for_user(user, entity) if str(c).strip()]
-            qs = qs.filter(codigo_producto__in=codigos) if codigos else qs.none()
-    return qs
+    if not user.entity_id:
+        return PDMEjecucionPresupuestal.objects.none()
+    entity = Entity.objects.filter(id=user.entity_id).first()
+    if not entity:
+        return PDMEjecucionPresupuestal.objects.none()
+    return ejecucion_queryset_for_user(user, entity)
 
 
 def _ejecucion_grouped_by_product_field(user, entity: Entity, field_name: str, default_label: str, label_key: str) -> list[dict]:
     """Suma pagos de ejecución (4 años) agrupados por campo del producto PDM."""
-    by_codigo = {
-        str(row["codigo_producto"]).strip(): _to_float(row["pagos"])
-        for row in _ejecucion_qs_for_user(user)
-        .values("codigo_producto")
-        .annotate(pagos=Sum("pagos"))
-        if str(row["codigo_producto"]).strip()
-    }
-    if not by_codigo:
+    pagos_por_producto = ejecucion_pagos_por_producto_codigo(user, entity)
+    if not pagos_por_producto:
         return []
 
     grouped: dict[str, float] = defaultdict(float)
-    productos = productos_queryset_for_user(user, entity).filter(codigo_producto__in=by_codigo.keys()).values(
-        "codigo_producto", field_name
-    )
+    productos = productos_queryset_for_user(user, entity).filter(
+        codigo_producto__in=pagos_por_producto.keys()
+    ).values("codigo_producto", field_name)
     for prod in productos:
         codigo = str(prod["codigo_producto"]).strip()
+        pagos = pagos_por_producto.get(codigo, 0.0)
+        if pagos <= 0:
+            continue
         label = prod[field_name] or default_label
-        grouped[label] += by_codigo.get(codigo, 0.0)
+        grouped[label] += pagos
 
     return sorted(
         [{label_key: label, "total": total} for label, total in grouped.items()],
@@ -630,7 +629,8 @@ class PdmEjecucionProductoView(APIView):
         entity = get_object_or_404(Entity, id=request.user.entity_id)
         if not user_can_access_producto(request.user, entity, codigo_producto):
             raise PermissionDenied("No tiene permisos para este producto.")
-        qs = _ejecucion_qs_for_user(request.user).filter(codigo_producto=codigo_producto)
+        ej_codigos = codigos_ejecucion_for_productos(entity, [codigo_producto])
+        qs = _ejecucion_qs_for_user(request.user).filter(codigo_producto__in=ej_codigos) if ej_codigos else _ejecucion_qs_for_user(request.user).none()
         anio = request.query_params.get("anio")
         if anio:
             qs = qs.filter(anio=anio)
@@ -765,8 +765,9 @@ class PdmContratosView(APIView):
         _ensure_user_can_manage_entity(request.user, entity)
         qs = PDMContratoRPS.objects.filter(entity=entity)
         if _is_secretario(request.user) and not _is_admin(request.user):
-            codigos = codigos_producto_for_user(request.user, entity)
-            qs = qs.filter(codigo_producto__in=codigos) if codigos else qs.none()
+            product_codigos = codigos_producto_for_user(request.user, entity)
+            ej_codigos = codigos_ejecucion_for_productos(entity, product_codigos)
+            qs = qs.filter(codigo_producto__in=ej_codigos) if ej_codigos else qs.none()
         anio = request.query_params.get("anio")
         codigo = request.query_params.get("codigo_producto")
         if anio:
@@ -775,7 +776,8 @@ class PdmContratosView(APIView):
             codigo = str(codigo).strip()
             if not user_can_access_producto(request.user, entity, codigo):
                 raise PermissionDenied("No tiene permisos para este producto.")
-            qs = qs.filter(codigo_producto=codigo)
+            ej_codigos = codigos_ejecucion_for_productos(entity, [codigo])
+            qs = qs.filter(codigo_producto__in=ej_codigos) if ej_codigos else qs.none()
         qs = qs.order_by("codigo_producto", "no_crp")
         contratos_rows = list(
             qs.values("id", "no_crp", "codigo_producto", "concepto", "valor", "contratista", "anio")
