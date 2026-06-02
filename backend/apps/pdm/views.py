@@ -667,6 +667,7 @@ class PdmContratosUploadView(APIView):
         content = archivo.read()
         anio = int(request.query_params.get("anio") or timezone.now().year)
         grouped = parse_contratos_rps(content, archivo.name, anio)
+<<<<<<< HEAD
         rows = grouped.to_dict("records")
         existing_map = {
             (c.anio, c.codigo_producto, c.no_crp): c
@@ -709,6 +710,27 @@ class PdmContratosUploadView(APIView):
                 PDMContratoRPS.objects.bulk_create(to_create)
             if to_update:
                 PDMContratoRPS.objects.bulk_update(to_update, fields=["concepto", "valor", "contratista", "updated_at"])
+=======
+        actualizados = 0
+        creados = 0
+        with transaction.atomic():
+            for _, r in grouped.iterrows():
+                _, created = PDMContratoRPS.objects.update_or_create(
+                    entity=entity,
+                    anio=int(r["AÑO"]),
+                    codigo_producto=str(r["PRODUCTO"]),
+                    no_crp=str(r["NO CRP"]),
+                    defaults={
+                        "concepto": str(r["CONCEPTO"]) or None,
+                        "valor": Decimal(str(_to_float(r["VALOR"]))),
+                        "contratista": str(r["CONTRATISTA"]) or None,
+                    },
+                )
+                if created:
+                    creados += 1
+                else:
+                    actualizados += 1
+>>>>>>> development
         contratos = list(PDMContratoRPS.objects.filter(entity=entity, anio=anio).order_by("codigo_producto", "no_crp"))
         return Response(
             {

@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
+<<<<<<< HEAD
 import { memo, useMemo, useState } from "react";
+=======
+import { useEffect, useMemo, useState } from "react";
+>>>>>>> development
 import {
   Calendar,
   CheckCircle2,
@@ -134,10 +138,13 @@ export default function PdmProductoDetalle({
       ),
     [fuentesActivas],
   );
+<<<<<<< HEAD
   const avancesPorAnio = useMemo(
     () => Object.fromEntries(ANIOS_PDM.map((anio) => [anio, getAvanceAnio(producto, anio)])),
     [producto],
   );
+=======
+>>>>>>> development
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
