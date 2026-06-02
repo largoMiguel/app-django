@@ -67,6 +67,7 @@ export interface ResumenEjecucionAnual {
   totales: { pto_definitivo: number; pagos: number };
   ejecucion_por_linea?: { linea: string; total: number }[];
   ejecucion_por_sector?: { sector: string; total: number }[];
+  ejecucion_sin_producto_plan?: { codigo_producto: string; pto_definitivo: number }[];
 }
 
 export const ANIOS_PDM = [2024, 2025, 2026, 2027] as const;

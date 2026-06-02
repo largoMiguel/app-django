@@ -1,4 +1,4 @@
-import { BarChart3, Box, Calendar, DollarSign, GitBranch, Layers, PieChart } from "lucide-react";
+import { AlertTriangle, BarChart3, Box, Calendar, DollarSign, GitBranch, Layers, PieChart } from "lucide-react";
 import {
   ANIOS_PDM,
   formatearMoneda,
@@ -20,6 +20,7 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
   const ejecucionTotal = getEjecucionTotalDefinitivo(resumenEjecucion);
   const ejecucionPorLinea = resumenEjecucion?.ejecucion_por_linea ?? [];
   const ejecucionPorSector = resumenEjecucion?.ejecucion_por_sector ?? [];
+  const ejecucionSinProductoPlan = resumenEjecucion?.ejecucion_sin_producto_plan ?? [];
 
   return (
     <div className="space-y-6">
@@ -82,6 +83,36 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
           })}
         </div>
       </PdmCard>
+
+      {ejecucionSinProductoPlan.length > 0 && (
+        <PdmCard title="Ejecución sin producto en el Plan Indicativo" icon={<AlertTriangle size={16} className="text-amber-600" />}>
+          <p className="mb-3 text-sm text-slate-600">
+            Estos códigos tienen ejecución cargada pero <strong>no existen en el Plan Indicativo</strong>. Por eso
+            aparecen como &quot;Sin producto en plan&quot; en los gráficos y el filtro de productos muestra (0) sin
+            línea/sector.
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-amber-100">
+            <table className="min-w-full text-sm">
+              <thead className="bg-amber-50 text-left text-xs uppercase tracking-wide text-amber-900">
+                <tr>
+                  <th className="px-4 py-2 font-semibold">Código producto (Excel)</th>
+                  <th className="px-4 py-2 text-right font-semibold">Pto. definitivo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-50">
+                {ejecucionSinProductoPlan.map((item) => (
+                  <tr key={item.codigo_producto}>
+                    <td className="px-4 py-2 font-mono text-slate-800">{item.codigo_producto}</td>
+                    <td className="px-4 py-2 text-right font-semibold text-slate-900">
+                      {formatearMoneda(item.pto_definitivo)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </PdmCard>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <PdmCard title="Ejecución por Línea Estratégica (Cuatrienio)" icon={<PieChart size={16} />}>

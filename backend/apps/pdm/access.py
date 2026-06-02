@@ -12,6 +12,8 @@ from apps.entities.models import Entity
 
 from .models import PdmActividad, PdmProducto, PDMEjecucionPresupuestal
 
+SIN_PRODUCTO_EN_PLAN = "Sin producto en plan"
+
 
 def _is_admin(user) -> bool:
     return "admin" in user_roles(user)
@@ -74,12 +76,43 @@ def ejecucion_agrupada_por_campo_producto(
         if total <= 0:
             continue
         codigo = str(row["codigo_producto"]).strip()
-        label = codigo_to_label.get(codigo) or default_label
+        if codigo not in codigo_to_label:
+            label = SIN_PRODUCTO_EN_PLAN
+        else:
+            label = codigo_to_label[codigo]
         grouped[label] += total
 
     return sorted(
         [{label_key: label, "total": total} for label, total in grouped.items() if total > 0],
         key=lambda item: item["total"],
+        reverse=True,
+    )
+
+
+def ejecucion_sin_producto_en_plan(user, entity: Entity) -> list[dict]:
+    """Ejecución cuyo codigo_producto no existe en el Plan Indicativo de la entidad."""
+    codigos_plan = {
+        str(c).strip()
+        for c in productos_queryset_for_user(user, entity).values_list("codigo_producto", flat=True)
+        if str(c).strip()
+    }
+    grouped: dict[str, float] = defaultdict(float)
+    rows = (
+        ejecucion_queryset_for_user(user, entity)
+        .values("codigo_producto")
+        .annotate(total=Sum("pto_definitivo"))
+    )
+    for row in rows:
+        total = float(row["total"] or 0)
+        if total <= 0:
+            continue
+        codigo = str(row["codigo_producto"]).strip()
+        if codigo and codigo not in codigos_plan:
+            grouped[codigo] += total
+
+    return sorted(
+        [{"codigo_producto": codigo, "pto_definitivo": total} for codigo, total in grouped.items()],
+        key=lambda item: item["pto_definitivo"],
         reverse=True,
     )
 

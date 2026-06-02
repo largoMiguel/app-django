@@ -26,6 +26,7 @@ from .access import (
     codigos_producto_for_user,
     ejecucion_agrupada_por_campo_producto,
     ejecucion_queryset_for_user,
+    ejecucion_sin_producto_en_plan,
     productos_queryset_for_user,
     user_can_access_actividad,
     user_can_access_producto,
@@ -608,6 +609,7 @@ class PdmEjecucionResumenAnualEntidadView(APIView):
                 "ejecucion_por_sector": _ejecucion_grouped_by_product_field(
                     request.user, entity, "sector_mga", "Sin sector", "sector"
                 ),
+                "ejecucion_sin_producto_plan": ejecucion_sin_producto_en_plan(request.user, entity),
             }
         )
 

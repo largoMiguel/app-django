@@ -196,7 +196,7 @@ export default function PdmProductosView({
             <select className={pdmSelect} value={filtroLinea} onChange={(e) => onFiltroLinea(e.target.value)}>
               <option value="">Todas</option>
               <option value={PDM_SIN_CLASIFICAR}>
-                Sin línea estratégica
+                Sin línea en plan
                 {meta?.productos_sin_linea != null ? ` (${meta.productos_sin_linea})` : ""}
               </option>
               {(meta?.lineas_estrategicas ?? []).map((l) => (
@@ -211,7 +211,7 @@ export default function PdmProductosView({
             <select className={pdmSelect} value={filtroSector} onChange={(e) => onFiltroSector(e.target.value)}>
               <option value="">Todos</option>
               <option value={PDM_SIN_CLASIFICAR}>
-                Sin sector
+                Sin sector en plan
                 {meta?.productos_sin_sector != null ? ` (${meta.productos_sin_sector})` : ""}
               </option>
               {(meta?.sectores ?? []).map((s) => (
@@ -280,9 +280,9 @@ export default function PdmProductosView({
         </div>
         {filtroLinea === PDM_SIN_CLASIFICAR && (
           <p className="mt-3 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            Este filtro muestra productos del <strong>Plan Indicativo</strong> sin línea. El monto en
-            &quot;Sin línea&quot; del dashboard puede incluir además ejecución cargada sin producto correspondiente en el
-            plan.
+            Productos del <strong>Plan Indicativo</strong> sin línea estratégica. Si el conteo es 0 pero el dashboard
+            muestra &quot;Sin producto en plan&quot;, revise la tabla de alertas en el dashboard: hay ejecución cargada
+            con códigos que no están en el plan.
           </p>
         )}
         <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
