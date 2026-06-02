@@ -1,23 +1,10 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuthStore } from "./store";
-import { isModuleEnabled, type EntityModuleFlag } from "./modules";
+import { isModuleEnabled, isUserModuleEnabled, type EntityModuleFlag } from "./modules";
 
 interface Props {
   module: EntityModuleFlag;
 }
-
-const MODULE_FLAG_TO_KEY: Record<EntityModuleFlag, string> = {
-  enable_pqrs: "pqrs",
-  enable_users_admin: "users_admin",
-  enable_reports_pdf: "reports_pdf",
-  enable_ai_reports: "ai_reports",
-  enable_planes_institucionales: "planes_institucionales",
-  enable_contratacion: "contratacion",
-  enable_pdm: "pdm",
-  enable_asistencia: "asistencia",
-  enable_correspondencia: "correspondencia",
-  enable_presupuesto: "presupuesto",
-};
 
 function isSuperadminUser(user: { roles: string[]; role?: string }) {
   return user.roles.includes("superadmin") || user.role === "superadmin";
@@ -48,9 +35,7 @@ export default function RequireModule({ module }: Props) {
     );
   }
 
-  const enabledForUser = user.enabled_modules ?? [];
-  const moduleKey = MODULE_FLAG_TO_KEY[module];
-  if (enabledForUser.length > 0 && !enabledForUser.includes(moduleKey)) {
+  if (!isUserModuleEnabled(user, module)) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-center">
         <div>

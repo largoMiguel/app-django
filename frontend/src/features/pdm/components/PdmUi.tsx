@@ -193,11 +193,12 @@ export function PdmInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   );
 }
 
-export function PdmAlert({ children, tone = "info" }: { children: ReactNode; tone?: "info" | "warning" | "error" }) {
+export function PdmAlert({ children, tone = "info" }: { children: ReactNode; tone?: "info" | "warning" | "error" | "success" }) {
   const tones = {
     info: "border-cyan-200 bg-cyan-50 text-cyan-900",
     warning: "border-amber-200 bg-amber-50 text-amber-900",
     error: "border-red-200 bg-red-50 text-red-800",
+    success: "border-emerald-200 bg-emerald-50 text-emerald-900",
   };
   return <div className={`rounded-lg border px-4 py-3 text-sm ${tones[tone]}`}>{children}</div>;
 }

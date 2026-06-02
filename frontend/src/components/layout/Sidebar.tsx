@@ -3,6 +3,7 @@ import softOneLogo from "@/assets/logo_softone360.png";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useAuthStore, primaryRole, canAccess, PERM } from "@/core/auth/store";
+import { isUserModuleEnabled } from "@/core/auth/modules";
 import { authApi } from "@/core/auth/api";
 import { clearClientSession } from "@/core/auth/session";
 
@@ -19,15 +20,18 @@ export default function Sidebar() {
   
   const canViewPqrs =
     entity?.enable_pqrs &&
+    isUserModuleEnabled(user, "enable_pqrs") &&
     canAccess(user, {
       roles: ["admin", "secretario", "ciudadano"],
       permissions: [PERM.PQRS_VIEW],
     });
   const canManageUsers =
     entity?.enable_users_admin &&
+    isUserModuleEnabled(user, "enable_users_admin") &&
     canAccess(user, { roles: ["admin"], permissions: [PERM.USER_VIEW] });
   const canViewPdm =
     entity?.enable_pdm &&
+    isUserModuleEnabled(user, "enable_pdm") &&
     canAccess(user, { roles: ["admin", "secretario"] });
 
   if (role === "superadmin") {

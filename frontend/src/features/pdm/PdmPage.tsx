@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -11,11 +11,12 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/core/auth/store";
 import { bpinApi, type ProyectoBpin } from "@/core/api/bpin";
-import { pdmApi } from "@/core/api/pdm";
+import { pdmApi, type PdmProducto } from "@/core/api/pdm";
 import { secretariasApi } from "@/core/api/entities";
 import { formatApiError } from "@/core/api/errors";
 import {
   useInvalidatePdmQueries,
+  pdmKeys,
   usePdmContratos,
   usePdmEjecucionProducto,
   usePdmMeta,
@@ -51,6 +52,12 @@ const PdmBpinModal = lazy(() => import("@/features/pdm/PdmBpinModal"));
 const PAGE_SIZE = 15;
 const BUSQUEDA_DEBOUNCE_MS = 400;
 
+type UploadFeedback = {
+  tone: "success" | "error";
+  title: string;
+  detail: string;
+};
+
 function parseVista(raw: string | null): VistaPdm {
   if (raw === "productos" || raw === "detalle") return raw;
   return "dashboard";
@@ -70,6 +77,7 @@ export default function PdmPage(): ReactElement {
   const isSecretario = roles.includes("secretario");
   const puedeCrearEvidencia = Boolean(isAdmin || isSecretario || roles.includes("superadmin") || isSuperuser);
   const invalidatePdm = useInvalidatePdmQueries();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const vista = parseVista(searchParams.get("v"));
   const codigoUrl = searchParams.get("codigo") ?? "";
@@ -101,6 +109,8 @@ export default function PdmPage(): ReactElement {
   const [procesandoExcel, setProcesandoExcel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadFeedback, setUploadFeedback] = useState<UploadFeedback | null>(null);
+  const [cargandoEvidenciaIds, setCargandoEvidenciaIds] = useState<Set<number>>(() => new Set());
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear());
   const [anioDetalle, setAnioDetalle] = useState(new Date().getFullYear());
   const [currentPage, setCurrentPage] = useState(1);
@@ -222,9 +232,15 @@ export default function PdmPage(): ReactElement {
   );
 
   const productoSeleccionado = useMemo(() => {
-    if (productoDetailData) return mapProductoToResumen(productoDetailData);
-    return productoListPreview;
-  }, [productoDetailData, productoListPreview]);
+    const base = productoDetailData ? mapProductoToResumen(productoDetailData) : productoListPreview;
+    if (!base || cargandoEvidenciaIds.size === 0) return base;
+    return {
+      ...base,
+      actividades: base.actividades.map((a) =>
+        cargandoEvidenciaIds.has(a.id) ? { ...a, cargandoEvidencia: true } : a,
+      ),
+    };
+  }, [productoDetailData, productoListPreview, cargandoEvidenciaIds]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -359,11 +375,24 @@ export default function PdmPage(): ReactElement {
           throw new Error("No se encontraron productos en la hoja 'Plan Indicativo - Productos'.");
         }
         const { buildPdmUploadPayload } = await import("@/features/pdm/pdmExcelParser");
-        await pdmApi.upload(slug, buildPdmUploadPayload(parsed));
+        const payload = buildPdmUploadPayload(parsed);
+        const result = await pdmApi.upload(slug, payload);
         invalidatePdm.afterUploadPlan(slug);
+        setUploadFeedback({
+          tone: "success",
+          title: "Plan indicativo cargado",
+          detail: `${parsed.productos_plan_indicativo.length} productos procesados. Total en entidad: ${result.total_productos ?? parsed.productos_plan_indicativo.length}.`,
+        });
+        setError(null);
         navegarVista("dashboard", { replace: true });
       } catch (e) {
-        setError(formatApiError(e, "No se pudo procesar el archivo."));
+        const detail = formatApiError(e, "No se pudo procesar el archivo.");
+        setError(detail);
+        setUploadFeedback({
+          tone: "error",
+          title: "Error al cargar plan indicativo",
+          detail,
+        });
       } finally {
         setProcesandoExcel(false);
         setSaving(false);
@@ -408,14 +437,35 @@ export default function PdmPage(): ReactElement {
   const handleCargarEvidencia = useCallback(
     async (a: PdmActividad) => {
       if (!slug || !productoSeleccionado) return;
+      setCargandoEvidenciaIds((prev) => new Set(prev).add(a.id));
       try {
-        await pdmApi.getEvidencia(slug, a.id);
-        invalidatePdm.invalidateProducto(slug, productoSeleccionado.codigo, anioDetalle);
-      } catch {
-        /* ignore */
+        const ev = await pdmApi.getEvidencia(slug, a.id);
+        const key = pdmKeys.producto(slug, productoSeleccionado.codigo, anioDetalle);
+        queryClient.setQueryData<PdmProducto | undefined>(key, (old) => {
+          if (!old?.actividades) return old;
+          return {
+            ...old,
+            actividades: old.actividades.map((act) =>
+              act.id === a.id ? { ...act, evidencia: ev, tiene_evidencia: true } : act,
+            ),
+          };
+        });
+      } catch (e) {
+        const detail = formatApiError(e, "No se pudo cargar la evidencia.");
+        setUploadFeedback({
+          tone: "error",
+          title: "Error al cargar evidencia",
+          detail,
+        });
+      } finally {
+        setCargandoEvidenciaIds((prev) => {
+          const next = new Set(prev);
+          next.delete(a.id);
+          return next;
+        });
       }
     },
-    [anioDetalle, invalidatePdm, productoSeleccionado, slug],
+    [anioDetalle, productoSeleccionado, queryClient, slug],
   );
 
   const handleEditarActividad = useCallback(
@@ -531,6 +581,24 @@ export default function PdmPage(): ReactElement {
       </div>
 
       {error && <PdmAlert tone="error">{error}</PdmAlert>}
+
+      {uploadFeedback && (
+        <PdmAlert tone={uploadFeedback.tone}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold">{uploadFeedback.title}</p>
+              <p className="mt-1">{uploadFeedback.detail}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUploadFeedback(null)}
+              className="shrink-0 text-xs font-medium opacity-70 hover:opacity-100"
+            >
+              Cerrar
+            </button>
+          </div>
+        </PdmAlert>
+      )}
 
       {!tieneDatos && isAdmin && (
         <PdmCard className="mx-auto max-w-xl">
@@ -668,11 +736,26 @@ export default function PdmPage(): ReactElement {
                   if (!archivoEjecucion) return;
                   setSaving(true);
                   try {
-                    await pdmApi.uploadEjecucion(archivoEjecucion, anioEjecucion);
+                    const result = await pdmApi.uploadEjecucion(archivoEjecucion, anioEjecucion);
                     invalidatePdm.afterUploadEjecucion();
                     setModalEjecucion(false);
+                    setArchivoEjecucion(null);
+                    setError(null);
+                    setUploadFeedback({
+                      tone: "success",
+                      title: "Ejecución presupuestal cargada",
+                      detail:
+                        result.message ||
+                        `${result.registros_insertados ?? 0} registros insertados, ${result.registros_eliminados ?? 0} eliminados del año ${anioEjecucion}.`,
+                    });
                   } catch (e) {
-                    setError(formatApiError(e, "Error al cargar."));
+                    const detail = formatApiError(e, "Error al cargar.");
+                    setError(detail);
+                    setUploadFeedback({
+                      tone: "error",
+                      title: "Error al cargar ejecución presupuestal",
+                      detail,
+                    });
                   } finally {
                     setSaving(false);
                   }
@@ -727,9 +810,21 @@ export default function PdmPage(): ReactElement {
                       invalidatePdm.invalidateContratos(slug, anioContratos, productoSeleccionado.codigo);
                     }
                     setError(null);
-                    alert(result.mensaje || "Contratos RPS cargados.");
+                    setUploadFeedback({
+                      tone: "success",
+                      title: "Contratos RPS cargados",
+                      detail:
+                        result.mensaje ||
+                        `${result.registros_insertados ?? 0} nuevos, ${result.registros_actualizados ?? 0} actualizados (año ${anioContratos}).`,
+                    });
                   } catch (e) {
-                    setError(formatApiError(e, "Error al cargar."));
+                    const detail = formatApiError(e, "Error al cargar.");
+                    setError(detail);
+                    setUploadFeedback({
+                      tone: "error",
+                      title: "Error al cargar contratos RPS",
+                      detail,
+                    });
                   } finally {
                     setSaving(false);
                   }

@@ -548,9 +548,25 @@ def _ejecucion_qs_for_user(user):
     if _is_secretario(user) and not _is_admin(user) and user.entity_id:
         entity = Entity.objects.filter(id=user.entity_id).first()
         if entity:
-            codigos = codigos_producto_for_user(user, entity)
+            codigos = [str(c).strip() for c in codigos_producto_for_user(user, entity) if str(c).strip()]
             qs = qs.filter(codigo_producto__in=codigos) if codigos else qs.none()
     return qs
+
+
+def _presupuesto_por_anio_from_productos(user, entity: Entity) -> dict[int, float]:
+    """Presupuesto anual agregado de productos visibles al usuario."""
+    totals = productos_queryset_for_user(user, entity).aggregate(
+        total_2024=Sum("total_2024"),
+        total_2025=Sum("total_2025"),
+        total_2026=Sum("total_2026"),
+        total_2027=Sum("total_2027"),
+    )
+    return {
+        2024: _to_float(totals["total_2024"]),
+        2025: _to_float(totals["total_2025"]),
+        2026: _to_float(totals["total_2026"]),
+        2027: _to_float(totals["total_2027"]),
+    }
 
 
 class PdmEjecucionResumenAnualEntidadView(APIView):
@@ -558,6 +574,7 @@ class PdmEjecucionResumenAnualEntidadView(APIView):
 
     def get(self, request):
         require_user_module(request.user, "pdm", message="El módulo PDM no está habilitado para tu usuario.")
+        entity = get_object_or_404(Entity, id=request.user.entity_id)
         qs = _ejecucion_qs_for_user(request.user)
         grouped = {
             int(row["anio"]): {
@@ -576,6 +593,17 @@ class PdmEjecucionResumenAnualEntidadView(APIView):
             }
             for y in (2024, 2025, 2026, 2027)
         ]
+        total_pagos = sum(x["pagos"] for x in anios)
+        if total_pagos == 0 and _is_secretario(request.user) and not _is_admin(request.user):
+            presupuesto = _presupuesto_por_anio_from_productos(request.user, entity)
+            anios = [
+                {
+                    "anio": y,
+                    "pto_definitivo": presupuesto.get(y, 0.0),
+                    "pagos": presupuesto.get(y, 0.0),
+                }
+                for y in (2024, 2025, 2026, 2027)
+            ]
         return Response(
             {
                 "anios": anios,
