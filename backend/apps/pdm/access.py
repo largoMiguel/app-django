@@ -11,6 +11,7 @@ from apps.common.roles import is_platform_superadmin, user_roles
 from apps.entities.models import Entity
 
 from .models import PdmActividad, PdmProducto, PDMEjecucionPresupuestal
+from .producto_codigo import codigos_referencia_plan_entidad
 
 SIN_PRODUCTO_EN_PLAN = "Sin producto en plan"
 
@@ -91,15 +92,11 @@ def ejecucion_agrupada_por_campo_producto(
 
 def ejecucion_sin_producto_en_plan(user, entity: Entity) -> list[dict]:
     """Ejecución cuyo codigo_producto no existe en el Plan Indicativo de la entidad."""
-    codigos_plan = {
-        str(c).strip()
-        for c in productos_queryset_for_user(user, entity).values_list("codigo_producto", flat=True)
-        if str(c).strip()
-    }
-    grouped: dict[str, float] = defaultdict(float)
+    codigos_plan = codigos_referencia_plan_entidad(entity)
+    grouped: dict[str, dict] = defaultdict(lambda: {"pto_definitivo": 0.0, "por_anio": defaultdict(float)})
     rows = (
         ejecucion_queryset_for_user(user, entity)
-        .values("codigo_producto")
+        .values("codigo_producto", "anio")
         .annotate(total=Sum("pto_definitivo"))
     )
     for row in rows:
@@ -107,14 +104,27 @@ def ejecucion_sin_producto_en_plan(user, entity: Entity) -> list[dict]:
         if total <= 0:
             continue
         codigo = str(row["codigo_producto"]).strip()
+        anio = int(row["anio"])
         if codigo and codigo not in codigos_plan:
-            grouped[codigo] += total
+            grouped[codigo]["pto_definitivo"] += total
+            grouped[codigo]["por_anio"][anio] += total
 
-    return sorted(
-        [{"codigo_producto": codigo, "pto_definitivo": total} for codigo, total in grouped.items()],
-        key=lambda item: item["pto_definitivo"],
-        reverse=True,
-    )
+    result: list[dict] = []
+    for codigo, data in grouped.items():
+        detalle_anios = sorted(
+            [{"anio": anio, "pto_definitivo": total} for anio, total in data["por_anio"].items()],
+            key=lambda item: item["anio"],
+        )
+        result.append(
+            {
+                "codigo_producto": codigo,
+                "pto_definitivo": data["pto_definitivo"],
+                "anios": [item["anio"] for item in detalle_anios],
+                "detalle_anios": detalle_anios,
+            }
+        )
+
+    return sorted(result, key=lambda item: item["pto_definitivo"], reverse=True)
 
 
 def actividades_queryset_for_user(user, entity: Entity) -> QuerySet[PdmActividad]:

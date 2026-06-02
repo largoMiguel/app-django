@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { AlertTriangle, BarChart3, Box, Calendar, DollarSign, GitBranch, Layers, PieChart } from "lucide-react";
 import {
   ANIOS_PDM,
@@ -100,17 +101,30 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
               <thead className="bg-amber-50 text-left text-xs uppercase tracking-wide text-amber-900">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Código producto (Excel)</th>
+                  <th className="px-4 py-2 font-semibold">Años de ejecución</th>
                   <th className="px-4 py-2 text-right font-semibold">Pto. definitivo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-amber-50">
                 {ejecucionSinProductoPlan.map((item) => (
-                  <tr key={item.codigo_producto}>
-                    <td className="px-4 py-2 font-mono text-slate-800">{item.codigo_producto}</td>
-                    <td className="px-4 py-2 text-right font-semibold text-slate-900">
-                      {formatearMoneda(item.pto_definitivo)}
-                    </td>
-                  </tr>
+                  <Fragment key={item.codigo_producto}>
+                    <tr>
+                      <td className="px-4 py-2 font-mono text-slate-800">{item.codigo_producto}</td>
+                      <td className="px-4 py-2 text-slate-700">
+                        {(item.anios ?? item.detalle_anios?.map((d) => d.anio) ?? []).join(", ") || "—"}
+                      </td>
+                      <td className="px-4 py-2 text-right font-semibold text-slate-900">
+                        {formatearMoneda(item.pto_definitivo)}
+                      </td>
+                    </tr>
+                    {(item.detalle_anios ?? []).map((detalle) => (
+                      <tr key={`${item.codigo_producto}-${detalle.anio}`} className="bg-amber-50/40 text-xs text-slate-600">
+                        <td className="px-4 py-1 pl-8">↳ {detalle.anio}</td>
+                        <td />
+                        <td className="px-4 py-1 text-right">{formatearMoneda(detalle.pto_definitivo)}</td>
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

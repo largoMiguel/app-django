@@ -120,8 +120,9 @@ export default function PdmProductoDetalle({
       fuentesActivas.reduce(
         (acc, f) => ({
           pto_definitivo: acc.pto_definitivo + (f.pto_definitivo ?? 0),
+          pagos: acc.pagos + (f.pagos ?? 0),
         }),
-        { pto_definitivo: 0 },
+        { pto_definitivo: 0, pagos: 0 },
       ),
     [fuentesActivas],
   );
@@ -464,6 +465,12 @@ export default function PdmProductoDetalle({
                               {formatearMoneda(totalesFuentesActivas.pto_definitivo)}
                             </td>
                           </tr>
+                          <tr>
+                            <td className="py-0.5 text-blue-700">Pagos:</td>
+                            <td className="py-0.5 text-right font-semibold text-blue-700">
+                              {formatearMoneda(totalesFuentesActivas.pagos)}
+                            </td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
@@ -599,6 +606,10 @@ function FuentePresupuestalTable({ fuente }: { fuente: PdmEjecucionProducto["fue
         <tr>
           <td className="py-0.5 font-semibold text-slate-800">Pto. Definitivo:</td>
           <td className="py-0.5 text-right font-semibold">{formatearMoneda(fuente.pto_definitivo)}</td>
+        </tr>
+        <tr>
+          <td className="py-0.5 text-blue-700">Pagos:</td>
+          <td className="py-0.5 text-right font-medium text-blue-700">{formatearMoneda(fuente.pagos)}</td>
         </tr>
       </tbody>
     </table>
