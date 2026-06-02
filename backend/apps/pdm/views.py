@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import permissions, status
@@ -23,14 +23,15 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from .access import (
     actividades_queryset_for_user,
-    codigos_ejecucion_for_productos,
     codigos_producto_for_user,
-    ejecucion_pagos_por_producto_codigo,
+    ejecucion_agrupada_por_campo_producto,
+    ejecucion_keys_for_producto,
     ejecucion_queryset_for_user,
     productos_queryset_for_user,
     user_can_access_actividad,
     user_can_access_producto,
 )
+from .producto_codigo import producto_keys_from_queryset, resolver_codigo_producto_pdm
 from .contratos_parser import parse_contratos_rps
 from .ejecucion_parser import _looks_like_codigo_fuente, parse_ejecucion_excel, rows_from_ejecucion_dataframe
 from .evidencia_storage import (
@@ -512,10 +513,13 @@ class PdmEjecucionUploadView(APIView):
 
         with transaction.atomic():
             deleted = PDMEjecucionPresupuestal.objects.filter(entity_id=request.user.entity_id, anio=target_year).delete()[0]
+            entity = Entity.objects.filter(id=request.user.entity_id).first()
             rows = [
                 PDMEjecucionPresupuestal(
                     entity_id=request.user.entity_id,
-                    codigo_producto=item["codigo_producto"],
+                    codigo_producto=resolver_codigo_producto_pdm(entity, item["codigo_producto"])
+                    if entity
+                    else item["codigo_producto"],
                     descripcion_fte=item["descripcion_fte"],
                     pto_inicial=item["pto_inicial"],
                     adicion=item["adicion"],
@@ -556,28 +560,7 @@ def _ejecucion_qs_for_user(user):
 
 
 def _ejecucion_grouped_by_product_field(user, entity: Entity, field_name: str, default_label: str, label_key: str) -> list[dict]:
-    """Suma pagos de ejecución (4 años) agrupados por campo del producto PDM."""
-    pagos_por_producto = ejecucion_pagos_por_producto_codigo(user, entity)
-    if not pagos_por_producto:
-        return []
-
-    grouped: dict[str, float] = defaultdict(float)
-    productos = productos_queryset_for_user(user, entity).filter(
-        codigo_producto__in=pagos_por_producto.keys()
-    ).values("codigo_producto", field_name)
-    for prod in productos:
-        codigo = str(prod["codigo_producto"]).strip()
-        pagos = pagos_por_producto.get(codigo, 0.0)
-        if pagos <= 0:
-            continue
-        label = prod[field_name] or default_label
-        grouped[label] += pagos
-
-    return sorted(
-        [{label_key: label, "total": total} for label, total in grouped.items()],
-        key=lambda item: item["total"],
-        reverse=True,
-    )
+    return ejecucion_agrupada_por_campo_producto(user, entity, field_name, default_label, label_key)
 
 
 class PdmEjecucionResumenAnualEntidadView(APIView):
@@ -629,8 +612,12 @@ class PdmEjecucionProductoView(APIView):
         entity = get_object_or_404(Entity, id=request.user.entity_id)
         if not user_can_access_producto(request.user, entity, codigo_producto):
             raise PermissionDenied("No tiene permisos para este producto.")
-        ej_codigos = codigos_ejecucion_for_productos(entity, [codigo_producto])
-        qs = _ejecucion_qs_for_user(request.user).filter(codigo_producto__in=ej_codigos) if ej_codigos else _ejecucion_qs_for_user(request.user).none()
+        ej_keys = ejecucion_keys_for_producto(entity, codigo_producto)
+        base_qs = _ejecucion_qs_for_user(request.user)
+        if not ej_keys:
+            qs = base_qs.none()
+        else:
+            qs = base_qs.filter(Q(codigo_producto__in=ej_keys) | Q(bpin__in=ej_keys))
         anio = request.query_params.get("anio")
         if anio:
             qs = qs.filter(anio=anio)
@@ -765,9 +752,8 @@ class PdmContratosView(APIView):
         _ensure_user_can_manage_entity(request.user, entity)
         qs = PDMContratoRPS.objects.filter(entity=entity)
         if _is_secretario(request.user) and not _is_admin(request.user):
-            product_codigos = codigos_producto_for_user(request.user, entity)
-            ej_codigos = codigos_ejecucion_for_productos(entity, product_codigos)
-            qs = qs.filter(codigo_producto__in=ej_codigos) if ej_codigos else qs.none()
+            keys = producto_keys_from_queryset(productos_queryset_for_user(request.user, entity))
+            qs = qs.filter(Q(codigo_producto__in=keys) | Q(bpin__in=keys)) if keys else qs.none()
         anio = request.query_params.get("anio")
         codigo = request.query_params.get("codigo_producto")
         if anio:
@@ -776,8 +762,8 @@ class PdmContratosView(APIView):
             codigo = str(codigo).strip()
             if not user_can_access_producto(request.user, entity, codigo):
                 raise PermissionDenied("No tiene permisos para este producto.")
-            ej_codigos = codigos_ejecucion_for_productos(entity, [codigo])
-            qs = qs.filter(codigo_producto__in=ej_codigos) if ej_codigos else qs.none()
+            ej_keys = ejecucion_keys_for_producto(entity, codigo)
+            qs = qs.filter(Q(codigo_producto__in=ej_keys) | Q(bpin__in=ej_keys)) if ej_keys else qs.none()
         qs = qs.order_by("codigo_producto", "no_crp")
         contratos_rows = list(
             qs.values("id", "no_crp", "codigo_producto", "concepto", "valor", "contratista", "anio")

@@ -257,7 +257,7 @@ class PDMEjecucionPresupuestal(models.Model):
         related_name="pdm_ejecuciones",
         db_column="entity_id",
     )
-    codigo_producto = models.CharField(max_length=20, db_index=True)
+    codigo_producto = models.CharField(max_length=64, db_index=True)
     descripcion_fte = models.CharField(max_length=500)
     pto_inicial = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     adicion = models.DecimalField(max_digits=18, decimal_places=2, default=0)

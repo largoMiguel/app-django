@@ -2,97 +2,16 @@
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 
-from django.db.models import Q, QuerySet
+from django.db.models import Q, QuerySet, Sum
 
 from apps.common.media_paths import is_safe_media_relative_path
 from apps.common.roles import is_platform_superadmin, user_roles
 from apps.entities.models import Entity
 
 from .models import PdmActividad, PdmProducto, PDMEjecucionPresupuestal
-
-
-def codigos_ejecucion_coinciden(producto_codigo: str, ejecucion_codigo: str) -> bool:
-    """True si un código PDM y uno de ejecución presupuestal representan el mismo producto."""
-    a = str(producto_codigo or "").strip()
-    b = str(ejecucion_codigo or "").strip()
-    if not a or not b:
-        return False
-    if a == b:
-        return True
-    if a.startswith(b) or b.startswith(a):
-        return True
-
-    from .ejecucion_parser import extraer_codigo_producto
-
-    ea = extraer_codigo_producto(a)
-    eb = extraer_codigo_producto(b)
-    if ea and ea == b:
-        return True
-    if eb and eb == a:
-        return True
-    if ea and eb and ea == eb:
-        return True
-
-    da = re.sub(r"\D", "", a)
-    db = re.sub(r"\D", "", b)
-    if not da or not db:
-        return False
-    if da == db:
-        return True
-    if len(da) >= 4 and len(db) >= 4 and (da.startswith(db) or db.startswith(da)):
-        return True
-    return False
-
-
-def codigos_ejecucion_for_productos(entity: Entity, product_codigos: list[str]) -> list[str]:
-    """Códigos en ejecución presupuestal que corresponden a los productos PDM dados."""
-    product_codigos = [str(c).strip() for c in product_codigos if str(c).strip()]
-    if not product_codigos:
-        return []
-
-    ejecucion_codigos = [
-        str(c).strip()
-        for c in PDMEjecucionPresupuestal.objects.filter(entity=entity)
-        .values_list("codigo_producto", flat=True)
-        .distinct()
-        if str(c).strip()
-    ]
-    return [ej for ej in ejecucion_codigos if any(codigos_ejecucion_coinciden(pc, ej) for pc in product_codigos)]
-
-
-def ejecucion_queryset_for_user(user, entity: Entity) -> QuerySet[PDMEjecucionPresupuestal]:
-    """Ejecución presupuestal visible según rol (secretario: productos asignados)."""
-    qs = PDMEjecucionPresupuestal.objects.filter(entity=entity)
-    if _is_secretario(user) and not _is_admin(user):
-        product_codigos = codigos_producto_for_user(user, entity)
-        ej_codigos = codigos_ejecucion_for_productos(entity, product_codigos)
-        qs = qs.filter(codigo_producto__in=ej_codigos) if ej_codigos else qs.none()
-    return qs
-
-
-def ejecucion_pagos_por_producto_codigo(user, entity: Entity) -> dict[str, float]:
-    """Suma pagos de ejecución (todos los años) por código de producto PDM."""
-    from django.db.models import Sum
-
-    product_codigos = [str(c).strip() for c in codigos_producto_for_user(user, entity) if str(c).strip()]
-    if not product_codigos:
-        return {}
-
-    result = {pc: 0.0 for pc in product_codigos}
-    rows = (
-        ejecucion_queryset_for_user(user, entity)
-        .values("codigo_producto")
-        .annotate(pagos=Sum("pagos"))
-    )
-    for row in rows:
-        ej_codigo = str(row["codigo_producto"]).strip()
-        pagos = float(row["pagos"] or 0)
-        for pc in product_codigos:
-            if codigos_ejecucion_coinciden(pc, ej_codigo):
-                result[pc] += pagos
-                break
-    return result
+from .producto_codigo import PRODUCTO_KEY_FIELDS, producto_key_to_label_map, producto_keys_from_queryset, producto_lookup_keys
 
 
 def _is_admin(user) -> bool:
@@ -111,6 +30,55 @@ def productos_queryset_for_user(user, entity: Entity) -> QuerySet[PdmProducto]:
             return qs.none()
         qs = qs.filter(responsable_secretaria_id=user.secretaria_id)
     return qs
+
+
+def ejecucion_queryset_for_user(user, entity: Entity) -> QuerySet[PDMEjecucionPresupuestal]:
+    """Ejecución presupuestal de la entidad; secretario solo filas de sus productos asignados."""
+    qs = PDMEjecucionPresupuestal.objects.filter(entity=entity)
+    if _is_secretario(user) and not _is_admin(user):
+        productos_qs = productos_queryset_for_user(user, entity)
+        keys = producto_keys_from_queryset(productos_qs)
+        if not keys:
+            return qs.none()
+        return qs.filter(Q(codigo_producto__in=keys) | Q(bpin__in=keys))
+    return qs
+
+
+def ejecucion_agrupada_por_campo_producto(
+    user,
+    entity: Entity,
+    field_name: str,
+    default_label: str,
+    label_key: str,
+) -> list[dict]:
+    """Suma pagos de ejecución (todos los años) agrupados por línea o sector del producto PDM."""
+    productos_qs = productos_queryset_for_user(user, entity)
+    key_to_label = producto_key_to_label_map(productos_qs, field_name, default_label)
+    if not key_to_label:
+        return []
+
+    grouped: dict[str, float] = defaultdict(float)
+    rows = (
+        ejecucion_queryset_for_user(user, entity)
+        .values("codigo_producto", "bpin")
+        .annotate(pagos=Sum("pagos"))
+    )
+    for row in rows:
+        pagos = float(row["pagos"] or 0)
+        if pagos <= 0:
+            continue
+        codigo = str(row["codigo_producto"]).strip()
+        bpin = str(row["bpin"]).strip() if row.get("bpin") else ""
+        label = key_to_label.get(codigo) or (key_to_label.get(bpin) if bpin else None)
+        if not label:
+            continue
+        grouped[label] += pagos
+
+    return sorted(
+        [{label_key: label, "total": total} for label, total in grouped.items() if total > 0],
+        key=lambda item: item["total"],
+        reverse=True,
+    )
 
 
 def actividades_queryset_for_user(user, entity: Entity) -> QuerySet[PdmActividad]:
@@ -169,3 +137,15 @@ def user_can_access_pdm_media_path(user, path: str) -> bool:
 
 def codigos_producto_for_user(user, entity: Entity) -> list[str]:
     return list(productos_queryset_for_user(user, entity).values_list("codigo_producto", flat=True))
+
+
+def ejecucion_keys_for_producto(entity: Entity, codigo_producto: str) -> set[str]:
+    """Claves con las que puede estar registrada la ejecución de un producto PDM."""
+    row = (
+        PdmProducto.objects.filter(entity=entity, codigo_producto=codigo_producto)
+        .values(*PRODUCTO_KEY_FIELDS)
+        .first()
+    )
+    if not row:
+        return {str(codigo_producto).strip()} if str(codigo_producto).strip() else set()
+    return producto_lookup_keys(row)
