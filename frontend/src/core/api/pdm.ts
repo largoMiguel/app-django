@@ -93,6 +93,8 @@ export interface PdmMetaResponse {
   sectores: string[];
   ods: string[];
   tipos_acumulacion: string[];
+  productos_sin_linea?: number;
+  productos_sin_sector?: number;
   iniciativas_sgr: { consecutivo: string; iniciativa_sgr: string; recursos_sgr_indicativos: number; bpin?: string }[];
   total_productos: number;
 }

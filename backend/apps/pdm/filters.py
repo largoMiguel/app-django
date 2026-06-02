@@ -10,11 +10,13 @@ from django.db.models import Q
 
 from .models import PdmProducto
 
+PDM_SIN_CLASIFICAR = "__sin__"
+
 
 class PdmProductoFilterSet(django_filters.FilterSet):
     search = django_filters.CharFilter(method="filter_search")
-    linea_estrategica = django_filters.CharFilter(field_name="linea_estrategica", lookup_expr="iexact")
-    sector_mga = django_filters.CharFilter(field_name="sector_mga", lookup_expr="iexact")
+    linea_estrategica = django_filters.CharFilter(method="filter_linea_estrategica")
+    sector_mga = django_filters.CharFilter(method="filter_sector_mga")
     responsable_secretaria = django_filters.NumberFilter(field_name="responsable_secretaria_id")
     ods = django_filters.CharFilter(field_name="ods", lookup_expr="iexact")
     tipo_acumulacion = django_filters.CharFilter(field_name="tipo_acumulacion", lookup_expr="iexact")
@@ -34,3 +36,17 @@ class PdmProductoFilterSet(django_filters.FilterSet):
             | Q(personalizacion_indicador__icontains=q)
             | Q(linea_estrategica__icontains=q)
         )
+
+    def filter_linea_estrategica(self, queryset, name, value):
+        if not value:
+            return queryset
+        if value == PDM_SIN_CLASIFICAR:
+            return queryset.filter(Q(linea_estrategica__isnull=True) | Q(linea_estrategica=""))
+        return queryset.filter(linea_estrategica__iexact=value)
+
+    def filter_sector_mga(self, queryset, name, value):
+        if not value:
+            return queryset
+        if value == PDM_SIN_CLASIFICAR:
+            return queryset.filter(Q(sector_mga__isnull=True) | Q(sector_mga=""))
+        return queryset.filter(sector_mga__iexact=value)

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from django.db.models import QuerySet, Sum
+from django.db.models import Q, QuerySet, Sum
 
 from .metrics import ANIOS_PDM, actividad_aggs_for_productos, estado_producto_anio, resumen_anio
 from .models import PdmProducto
@@ -167,4 +167,13 @@ def filter_options_from_productos(productos_qs) -> dict:
         .distinct()
         .order_by("tipo_acumulacion")
     )
-    return {"lineas_estrategicas": lineas, "sectores": sectores, "ods": ods, "tipos_acumulacion": tipos}
+    sin_linea = productos_qs.filter(Q(linea_estrategica__isnull=True) | Q(linea_estrategica="")).count()
+    sin_sector = productos_qs.filter(Q(sector_mga__isnull=True) | Q(sector_mga="")).count()
+    return {
+        "lineas_estrategicas": lineas,
+        "sectores": sectores,
+        "ods": ods,
+        "tipos_acumulacion": tipos,
+        "productos_sin_linea": sin_linea,
+        "productos_sin_sector": sin_sector,
+    }

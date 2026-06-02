@@ -112,7 +112,7 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
             {ejecucionPorSector.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500">Sin datos de ejecución por sector.</p>
             ) : (
-              ejecucionPorSector.slice(0, 12).map((item) => (
+              ejecucionPorSector.map((item) => (
                 <div key={item.sector}>
                   <div className="mb-1 flex justify-between gap-2 text-sm">
                     <span className="truncate text-slate-700" title={item.sector}>

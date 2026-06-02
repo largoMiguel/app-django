@@ -13,6 +13,7 @@ import {
   getEjecucionDefinitivoProductoAnio,
   getMetaAnio,
   getTextoEstadoProducto,
+  PDM_SIN_CLASIFICAR,
   type ResumenProducto,
 } from "@/features/pdm/pdmUtils";
 import { PdmBadge, PdmCard, PdmProgressBar, PdmStatCard, PdmYearPills } from "@/features/pdm/components/PdmUi";
@@ -194,6 +195,10 @@ export default function PdmProductosView({
             <label className="mb-1 block text-xs font-medium text-slate-600">Línea Estratégica</label>
             <select className={pdmSelect} value={filtroLinea} onChange={(e) => onFiltroLinea(e.target.value)}>
               <option value="">Todas</option>
+              <option value={PDM_SIN_CLASIFICAR}>
+                Sin línea estratégica
+                {meta?.productos_sin_linea != null ? ` (${meta.productos_sin_linea})` : ""}
+              </option>
               {(meta?.lineas_estrategicas ?? []).map((l) => (
                 <option key={l} value={l}>
                   {l}
@@ -205,6 +210,10 @@ export default function PdmProductosView({
             <label className="mb-1 block text-xs font-medium text-slate-600">Sector</label>
             <select className={pdmSelect} value={filtroSector} onChange={(e) => onFiltroSector(e.target.value)}>
               <option value="">Todos</option>
+              <option value={PDM_SIN_CLASIFICAR}>
+                Sin sector
+                {meta?.productos_sin_sector != null ? ` (${meta.productos_sin_sector})` : ""}
+              </option>
               {(meta?.sectores ?? []).map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -269,6 +278,13 @@ export default function PdmProductosView({
             />
           </div>
         </div>
+        {filtroLinea === PDM_SIN_CLASIFICAR && (
+          <p className="mt-3 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Este filtro muestra productos del <strong>Plan Indicativo</strong> sin línea. El monto en
+            &quot;Sin línea&quot; del dashboard puede incluir además ejecución cargada sin producto correspondiente en el
+            plan.
+          </p>
+        )}
         <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
             <strong className="text-slate-800">{productos.length}</strong> en página ·{" "}
