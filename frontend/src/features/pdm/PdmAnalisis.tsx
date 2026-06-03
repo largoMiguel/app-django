@@ -171,7 +171,11 @@ function AnalisisContent({
         <PdmStatCard
           label="Avance Global"
           value={`${data.avance_global}%`}
-          hint="Productos al 100%"
+          hint={
+            filtroAnio === "all"
+              ? `Promedio cuatrienio · ${data.productos_al_100 ?? 0} producto(s) al 100%`
+              : `Promedio del año · ${data.productos_al_100 ?? 0} producto(s) al 100%`
+          }
           icon={<TrendingUp size={24} className="text-emerald-600" />}
           accent="emerald"
         />
@@ -262,104 +266,61 @@ function AnalisisContent({
 
       <ChartCard
         title="Sectores — Estado de Productos"
-          icon={<BarChart3 size={16} className="text-cyan-600" />}
-          headerClassName="border-b border-cyan-100 bg-cyan-50/90"
-          bodyClassName="p-0"
-        >
-          <p className="border-b border-slate-100 px-4 py-3 text-center text-sm font-medium text-slate-600 sm:px-5">
-            Todos los sectores ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
-          </p>
-          {sectorChartData.length === 0 ? (
-            <div className="flex h-40 items-center justify-center text-sm text-slate-400">Sin datos</div>
-          ) : (
-            <div className="max-h-[28rem] overflow-auto">
-              <table className="min-w-full text-sm">
-                <thead className="sticky top-0 z-10 bg-cyan-50/95 text-left text-[0.65rem] uppercase tracking-wide text-cyan-900">
-                  <tr>
-                    <th className="px-3 py-2.5 font-semibold">Sector</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Total</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Comp.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Prog.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Pend.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Por ejec.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Av. físico</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Av. financ.</th>
-                    <th className="px-2 py-2.5 text-right font-semibold">Pto. def.</th>
+        icon={<BarChart3 size={16} className="text-cyan-600" />}
+        headerClassName="border-b border-cyan-100 bg-cyan-50/90"
+      >
+        <p className="mb-4 text-center text-sm font-medium text-slate-600">
+          Todos los sectores ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+        </p>
+        {sectorChartData.length === 0 ? (
+          <div className="flex h-40 items-center justify-center text-sm text-slate-400">Sin datos</div>
+        ) : (
+          <div className="max-h-[28rem] overflow-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <th className="sticky top-0 z-10 bg-slate-50 px-3 py-3 text-left">Sector</th>
+                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">Productos</th>
+                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">Completados</th>
+                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">En Progreso</th>
+                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">Pendientes</th>
+                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">Por Ejecutar</th>
+                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">Avance %</th>
+                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-right">Pto. Def.</th>
+                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-right">Pagado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sectorChartData.map((s) => (
+                  <tr key={s.sector} className="border-b border-slate-50 hover:bg-slate-50/80">
+                    <td className="max-w-[220px] truncate px-3 py-3 font-medium text-slate-800" title={s.sector}>
+                      {s.sector}
+                    </td>
+                    <td className="px-2 py-3 text-center font-bold">{s.total}</td>
+                    <td className="px-2 py-3 text-center text-emerald-600">{s.completados}</td>
+                    <td className="px-2 py-3 text-center text-cyan-600">{s.en_progreso}</td>
+                    <td className="px-2 py-3 text-center text-amber-600">{s.pendientes}</td>
+                    <td className="px-2 py-3 text-center text-slate-500">{s.por_ejecutar}</td>
+                    <td className="px-2 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className={`h-full rounded-full ${s.avance_pct >= 75 ? "bg-emerald-500" : s.avance_pct >= 40 ? "bg-amber-400" : "bg-red-400"}`}
+                            style={{ width: `${Math.min(100, s.avance_pct)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-semibold">{s.avance_pct}%</span>
+                      </div>
+                    </td>
+                    <td className="px-2 py-3 text-right text-xs sm:text-sm">{formatearMoneda(s.pto_definitivo)}</td>
+                    <td className="px-2 py-3 text-right text-xs sm:text-sm">{formatearMoneda(s.pagos)}</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sectorChartData.map((s, idx) => (
-                    <tr key={s.sector} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
-                      <td className="max-w-[220px] px-3 py-2.5 font-medium text-slate-800" title={s.sector}>
-                        <div className="truncate">{s.sector}</div>
-                        <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-slate-100">
-                          {s.completados > 0 && (
-                            <div
-                              className="bg-emerald-500"
-                              style={{ width: `${(s.completados / s.total) * 100}%` }}
-                              title={`Completados: ${s.completados}`}
-                            />
-                          )}
-                          {s.en_progreso > 0 && (
-                            <div
-                              className="bg-cyan-500"
-                              style={{ width: `${(s.en_progreso / s.total) * 100}%` }}
-                              title={`En progreso: ${s.en_progreso}`}
-                            />
-                          )}
-                          {s.pendientes > 0 && (
-                            <div
-                              className="bg-amber-400"
-                              style={{ width: `${(s.pendientes / s.total) * 100}%` }}
-                              title={`Pendientes: ${s.pendientes}`}
-                            />
-                          )}
-                          {s.por_ejecutar > 0 && (
-                            <div
-                              className="bg-slate-400"
-                              style={{ width: `${(s.por_ejecutar / s.total) * 100}%` }}
-                              title={`Por ejecutar: ${s.por_ejecutar}`}
-                            />
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2.5 text-center font-bold text-slate-900">{s.total}</td>
-                      <td className="px-2 py-2.5 text-center text-emerald-600">{s.completados}</td>
-                      <td className="px-2 py-2.5 text-center text-cyan-600">{s.en_progreso}</td>
-                      <td className="px-2 py-2.5 text-center text-amber-600">{s.pendientes}</td>
-                      <td className="px-2 py-2.5 text-center text-slate-500">{s.por_ejecutar}</td>
-                      <td className="px-2 py-2.5 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <div className="h-1.5 w-10 overflow-hidden rounded-full bg-slate-100">
-                            <div
-                              className={`h-full rounded-full ${s.avance_fisico_pct >= 75 ? "bg-emerald-500" : s.avance_fisico_pct >= 40 ? "bg-amber-400" : "bg-red-400"}`}
-                              style={{ width: `${Math.min(100, s.avance_fisico_pct)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-semibold">{s.avance_fisico_pct}%</span>
-                        </div>
-                      </td>
-                      <td className="px-2 py-2.5 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <div className="h-1.5 w-10 overflow-hidden rounded-full bg-slate-100">
-                            <div
-                              className={`h-full rounded-full ${s.avance_financiero_pct >= 75 ? "bg-emerald-500" : s.avance_financiero_pct >= 40 ? "bg-amber-400" : "bg-red-400"}`}
-                              style={{ width: `${Math.min(100, s.avance_financiero_pct)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-semibold">{s.avance_financiero_pct}%</span>
-                        </div>
-                      </td>
-                      <td className="px-2 py-2.5 text-right text-xs font-medium text-slate-800">
-                        {formatearMoneda(s.pto_definitivo)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </ChartCard>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ChartCard>
 
       <PdmCard title="Por Línea Estratégica" icon={<Layers size={16} />}>
         <div className="max-h-96 space-y-4 overflow-y-auto pr-1">

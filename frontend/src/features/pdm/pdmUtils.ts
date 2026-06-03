@@ -89,6 +89,7 @@ export interface PdmAnalisisResponse {
   anio_filtro: number | null;
   total_productos: number;
   avance_global: number;
+  productos_al_100?: number;
   presupuesto: { pto_definitivo: number; pagos: number };
   estado_distribucion: PdmAnalisisEstadoDistribucion;
   metas_por_anio: { anio: number; programada: number; ejecutada: number; pct: number }[];
@@ -102,6 +103,7 @@ export interface PdmAnalisisResponse {
     por_ejecutar: number;
     avance_fisico_pct: number;
     avance_financiero_pct: number;
+    avance_pct: number;
     pto_definitivo: number;
     pagos: number;
   }[];

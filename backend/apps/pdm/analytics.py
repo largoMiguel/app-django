@@ -121,31 +121,36 @@ def _avance_producto(producto: PdmProducto, aggs: dict, anio: int | None) -> flo
 def _estado_producto(producto: PdmProducto, aggs: dict, anio: int | None) -> str:
     if anio is not None:
         return estado_producto_anio(producto, anio, aggs)
-    now_year = datetime.now().year
+
     anios_con_meta = [y for y in ANIOS_PDM if _tiene_meta_anio(producto, y, aggs)]
     if not anios_con_meta:
         return "PENDIENTE"
+
+    now_year = datetime.now().year
     pasados = [y for y in anios_con_meta if y <= now_year]
     futuros = [y for y in anios_con_meta if y > now_year]
     if not pasados and futuros:
         return "POR_EJECUTAR"
-    estados_pasados = [estado_producto_anio(producto, y, aggs) for y in pasados]
-    if any(e == "EN_PROGRESO" for e in estados_pasados):
-        return "EN_PROGRESO"
-    if any(e == "COMPLETADO" for e in estados_pasados):
+
+    estados = {y: estado_producto_anio(producto, y, aggs) for y in anios_con_meta}
+    if all(estados[y] == "COMPLETADO" for y in anios_con_meta):
         return "COMPLETADO"
+    if any(estados[y] == "EN_PROGRESO" for y in anios_con_meta):
+        return "EN_PROGRESO"
+    if any(estados[y] == "COMPLETADO" for y in anios_con_meta):
+        return "EN_PROGRESO"
+    if pasados and all(estados[y] == "PENDIENTE" for y in pasados):
+        return "PENDIENTE"
     return "PENDIENTE"
 
 
 def _producto_al_100(producto: PdmProducto, aggs: dict, anio: int | None) -> bool:
     if anio is not None:
         return resumen_anio(producto, anio, aggs).get("porcentaje_avance", 0) >= 100
-    now_year = datetime.now().year
-    return any(
-        resumen_anio(producto, y, aggs).get("porcentaje_avance", 0) >= 100
-        for y in ANIOS_PDM
-        if _tiene_meta_anio(producto, y, aggs) and y <= now_year
-    )
+    anios_con_meta = [y for y in ANIOS_PDM if _tiene_meta_anio(producto, y, aggs)]
+    if not anios_con_meta:
+        return False
+    return all(resumen_anio(producto, y, aggs).get("porcentaje_avance", 0) >= 100 for y in anios_con_meta)
 
 
 def _producto_cuenta_para_filtro(producto: PdmProducto, aggs: dict, anio: int | None) -> bool:
@@ -265,7 +270,8 @@ def compute_pdm_analytics(
                 sec["pendientes"] += 1
 
     total = estado_distribucion["total"]
-    avance_global = round((completados / total) * 100, 1) if total else 0.0
+    avance_global = round(avance_sum / total, 1) if total else 0.0
+    productos_al_100 = completados
 
     metas_por_anio = []
     for y in ANIOS_PDM:
@@ -313,6 +319,7 @@ def compute_pdm_analytics(
                 "en_progreso": data["en_progreso"],
                 "pendientes": data["pendientes"],
                 "por_ejecutar": data["por_ejecutar"],
+                "avance_pct": round(data["avance_sum"] / data["total"], 1) if data["total"] else 0.0,
                 "avance_fisico_pct": round(data["avance_sum"] / data["total"], 1) if data["total"] else 0.0,
                 "avance_financiero_pct": round((data["pagos"] / data["pto_definitivo"]) * 100, 1)
                 if data["pto_definitivo"]
@@ -368,6 +375,7 @@ def compute_pdm_analytics(
         "anio_filtro": anio,
         "total_productos": total,
         "avance_global": avance_global,
+        "productos_al_100": productos_al_100,
         "presupuesto": {
             "pto_definitivo": presupuesto_pto,
             "pagos": presupuesto_pagos,
