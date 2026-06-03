@@ -48,7 +48,8 @@ from .metrics import (
     producto_list_metrics,
     resumen_anio,
 )
-from .analytics import compute_pdm_analytics
+from .analytics import compute_pdm_analytics, compute_pdm_proyectos
+from .bpin_view import DATOS_GOV_CO_PORTAL, consultar_bpines_externos
 from .stats import compute_estado_stats, compute_pdm_stats_from_queryset, filter_options_from_productos, productos_for_stats
 from .models import (
     ActividadEstado,
@@ -262,6 +263,39 @@ class PdmAnalisisView(APIView):
             anio,
             include_por_secretaria=_is_admin(request.user),
         )
+        return Response(data)
+
+
+class PdmProyectosView(APIView):
+    """Proyectos BPIN agrupados con productos del Plan Indicativo."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, slug: str):
+        entity = _entity_or_404(slug)
+        _ensure_user_can_manage_entity(request.user, entity)
+        productos_qs = productos_queryset_for_user(request.user, entity)
+
+        data = compute_pdm_proyectos(productos_qs, entity.id)
+        bpines = [p["bpin"] for p in data["proyectos"]]
+        datos_abiertos, error = consultar_bpines_externos(bpines)
+
+        for proyecto in data["proyectos"]:
+            bpin = proyecto["bpin"]
+            externo = datos_abiertos.get(bpin)
+            if externo and externo.get("nombreproyecto"):
+                proyecto["nombre_proyecto"] = externo.get("nombreproyecto")
+                proyecto["estado"] = externo.get("estadoproyecto")
+                proyecto["sector"] = externo.get("sector")
+                proyecto["datos_abiertos_ok"] = True
+            else:
+                proyecto["nombre_proyecto"] = None
+                proyecto["estado"] = None
+                proyecto["sector"] = None
+                proyecto["datos_abiertos_ok"] = False
+
+        data["datos_abiertos_error"] = error
+        data["portal_url"] = DATOS_GOV_CO_PORTAL
         return Response(data)
 
 

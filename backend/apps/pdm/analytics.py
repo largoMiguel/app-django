@@ -33,6 +33,13 @@ _ANALYTICS_FIELDS = (
     "responsable_secretaria_nombre",
 )
 
+_PROYECTOS_FIELDS = (
+    *_ANALYTICS_FIELDS,
+    "bpin",
+    "producto_mga",
+    "meta_cuatrienio",
+)
+
 _ESTADO_KEYS = {
     "PENDIENTE": "pendiente",
     "EN_PROGRESO": "en_progreso",
@@ -44,6 +51,21 @@ _ESTADO_KEYS = {
 def _productos_for_analytics(productos_qs: QuerySet[PdmProducto]) -> list[PdmProducto]:
     return list(
         PdmProducto.objects.filter(pk__in=productos_qs.values("pk")).only(*_ANALYTICS_FIELDS)
+    )
+
+
+def _productos_for_proyectos(productos_qs: QuerySet[PdmProducto]) -> list[PdmProducto]:
+    return list(
+        PdmProducto.objects.filter(pk__in=productos_qs.values("pk")).only(*_PROYECTOS_FIELDS)
+    )
+
+
+def _presupuesto_total_producto(producto: PdmProducto) -> float:
+    return float(
+        (producto.total_2024 or 0)
+        + (producto.total_2025 or 0)
+        + (producto.total_2026 or 0)
+        + (producto.total_2027 or 0)
     )
 
 
@@ -387,4 +409,93 @@ def compute_pdm_analytics(
         "por_ods": por_ods,
         "presupuestal_por_anio": presupuestal_por_anio,
         "por_secretaria": por_secretaria,
+    }
+
+
+def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -> dict:
+    """Agrupa productos por BPIN con avance general y métricas por producto."""
+    productos = _productos_for_proyectos(productos_qs)
+    codigos = [p.codigo_producto for p in productos]
+    aggs_map = actividad_aggs_for_productos(entity_id, codigos)
+
+    bpin_agg: dict[str, dict] = defaultdict(
+        lambda: {
+            "productos": [],
+            "avance_sum": 0.0,
+            "completados": 0,
+            "en_progreso": 0,
+            "pendientes": 0,
+            "por_ejecutar": 0,
+            "presupuesto_total": 0.0,
+        }
+    )
+    productos_sin_bpin = 0
+
+    for p in productos:
+        bpin = (p.bpin or "").strip()
+        if not bpin:
+            productos_sin_bpin += 1
+            continue
+
+        aggs = aggs_map.get(p.codigo_producto, {})
+        avance = avance_general_producto(p, aggs)
+        estado = _estado_producto(p, aggs, None)
+        presupuesto = _presupuesto_total_producto(p)
+
+        item = {
+            "codigo_producto": p.codigo_producto,
+            "nombre": p.producto_mga or p.codigo_producto,
+            "linea_estrategica": p.linea_estrategica,
+            "sector_mga": p.sector_mga,
+            "meta_cuatrienio": float(p.meta_cuatrienio or 0),
+            "responsable_secretaria_nombre": p.responsable_secretaria_nombre,
+            "avance": avance,
+            "estado": estado,
+            "presupuesto": presupuesto,
+        }
+
+        group = bpin_agg[bpin]
+        group["productos"].append(item)
+        group["avance_sum"] += avance
+        group["presupuesto_total"] += presupuesto
+        estado_key = {
+            "PENDIENTE": "pendientes",
+            "EN_PROGRESO": "en_progreso",
+            "COMPLETADO": "completados",
+            "POR_EJECUTAR": "por_ejecutar",
+        }.get(estado)
+        if estado_key:
+            group[estado_key] += 1
+
+    proyectos: list[dict] = []
+    avance_global_sum = 0.0
+    total_con_bpin = 0
+
+    for bpin, data in bpin_agg.items():
+        total = len(data["productos"])
+        avance_general = round(data["avance_sum"] / total, 1) if total else 0.0
+        avance_global_sum += data["avance_sum"]
+        total_con_bpin += total
+        proyectos.append(
+            {
+                "bpin": bpin,
+                "total_productos": total,
+                "avance_general": avance_general,
+                "completados": data["completados"],
+                "en_progreso": data["en_progreso"],
+                "pendientes": data["pendientes"],
+                "por_ejecutar": data["por_ejecutar"],
+                "presupuesto_total": data["presupuesto_total"],
+                "productos": sorted(data["productos"], key=lambda x: x["codigo_producto"]),
+            }
+        )
+
+    proyectos.sort(key=lambda x: x["bpin"])
+
+    return {
+        "total_proyectos": len(proyectos),
+        "total_productos_con_bpin": total_con_bpin,
+        "productos_sin_bpin": productos_sin_bpin,
+        "avance_promedio": round(avance_global_sum / total_con_bpin, 1) if total_con_bpin else 0.0,
+        "proyectos": proyectos,
     }

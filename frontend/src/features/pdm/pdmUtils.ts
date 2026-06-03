@@ -1,6 +1,6 @@
 import type { PdmActividad, PdmProducto, ResumenAnioBackend } from "@/core/api/pdm";
 
-export type VistaPdm = "dashboard" | "productos" | "detalle" | "analisis";
+export type VistaPdm = "dashboard" | "productos" | "detalle" | "analisis" | "proyectos";
 
 export interface ResumenProducto {
   id: number;

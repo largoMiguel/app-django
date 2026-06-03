@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, MoreHorizontal, RefreshCw, Upload } from "lucide-react";
+import { ChevronDown, FolderKanban, MoreHorizontal, RefreshCw, Upload } from "lucide-react";
 import { pdmBtnPrimary } from "@/features/pdm/pdmLayout";
 
 interface PdmAccionesMenuProps {
+  onProyectos: () => void;
   onContratos: () => void;
   onEjecucion: () => void;
   onRecargarPdm: () => void;
@@ -10,6 +11,7 @@ interface PdmAccionesMenuProps {
 }
 
 export default function PdmAccionesMenu({
+  onProyectos,
   onContratos,
   onEjecucion,
   onRecargarPdm,
@@ -46,6 +48,19 @@ export default function PdmAccionesMenu({
           role="menu"
           className="absolute right-0 z-50 mt-1 min-w-[220px] overflow-hidden rounded-[0.3rem] border border-slate-200 bg-white py-1 shadow-lg"
         >
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+            onClick={() => {
+              setOpen(false);
+              onProyectos();
+            }}
+          >
+            <FolderKanban className="h-4 w-4 text-cyan-600" />
+            Proyectos
+          </button>
+          <div className="my-1 border-t border-slate-100" />
           <button
             type="button"
             role="menuitem"

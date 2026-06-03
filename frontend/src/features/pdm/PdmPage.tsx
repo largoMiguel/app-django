@@ -23,6 +23,7 @@ import {
   usePdmMeta,
   usePdmProductoDetail,
   usePdmProductos,
+  usePdmProyectos,
   usePdmResumenEjecucionAnual,
   usePdmStats,
   usePdmStatus,
@@ -47,6 +48,7 @@ import type { PdmActividad } from "@/core/api/pdm";
 const PdmDashboard = lazy(() => import("@/features/pdm/PdmDashboard"));
 const PdmAnalisis = lazy(() => import("@/features/pdm/PdmAnalisis"));
 const PdmProductosView = lazy(() => import("@/features/pdm/PdmProductosView"));
+const PdmProyectosView = lazy(() => import("@/features/pdm/PdmProyectosView"));
 const PdmProductoDetalle = lazy(() => import("@/features/pdm/PdmProductoDetalle"));
 const PdmActividadModal = lazy(() => import("@/features/pdm/PdmActividadModal"));
 const PdmBpinModal = lazy(() => import("@/features/pdm/PdmBpinModal"));
@@ -61,7 +63,7 @@ type UploadFeedback = {
 };
 
 function parseVista(raw: string | null): VistaPdm {
-  if (raw === "productos" || raw === "detalle" || raw === "analisis") return raw;
+  if (raw === "productos" || raw === "detalle" || raw === "analisis" || raw === "proyectos") return raw;
   return "dashboard";
 }
 
@@ -85,19 +87,26 @@ export default function PdmPage(): ReactElement {
   const codigoUrl = searchParams.get("codigo") ?? "";
 
   const navegarVista = useCallback(
-    (next: VistaPdm, opts?: { codigo?: string; replace?: boolean }) => {
+    (next: VistaPdm, opts?: { codigo?: string; from?: VistaPdm; replace?: boolean }) => {
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev);
           if (next === "dashboard") {
             params.delete("v");
             params.delete("codigo");
+            params.delete("from");
           } else {
             params.set("v", next);
             if (next === "detalle" && opts?.codigo) {
               params.set("codigo", opts.codigo);
+              if (opts?.from) {
+                params.set("from", opts.from);
+              } else {
+                params.delete("from");
+              }
             } else {
               params.delete("codigo");
+              params.delete("from");
             }
           }
           return params;
@@ -199,6 +208,10 @@ export default function PdmPage(): ReactElement {
     listParams,
     tieneDatos && vista === "productos",
   );
+  const { data: proyectosData, isLoading: loadingProyectos } = usePdmProyectos(
+    slug,
+    tieneDatos && vista === "proyectos",
+  );
   const resumenProductos = useMemo(
     () => (productosPage?.results ?? []).map(mapProductoToResumen),
     [productosPage],
@@ -282,9 +295,16 @@ export default function PdmPage(): ReactElement {
   }, []);
 
   const volver = useCallback(() => {
-    if (vista === "detalle") navegarVista("productos");
-    else navegarVista("dashboard");
-  }, [navegarVista, vista]);
+    if (vista === "detalle") {
+      if (searchParams.get("from") === "proyectos") {
+        navegarVista("proyectos");
+      } else {
+        navegarVista("productos");
+      }
+    } else {
+      navegarVista("dashboard");
+    }
+  }, [navegarVista, searchParams, vista]);
 
   const openDetalle = useCallback(
     (producto: ResumenProducto) => {
@@ -293,6 +313,15 @@ export default function PdmPage(): ReactElement {
       navegarVista("detalle", { codigo: producto.codigo });
     },
     [filtroAnio, navegarVista],
+  );
+
+  const openProductoFromProyectos = useCallback(
+    (codigo: string) => {
+      setProductoListPreview(null);
+      setAnioDetalle(new Date().getFullYear());
+      navegarVista("detalle", { codigo, from: "proyectos" });
+    },
+    [navegarVista],
   );
 
   const seleccionarAnioDetalle = useCallback((anio: number) => {
@@ -533,6 +562,8 @@ export default function PdmPage(): ReactElement {
       ? "Seguimiento PDM"
       : vista === "analisis"
         ? "Análisis PDM"
+        : vista === "proyectos"
+          ? "Proyectos BPIN"
         : vista === "productos"
           ? "Productos"
           : "Detalle del producto";
@@ -547,6 +578,8 @@ export default function PdmPage(): ReactElement {
         ? "Seguimiento del Plan de Desarrollo Municipal"
         : vista === "analisis"
           ? "Dashboard analítico del Plan de Desarrollo Municipal"
+          : vista === "proyectos"
+            ? "Proyectos de inversión unificados por BPIN y sus productos del Plan Indicativo"
           : vista === "productos"
             ? "Consulta y filtrado de productos por año"
             : "Detalle, actividades y ejecución del producto";
@@ -589,6 +622,7 @@ export default function PdmPage(): ReactElement {
           {tieneDatos && isAdmin && (
             <PdmAccionesMenu
               disabled={saving}
+              onProyectos={() => navegarVista("proyectos")}
               onContratos={() => setModalContratos(true)}
               onEjecucion={() => setModalEjecucion(true)}
               onRecargarPdm={() => fileInputRef.current?.click()}
@@ -678,6 +712,16 @@ export default function PdmPage(): ReactElement {
             onFiltroSecretaria={setFiltroSecretariaAnalisis}
             secretarias={secretarias}
             isAdmin={isAdmin}
+          />
+        </VistaSuspense>
+      )}
+
+      {tieneDatos && vista === "proyectos" && (
+        <VistaSuspense>
+          <PdmProyectosView
+            data={proyectosData}
+            isLoading={loadingProyectos}
+            onOpenProducto={openProductoFromProyectos}
           />
         </VistaSuspense>
       )}

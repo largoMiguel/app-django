@@ -44,6 +44,86 @@ def _fetch_json(url: str) -> list[dict[str, Any]]:
         return data if isinstance(data, list) else []
 
 
+def _normalize_proyecto_bpin(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "bpin": row.get("bpin", ""),
+        "nombreproyecto": row.get("nombreproyecto"),
+        "estadoproyecto": row.get("estadoproyecto"),
+        "sector": row.get("sector"),
+        "objetivogeneral": row.get("objetivogeneral"),
+        "horizonte": row.get("horizonte"),
+        "entidadresponsable": row.get("entidadresponsable"),
+        "valortotalproyecto": row.get("valortotalproyecto"),
+        "valorvigenteproyecto": row.get("valorvigenteproyecto"),
+    }
+
+
+def _build_batch_consulta_url(bpines: list[str]) -> str:
+    quoted = ", ".join(f'"{b}"' for b in bpines)
+    where = f"caseless_one_of(`bpin`, {quoted})"
+    return f"{DATOS_GOV_CO_API}?$where={urllib.parse.quote(where)}&$limit={len(bpines)}"
+
+
+def consultar_bpines_externos(bpines: list[str]) -> tuple[dict[str, dict[str, Any]], str | None]:
+    """Consulta varios BPIN en datos.gov.co (caché + lote)."""
+    unique = []
+    seen: set[str] = set()
+    for raw in bpines:
+        bpin = (raw or "").strip()
+        if bpin and bpin not in seen:
+            seen.add(bpin)
+            unique.append(bpin)
+
+    if not unique:
+        return {}, None
+
+    result: dict[str, dict[str, Any]] = {}
+    pending: list[str] = []
+
+    for bpin in unique:
+        cache_key = f"bpin:{bpin}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            result[bpin] = _normalize_proyecto_bpin(cached)
+        else:
+            pending.append(bpin)
+
+    if not pending:
+        return result, None
+
+    batch_size = 50
+    last_error: str | None = None
+
+    for i in range(0, len(pending), batch_size):
+        batch = pending[i : i + batch_size]
+        url = _build_batch_consulta_url(batch)
+        try:
+            rows = _fetch_json(url)
+            found: set[str] = set()
+            for row in rows:
+                bpin = str(row.get("bpin", "")).strip()
+                if not bpin:
+                    continue
+                normalized = _normalize_proyecto_bpin(row)
+                result[bpin] = normalized
+                found.add(bpin)
+                cache.set(f"bpin:{bpin}", row, 7200)
+            for bpin in batch:
+                if bpin not in found and bpin not in result:
+                    cache.set(f"bpin:{bpin}", {}, 7200)
+        except urllib.error.HTTPError as exc:
+            last_error = f"HTTP {exc.code}: {exc.reason}"
+            logger.warning("BPIN batch HTTP error: %s", last_error)
+        except urllib.error.URLError as exc:
+            last_error = str(exc.reason or exc)
+            logger.warning("BPIN batch URL error: %s", last_error)
+        except Exception as exc:  # noqa: BLE001
+            last_error = str(exc)
+            logger.warning("BPIN batch fetch error: %s", last_error)
+
+    return result, last_error
+
+
 def consultar_bpin_externo(bpin: str) -> tuple[dict[str, Any] | None, str, str | None]:
     bpin = (bpin or "").strip()
     if not bpin:

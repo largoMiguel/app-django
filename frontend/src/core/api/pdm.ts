@@ -176,6 +176,44 @@ export interface PdmStatusResponse {
   fecha_ultima_carga?: string | null;
 }
 
+export interface PdmProyectoProducto {
+  codigo_producto: string;
+  nombre: string;
+  linea_estrategica?: string | null;
+  sector_mga?: string | null;
+  meta_cuatrienio: number;
+  responsable_secretaria_nombre?: string | null;
+  avance: number;
+  estado: string;
+  presupuesto: number;
+}
+
+export interface PdmProyecto {
+  bpin: string;
+  nombre_proyecto?: string | null;
+  estado?: string | null;
+  sector?: string | null;
+  datos_abiertos_ok: boolean;
+  total_productos: number;
+  avance_general: number;
+  completados: number;
+  en_progreso: number;
+  pendientes: number;
+  por_ejecutar: number;
+  presupuesto_total: number;
+  productos: PdmProyectoProducto[];
+}
+
+export interface PdmProyectosResponse {
+  total_proyectos: number;
+  total_productos_con_bpin: number;
+  productos_sin_bpin: number;
+  avance_promedio: number;
+  proyectos: PdmProyecto[];
+  datos_abiertos_error?: string | null;
+  portal_url?: string;
+}
+
 export interface PdmContrato {
   id: number;
   no_crp: string;
@@ -251,6 +289,8 @@ export const pdmApi = {
         },
       })
       .then((r) => r.data),
+  proyectos: (slug: string) =>
+    api.get<PdmProyectosResponse>(`/pdm/v2/${slug}/proyectos`).then((r) => r.data),
   listProductos: (slug: string, params?: Record<string, string | number | undefined>) =>
     api
       .get<PaginatedPdmProductos>(`/pdm/v2/${slug}/productos`, { params })

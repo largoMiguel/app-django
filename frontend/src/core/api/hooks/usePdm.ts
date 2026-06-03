@@ -6,6 +6,7 @@ import {
   type PdmContratosResumen,
   type PdmEjecucionProducto,
   type PdmMetaResponse,
+  type PdmProyectosResponse,
   type PdmStatsResponse,
   type PdmStatusResponse,
 } from "@/core/api/pdm";
@@ -18,6 +19,7 @@ export const pdmKeys = {
   stats: (slug: string, anio?: number) => [...pdmKeys.all, "stats", slug, anio] as const,
   analisis: (slug: string, anio?: number | "all", secretaria?: number) =>
     [...pdmKeys.all, "analisis", slug, anio, secretaria] as const,
+  proyectos: (slug: string) => [...pdmKeys.all, "proyectos", slug] as const,
   productos: (slug: string, params: Record<string, string | number | undefined>) =>
     [...pdmKeys.all, "productos", slug, params] as const,
   producto: (slug: string, codigo: string, anio?: number) =>
@@ -66,6 +68,15 @@ export function usePdmAnalisis(
     queryKey: pdmKeys.analisis(slug, anio, secretaria),
     queryFn: () => pdmApi.analisis(slug, { anio, secretaria }),
     enabled: Boolean(slug) && enabled,
+  });
+}
+
+export function usePdmProyectos(slug: string, enabled = true) {
+  return useQuery<PdmProyectosResponse>({
+    queryKey: pdmKeys.proyectos(slug),
+    queryFn: () => pdmApi.proyectos(slug),
+    enabled: Boolean(slug) && enabled,
+    staleTime: 5 * 60_000,
   });
 }
 
