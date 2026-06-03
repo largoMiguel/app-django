@@ -226,6 +226,7 @@ function UserModal({
           entity: superMode ? null : undefined,
           secretaria: null,
           password: "",
+          invite: false,
           is_active: true,
         },
   );
@@ -275,8 +276,10 @@ function UserModal({
       }
       if (!payload.password) delete payload.password;
       if (initial) {
+        delete payload.invite;
         await usersApi.update(initial.id, payload);
       } else {
+        if (payload.invite) delete payload.password;
         await usersApi.create(payload);
       }
       onSaved();
@@ -340,16 +343,39 @@ function UserModal({
                   <option value="ciudadano">Ciudadano</option>
                 </select>
               </label>
+              {!initial && (
+                <label className="col-span-2 flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.invite)}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, invite: e.target.checked }))
+                    }
+                  />
+                  Enviar invitación por email (el usuario define su contraseña)
+                </label>
+              )}
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">
-                  {initial ? "Nueva contraseña (opcional)" : "Contraseña"}
+                  {initial
+                    ? "Nueva contraseña (opcional)"
+                    : form.invite
+                      ? "Contraseña (no aplica con invitación)"
+                      : "Contraseña"}
                 </span>
                 <input
                   type="password"
+                  disabled={!initial && Boolean(form.invite)}
                   value={form.password || ""}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  placeholder={initial ? "Dejar vacío para no cambiar" : "Mínimo 8 caracteres"}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+                  placeholder={
+                    initial
+                      ? "Dejar vacío para no cambiar"
+                      : form.invite
+                        ? "Se enviará invitación por email"
+                        : "Mínimo 8 caracteres (vacío = auto-generada)"
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4] disabled:bg-slate-100"
                 />
               </label>
               {superMode && (

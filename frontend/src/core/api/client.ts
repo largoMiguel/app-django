@@ -2,7 +2,7 @@ import axios, {
   type AxiosInstance,
   type InternalAxiosRequestConfig,
 } from "axios";
-import { useAuthStore } from "@/core/auth/store";
+import { getClerkToken } from "@/core/auth/clerkToken";
 import { clearClientSession } from "@/core/auth/session";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
@@ -15,45 +15,24 @@ export const api: AxiosInstance = axios.create({
 export const PUBLIC_API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "";
 
-let refreshing: Promise<string | null> | null = null;
-
-async function refreshAccess(): Promise<string | null> {
-  const { refreshToken, setTokens } = useAuthStore.getState();
-  if (!refreshToken) return null;
-  try {
-    const { data } = await axios.post(`${API_URL}/auth/refresh`, {
-      refresh: refreshToken,
-    });
-    setTokens(data.access, data.refresh ?? refreshToken);
-    return data.access as string;
-  } catch {
-    clearClientSession();
-    return null;
-  }
-}
-
 async function fetchWithAuth(url: string): Promise<Response> {
   const absolute = url.startsWith("http") ? url : `${window.location.origin}${url}`;
-  let token = useAuthStore.getState().accessToken;
+  const token = await getClerkToken();
 
-  const doFetch = (t: string | null) =>
-    fetch(absolute, {
-      headers: t ? { Authorization: `Bearer ${t}` } : {},
-    });
+  const response = await fetch(absolute, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
 
-  let response = await doFetch(token);
   if (response.status === 401 && token) {
-    refreshing ??= refreshAccess().finally(() => (refreshing = null));
-    const newToken = await refreshing;
-    if (newToken) {
-      token = newToken;
-      response = await doFetch(newToken);
-    }
+    await window.Clerk?.signOut();
+    clearClientSession();
+    window.location.href = "/login";
   }
+
   return response;
 }
 
-/** Descarga un archivo media protegido con JWT (reintenta refresh en 401). */
+/** Descarga un archivo media protegido con token Clerk. */
 export async function fetchAuthenticatedFile(url: string): Promise<Blob> {
   const response = await fetchWithAuth(url);
   if (!response.ok) {
@@ -79,8 +58,8 @@ export async function openAuthenticatedFile(url: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
 
-api.interceptors.request.use((cfg: InternalAxiosRequestConfig) => {
-  const token = useAuthStore.getState().accessToken;
+api.interceptors.request.use(async (cfg: InternalAxiosRequestConfig) => {
+  const token = await getClerkToken();
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
   return cfg;
 });
@@ -88,20 +67,11 @@ api.interceptors.request.use((cfg: InternalAxiosRequestConfig) => {
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
-    const original = err.config as InternalAxiosRequestConfig & {
-      _retry?: boolean;
-    };
-    if (
-      err.response?.status === 401 &&
-      !original._retry &&
-      !original.url?.includes("/auth/")
-    ) {
-      original._retry = true;
-      refreshing ??= refreshAccess().finally(() => (refreshing = null));
-      const newToken = await refreshing;
-      if (newToken) {
-        original.headers.Authorization = `Bearer ${newToken}`;
-        return api(original);
+    if (err.response?.status === 401) {
+      await window.Clerk?.signOut();
+      clearClientSession();
+      if (!window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login";
       }
     }
     return Promise.reject(err);

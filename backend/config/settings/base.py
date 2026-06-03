@@ -138,7 +138,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # REST Framework
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "apps.accounts.authentication.SoftOneJWTAuthentication",
+        "apps.accounts.authentication.ClerkAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_FILTER_BACKENDS": (
@@ -196,6 +196,16 @@ X_FRAME_OPTIONS = "DENY"
 INITIAL_ADMIN_EMAIL = os.getenv("INITIAL_ADMIN_EMAIL", "")
 INITIAL_ADMIN_PASSWORD = os.getenv("INITIAL_ADMIN_PASSWORD", "")
 INITIAL_ADMIN_NAME = os.getenv("INITIAL_ADMIN_NAME", "Admin")
+
+# Clerk authentication
+CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY", "")
+CLERK_PUBLISHABLE_KEY = os.getenv("CLERK_PUBLISHABLE_KEY", "")
+CLERK_JWT_KEY = os.getenv("CLERK_JWT_KEY", "")
+CLERK_AUTHORIZED_PARTIES = env_list(
+    "CLERK_AUTHORIZED_PARTIES",
+    "http://localhost:5173,http://127.0.0.1:5173,https://app.softone360.com",
+)
+CLERK_WEBHOOK_SIGNING_SECRET = os.getenv("CLERK_WEBHOOK_SIGNING_SECRET", "")
 
 # OpenAI (IA cloud para PQRS automática)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")

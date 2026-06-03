@@ -67,10 +67,7 @@ export interface AuthUser {
 }
 
 interface AuthState {
-  accessToken: string | null;
-  refreshToken: string | null;
   user: AuthUser | null;
-  setTokens: (access: string, refresh: string) => void;
   setUser: (u: AuthUser | null) => void;
   logout: () => void;
 }
@@ -78,15 +75,14 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      accessToken: null,
-      refreshToken: null,
       user: null,
-      setTokens: (accessToken, refreshToken) =>
-        set({ accessToken, refreshToken }),
       setUser: (user) => set({ user: user ? normalizeAuthUser(user) : null }),
-      logout: () => set({ accessToken: null, refreshToken: null, user: null }),
+      logout: () => set({ user: null }),
     }),
-    { name: "softone.auth" },
+    {
+      name: "softone.auth",
+      partialize: (state) => ({ user: state.user }),
+    },
   ),
 );
 

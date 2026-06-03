@@ -23,6 +23,7 @@ export interface CreateUserPayload {
   full_name: string;
   role: "admin" | "secretario" | "ciudadano" | "superadmin";
   password?: string;
+  invite?: boolean;
   entity?: number | null;
   secretaria?: number | null;
   nueva_secretaria_nombre?: string;

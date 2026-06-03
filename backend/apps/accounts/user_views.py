@@ -15,12 +15,26 @@ from apps.common.pagination import StandardPageNumberPagination
 from apps.common.roles import is_platform_superadmin
 from apps.entities.models import Entity, Secretaria
 from apps.entities.permissions import IsEntityAdmin
+from apps.accounts.services.clerk import (
+    ClerkServiceError,
+    ban_user,
+    create_invitation,
+    create_user as clerk_create_user,
+    unban_user,
+    update_user_email,
+)
 
 User = get_user_model()
 
 
 class UserAdminSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=8)
+    invite = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
+        help_text="Si true, Clerk envía invitación por email en lugar de crear password.",
+    )
     roles = serializers.SerializerMethodField()
     entity_name = serializers.CharField(source="entity.name", read_only=True, default=None)
     secretaria_nombre = serializers.CharField(
@@ -152,11 +166,30 @@ class UserAdminSerializer(serializers.ModelSerializer):
                 raise ValidationError({"secretaria": "No pertenece a la entidad."})
 
         with transaction.atomic():
+            invite = validated_data.pop("invite", False)
+            clerk_id = None
+            email = validated_data["email"].strip().lower()
+            full_name = validated_data.get("full_name", "")
+
+            try:
+                if invite:
+                    create_invitation(email=email)
+                else:
+                    clerk_id = clerk_create_user(
+                        email=email,
+                        password=password,
+                        full_name=full_name,
+                    )
+            except ClerkServiceError as exc:
+                raise ValidationError({"detail": f"Error en Clerk: {exc}"}) from exc
+
             user = User.objects.create_user(
-                email=validated_data["email"],
+                email=email,
                 password=password,
-                full_name=validated_data.get("full_name", ""),
+                full_name=full_name,
             )
+            if clerk_id:
+                user.clerk_id = clerk_id
             for field in ("entity", "secretaria", "role", "is_active", "is_staff", "is_superuser", "enabled_modules"):
                 if field in validated_data:
                     setattr(user, field, validated_data[field])
@@ -175,8 +208,14 @@ class UserAdminSerializer(serializers.ModelSerializer):
             raise PermissionDenied("No puedes editar usuarios de otra entidad.")
 
         password = validated_data.pop("password", None)
+        validated_data.pop("invite", None)
         nueva_sec_nombre = (validated_data.pop("nueva_secretaria_nombre", "") or "").strip()
         role = validated_data.get("role", instance.role)
+        new_email = validated_data.get("email")
+        email_changed = (
+            new_email is not None
+            and new_email.strip().lower() != instance.email.lower()
+        )
 
         if not is_super:
             # Admin no puede convertir a superadmin ni alterar flags Django directamente
@@ -205,9 +244,23 @@ class UserAdminSerializer(serializers.ModelSerializer):
             setattr(instance, k, v)
         self._sync_role_flags(instance, role or instance.role or "", is_super=is_super)
         instance.save()
-        if password:
+        if password and instance.clerk_id:
+            try:
+                from apps.accounts.services.clerk import get_clerk_client
+                get_clerk_client().users.update(
+                    user_id=instance.clerk_id,
+                    password=password,
+                )
+            except ClerkServiceError as exc:
+                raise ValidationError({"password": f"Error en Clerk: {exc}"}) from exc
+        elif password:
             instance.set_password(password)
             instance.save(update_fields=["password"])
+        if email_changed and instance.clerk_id:
+            try:
+                update_user_email(clerk_id=instance.clerk_id, email=instance.email)
+            except ClerkServiceError as exc:
+                raise ValidationError({"email": f"Error en Clerk: {exc}"}) from exc
         self._apply_groups(instance, role or "")
         return instance
 
@@ -248,8 +301,13 @@ class UserViewSet(viewsets.ModelViewSet):
         actor = request.user
         if instance.pk == actor.pk:
             raise ValidationError("No puedes eliminarte a ti mismo.")
-        # Soft-delete: solo desactivar
+        # Soft-delete: desactivar local + bloquear en Clerk
         instance.is_active = False
         instance.save(update_fields=["is_active"])
+        if instance.clerk_id:
+            try:
+                ban_user(instance.clerk_id)
+            except ClerkServiceError:
+                pass
         from rest_framework.response import Response
         return Response(status=204)

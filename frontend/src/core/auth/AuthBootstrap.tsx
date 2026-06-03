@@ -1,19 +1,25 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/react";
 import { authApi } from "@/core/auth/api";
 import { useAuthStore } from "@/core/auth/store";
 
 export default function AuthBootstrap({ children }: { children: React.ReactNode }) {
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const { isLoaded, isSignedIn } = useAuth();
   const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
-  const [ready, setReady] = useState(!accessToken);
+  const [profileReady, setProfileReady] = useState(!isSignedIn);
 
   useEffect(() => {
-    if (!accessToken) {
-      setReady(true);
+    if (!isLoaded) return;
+
+    if (!isSignedIn) {
+      logout();
+      setProfileReady(true);
       return;
     }
+
     let cancelled = false;
+    setProfileReady(false);
     authApi
       .me()
       .then((user) => {
@@ -23,14 +29,15 @@ export default function AuthBootstrap({ children }: { children: React.ReactNode 
         if (!cancelled) logout();
       })
       .finally(() => {
-        if (!cancelled) setReady(true);
+        if (!cancelled) setProfileReady(true);
       });
+
     return () => {
       cancelled = true;
     };
-  }, [accessToken, setUser, logout]);
+  }, [isLoaded, isSignedIn, setUser, logout]);
 
-  if (!ready) {
+  if (!isLoaded || (isSignedIn && !profileReady)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-slate-500">
         Cargando sesión…

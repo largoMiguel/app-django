@@ -1,16 +1,17 @@
 import { FileText, LogOut, Building2, Users, BarChart3 } from "lucide-react";
+import { UserButton, useClerk } from "@clerk/react";
 import softOneLogo from "@/assets/logo_softone360.png";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useAuthStore, primaryRole, canAccess, PERM } from "@/core/auth/store";
 import { isUserModuleEnabled } from "@/core/auth/modules";
-import { authApi } from "@/core/auth/api";
 import { clearClientSession } from "@/core/auth/session";
 
 export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
-  const { user, refreshToken } = useAuthStore();
+  const { signOut } = useClerk();
+  const { user } = useAuthStore();
 
   const role = primaryRole(user);
   const entity = user?.entity;
@@ -60,7 +61,7 @@ export default function Sidebar() {
 
   async function handleLogout() {
     try {
-      if (refreshToken) await authApi.logout(refreshToken);
+      await signOut();
     } catch {
       /* ignore */
     }
@@ -194,13 +195,22 @@ export default function Sidebar() {
                   <div className="text-[0.65rem] text-[rgba(255,255,255,0.6)] truncate overflow-hidden">{primaryRoleLabel}</div>
                 </div>
               </div>
-              <button
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <UserButton
+                  appearance={{
+                    elements: {
+                      avatarBox: "h-8 w-8",
+                    },
+                  }}
+                />
+                <button
                 onClick={handleLogout}
                 className="rounded-md p-1 text-[#f04438] border border-[#f04438] transition-colors hover:bg-[#f04438] hover:text-white flex-shrink-0"
                 title="Cerrar sesión"
               >
                 <LogOut className="h-4 w-4" />
               </button>
+              </div>
             </div>
           </div>
         )}

@@ -26,7 +26,7 @@ function HomeRedirect() {
 export default function App(): ReactElement {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login/*" element={<LoginPage />} />
 
       {/* Portal ciudadano — público, sin auth */}
       <Route path="/portal/:slug" element={<PublicPQRSPortal />} />

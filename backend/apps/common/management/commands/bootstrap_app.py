@@ -4,15 +4,19 @@ Idempotente: se ejecuta automáticamente en cada arranque del contenedor.
 """
 from __future__ import annotations
 
+import logging
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.accounts.services.clerk import ClerkServiceError, ensure_user
 from apps.rbac.models import RoleMeta
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_ROLES: dict[str, dict] = {
@@ -76,8 +80,8 @@ class Command(BaseCommand):
             ))
             return
 
-        if User.objects.filter(email__iexact=email).exists():
-            user = User.objects.get(email__iexact=email)
+        user = User.objects.filter(email__iexact=email).first()
+        if user:
             if user.is_superuser or user.role == "superadmin":
                 sa = Group.objects.get(name="superadmin")
                 user.groups.add(sa)
@@ -88,12 +92,39 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(
                     f"  usuario existente (sin cambios de rol): {email}"
                 ))
-            return
+        else:
+            user = User.objects.create_superuser(
+                email=email, password=password, full_name=name
+            )
+            user.groups.add(Group.objects.get(name="superadmin"))
+            user.role = "superadmin"
+            user.save(update_fields=["role"])
+            self.stdout.write(self.style.SUCCESS(f"  superadmin creado: {email}"))
 
-        user = User.objects.create_superuser(
-            email=email, password=password, full_name=name
-        )
-        user.groups.add(Group.objects.get(name="superadmin"))
-        user.role = "superadmin"
-        user.save(update_fields=["role"])
-        self.stdout.write(self.style.SUCCESS(f"  superadmin creado: {email}"))
+        self._sync_clerk_superadmin(user, email, password, name)
+
+    def _sync_clerk_superadmin(
+        self, user: User, email: str, password: str, full_name: str
+    ) -> None:
+        if not settings.CLERK_SECRET_KEY:
+            self.stdout.write(self.style.WARNING(
+                "CLERK_SECRET_KEY no definida; se omite sync Clerk."
+            ))
+            return
+        if user.clerk_id:
+            self.stdout.write(self.style.SUCCESS(
+                f"  clerk_id existente: {user.clerk_id}"
+            ))
+            return
+        try:
+            clerk_id = ensure_user(email=email, password=password, full_name=full_name)
+            user.clerk_id = clerk_id
+            user.save(update_fields=["clerk_id"])
+            self.stdout.write(self.style.SUCCESS(
+                f"  superadmin vinculado a Clerk: {clerk_id}"
+            ))
+        except ClerkServiceError as exc:
+            logger.warning("Clerk sync failed for %s: %s", email, exc)
+            self.stdout.write(self.style.WARNING(
+                f"  no se pudo vincular Clerk: {exc}"
+            ))
