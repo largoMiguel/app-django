@@ -2,6 +2,12 @@ import type { PdmActividad, PdmProducto, ResumenAnioBackend } from "@/core/api/p
 
 export type VistaPdm = "dashboard" | "productos" | "detalle" | "analisis" | "proyectos";
 
+/** Separa códigos BPIN cuando vienen concatenados por coma. */
+export function parseBpines(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return raw.split(",").map((b) => b.trim()).filter(Boolean);
+}
+
 export interface ResumenProducto {
   id: number;
   codigo: string;

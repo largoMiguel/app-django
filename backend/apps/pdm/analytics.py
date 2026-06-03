@@ -69,6 +69,13 @@ def _presupuesto_total_producto(producto: PdmProducto) -> float:
     )
 
 
+def _parse_bpines(raw: str | None) -> list[str]:
+    """Separa códigos BPIN cuando vienen concatenados por coma."""
+    if not raw:
+        return []
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
 def _ejecucion_por_codigo(
     entity_id: int,
     codigos: list[str],
@@ -417,6 +424,7 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
     productos = _productos_for_proyectos(productos_qs)
     codigos = [p.codigo_producto for p in productos]
     aggs_map = actividad_aggs_for_productos(entity_id, codigos)
+    ejecucion_map = _ejecucion_por_codigo(entity_id, codigos)
 
     bpin_agg: dict[str, dict] = defaultdict(
         lambda: {
@@ -430,17 +438,24 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
         }
     )
     productos_sin_bpin = 0
+    productos_con_bpin: set[str] = set()
 
     for p in productos:
-        bpin = (p.bpin or "").strip()
-        if not bpin:
+        bpines = _parse_bpines(p.bpin)
+        if not bpines:
             productos_sin_bpin += 1
             continue
 
+        productos_con_bpin.add(p.codigo_producto)
+
         aggs = aggs_map.get(p.codigo_producto, {})
-        avance = avance_general_producto(p, aggs)
+        avance_fisico = avance_general_producto(p, aggs)
         estado = _estado_producto(p, aggs, None)
         presupuesto = _presupuesto_total_producto(p)
+        ej = ejecucion_map.get(p.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
+        pto_definitivo = ej["pto_definitivo"]
+        pagos = ej["pagos"]
+        avance_financiero = round((pagos / pto_definitivo) * 100, 1) if pto_definitivo else 0.0
 
         item = {
             "codigo_producto": p.codigo_producto,
@@ -449,33 +464,34 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
             "sector_mga": p.sector_mga,
             "meta_cuatrienio": float(p.meta_cuatrienio or 0),
             "responsable_secretaria_nombre": p.responsable_secretaria_nombre,
-            "avance": avance,
+            "avance": avance_fisico,
+            "avance_financiero": avance_financiero,
             "estado": estado,
             "presupuesto": presupuesto,
         }
 
-        group = bpin_agg[bpin]
-        group["productos"].append(item)
-        group["avance_sum"] += avance
-        group["presupuesto_total"] += presupuesto
         estado_key = {
             "PENDIENTE": "pendientes",
             "EN_PROGRESO": "en_progreso",
             "COMPLETADO": "completados",
             "POR_EJECUTAR": "por_ejecutar",
         }.get(estado)
-        if estado_key:
-            group[estado_key] += 1
+
+        for bpin in bpines:
+            group = bpin_agg[bpin]
+            group["productos"].append(item)
+            group["avance_sum"] += avance_fisico
+            group["presupuesto_total"] += presupuesto
+            if estado_key:
+                group[estado_key] += 1
 
     proyectos: list[dict] = []
     avance_global_sum = 0.0
-    total_con_bpin = 0
 
     for bpin, data in bpin_agg.items():
         total = len(data["productos"])
         avance_general = round(data["avance_sum"] / total, 1) if total else 0.0
         avance_global_sum += data["avance_sum"]
-        total_con_bpin += total
         proyectos.append(
             {
                 "bpin": bpin,
@@ -494,8 +510,8 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
 
     return {
         "total_proyectos": len(proyectos),
-        "total_productos_con_bpin": total_con_bpin,
+        "total_productos_con_bpin": len(productos_con_bpin),
         "productos_sin_bpin": productos_sin_bpin,
-        "avance_promedio": round(avance_global_sum / total_con_bpin, 1) if total_con_bpin else 0.0,
+        "avance_promedio": round(avance_global_sum / len(productos_con_bpin), 1) if productos_con_bpin else 0.0,
         "proyectos": proyectos,
     }

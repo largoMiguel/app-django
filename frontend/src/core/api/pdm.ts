@@ -184,6 +184,7 @@ export interface PdmProyectoProducto {
   meta_cuatrienio: number;
   responsable_secretaria_nombre?: string | null;
   avance: number;
+  avance_financiero: number;
   estado: string;
   presupuesto: number;
 }

@@ -7,19 +7,20 @@ import {
   FolderKanban,
   Package,
   Search,
+  X,
 } from "lucide-react";
 import type { PdmProyecto, PdmProyectosResponse } from "@/core/api/pdm";
 import {
   PdmAlert,
   PdmBadge,
   PdmCard,
-  PdmInput,
   PdmLoadingOverlay,
   PdmProgressBar,
   PdmStatCard,
 } from "@/features/pdm/components/PdmUi";
 import {
   formatearMoneda,
+  formatearNumero,
   getColorEstadoProducto,
   getColorProgreso,
   getTextoEstadoProducto,
@@ -111,11 +112,14 @@ function ProyectoAccordion({
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Producto
                   </th>
-                  <th className="hidden px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 md:table-cell">
-                    Sector
+                  <th className="hidden px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 md:table-cell">
+                    Meta cuat.
                   </th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Avance
+                  <th className="min-w-[110px] px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Avance Físico
+                  </th>
+                  <th className="min-w-[110px] px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Avance Financiero
                   </th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Estado
@@ -138,11 +142,19 @@ function ProyectoAccordion({
                         <p className="mt-0.5 text-xs text-slate-500">{prod.responsable_secretaria_nombre}</p>
                       )}
                     </td>
-                    <td className="hidden px-4 py-3 text-slate-600 md:table-cell">
-                      {prod.sector_mga || "—"}
+                    <td className="hidden px-4 py-3 text-center text-slate-700 md:table-cell">
+                      {formatearNumero(prod.meta_cuatrienio || 0)}
                     </td>
-                    <td className="min-w-[100px] px-4 py-3">
+                    <td className="min-w-[110px] px-4 py-3">
+                      <p className="mb-1 text-[0.65rem] font-medium uppercase tracking-wide text-slate-400">Físico</p>
                       <PdmProgressBar value={prod.avance} tone={getColorProgreso(prod.avance)} />
+                    </td>
+                    <td className="min-w-[110px] px-4 py-3">
+                      <p className="mb-1 text-[0.65rem] font-medium uppercase tracking-wide text-slate-400">Financiero</p>
+                      <PdmProgressBar
+                        value={prod.avance_financiero ?? 0}
+                        tone={getColorProgreso(prod.avance_financiero ?? 0)}
+                      />
                     </td>
                     <td className="px-4 py-3 text-center">
                       <PdmBadge tone={getColorEstadoProducto(prod.estado)}>
@@ -242,15 +254,25 @@ export default function PdmProyectosView({ data, isLoading, onOpenProducto }: Pd
             Proyectos unificados por código BPIN con sus productos del Plan Indicativo. Haga clic en un
             producto para ver su detalle.
           </p>
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <PdmInput
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input
               type="search"
               placeholder="Buscar BPIN, nombre o sector..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="pl-9"
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 py-2.5 pl-9 pr-9 text-sm text-slate-800 shadow-sm transition placeholder:text-slate-400 hover:border-slate-400 hover:bg-white focus:border-cyan-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-cyan-500/40"
             />
+            {busqueda && (
+              <button
+                type="button"
+                onClick={() => setBusqueda("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
 

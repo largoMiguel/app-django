@@ -41,6 +41,7 @@ import {
   getColorProgreso,
   getPresupuestoAnio,
   getTextoEstadoActividad,
+  parseBpines,
   type ResumenActividadesAnio,
   type ResumenProducto,
 } from "@/features/pdm/pdmUtils";
@@ -194,13 +195,20 @@ export default function PdmProductoDetalle({
               <div>
                 <FieldLabel>BPIN</FieldLabel>
                 {producto.bpin ? (
-                  <button
-                    type="button"
-                    onClick={() => onAbrirBpin(producto.bpin!)}
-                    className="mt-0.5 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
-                  >
-                    {producto.bpin}
-                  </button>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                    {parseBpines(producto.bpin).map((bpin, index) => (
+                      <span key={bpin} className="inline-flex items-center">
+                        {index > 0 && <span className="mr-1 text-slate-400">,</span>}
+                        <button
+                          type="button"
+                          onClick={() => onAbrirBpin(bpin)}
+                          className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          {bpin}
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 ) : (
                   <FieldValue>N/A</FieldValue>
                 )}
