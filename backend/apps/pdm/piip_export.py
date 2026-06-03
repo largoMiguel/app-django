@@ -1,17 +1,21 @@
 """Generación del Excel de exportación PIIP (sin persistencia)."""
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections import defaultdict
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.db.models import Sum
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
 from apps.entities.models import Entity
 
 from .access import productos_queryset_for_user
 from .bpin_view import consultar_bpines_externos
-from .metrics import ANIOS_PDM, actividad_aggs_for_productos, ejecucion_for_productos
+from .metrics import ANIOS_PDM, actividad_aggs_for_productos
 from .models import PDMEjecucionPresupuestal, PdmProducto
 
 User = get_user_model()
@@ -39,6 +43,21 @@ PIIP_COLUMNS = [
     "VALOR EJECUTADO",
     "FUENTE DE FINANCIACIÓN",
     "RESPONSABLE",
+]
+
+FUENTES_PIIP_CANONICAS = [
+    "Propios",
+    "SGP - Salud",
+    "SGP - Educación",
+    "SGP - Propósito General Deporte",
+    "SGP - Propósito General Cultura",
+    "SGP - Propósito General Libre Inversión",
+    "SGP - Propósito General Libre Destinación",
+    "SGP - Alimentación Escolar",
+    "SGP - Ribereños",
+    "SGP - Agua Potable y Saneamiento Básico",
+    "SGP - Primera Infancia",
+    "Otros",
 ]
 
 HEADER_FILL = PatternFill(start_color="6AA84F", end_color="6AA84F", fill_type="solid")
@@ -69,6 +88,91 @@ COLUMN_WIDTHS = {
     "O": 45,
 }
 
+_FUENTE_KEYWORDS: list[tuple[str, str]] = [
+    ("propios", "Propios"),
+    ("sgp salud", "SGP - Salud"),
+    ("salud", "SGP - Salud"),
+    ("sgp educacion", "SGP - Educación"),
+    ("educacion", "SGP - Educación"),
+    ("proposito general deporte", "SGP - Propósito General Deporte"),
+    ("deporte", "SGP - Propósito General Deporte"),
+    ("proposito general cultura", "SGP - Propósito General Cultura"),
+    ("cultura", "SGP - Propósito General Cultura"),
+    ("libre inversion", "SGP - Propósito General Libre Inversión"),
+    ("libre destinacion", "SGP - Propósito General Libre Destinación"),
+    ("alimentacion escolar", "SGP - Alimentación Escolar"),
+    ("ribere", "SGP - Ribereños"),
+    ("agua potable", "SGP - Agua Potable y Saneamiento Básico"),
+    ("saneamiento basico", "SGP - Agua Potable y Saneamiento Básico"),
+    ("primera infancia", "SGP - Primera Infancia"),
+]
+
+
+def _normalize_key(text: str) -> str:
+    nfkd = unicodedata.normalize("NFKD", text)
+    sin_acentos = "".join(c for c in nfkd if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", sin_acentos.lower().strip())
+
+
+_CANONICAL_BY_KEY = {_normalize_key(nombre): nombre for nombre in FUENTES_PIIP_CANONICAS}
+
+
+def normalizar_fuente_piip(descripcion_fte: str | None) -> str:
+    """Mapea la descripción de ejecución al catálogo PIIP de la imagen de referencia."""
+    raw = (descripcion_fte or "").strip()
+    if not raw:
+        return "Otros"
+
+    key = _normalize_key(raw)
+    if key in _CANONICAL_BY_KEY:
+        return _CANONICAL_BY_KEY[key]
+
+    for canon_key, canon_name in _CANONICAL_BY_KEY.items():
+        if canon_key in key or key in canon_key:
+            return canon_name
+
+    for keyword, canon_name in _FUENTE_KEYWORDS:
+        if keyword in key:
+            return canon_name
+
+    if raw.upper().startswith("SGP"):
+        if "SALUD" in key:
+            return "SGP - Salud"
+        if "EDUCACION" in key:
+            return "SGP - Educación"
+        if "DEPORTE" in key:
+            return "SGP - Propósito General Deporte"
+        if "CULTURA" in key:
+            return "SGP - Propósito General Cultura"
+        if "LIBRE INVERSION" in key or "LIBRE INV" in key:
+            return "SGP - Propósito General Libre Inversión"
+        if "LIBRE DESTINACION" in key or "LIBRE DEST" in key:
+            return "SGP - Propósito General Libre Destinación"
+        if "ALIMENTACION" in key:
+            return "SGP - Alimentación Escolar"
+        if "RIBER" in key:
+            return "SGP - Ribereños"
+        if "AGUA" in key or "SANEAMIENTO" in key:
+            return "SGP - Agua Potable y Saneamiento Básico"
+        if "INFANCIA" in key:
+            return "SGP - Primera Infancia"
+
+    return "Otros"
+
+
+def _split_bpines(bpin_raw: str | None) -> list[str]:
+    """Separa BPINs múltiples (coma o punto y coma) en códigos individuales."""
+    if not bpin_raw:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for part in re.split(r"[,;]+", str(bpin_raw)):
+        bpin = part.strip()
+        if bpin and bpin not in seen:
+            seen.add(bpin)
+            out.append(bpin)
+    return out
+
 
 def _meta_programada(producto: PdmProducto, anio: int) -> float:
     field = _META_FIELD_BY_ANIO.get(anio)
@@ -89,27 +193,43 @@ def _filter_productos_piip(qs, anio: int):
     )
 
 
-def _fuentes_por_producto(entity_id: int, codigos: list[str], anio: int) -> dict[str, str]:
+def _fuentes_detalle_por_producto(
+    entity_id: int,
+    codigos: list[str],
+    anio: int,
+) -> dict[str, list[dict[str, float | str]]]:
+    """Ejecución por producto y fuente (normalizada), agregando duplicados del mismo nombre."""
     if not codigos:
         return {}
+
     rows = (
         PDMEjecucionPresupuestal.objects.filter(
             entity_id=entity_id,
             codigo_producto__in=codigos,
             anio=anio,
         )
-        .values_list("codigo_producto", "descripcion_fte")
-        .distinct()
+        .values("codigo_producto", "descripcion_fte")
+        .annotate(
+            pto_definitivo=Sum("pto_definitivo"),
+            pagos=Sum("pagos"),
+        )
     )
-    grouped: dict[str, list[str]] = defaultdict(list)
-    seen: dict[str, set[str]] = defaultdict(set)
-    for codigo, fte in rows:
-        nombre = (fte or "").strip()
-        if not nombre or nombre in seen[codigo]:
-            continue
-        seen[codigo].add(nombre)
-        grouped[codigo].append(nombre)
-    return {codigo: "; ".join(nombres) for codigo, nombres in grouped.items()}
+
+    grouped: dict[str, dict[str, dict[str, float | str]]] = defaultdict(dict)
+    for row in rows:
+        codigo = row["codigo_producto"]
+        nombre = normalizar_fuente_piip(row["descripcion_fte"])
+        bucket = grouped[codigo].setdefault(
+            nombre,
+            {"nombre": nombre, "pto_definitivo": 0.0, "pagos": 0.0},
+        )
+        bucket["pto_definitivo"] = float(bucket["pto_definitivo"]) + float(row["pto_definitivo"] or 0)
+        bucket["pagos"] = float(bucket["pagos"]) + float(row["pagos"] or 0)
+
+    return {
+        codigo: sorted(fuentes.values(), key=lambda x: str(x["nombre"]))
+        for codigo, fuentes in grouped.items()
+    }
 
 
 def _secretarios_por_secretaria(entity_id: int, secretaria_ids: list[int]) -> dict[int, str]:
@@ -147,7 +267,7 @@ def _format_responsable(
 
 
 def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
-    """Arma filas de datos (sin encabezado) para el export PIIP."""
+    """Arma filas: una por cada BPIN (separados por coma) y por cada fuente presupuestal."""
     if anio not in ANIOS_PDM:
         return []
 
@@ -157,34 +277,30 @@ def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
         return []
 
     codigos = [p.codigo_producto for p in productos]
-    bpines = list({(p.bpin or "").strip() for p in productos if (p.bpin or "").strip()})
+    all_bpines: list[str] = []
+    seen_bpin: set[str] = set()
+    for p in productos:
+        for bpin in _split_bpines(p.bpin):
+            if bpin not in seen_bpin:
+                seen_bpin.add(bpin)
+                all_bpines.append(bpin)
 
     aggs_map = actividad_aggs_for_productos(entity.id, codigos)
-    ejecucion_map = ejecucion_for_productos(entity.id, codigos, anio)
-    fuentes_map = _fuentes_por_producto(entity.id, codigos, anio)
+    fuentes_map = _fuentes_detalle_por_producto(entity.id, codigos, anio)
+    datos_abiertos, _ = consultar_bpines_externos(all_bpines)
 
-    datos_abiertos, _ = consultar_bpines_externos(bpines)
-
-    secretaria_ids = [
-        p.responsable_secretaria_id
-        for p in productos
-        if p.responsable_secretaria_id
-    ]
+    secretaria_ids = [p.responsable_secretaria_id for p in productos if p.responsable_secretaria_id]
     secretarios_map = _secretarios_por_secretaria(entity.id, secretaria_ids)
 
     rows: list[list] = []
     for producto in productos:
-        bpin = (producto.bpin or "").strip()
-        externo = datos_abiertos.get(bpin) or {}
-        nombre_proyecto = externo.get("nombreproyecto") or ""
-        sector = externo.get("sector") or ""
+        bpines = _split_bpines(producto.bpin)
+        if not bpines:
+            continue
 
         aggs_anio = aggs_map.get(producto.codigo_producto, {}).get(anio, {})
         meta_ejecutada = float(aggs_anio.get("meta_ejecutada", 0) or 0)
-
-        ej = ejecucion_map.get(producto.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
-        pto_definitivo = ej["pto_definitivo"]
-        pagos = ej["pagos"]
+        meta_programada = _meta_programada(producto, anio)
 
         secretaria_nombre = None
         if producto.responsable_secretaria:
@@ -198,25 +314,35 @@ def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
 
         responsable = _format_responsable(secretario_nombre, secretaria_nombre)
 
-        rows.append(
-            [
-                bpin,
-                nombre_proyecto,
-                sector,
-                producto.codigo_producto,
-                producto.producto_mga or "",
-                _meta_programada(producto, anio),
-                meta_ejecutada,
-                pto_definitivo,
-                0,
-                0,
-                0,
-                0,
-                pagos,
-                fuentes_map.get(producto.codigo_producto, ""),
-                responsable,
-            ]
-        )
+        fuentes_list = fuentes_map.get(producto.codigo_producto) or [
+            {"nombre": "Otros", "pto_definitivo": 0.0, "pagos": 0.0},
+        ]
+
+        for bpin in bpines:
+            externo = datos_abiertos.get(bpin) or {}
+            nombre_proyecto = externo.get("nombreproyecto") or ""
+            sector = externo.get("sector") or ""
+
+            for fuente in fuentes_list:
+                rows.append(
+                    [
+                        bpin,
+                        nombre_proyecto,
+                        sector,
+                        producto.codigo_producto,
+                        producto.producto_mga or "",
+                        meta_programada,
+                        meta_ejecutada,
+                        float(fuente["pto_definitivo"]),
+                        0,
+                        0,
+                        0,
+                        0,
+                        float(fuente["pagos"]),
+                        str(fuente["nombre"]),
+                        responsable,
+                    ]
+                )
     return rows
 
 
