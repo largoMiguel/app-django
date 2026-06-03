@@ -523,6 +523,30 @@ export default function PdmPage(): ReactElement {
     [slug],
   );
 
+  const handleExportarPiip = useCallback(async () => {
+    if (!slug) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await pdmApi.exportPiip(slug, filtroAnio);
+      setUploadFeedback({
+        tone: "success",
+        title: "Exportación PIIP",
+        detail: `Se descargó el archivo PIIP_${slug}_${filtroAnio}.xlsx.`,
+      });
+    } catch (e) {
+      const detail = formatApiError(e, "No se pudo exportar PIIP.");
+      setError(detail);
+      setUploadFeedback({
+        tone: "error",
+        title: "Error al exportar PIIP",
+        detail,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }, [filtroAnio, slug]);
+
   const handleAbrirBpin = useCallback((bpin: string) => {
     setMostrarModalBpin(true);
     setCargandoBpin(true);
@@ -623,6 +647,7 @@ export default function PdmPage(): ReactElement {
             <PdmAccionesMenu
               disabled={saving}
               onProyectos={() => navegarVista("proyectos")}
+              onExportarPiip={() => void handleExportarPiip()}
               onContratos={() => setModalContratos(true)}
               onEjecucion={() => setModalEjecucion(true)}
               onRecargarPdm={() => fileInputRef.current?.click()}

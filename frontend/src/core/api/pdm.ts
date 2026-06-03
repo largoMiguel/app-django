@@ -1,4 +1,4 @@
-import { api } from "@/core/api/client";
+import { api, downloadAuthenticatedFile } from "@/core/api/client";
 
 export interface PdmEvidenciaArchivo {
   id: number;
@@ -396,4 +396,10 @@ export const pdmApi = {
         { params: { ...(anio ? { anio } : {}), ...(codigoProducto ? { codigo_producto: codigoProducto } : {}) } },
       )
       .then((r) => r.data),
+  exportPiip: (slug: string, anio: number) => {
+    const params = new URLSearchParams({ anio: String(anio) });
+    const url = `/api/v1/pdm/v2/${encodeURIComponent(slug)}/export-piip?${params}`;
+    const filename = `PIIP_${slug}_${anio}.xlsx`;
+    return downloadAuthenticatedFile(url, filename);
+  },
 };

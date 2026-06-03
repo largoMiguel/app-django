@@ -156,6 +156,18 @@ Query params soportados en `GET /api/v1/pqrs/`:
 
 ---
 
+## Módulo PDM — Exportar PIIP
+
+Desde el menú **Acciones** del PDM (rol `admin`), la opción **Exportar PIIP** genera y descarga un Excel (`.xlsx`) con productos que tienen BPIN y meta programada en el año indicado. El archivo **no se guarda** en el servidor ni queda historial.
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/pdm/v2/{slug}/export-piip?anio=2026` | Descarga `PIIP_{slug}_{anio}.xlsx` (encabezados verde `#6AA84F`, texto blanco) |
+
+Query param `anio` (opcional): año de seguimiento; por defecto el año actual. El frontend usa el año del filtro de productos (`filtroAnio`) cuando está en la vista de productos; en dashboard usa el año por defecto del estado (año actual).
+
+---
+
 ## IA con OpenAI
 
 La acción `POST /api/v1/pqrs/auto-create/` (y el portal público `/pqrs/auto/`) recibe texto libre y/o archivos y utiliza OpenAI para:

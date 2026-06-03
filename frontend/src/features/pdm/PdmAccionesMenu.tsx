@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, FolderKanban, MoreHorizontal, RefreshCw, Upload } from "lucide-react";
+import { ChevronDown, Download, FolderKanban, MoreHorizontal, RefreshCw, Upload } from "lucide-react";
 import { pdmBtnPrimary } from "@/features/pdm/pdmLayout";
 
 interface PdmAccionesMenuProps {
   onProyectos: () => void;
+  onExportarPiip: () => void;
   onContratos: () => void;
   onEjecucion: () => void;
   onRecargarPdm: () => void;
@@ -12,6 +13,7 @@ interface PdmAccionesMenuProps {
 
 export default function PdmAccionesMenu({
   onProyectos,
+  onExportarPiip,
   onContratos,
   onEjecucion,
   onRecargarPdm,
@@ -59,6 +61,18 @@ export default function PdmAccionesMenu({
           >
             <FolderKanban className="h-4 w-4 text-cyan-600" />
             Proyectos
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+            onClick={() => {
+              setOpen(false);
+              onExportarPiip();
+            }}
+          >
+            <Download className="h-4 w-4 text-green-700" />
+            Exportar PIIP
           </button>
           <div className="my-1 border-t border-slate-100" />
           <button

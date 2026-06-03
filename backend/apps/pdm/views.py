@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 
+from django.http import HttpResponse
 from django.db import transaction
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
@@ -50,6 +51,7 @@ from .metrics import (
 )
 from .analytics import compute_pdm_analytics, compute_pdm_proyectos
 from .bpin_view import DATOS_GOV_CO_PORTAL, consultar_bpines_externos
+from .piip_export import build_piip_workbook, workbook_to_bytes
 from .stats import compute_estado_stats, compute_pdm_stats_from_queryset, filter_options_from_productos, productos_for_stats
 from .models import (
     ActividadEstado,
@@ -840,6 +842,34 @@ class PdmContratosUploadView(APIView):
                 ],
             }
         )
+
+
+class PdmExportPiipView(APIView):
+    """Exporta Excel PIIP del año seleccionado (descarga directa, sin persistir)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, slug: str):
+        entity = _entity_or_404(slug)
+        _ensure_user_can_manage_entity(request.user, entity)
+        if not _is_admin(request.user):
+            raise PermissionDenied("Solo admin puede exportar PIIP.")
+
+        anio_param = request.query_params.get("anio")
+        try:
+            anio = int(anio_param) if anio_param else datetime.now().year
+        except (TypeError, ValueError):
+            anio = datetime.now().year
+
+        wb = build_piip_workbook(entity, request.user, anio)
+        content = workbook_to_bytes(wb)
+        filename = f"PIIP_{entity.slug}_{anio}.xlsx"
+        response = HttpResponse(
+            content,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
 
 class PdmContratosView(APIView):
