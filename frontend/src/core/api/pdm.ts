@@ -65,6 +65,8 @@ export interface PdmProducto {
   meta_anio?: number;
   presupuesto_anio?: number;
   pto_definitivo_anio?: number;
+  pagos_anio?: number;
+  avance_financiero_anio?: number;
   resumen_por_anio?: Record<string, ResumenAnioBackend>;
   actividades?: PdmActividad[];
 }
@@ -131,7 +133,18 @@ export interface PdmAnalisisResponse {
   };
   metas_por_anio: { anio: number; programada: number; ejecutada: number; pct: number }[];
   por_linea: { linea: string; productos: number; avance_pct: number }[];
-  por_sector_estado: { sector: string; completados: number; en_progreso: number; pendientes: number }[];
+  por_sector_estado: {
+    sector: string;
+    total: number;
+    completados: number;
+    en_progreso: number;
+    pendientes: number;
+    por_ejecutar: number;
+    avance_fisico_pct: number;
+    avance_financiero_pct: number;
+    pto_definitivo: number;
+    pagos: number;
+  }[];
   por_ods: { ods: string; productos: number; avance_pct: number; presupuesto: number }[];
   presupuestal_por_anio: {
     anio: number;

@@ -28,6 +28,8 @@ export interface ResumenProducto {
   total_2027: number;
   total_cuatrienio: number;
   pto_definitivo_anio?: number;
+  pagos_anio?: number;
+  avance_financiero_anio?: number;
   porcentaje_ejecucion: number;
   responsable_secretaria?: number | null;
   responsable_secretaria_nombre?: string | null;
@@ -91,7 +93,18 @@ export interface PdmAnalisisResponse {
   estado_distribucion: PdmAnalisisEstadoDistribucion;
   metas_por_anio: { anio: number; programada: number; ejecutada: number; pct: number }[];
   por_linea: { linea: string; productos: number; avance_pct: number }[];
-  por_sector_estado: { sector: string; completados: number; en_progreso: number; pendientes: number }[];
+  por_sector_estado: {
+    sector: string;
+    total: number;
+    completados: number;
+    en_progreso: number;
+    pendientes: number;
+    por_ejecutar: number;
+    avance_fisico_pct: number;
+    avance_financiero_pct: number;
+    pto_definitivo: number;
+    pagos: number;
+  }[];
   por_ods: { ods: string; productos: number; avance_pct: number; presupuesto: number }[];
   presupuestal_por_anio: {
     anio: number;
@@ -214,6 +227,8 @@ export function mapProductoToResumen(producto: PdmProducto): ResumenProducto {
     total_2027: producto.total_2027,
     total_cuatrienio: totalCuatrienio,
     pto_definitivo_anio: producto.pto_definitivo_anio,
+    pagos_anio: producto.pagos_anio,
+    avance_financiero_anio: producto.avance_financiero_anio,
     porcentaje_ejecucion: producto.porcentaje_ejecucion || 0,
     avance_anio: producto.avance_anio,
     estado_anio: producto.estado_anio,
@@ -256,6 +271,15 @@ export function getPresupuestoAnio(producto: ResumenProducto, anio: number): num
 
 export function getEjecucionDefinitivoProductoAnio(producto: ResumenProducto): number {
   return Number(producto.pto_definitivo_anio || 0);
+}
+
+export function getAvanceFinancieroAnio(producto: ResumenProducto): number {
+  if (producto.avance_financiero_anio != null) {
+    return Number(producto.avance_financiero_anio);
+  }
+  const pto = getEjecucionDefinitivoProductoAnio(producto);
+  const pagos = Number(producto.pagos_anio || 0);
+  return pto > 0 ? Math.round((pagos / pto) * 1000) / 10 : 0;
 }
 
 export function resumenBackendPorAnio(

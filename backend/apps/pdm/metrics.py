@@ -34,8 +34,8 @@ def _presupuesto_anio(producto: PdmProducto, anio: int) -> float:
     )
 
 
-def ejecucion_definitivo_for_productos(entity_id: int, codigos: list[str], anio: int) -> dict[str, float]:
-    """Suma pto. definitivo de ejecución por codigo_producto para un año."""
+def ejecucion_for_productos(entity_id: int, codigos: list[str], anio: int) -> dict[str, dict[str, float]]:
+    """Suma pto. definitivo y pagos de ejecución por codigo_producto para un año."""
     if not codigos:
         return {}
     rows = (
@@ -45,9 +45,25 @@ def ejecucion_definitivo_for_productos(entity_id: int, codigos: list[str], anio:
             anio=anio,
         )
         .values("codigo_producto")
-        .annotate(total=Sum("pto_definitivo"))
+        .annotate(
+            pto_definitivo=Sum("pto_definitivo"),
+            pagos=Sum("pagos"),
+        )
     )
-    return {row["codigo_producto"]: float(row["total"] or 0) for row in rows}
+    return {
+        row["codigo_producto"]: {
+            "pto_definitivo": float(row["pto_definitivo"] or 0),
+            "pagos": float(row["pagos"] or 0),
+        }
+        for row in rows
+    }
+
+
+def ejecucion_definitivo_for_productos(entity_id: int, codigos: list[str], anio: int) -> dict[str, float]:
+    return {
+        codigo: values["pto_definitivo"]
+        for codigo, values in ejecucion_for_productos(entity_id, codigos, anio).items()
+    }
 
 
 def actividad_aggs_for_productos(entity_id: int, codigos: list[str]) -> dict[str, dict[int, dict]]:

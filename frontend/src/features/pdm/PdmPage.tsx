@@ -308,11 +308,15 @@ export default function PdmPage(): ReactElement {
     if (!productoSeleccionado) return [];
     const pdm = getPresupuestoAnio(productoSeleccionado, anioDetalle);
     const ptoDefinitivo = Number(ejecucionPresupuestal?.totales?.pto_definitivo || 0);
+    const pagos = Number(ejecucionPresupuestal?.totales?.pagos || 0);
+    const pctPagado = ptoDefinitivo > 0 ? Math.round((pagos / ptoDefinitivo) * 1000) / 10 : 0;
     return [
       {
         anio: anioDetalle,
         pdm,
         ptoDefinitivo,
+        pagos,
+        pctPagado,
       },
     ];
   }, [productoSeleccionado, anioDetalle, ejecucionPresupuestal]);

@@ -49,6 +49,8 @@ export interface ComparativaPresupuestalRow {
   anio: number;
   pdm: number;
   ptoDefinitivo: number;
+  pagos: number;
+  pctPagado: number;
 }
 
 export interface ContratosRPSResumen {
@@ -400,7 +402,9 @@ export default function PdmProductoDetalle({
                       <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                         <th className="pb-2 pr-2 font-medium">Año</th>
                         <th className="pb-2 pr-2 text-right font-medium">Presupuesto PPI</th>
-                        <th className="pb-2 text-right font-medium">Pto. Definitivo</th>
+                        <th className="pb-2 pr-2 text-right font-medium">Pto. Definitivo</th>
+                        <th className="pb-2 pr-2 text-right font-medium">Pagos</th>
+                        <th className="pb-2 text-right font-medium">%</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -410,6 +414,12 @@ export default function PdmProductoDetalle({
                           <td className="py-2 pr-2 text-right text-slate-700">{formatearMoneda(comp.pdm)}</td>
                           <td className="py-2 pr-2 text-right font-semibold text-slate-800">
                             {formatearMoneda(comp.ptoDefinitivo)}
+                          </td>
+                          <td className="py-2 pr-2 text-right text-blue-700">{formatearMoneda(comp.pagos)}</td>
+                          <td className="py-2 text-right font-semibold">
+                            <span className={comp.pctPagado >= 50 ? "text-emerald-600" : "text-amber-600"}>
+                              {comp.pctPagado.toFixed(1)}%
+                            </span>
                           </td>
                         </tr>
                       ))}
@@ -542,9 +552,9 @@ function ContratosRPSSection({
           <strong className="text-base text-emerald-700">{formatearMoneda(contratosRPS.total_contratado)}</strong>
         </span>
       </div>
-      <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+      <div className="max-h-[19rem] overflow-y-auto rounded-xl border border-slate-200 shadow-sm">
         <table className="w-full min-w-[320px] text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-200 bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-600">
               <th className="px-4 py-2.5 font-semibold">No. CRP</th>
               <th className="px-4 py-2.5 font-semibold">Concepto</th>

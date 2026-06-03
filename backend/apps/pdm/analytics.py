@@ -181,7 +181,16 @@ def compute_pdm_analytics(
 
     linea_agg: dict[str, dict] = defaultdict(lambda: {"productos": 0, "avance_sum": 0.0})
     sector_agg: dict[str, dict] = defaultdict(
-        lambda: {"completados": 0, "en_progreso": 0, "pendientes": 0, "por_ejecutar": 0, "total": 0}
+        lambda: {
+            "completados": 0,
+            "en_progreso": 0,
+            "pendientes": 0,
+            "por_ejecutar": 0,
+            "total": 0,
+            "avance_sum": 0.0,
+            "pto_definitivo": 0.0,
+            "pagos": 0.0,
+        }
     )
     ods_agg: dict[str, dict] = defaultdict(
         lambda: {"productos": 0, "avance_sum": 0.0, "presupuesto": 0.0}
@@ -221,6 +230,9 @@ def compute_pdm_analytics(
 
         sector = p.sector_mga or "Sin sector"
         sector_agg[sector]["total"] += 1
+        sector_agg[sector]["avance_sum"] += avance
+        sector_agg[sector]["pto_definitivo"] += ej["pto_definitivo"]
+        sector_agg[sector]["pagos"] += ej["pagos"]
         if estado == "COMPLETADO":
             sector_agg[sector]["completados"] += 1
         elif estado == "EN_PROGRESO":
@@ -296,16 +308,24 @@ def compute_pdm_analytics(
         [
             {
                 "sector": sector,
+                "total": data["total"],
                 "completados": data["completados"],
                 "en_progreso": data["en_progreso"],
-                "pendientes": data["pendientes"] + data["por_ejecutar"],
+                "pendientes": data["pendientes"],
+                "por_ejecutar": data["por_ejecutar"],
+                "avance_fisico_pct": round(data["avance_sum"] / data["total"], 1) if data["total"] else 0.0,
+                "avance_financiero_pct": round((data["pagos"] / data["pto_definitivo"]) * 100, 1)
+                if data["pto_definitivo"]
+                else 0.0,
+                "pto_definitivo": data["pto_definitivo"],
+                "pagos": data["pagos"],
             }
             for sector, data in sector_agg.items()
             if data["total"] > 0
         ],
-        key=lambda x: x["completados"] + x["en_progreso"] + x["pendientes"],
+        key=lambda x: x["total"],
         reverse=True,
-    )[:10]
+    )
 
     por_ods = sorted(
         [

@@ -43,7 +43,7 @@ from .filters import PdmProductoFilterSet
 from .metrics import (
     ANIOS_PDM,
     actividad_aggs_for_productos,
-    ejecucion_definitivo_for_productos,
+    ejecucion_for_productos,
     estado_producto_anio,
     producto_list_metrics,
     resumen_anio,
@@ -122,13 +122,19 @@ def _to_float(v):
 def _attach_list_metrics(productos: list, entity_id: int, anio: int) -> None:
     codigos = [p.codigo_producto for p in productos]
     aggs_map = actividad_aggs_for_productos(entity_id, codigos)
-    ejecucion_map = ejecucion_definitivo_for_productos(entity_id, codigos, anio)
+    ejecucion_map = ejecucion_for_productos(entity_id, codigos, anio)
     for prod in productos:
         aggs_anio = aggs_map.get(prod.codigo_producto, {})
         metrics = producto_list_metrics(prod, anio, aggs_anio)
         for key, value in metrics.items():
             setattr(prod, key, value)
-        setattr(prod, "pto_definitivo_anio", ejecucion_map.get(prod.codigo_producto, 0.0))
+        ej = ejecucion_map.get(prod.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
+        pto_definitivo = ej["pto_definitivo"]
+        pagos = ej["pagos"]
+        setattr(prod, "pto_definitivo_anio", pto_definitivo)
+        setattr(prod, "pagos_anio", pagos)
+        avance_financiero = round((pagos / pto_definitivo) * 100, 1) if pto_definitivo else 0.0
+        setattr(prod, "avance_financiero_anio", avance_financiero)
 
 
 _META_FIELD_BY_ANIO = {

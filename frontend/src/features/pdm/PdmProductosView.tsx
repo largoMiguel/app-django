@@ -6,6 +6,7 @@ import {
   ANIOS_PDM,
   formatearMoneda,
   formatearNumero,
+  getAvanceFinancieroAnio,
   getAvanceAnio,
   getColorEstadoProducto,
   getColorProgreso,
@@ -69,6 +70,7 @@ const ProductoRow = memo(function ProductoRow({
   onAsignar: (p: ResumenProducto, secretariaId: number) => void;
 }) {
   const avance = getAvanceAnio(producto, filtroAnio, filtroAnio);
+  const avanceFinanciero = getAvanceFinancieroAnio(producto);
   const estado = getEstadoProductoAnio(producto, filtroAnio, filtroAnio);
 
   return (
@@ -88,7 +90,12 @@ const ProductoRow = memo(function ProductoRow({
         {formatearMoneda(getEjecucionDefinitivoProductoAnio(producto))}
       </td>
       <td className="min-w-[120px] px-4 py-3">
+        <p className="mb-1 text-[0.65rem] font-medium uppercase tracking-wide text-slate-400">Físico</p>
         <PdmProgressBar value={avance} tone={getColorProgreso(avance)} />
+      </td>
+      <td className="min-w-[120px] px-4 py-3">
+        <p className="mb-1 text-[0.65rem] font-medium uppercase tracking-wide text-slate-400">Financiero</p>
+        <PdmProgressBar value={avanceFinanciero} tone={getColorProgreso(avanceFinanciero)} />
       </td>
       <td className="px-4 py-3 text-center">
         <PdmBadge tone={getColorEstadoProducto(estado)}>{getTextoEstadoProducto(estado)}</PdmBadge>
@@ -308,7 +315,8 @@ export default function PdmProductosView({
                   <th className="hidden px-4 py-3 text-center font-semibold text-slate-600 md:table-cell">Meta cuat.</th>
                   <th className="px-4 py-3 text-center font-semibold text-slate-600">Meta {filtroAnio}</th>
                   <th className="hidden px-4 py-3 text-right font-semibold text-slate-600 lg:table-cell">Pto. Definitivo</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">Avance</th>
+                  <th className="px-4 py-3 font-semibold text-slate-600">Avance Físico</th>
+                  <th className="px-4 py-3 font-semibold text-slate-600">Avance Financiero</th>
                   <th className="px-4 py-3 text-center font-semibold text-slate-600">Estado</th>
                   <th className="hidden px-4 py-3 font-semibold text-slate-600 xl:table-cell">Responsable</th>
                 </tr>
@@ -316,7 +324,7 @@ export default function PdmProductosView({
               <tbody className="divide-y divide-slate-100">
                 {productos.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                    <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
                       No hay productos con los filtros seleccionados
                     </td>
                   </tr>

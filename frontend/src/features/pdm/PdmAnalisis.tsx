@@ -71,11 +71,13 @@ function ChartCard({
   title,
   icon,
   headerClassName,
+  bodyClassName,
   children,
 }: {
   title: string;
   icon: React.ReactNode;
   headerClassName?: string;
+  bodyClassName?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -86,7 +88,7 @@ function ChartCard({
         {icon}
         {title}
       </div>
-      <div className="p-4 sm:p-5">{children}</div>
+      <div className={bodyClassName ?? "p-4 sm:p-5"}>{children}</div>
     </div>
   );
 }
@@ -124,7 +126,7 @@ function AnalisisContent({
     () =>
       data.por_sector_estado.map((s) => ({
         ...s,
-        sectorShort: truncateLabel(s.sector, 24),
+        sectorShort: truncateLabel(s.sector, 32),
       })),
     [data.por_sector_estado],
   );
@@ -233,41 +235,25 @@ function AnalisisContent({
         </ChartCard>
 
         <ChartCard
-          title="Top 10 Sectores"
-          icon={<BarChart3 size={16} className="text-cyan-600" />}
-          headerClassName="border-b border-cyan-100 bg-cyan-50/90"
+          title="Metas Totales vs Ejecutadas por Año"
+          icon={<Target size={16} className="text-emerald-700" />}
+          headerClassName="border-b border-emerald-100 bg-emerald-50/90 text-emerald-900"
         >
           <p className="mb-4 text-center text-sm font-medium text-slate-600">
-            Top 10 Sectores - Estado de Productos ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+            Metas Totales vs Ejecutadas por Año (2024-2027)
           </p>
-          {sectorChartData.length === 0 ? (
+          {metasChartData.every((m) => m.programada === 0) ? (
             <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin datos</div>
           ) : (
-            <ResponsiveContainer width="100%" height={360}>
-              <BarChart data={sectorChartData} margin={{ top: 10, right: 10, left: 0, bottom: 90 }}>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={metasChartData} margin={{ top: 36, right: 12, left: 8, bottom: 12 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis
-                  dataKey="sectorShort"
-                  tick={{ fontSize: 9, fill: "#64748b" }}
-                  angle={-40}
-                  textAnchor="end"
-                  interval={0}
-                  height={80}
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fill: "#64748b" }}
-                  allowDecimals={false}
-                  width={36}
-                  label={{ value: "Número de Productos", angle: -90, position: "insideLeft", style: { fontSize: 10 } }}
-                />
-                <Tooltip
-                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                  labelFormatter={(_, payload) => payload?.[0]?.payload?.sector ?? ""}
-                />
-                <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 11, paddingBottom: 8 }} />
-                <Bar dataKey="completados" name="Completados" stackId="a" fill={ESTADO_COLORS.COMPLETADO} />
-                <Bar dataKey="en_progreso" name="En Progreso" stackId="a" fill={ESTADO_COLORS.EN_PROGRESO} />
-                <Bar dataKey="pendientes" name="Pendientes" stackId="a" fill={ESTADO_COLORS.PENDIENTE} />
+                <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} />
+                <YAxis tick={{ fontSize: 10, fill: "#64748b" }} allowDecimals={false} width={36} />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Legend verticalAlign="top" align="center" wrapperStyle={{ fontSize: 11, paddingBottom: 8 }} />
+                <Bar dataKey="programada" name="Meta Total Programada" fill="#87ceeb" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="ejecutada" name="Meta Ejecutada" fill="#20c997" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -275,46 +261,105 @@ function AnalisisContent({
       </div>
 
       <ChartCard
-        title="Metas Totales vs Ejecutadas por Año"
-        icon={<Target size={16} className="text-emerald-700" />}
-        headerClassName="border-b border-emerald-100 bg-emerald-50/90 text-emerald-900"
-      >
-        <p className="mb-4 text-center text-sm font-medium text-slate-600">
-          Metas Totales vs Ejecutadas por Año (2024-2027)
-        </p>
-        {metasChartData.every((m) => m.programada === 0) ? (
-          <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin datos</div>
-        ) : (
-          <ResponsiveContainer width="100%" height={340}>
-            <BarChart data={metasChartData} margin={{ top: 40, right: 20, left: 10, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} />
-              <YAxis
-                tick={{ fontSize: 10, fill: "#64748b" }}
-                allowDecimals={false}
-                width={36}
-                label={{ value: "Número de Metas (productos)", angle: -90, position: "insideLeft", style: { fontSize: 10 } }}
-              />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Legend verticalAlign="top" align="center" wrapperStyle={{ fontSize: 11, paddingBottom: 12 }} />
-              <Bar
-                dataKey="programada"
-                name="Meta Total Programada"
-                fill="#87ceeb"
-                radius={[4, 4, 0, 0]}
-                label={{ position: "top", fontSize: 11, fill: "#64748b" }}
-              />
-              <Bar
-                dataKey="ejecutada"
-                name="Meta Ejecutada"
-                fill="#20c997"
-                radius={[4, 4, 0, 0]}
-                label={{ position: "top", fontSize: 11, fill: "#64748b" }}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </ChartCard>
+        title="Sectores — Estado de Productos"
+          icon={<BarChart3 size={16} className="text-cyan-600" />}
+          headerClassName="border-b border-cyan-100 bg-cyan-50/90"
+          bodyClassName="p-0"
+        >
+          <p className="border-b border-slate-100 px-4 py-3 text-center text-sm font-medium text-slate-600 sm:px-5">
+            Todos los sectores ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+          </p>
+          {sectorChartData.length === 0 ? (
+            <div className="flex h-40 items-center justify-center text-sm text-slate-400">Sin datos</div>
+          ) : (
+            <div className="max-h-[28rem] overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 z-10 bg-cyan-50/95 text-left text-[0.65rem] uppercase tracking-wide text-cyan-900">
+                  <tr>
+                    <th className="px-3 py-2.5 font-semibold">Sector</th>
+                    <th className="px-2 py-2.5 text-center font-semibold">Total</th>
+                    <th className="px-2 py-2.5 text-center font-semibold">Comp.</th>
+                    <th className="px-2 py-2.5 text-center font-semibold">Prog.</th>
+                    <th className="px-2 py-2.5 text-center font-semibold">Pend.</th>
+                    <th className="px-2 py-2.5 text-center font-semibold">Por ejec.</th>
+                    <th className="px-2 py-2.5 text-center font-semibold">Av. físico</th>
+                    <th className="px-2 py-2.5 text-center font-semibold">Av. financ.</th>
+                    <th className="px-2 py-2.5 text-right font-semibold">Pto. def.</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sectorChartData.map((s, idx) => (
+                    <tr key={s.sector} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
+                      <td className="max-w-[220px] px-3 py-2.5 font-medium text-slate-800" title={s.sector}>
+                        <div className="truncate">{s.sector}</div>
+                        <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-slate-100">
+                          {s.completados > 0 && (
+                            <div
+                              className="bg-emerald-500"
+                              style={{ width: `${(s.completados / s.total) * 100}%` }}
+                              title={`Completados: ${s.completados}`}
+                            />
+                          )}
+                          {s.en_progreso > 0 && (
+                            <div
+                              className="bg-cyan-500"
+                              style={{ width: `${(s.en_progreso / s.total) * 100}%` }}
+                              title={`En progreso: ${s.en_progreso}`}
+                            />
+                          )}
+                          {s.pendientes > 0 && (
+                            <div
+                              className="bg-amber-400"
+                              style={{ width: `${(s.pendientes / s.total) * 100}%` }}
+                              title={`Pendientes: ${s.pendientes}`}
+                            />
+                          )}
+                          {s.por_ejecutar > 0 && (
+                            <div
+                              className="bg-slate-400"
+                              style={{ width: `${(s.por_ejecutar / s.total) * 100}%` }}
+                              title={`Por ejecutar: ${s.por_ejecutar}`}
+                            />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2.5 text-center font-bold text-slate-900">{s.total}</td>
+                      <td className="px-2 py-2.5 text-center text-emerald-600">{s.completados}</td>
+                      <td className="px-2 py-2.5 text-center text-cyan-600">{s.en_progreso}</td>
+                      <td className="px-2 py-2.5 text-center text-amber-600">{s.pendientes}</td>
+                      <td className="px-2 py-2.5 text-center text-slate-500">{s.por_ejecutar}</td>
+                      <td className="px-2 py-2.5 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <div className="h-1.5 w-10 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className={`h-full rounded-full ${s.avance_fisico_pct >= 75 ? "bg-emerald-500" : s.avance_fisico_pct >= 40 ? "bg-amber-400" : "bg-red-400"}`}
+                              style={{ width: `${Math.min(100, s.avance_fisico_pct)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold">{s.avance_fisico_pct}%</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2.5 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <div className="h-1.5 w-10 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className={`h-full rounded-full ${s.avance_financiero_pct >= 75 ? "bg-emerald-500" : s.avance_financiero_pct >= 40 ? "bg-amber-400" : "bg-red-400"}`}
+                              style={{ width: `${Math.min(100, s.avance_financiero_pct)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold">{s.avance_financiero_pct}%</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2.5 text-right text-xs font-medium text-slate-800">
+                        {formatearMoneda(s.pto_definitivo)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </ChartCard>
 
       <PdmCard title="Por Línea Estratégica" icon={<Layers size={16} />}>
         <div className="max-h-96 space-y-4 overflow-y-auto pr-1">
@@ -339,28 +384,29 @@ function AnalisisContent({
         </div>
       </PdmCard>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <ChartCard
           title="ODS"
           icon={<PieChartIcon size={16} className="text-amber-600" />}
           headerClassName="border-b border-amber-100 bg-amber-50/90"
+          bodyClassName="p-3 sm:p-4"
         >
-          <p className="mb-4 text-center text-sm font-medium text-slate-600">
+          <p className="mb-3 text-center text-sm font-medium text-slate-600">
             Objetivos de Desarrollo Sostenible ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
           </p>
           {odsPieData.length === 0 ? (
-            <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin datos</div>
+            <div className="flex h-52 items-center justify-center text-sm text-slate-400">Sin datos</div>
           ) : (
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-              <div className="min-w-0 flex-1">
-                <ResponsiveContainer width="100%" height={Math.max(280, odsPieData.length * 28)}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <div className="mx-auto w-full max-w-[220px] shrink-0">
+                <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
                     <Pie
                       data={odsPieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={55}
-                      outerRadius={90}
+                      innerRadius={50}
+                      outerRadius={82}
                       dataKey="value"
                     >
                       {odsPieData.map((entry, idx) => (
@@ -371,7 +417,7 @@ function AnalisisContent({
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="max-h-72 space-y-1.5 overflow-y-auto lg:w-52">
+              <div className="min-h-0 max-h-[220px] flex-1 space-y-1 overflow-y-auto pr-1">
                 {data.por_ods.map((o, idx) => (
                   <div key={o.ods} className="flex items-start gap-2 text-xs text-slate-600">
                     <span
@@ -392,8 +438,9 @@ function AnalisisContent({
           title="Detalle por ODS"
           icon={<Table2 size={16} className="text-amber-600" />}
           headerClassName="border-b border-amber-100 bg-amber-50/90"
+          bodyClassName="p-3 sm:p-4"
         >
-          <div className="max-h-80 overflow-auto rounded-lg border border-slate-100">
+          <div className="max-h-[268px] overflow-auto rounded-lg border border-slate-100">
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 bg-amber-50 text-left text-xs uppercase tracking-wide text-amber-900">
                 <tr>

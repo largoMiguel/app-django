@@ -99,6 +99,8 @@ class PdmProductoListSerializer(serializers.ModelSerializer):
     meta_anio = serializers.FloatField(read_only=True, required=False)
     presupuesto_anio = serializers.FloatField(read_only=True, required=False)
     pto_definitivo_anio = serializers.FloatField(read_only=True, required=False)
+    pagos_anio = serializers.FloatField(read_only=True, required=False)
+    avance_financiero_anio = serializers.FloatField(read_only=True, required=False)
     porcentaje_ejecucion = serializers.FloatField(read_only=True, required=False)
 
     class Meta:
@@ -132,6 +134,8 @@ class PdmProductoListSerializer(serializers.ModelSerializer):
             "meta_anio",
             "presupuesto_anio",
             "pto_definitivo_anio",
+            "pagos_anio",
+            "avance_financiero_anio",
             "porcentaje_ejecucion",
         )
 
