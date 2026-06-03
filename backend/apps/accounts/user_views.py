@@ -63,6 +63,7 @@ class UserAdminSerializer(serializers.ModelSerializer):
             "nueva_secretaria_nombre",
             "enabled_modules",
             "password",
+            "invite",
             "date_joined",
             "last_login",
         )
@@ -147,9 +148,8 @@ class UserAdminSerializer(serializers.ModelSerializer):
             validated_data["is_staff"] = role == "admin"
         else:
             # Superadmin puede crear cualquiera
-            if role == "superadmin":
-                validated_data["is_staff"] = True
-                validated_data["is_superuser"] = True
+            validated_data["is_superuser"] = role == "superadmin"
+            validated_data["is_staff"] = role in {"superadmin", "admin"}
 
         # Secretario debe tener secretaría (existente o nueva)
         if role == "secretario":

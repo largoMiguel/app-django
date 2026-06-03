@@ -576,6 +576,7 @@ function UserModal({
           entity: entity.id,
           secretaria: null,
           password: "",
+          invite: false,
           is_active: true,
           enabled_modules: [],
         },
@@ -607,10 +608,12 @@ function UserModal({
         delete payload.secretaria;
         payload.enabled_modules = [];
       }
+      if (!payload.password) delete payload.password;
       if (initial) {
-        if (!payload.password) delete payload.password;
+        delete payload.invite;
         await usersApi.update(initial.id, payload);
       } else {
+        if (payload.invite) delete payload.password;
         await usersApi.create(payload);
       }
       onSaved();
@@ -669,14 +672,42 @@ function UserModal({
                   <option value="secretario">Secretario</option>
                 </select>
               </Field>
-              <Field label={initial ? "Nueva contraseña (opcional)" : "Contraseña *"}>
+              {!initial && (
+                <label className="col-span-2 flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.invite)}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, invite: e.target.checked }))
+                    }
+                  />
+                  Enviar invitación por email (el usuario define su contraseña)
+                </label>
+              )}
+              <Field
+                label={
+                  initial
+                    ? "Nueva contraseña (opcional)"
+                    : form.invite
+                      ? "Contraseña (no aplica con invitación)"
+                      : "Contraseña *"
+                }
+              >
                 <input
                   type="password"
-                  required={!initial}
-                  minLength={initial ? undefined : 8}
+                  required={!initial && !form.invite}
+                  disabled={!initial && Boolean(form.invite)}
+                  minLength={initial || form.invite ? undefined : 8}
                   value={form.password || ""}
+                  placeholder={
+                    initial
+                      ? "Dejar vacío para no cambiar"
+                      : form.invite
+                        ? "Se enviará invitación por email"
+                        : undefined
+                  }
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4] disabled:bg-slate-100"
                 />
               </Field>
             </div>

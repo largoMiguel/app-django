@@ -52,12 +52,12 @@ export default function LoginPage() {
           <SignIn
             routing="path"
             path="/login"
-            signUpUrl={undefined}
             forceRedirectUrl={from || "/"}
             appearance={{
               elements: {
                 rootBox: "w-full",
                 card: "shadow-none border border-slate-200 rounded-xl w-full",
+                footerAction: { display: "none" },
               },
             }}
           />
