@@ -58,7 +58,4 @@ export const usersApi = {
     api.patch<AppUser>(`/users/${id}/`, payload).then((r) => r.data),
   deactivate: (id: number) => api.delete(`/users/${id}/`),
   purge: (id: number) => api.delete(`/users/${id}/`, { params: { purge: true } }),
-  /** @deprecated use deactivate or purge */
-  remove: (id: number, options?: { purge?: boolean }) =>
-    options?.purge ? usersApi.purge(id) : usersApi.deactivate(id),
 };

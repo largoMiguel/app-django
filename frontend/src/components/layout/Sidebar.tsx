@@ -156,11 +156,11 @@ export default function Sidebar() {
       <div className="flex-shrink-0 border-t border-[rgba(255,255,255,0.07)] p-2">
         {!isExpanded ? (
           <div className="flex justify-center py-1">
-            <UserButton afterSignOutUrl="/login" appearance={userButtonAppearance} />
+            <UserButton appearance={userButtonAppearance} />
           </div>
         ) : (
           <div className="flex items-center gap-2 min-w-0 px-1 py-1">
-            <UserButton afterSignOutUrl="/login" appearance={userButtonAppearance} />
+            <UserButton appearance={userButtonAppearance} />
             <div className="min-w-0 flex-1">
               <div className="text-[0.7rem] font-semibold text-white truncate">
                 {user?.full_name || "Usuario"}
