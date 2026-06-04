@@ -288,6 +288,21 @@ Webhook Clerk (público, verificado con firma Svix):
 
 Los usuarios se crean desde superadmin/admin vía `POST /api/v1/users/` (también aprovisionados en Clerk con password o invitación `{ invite: true }`).
 
+Desactivar o eliminar usuarios:
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `DELETE` | `/api/v1/users/{id}/` | Desactiva en Django y banea en Clerk (reversible) |
+| `DELETE` | `/api/v1/users/{id}/?purge=true` | Elimina permanentemente en Django y Clerk |
+
+### Configuración requerida en Clerk Dashboard
+
+Para invitaciones, nombres y acceso restringido:
+
+1. **User & authentication → Email address:** habilitar Email con Password (o código de verificación).
+2. **Personal information → Name:** habilitar para sincronizar nombres.
+3. **Restrictions → Sign-up mode:** `Restricted` (solo usuarios invitados o creados por admin).
+
 ---
 
 ## Despliegue de cambios (producción)
@@ -421,8 +436,7 @@ Es **destructivo** y pide confirmación (`SI`) antes de borrar nada.
 - Clerk verifica tokens de sesión (JWKS); Django mapea `clerk_id` → usuario local con RBAC.
 - Headers de seguridad: CSP (incluye `clerk.softone360.com`), X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy.
 - CORS restringido a `https://app.softone360.com`.
-- Mensaje genérico ante credenciales inválidas (gestionado por Clerk).
-- Validadores de contraseña en Django (usuarios legacy); credenciales activas en Clerk.
+- Contraseñas y MFA se gestionan en Clerk; Django usa `set_unusable_password()` para usuarios de app.
 
 ### CSP en uso (Nginx)
 

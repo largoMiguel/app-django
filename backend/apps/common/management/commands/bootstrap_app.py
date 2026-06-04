@@ -96,6 +96,8 @@ class Command(BaseCommand):
             user = User.objects.create_superuser(
                 email=email, password=password, full_name=name
             )
+            user.set_unusable_password()
+            user.save(update_fields=["password"])
             user.groups.add(Group.objects.get(name="superadmin"))
             user.role = "superadmin"
             user.save(update_fields=["role"])

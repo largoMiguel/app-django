@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Users, Plus, Pencil, Trash2, X, Save, Search } from "lucide-react";
+import { Users, Plus, Pencil, Trash2, X, Save, Search, UserX } from "lucide-react";
 import { formatApiError } from "@/core/api/errors";
 import { usersApi, type AppUser, type CreateUserPayload } from "@/core/api/users";
 import { entitiesApi, secretariasApi, type Entity, type Secretaria } from "@/core/api/entities";
@@ -48,14 +48,31 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
     load();
   }, [superMode, page, search]);
 
-  async function handleDelete(u: AppUser) {
-    if (!confirm(`¿Desactivar al usuario ${u.email}?`)) return;
+  async function handleDeactivate(u: AppUser) {
+    if (!confirm(`¿Desactivar al usuario ${u.email}?\n\nNo podrá iniciar sesión hasta reactivarlo.`)) return;
     try {
-      await usersApi.remove(u.id);
+      await usersApi.deactivate(u.id);
       load();
     } catch (err) {
-      alert("No se pudo desactivar.");
-      console.error(err);
+      alert(formatApiError(err, "No se pudo desactivar."));
+    }
+  }
+
+  async function handlePurge(u: AppUser) {
+    if (
+      !confirm(
+        `¿Eliminar DEFINITIVAMENTE al usuario ${u.email}?\n\nSe borrará de SoftOne y Clerk. Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+    const typed = prompt(`Escribe "${u.email}" para confirmar:`);
+    if (typed !== u.email) return;
+    try {
+      await usersApi.purge(u.id);
+      load();
+    } catch (err) {
+      alert(formatApiError(err, "No se pudo eliminar."));
     }
   }
 
@@ -132,7 +149,10 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
                       <button onClick={() => setEditing(u)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-[#0e7490]" title="Editar">
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <button onClick={() => handleDelete(u)} className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600" title="Desactivar">
+                      <button onClick={() => handleDeactivate(u)} className="rounded p-1.5 text-slate-500 hover:bg-amber-50 hover:text-amber-700" title="Desactivar">
+                        <UserX className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => handlePurge(u)} className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600" title="Eliminar definitivamente">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>

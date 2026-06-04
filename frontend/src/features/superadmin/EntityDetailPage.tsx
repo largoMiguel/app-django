@@ -8,6 +8,7 @@ import {
   Briefcase,
   Settings,
   Trash2,
+  UserX,
   Plus,
   Pencil,
   X,
@@ -434,10 +435,32 @@ function UsersTab({ entity }: { entity: Entity }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entity.id]);
 
-  async function handleDelete(u: AppUser) {
-    if (!confirm(`¿Eliminar usuario "${u.email}"?`)) return;
-    await usersApi.remove(u.id);
-    load();
+  async function handleDeactivate(u: AppUser) {
+    if (!confirm(`¿Desactivar al usuario ${u.email}?\n\nNo podrá iniciar sesión hasta reactivarlo.`)) return;
+    try {
+      await usersApi.deactivate(u.id);
+      load();
+    } catch (err) {
+      alert(formatApiError(err, "No se pudo desactivar."));
+    }
+  }
+
+  async function handlePurge(u: AppUser) {
+    if (
+      !confirm(
+        `¿Eliminar DEFINITIVAMENTE al usuario ${u.email}?\n\nSe borrará de SoftOne y Clerk. Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+    const typed = prompt(`Escribe "${u.email}" para confirmar:`);
+    if (typed !== u.email) return;
+    try {
+      await usersApi.purge(u.id);
+      load();
+    } catch (err) {
+      alert(formatApiError(err, "No se pudo eliminar."));
+    }
   }
 
   return (
@@ -510,9 +533,16 @@ function UsersTab({ entity }: { entity: Entity }) {
                         <Pencil className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(u)}
+                        onClick={() => handleDeactivate(u)}
+                        className="rounded p-1.5 text-slate-500 hover:bg-amber-50 hover:text-amber-700"
+                        title="Desactivar"
+                      >
+                        <UserX className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handlePurge(u)}
                         className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                        title="Eliminar"
+                        title="Eliminar definitivamente"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

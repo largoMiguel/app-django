@@ -1,63 +1,13 @@
-"""Serializers — login/refresh, current user, registration."""
+"""Serializers — current user profile."""
 from __future__ import annotations
 
-from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.common.modules import user_has_module
 from apps.common.roles import user_roles
 
 User = get_user_model()
-
-
-class SoftOneTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Embed user + role info in the access token."""
-
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        token["email"] = user.email
-        token["full_name"] = user.full_name
-        token["roles"] = user.role_names
-        token["role"] = user.role
-        token["entity_id"] = user.entity_id
-        token["secretaria_id"] = user.secretaria_id
-        token["is_staff"] = user.is_staff
-        token["permissions"] = sorted(user.get_all_permissions())
-        return token
-
-    def validate(self, attrs):
-        email = (attrs.get(self.username_field) or "").strip().lower()
-        password = attrs.get("password") or ""
-        user = authenticate(
-            request=self.context.get("request"),
-            username=email,
-            password=password,
-        )
-        if user is None:
-            raise serializers.ValidationError(
-                {"detail": "Credenciales inválidas."},
-                code="authorization",
-            )
-        self.user = user
-        if not user.is_active:
-            raise serializers.ValidationError(
-                "Tu cuenta está inhabilitada. Contacta al administrador."
-            )
-        if user.entity_id:
-            entity = user.entity
-            if entity and not entity.is_active:
-                raise serializers.ValidationError(
-                    "La entidad a la que perteneces está inactiva. Contacta al administrador."
-                )
-        refresh = self.get_token(user)
-        return {
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": UserMeSerializer(user).data,
-        }
 
 
 class UserMeSerializer(serializers.ModelSerializer):
@@ -148,20 +98,3 @@ class UserMeSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data["enabled_modules"] = instance.enabled_modules or []
         return data
-
-
-class ChangePasswordSerializer(serializers.Serializer):
-    old_password = serializers.CharField(write_only=True)
-    new_password = serializers.CharField(write_only=True, min_length=10)
-
-    def validate_old_password(self, value: str) -> str:
-        user = self.context["request"].user
-        if not user.check_password(value):
-            raise serializers.ValidationError("La contraseña actual es incorrecta.")
-        return value
-
-    def save(self, **kwargs):
-        user = self.context["request"].user
-        user.set_password(self.validated_data["new_password"])
-        user.save(update_fields=["password"])
-        return user
