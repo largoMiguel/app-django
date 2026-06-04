@@ -31,6 +31,11 @@ def _clerk_error_message(exc: ClerkErrors) -> str:
     return raw
 
 
+def _is_not_found_error(exc: ClerkErrors) -> bool:
+    raw = str(exc).lower()
+    return "not found" in raw or "404" in raw or "resource_not_found" in raw
+
+
 def _invite_redirect_url() -> str:
     parties = getattr(settings, "CLERK_AUTHORIZED_PARTIES", []) or []
     for origin in parties:
@@ -186,6 +191,9 @@ def ban_user(clerk_id: str) -> None:
     try:
         client.users.ban(user_id=clerk_id)
     except ClerkErrors as exc:
+        if _is_not_found_error(exc):
+            logger.info("Clerk user %s not found; skip ban", clerk_id)
+            return
         raise ClerkServiceError(_clerk_error_message(exc)) from exc
 
 
@@ -202,4 +210,7 @@ def delete_user(clerk_id: str) -> None:
     try:
         client.users.delete(user_id=clerk_id)
     except ClerkErrors as exc:
+        if _is_not_found_error(exc):
+            logger.info("Clerk user %s not found; skip delete", clerk_id)
+            return
         raise ClerkServiceError(_clerk_error_message(exc)) from exc

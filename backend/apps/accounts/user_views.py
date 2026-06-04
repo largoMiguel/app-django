@@ -5,7 +5,7 @@ import secrets
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from rest_framework import serializers, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -25,6 +25,7 @@ from apps.accounts.services.clerk import (
     update_user_email,
     update_user_name,
 )
+from apps.accounts.services.user_cleanup import clear_legacy_jwt_tokens
 
 User = get_user_model()
 
@@ -347,7 +348,18 @@ class UserViewSet(viewsets.ModelViewSet):
                     delete_user(clerk_id)
                 except ClerkServiceError as exc:
                     raise ValidationError({"detail": f"Error en Clerk: {exc}"}) from exc
-            instance.delete()
+            clear_legacy_jwt_tokens(instance.pk)
+            try:
+                instance.delete()
+            except IntegrityError as exc:
+                raise ValidationError(
+                    {
+                        "detail": (
+                            "No se puede eliminar: el usuario tiene registros asociados "
+                            "(PQRS, PDM, etc.). Desactívalo en su lugar."
+                        )
+                    }
+                ) from exc
         else:
             instance.is_active = False
             instance.save(update_fields=["is_active"])
