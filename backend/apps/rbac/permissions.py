@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from rest_framework.permissions import BasePermission
 
-from apps.common.roles import is_entity_admin, is_platform_superadmin, user_roles
+from apps.common.roles import is_platform_superadmin, user_roles
+from apps.entities.permissions import IsEntityAdmin, IsSuperAdmin
 
 
 def _role_names(user) -> set[str]:
@@ -70,18 +71,5 @@ def HasPermOrRole(*, perms: tuple[str, ...], roles: tuple[str, ...]) -> type[Bas
     return _HasPermOrRole
 
 
-class IsAdminRole(BasePermission):
-    """Superadmin de plataforma o admin de entidad."""
-
-    def has_permission(self, request, view) -> bool:
-        user = request.user
-        if not user or not user.is_authenticated:
-            return False
-        return is_platform_superadmin(user) or is_entity_admin(user)
-
-
-class IsSuperAdminRole(BasePermission):
-    """Sólo superadmin de plataforma."""
-
-    def has_permission(self, request, view) -> bool:
-        return is_platform_superadmin(request.user)
+IsAdminRole = IsEntityAdmin
+IsSuperAdminRole = IsSuperAdmin

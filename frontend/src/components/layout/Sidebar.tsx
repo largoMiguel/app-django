@@ -1,54 +1,31 @@
-import { FileText, Building2, Users, BarChart3 } from "lucide-react";
+import { FileText, Building2, Users, BarChart3, type LucideIcon } from "lucide-react";
 import { UserButton } from "@clerk/react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { useAuthStore, primaryRole, canAccess, PERM } from "@/core/auth/store";
-import { isUserModuleEnabled } from "@/core/auth/modules";
+import { accessibleNavRoutes, primaryRole, useAuthStore } from "@/core/auth/store";
+
+const NAV_ICONS: Record<string, LucideIcon> = {
+  superadmin: Building2,
+  pqrs: FileText,
+  pdm: BarChart3,
+  users_admin: Users,
+};
 
 export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
   const { user } = useAuthStore();
+  const location = useLocation();
 
   const role = primaryRole(user);
   const entity = user?.entity;
+  const navRoutes = accessibleNavRoutes(user);
+  const mainItems = navRoutes.filter((item) => item.navSection === "main");
+  const secondaryItems = navRoutes.filter((item) => item.navSection === "secondary");
 
-  const menuItems: { path: string; icon: typeof FileText; label: string; matchPaths?: string[] }[] = [];
-  let usersMenuItem: { path: string; icon: typeof FileText; label: string } | null = null;
-
-  const canViewPqrs =
-    entity?.enable_pqrs &&
-    isUserModuleEnabled(user, "enable_pqrs") &&
-    canAccess(user, {
-      roles: ["admin", "secretario", "ciudadano"],
-      permissions: [PERM.PQRS_VIEW],
-    });
-  const canManageUsers =
-    entity?.enable_users_admin &&
-    isUserModuleEnabled(user, "enable_users_admin") &&
-    canAccess(user, { roles: ["admin"], permissions: [PERM.USER_VIEW] });
-  const canViewPdm =
-    entity?.enable_pdm &&
-    isUserModuleEnabled(user, "enable_pdm") &&
-    canAccess(user, { roles: ["admin", "secretario"] });
-
-  if (role === "superadmin") {
-    menuItems.push({ path: "/superadmin/entities", icon: Building2, label: "Entidades" });
-  }
-  if (canViewPqrs) {
-    menuItems.push({ path: "/dashboard", icon: FileText, label: "PQRS", matchPaths: ["/dashboard", "/pqrs"] });
-  }
-  if (canViewPdm) {
-    menuItems.push({ path: "/pdm", icon: BarChart3, label: "PDM", matchPaths: ["/pdm"] });
-  }
-  if (canManageUsers) {
-    usersMenuItem = { path: "/users", icon: Users, label: "Usuarios" };
-  }
-
-  const location = useLocation();
-
-  function isNavActive(item: { path: string; matchPaths?: string[] }) {
-    const paths = item.matchPaths ?? [item.path];
-    return paths.some((p) => location.pathname === p || location.pathname.startsWith(p + "/"));
+  function isNavActive(item: { path: string; matchPaths: string[] }) {
+    return item.matchPaths.some(
+      (p) => location.pathname === p || location.pathname.startsWith(p + "/"),
+    );
   }
 
   const entityLogoUrl = entity?.logo_url ?? null;
@@ -61,6 +38,32 @@ export default function Sidebar() {
     },
   };
 
+  function renderNavItem(item: (typeof navRoutes)[number]) {
+    const Icon = NAV_ICONS[item.moduleKey] ?? FileText;
+    return (
+      <NavLink
+        key={item.path}
+        to={item.path}
+        className={() =>
+          `group flex items-center gap-3 rounded-[0.3rem] px-3 py-2.5 text-sm transition-all ${
+            isNavActive(item)
+              ? "border-l-[3px] border-[#3eafd4] bg-[rgba(62,175,212,0.2)] pl-[calc(0.75rem-3px)] text-white"
+              : "text-[rgba(255,255,255,0.6)] hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
+          }`
+        }
+      >
+        <Icon className="h-5 w-5 flex-shrink-0" />
+        <span
+          className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
+            isExpanded ? "max-w-[120px] opacity-100" : "max-w-0 opacity-0"
+          }`}
+        >
+          {item.label}
+        </span>
+      </NavLink>
+    );
+  }
+
   return (
     <aside
       onMouseEnter={() => setIsExpanded(true)}
@@ -69,7 +72,6 @@ export default function Sidebar() {
         isExpanded ? "w-56" : "w-16"
       }`}
     >
-      {/* Header: logo entidad + marca SoftOne360 */}
       <div
         className={`flex flex-shrink-0 items-center border-b border-[rgba(255,255,255,0.07)] px-3 transition-all duration-300 overflow-hidden ${
           isExpanded ? "h-[62px]" : "h-[52px]"
@@ -102,57 +104,13 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Navegación scrollable */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-2">
-          {menuItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={() =>
-                `group flex items-center gap-3 rounded-[0.3rem] px-3 py-2.5 text-sm transition-all ${
-                  isNavActive(item)
-                    ? "border-l-[3px] border-[#3eafd4] bg-[rgba(62,175,212,0.2)] pl-[calc(0.75rem-3px)] text-white"
-                    : "text-[rgba(255,255,255,0.6)] hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
-                }`
-              }
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              <span
-                className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
-                  isExpanded ? "max-w-[120px] opacity-100" : "max-w-0 opacity-0"
-                }`}
-              >
-                {item.label}
-              </span>
-            </NavLink>
-          ))}
-
-          {usersMenuItem && (
-            <NavLink
-              to={usersMenuItem.path}
-              className={({ isActive }) =>
-                `group flex items-center gap-3 rounded-[0.3rem] px-3 py-2.5 text-sm transition-all ${
-                  isActive
-                    ? "border-l-[3px] border-[#3eafd4] bg-[rgba(62,175,212,0.2)] pl-[calc(0.75rem-3px)] text-white"
-                    : "text-[rgba(255,255,255,0.6)] hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
-                }`
-              }
-            >
-              <usersMenuItem.icon className="h-5 w-5 flex-shrink-0" />
-              <span
-                className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
-                  isExpanded ? "max-w-[120px] opacity-100" : "max-w-0 opacity-0"
-                }`}
-              >
-                {usersMenuItem.label}
-              </span>
-            </NavLink>
-          )}
+          {mainItems.map(renderNavItem)}
+          {secondaryItems.map(renderNavItem)}
         </nav>
       </div>
 
-      {/* Usuario — un solo widget (UserButton + nombre/rol) */}
       <div className="flex-shrink-0 border-t border-[rgba(255,255,255,0.07)] p-2">
         {!isExpanded ? (
           <div className="flex justify-center py-1">

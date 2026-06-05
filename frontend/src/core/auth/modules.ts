@@ -29,7 +29,16 @@ export function isModuleEnabled(entity: AuthEntity, module: EntityModuleFlag): b
   return Boolean(entity[module]);
 }
 
-function primaryRole(user: { roles?: string[]; role?: string } | null | undefined): string {
+/** Alineado con `is_platform_superadmin` del backend. */
+export function isPlatformSuperadmin(
+  user: { roles?: string[]; role?: string; is_superuser?: boolean } | null | undefined,
+): boolean {
+  if (!user) return false;
+  if (user.is_superuser) return true;
+  return user.roles?.includes("superadmin") || user.role === "superadmin";
+}
+
+export function primaryRole(user: { roles?: string[]; role?: string } | null | undefined): string {
   if (!user) return "";
   if (user.role) return user.role;
   const priority = ["superadmin", "admin", "secretario", "ciudadano"];

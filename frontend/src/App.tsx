@@ -10,18 +10,18 @@ import UsersPage from "@/features/users/UsersPage";
 import SuperAdminEntitiesPage from "@/features/superadmin/EntitiesPage";
 import EntityDetailPage from "@/features/superadmin/EntityDetailPage";
 import RequireAuth from "@/core/auth/RequireAuth";
-import RequireRole from "@/core/auth/RequireRole";
-import RequireModule from "@/core/auth/RequireModule";
+import ModuleRouteGuard from "@/core/auth/ModuleRouteGuard";
+import RequireSuperadmin from "@/core/auth/RequireSuperadmin";
 import AppLayout from "@/components/layout/AppLayout";
 import PublicPQRSPortal from "@/features/pqrs/PublicPQRSPortal";
 import { PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
-import { PERM, useAuthStore, homeForRole } from "@/core/auth/store";
+import { firstAccessibleRoute, useAuthStore } from "@/core/auth/store";
 
 const PdmPage = lazy(() => import("@/features/pdm/PdmPage"));
 
 function HomeRedirect() {
   const user = useAuthStore((s) => s.user);
-  return <Navigate to={homeForRole(user)} replace />;
+  return <Navigate to={firstAccessibleRoute(user)} replace />;
 }
 
 export default function App(): ReactElement {
@@ -37,57 +37,31 @@ export default function App(): ReactElement {
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/sin-acceso" element={<SinAccesoPage />} />
 
-          {/* PQRS: admin, secretario, ciudadano */}
-          <Route
-            element={
-              <RequireRole
-                roles={["admin", "secretario", "ciudadano"]}
-                permissions={[PERM.PQRS_VIEW]}
-              />
-            }
-          >
-            <Route element={<RequireModule module="enable_pqrs" />}>
-              <Route path="/dashboard" element={<PQRSDashboard />} />
-              <Route path="/pqrs" element={<PQRSPage />} />
-            </Route>
+          <Route element={<ModuleRouteGuard moduleKey="pqrs" />}>
+            <Route path="/dashboard" element={<PQRSDashboard />} />
+            <Route path="/pqrs" element={<PQRSPage />} />
           </Route>
 
-          {/* PDM: admin y secretario */}
-          <Route element={<RequireRole roles={["admin", "secretario"]} />}>
-            <Route element={<RequireModule module="enable_pdm" />}>
-              <Route
-                path="/pdm"
-                element={
-                  <Suspense fallback={<PdmLoadingOverlay message="Cargando PDM..." />}>
-                    <PdmPage />
-                  </Suspense>
-                }
-              />
-            </Route>
+          <Route element={<ModuleRouteGuard moduleKey="pdm" />}>
+            <Route
+              path="/pdm"
+              element={
+                <Suspense fallback={<PdmLoadingOverlay message="Cargando PDM..." />}>
+                  <PdmPage />
+                </Suspense>
+              }
+            />
           </Route>
 
-          {/* Informes: sólo admin */}
-          <Route element={<RequireRole roles={["admin"]} permissions={[PERM.PQRS_VIEW]} />}>
-            <Route element={<RequireModule module="enable_pqrs" />}>
-              <Route element={<RequireModule module="enable_reports_pdf" />}>
-                <Route path="/informes" element={<PQRSInformesPage />} />
-              </Route>
-            </Route>
+          <Route element={<ModuleRouteGuard moduleKey="reports_pdf" />}>
+            <Route path="/informes" element={<PQRSInformesPage />} />
           </Route>
 
-          {/* Admin de entidad */}
-          <Route element={<RequireRole roles={["admin"]} permissions={[PERM.USER_VIEW]} />}>
-            <Route element={<RequireModule module="enable_users_admin" />}>
-              <Route path="/users" element={<UsersPage />} />
-            </Route>
+          <Route element={<ModuleRouteGuard moduleKey="users_admin" />}>
+            <Route path="/users" element={<UsersPage />} />
           </Route>
 
-          {/* SuperAdmin */}
-          <Route
-            element={
-              <RequireRole roles={["superadmin"]} permissions={[PERM.ENTITY_VIEW, PERM.ENTITY_CHANGE]} />
-            }
-          >
+          <Route element={<RequireSuperadmin />}>
             <Route path="/superadmin/entities" element={<SuperAdminEntitiesPage />} />
             <Route path="/superadmin/entities/:id" element={<EntityDetailPage />} />
           </Route>

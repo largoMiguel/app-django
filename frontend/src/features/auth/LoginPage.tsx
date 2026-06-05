@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { SignIn, useAuth } from "@clerk/react";
 import { consumeAuthBlockMessage } from "@/core/auth/authErrors";
-import { useAuthStore, homeForRole } from "@/core/auth/store";
+import { canAccessPath, firstAccessibleRoute } from "@/core/auth/routes";
+import { useAuthStore } from "@/core/auth/store";
 
 export default function LoginPage() {
   const location = useLocation();
@@ -16,7 +17,9 @@ export default function LoginPage() {
   }, []);
 
   if (isLoaded && isSignedIn && user) {
-    return <Navigate to={from || homeForRole(user)} replace />;
+    const destination =
+      from && canAccessPath(user, from) ? from : firstAccessibleRoute(user);
+    return <Navigate to={destination} replace />;
   }
 
   return (
@@ -69,7 +72,7 @@ export default function LoginPage() {
           <SignIn
             routing="path"
             path="/login"
-            forceRedirectUrl={from || "/"}
+            forceRedirectUrl="/"
             appearance={{
               elements: {
                 rootBox: "w-full",
