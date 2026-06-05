@@ -35,3 +35,7 @@ deploy/keys/*
 
 # Local venv at repo root
 venv/
+
+# Cursor / agent skills (solo local, no subir al repo)
+.agents/
+skills-lock.json
