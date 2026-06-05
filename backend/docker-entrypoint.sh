@@ -17,13 +17,18 @@ else:
     raise SystemExit("DB no respondió tras 60s")
 PY
 
+# Volúmenes Docker (static/media) se crean como root; appuser debe poder escribir.
+mkdir -p /app/staticfiles /app/media
+chown -R appuser:appuser /app/staticfiles /app/media
+
 echo ">> Migraciones"
-python manage.py migrate --noinput
+gosu appuser python manage.py migrate --noinput
 
 echo ">> Bootstrap (roles + admin inicial)"
-python manage.py bootstrap_app
+gosu appuser python manage.py bootstrap_app
 
 echo ">> Collectstatic"
-python manage.py collectstatic --noinput --clear
+gosu appuser python manage.py collectstatic --noinput --clear
 
-exec "$@"
+echo ">> Arrancando aplicación"
+exec gosu appuser "$@"

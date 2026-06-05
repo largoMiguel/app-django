@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential libpq5 curl \
+        build-essential libpq5 curl gosu \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -17,14 +17,17 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-# Non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
+RUN useradd -m -u 1000 appuser \
+    && chown -R appuser:appuser /app \
+    && chmod +x /app/docker-entrypoint.sh
+
+# Entrypoint corre como root (chown volúmenes); gunicorn como appuser vía gosu.
+USER root
 
 ENV DJANGO_SETTINGS_MODULE=config.settings.prod
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=5 \
     CMD curl -fsS http://localhost:8000/api/health || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
