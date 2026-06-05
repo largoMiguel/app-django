@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "@/features/auth/LoginPage";
+import SinAccesoPage from "@/features/auth/SinAccesoPage";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
 import PQRSPage from "@/features/pqrs/PQRSPage";
 import PQRSInformesPage from "@/features/pqrs/PQRSInformesPage";
@@ -34,6 +35,7 @@ export default function App(): ReactElement {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomeRedirect />} />
+          <Route path="/sin-acceso" element={<SinAccesoPage />} />
 
           {/* PQRS: admin, secretario, ciudadano */}
           <Route

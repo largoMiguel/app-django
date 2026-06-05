@@ -5,7 +5,7 @@ Aplicación full-stack lista para producción.
 - **Frontend:** React 19 + Vite 6 + Tailwind CSS v4 + TypeScript 5
 - **Backend:** Python 3.13 + Django 5.1 + Django REST Framework 3.15 (sólo API, sin vistas server-rendered de negocio)
 - **DB:** PostgreSQL 17
-- **Auth:** Clerk (login, password reset, invitaciones) + Django RBAC (roles, permisos, módulos por entidad)
+- **Auth:** Clerk en español (login, invitaciones, revocación de sesión en vivo) + Django RBAC (roles, permisos, módulos por entidad)
 - **RBAC:** roles sobre `django.contrib.auth.Group` + `Permission` — listo para proteger vistas DRF, URLs y consultas
 - **Multi-tenancy:** entidades (municipios/organismos) + secretarías + módulos habilitables por entidad
 - **Módulo PQRS:** Gestión de Peticiones, Quejas, Reclamos, Sugerencias y Denuncias (Ley 1755 de 2015)
@@ -51,7 +51,7 @@ app_django/
 │   ├── src/
 │   │   ├── core/
 │   │   │   ├── api/
-│   │   │   │   ├── client.ts      # Axios + refresh interceptor
+│   │   │   │   ├── client.ts      # Axios + token Clerk por petición
 │   │   │   │   ├── pqrs.ts        # API PQRS (list, create, autoCreate, archivos…)
 │   │   │   │   └── pqrsPublic.ts  # API portal ciudadano
 │   │   │   └── auth/              # store · api · RequireAuth · RequireRole · RequireModule (Clerk session)
@@ -178,6 +178,8 @@ La acción `POST /api/v1/pqrs/auto-create/` (y el portal público `/pqrs/auto/`)
 4. Normalizar y validar la respuesta.
 5. Crear la PQRS y, si la IA detectó la secretaría correcta, asignarla automáticamente.
 
+La opción **Automática / IA** en el formulario interno y en el portal público solo se muestra si la entidad tiene habilitado el módulo `enable_ai_reports` (Reportes con IA).
+
 ### Variables de entorno OpenAI
 
 ```
@@ -257,6 +259,8 @@ class ReporteViewSet(viewsets.ReadOnlyModelViewSet):
 
 `useAuthStore().user.roles`, `permissions` y `enabled_modules` están disponibles para ocultar botones / menús.
 
+**Secretario:** `enabled_modules` vacío = **ningún** módulo (debe asignarse explícitamente en Usuarios). Admin: lista vacía = todos los módulos activos de la entidad.
+
 ### API REST de roles
 
 | Método | Endpoint | Descripción |
@@ -274,7 +278,7 @@ Todos requieren rol `admin` o `superadmin`.
 
 ## Endpoints de autenticación
 
-El login, refresh, logout y cambio de contraseña los gestiona **Clerk** (componente `<SignIn>` en el frontend). Django expone el perfil del usuario local (roles, permisos, módulos):
+El login, logout y cambio de contraseña los gestiona **Clerk** (`<SignIn>` en español). La sesión se valida en cada petición API; si la cuenta está inhabilitada o se revoca la sesión en Clerk, la app cierra sesión y muestra un aviso en `/login`. Django expone el perfil local (roles, permisos, módulos):
 
 | Método | Endpoint | Descripción |
 |---|---|---|
@@ -343,9 +347,12 @@ ssh softone-prod 'cd /opt/softone-app && deploy/scripts/deploy.sh'
 
 ### Desplegar en LAN (misma red que el servidor)
 
+Nginx publica HTTP en el host en el puerto `LAN_HTTP_PORT` (por defecto **8080**). Ajusta `ALLOWED_HOSTS` y `CORS_ALLOWED_ORIGINS` con la IP LAN (ej. `192.168.1.2`).
+
 ```bash
 deploy/scripts/sync.sh softone@192.168.1.2
 ssh softone@192.168.1.2 'cd /opt/softone-app && deploy/scripts/deploy.sh'
+# App en LAN: http://192.168.1.2:8080
 ```
 
 `deploy.sh` hace `build --pull` y `up -d --remove-orphans`. Es seguro re-ejecutarlo en caliente.
@@ -433,7 +440,9 @@ Es **destructivo** y pide confirmación (`SI`) antes de borrar nada.
 - Contenedores: `no-new-privileges`, usuario sin privilegios en el backend, redes Docker segmentadas (`internal` para DB/backend, `edge` para nginx ↔ cloudflared/frontend/backend).
 - PostgreSQL **no publica puertos** al host.
 - Secretos en `.env` (chmod 600), generados con `openssl rand`.
-- Clerk verifica tokens de sesión (JWKS); Django mapea `clerk_id` → usuario local con RBAC.
+- Clerk verifica tokens de sesión (JWKS / `CLERK_JWT_KEY` opcional); Django mapea `clerk_id` → usuario local con RBAC.
+- Redis en producción: caché compartida y rate-limit DRF entre workers Gunicorn.
+- Archivos estáticos servidos por Nginx (`/static/`); media protegida sigue en Django con token Clerk.
 - Headers de seguridad: CSP (incluye `clerk.softone360.com`), X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy.
 - CORS restringido a `https://app.softone360.com`.
 - Contraseñas y MFA se gestionan en Clerk; Django usa `set_unusable_password()` para usuarios de app.
@@ -495,6 +504,16 @@ EMAIL_USE_TLS=true
 EMAIL_HOST_USER=
 EMAIL_HOST_PASSWORD=
 DEFAULT_FROM_EMAIL=noreply@softone360.com
+
+# Redis (inyectado por docker-compose en prod)
+# REDIS_URL=redis://redis:6379/0
+
+# LAN — acceso directo sin Cloudflare (opcional)
+# LAN_HTTP_PORT=8080
+
+# Gunicorn (opcional; default: hasta 8 workers × 4 threads)
+# GUNICORN_WORKERS=8
+# GUNICORN_THREADS=4
 
 # Cloudflare Tunnel — credenciales JSON en el servidor (modo config-file)
 # CLOUDFLARED_CREDS_DIR=/home/softone/.cloudflared

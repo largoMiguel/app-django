@@ -27,11 +27,27 @@ def entity_has_module(entity, module_key: str) -> bool:
     return bool(getattr(entity, flag, False))
 
 
+def _user_primary_role(user) -> str:
+    roles = getattr(user, "role_names", None)
+    if roles is None and hasattr(user, "groups"):
+        roles = list(user.groups.values_list("name", flat=True))
+    roles = roles or []
+    for name in ("superadmin", "admin", "secretario", "ciudadano"):
+        if name in roles:
+            return name
+    return roles[0] if roles else ""
+
+
 def user_has_module(user, module_key: str) -> bool:
     entity = getattr(user, "entity", None)
     if not entity_has_module(entity, module_key):
         return False
     user_modules = getattr(user, "enabled_modules", None) or []
+    role = _user_primary_role(user)
+    if role == "secretario":
+        if not user_modules:
+            return False
+        return module_key in user_modules
     if user_modules:
         return module_key in user_modules
     return True

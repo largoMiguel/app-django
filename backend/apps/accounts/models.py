@@ -1,4 +1,4 @@
-"""User model with email login + RBAC link."""
+"""Usuario local (email + Clerk) con RBAC por grupos Django."""
 from __future__ import annotations
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
@@ -57,7 +57,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
-    last_login_ip = models.GenericIPAddressField(null=True, blank=True)
 
     # Multi-tenancy + rol rápido (espejo del grupo principal)
     entity = models.ForeignKey(

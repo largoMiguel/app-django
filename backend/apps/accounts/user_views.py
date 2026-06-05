@@ -22,10 +22,10 @@ from apps.accounts.services.clerk import (
     create_invitation,
     create_user as clerk_create_user,
     delete_user,
+    unban_user,
     update_user_email,
     update_user_name,
 )
-from apps.accounts.services.user_cleanup import clear_legacy_jwt_tokens
 
 User = get_user_model()
 
@@ -348,7 +348,6 @@ class UserViewSet(viewsets.ModelViewSet):
                     delete_user(clerk_id)
                 except ClerkServiceError as exc:
                     raise ValidationError({"detail": f"Error en Clerk: {exc}"}) from exc
-            clear_legacy_jwt_tokens(instance.pk)
             try:
                 instance.delete()
             except IntegrityError as exc:

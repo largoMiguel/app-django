@@ -12,10 +12,6 @@ export type EntityModuleFlag =
   | "enable_correspondencia"
   | "enable_presupuesto";
 
-export type RequireModuleProps = {
-  module: EntityModuleFlag;
-};
-
 export const MODULE_FLAG_TO_KEY: Record<EntityModuleFlag, string> = {
   enable_pqrs: "pqrs",
   enable_users_admin: "users_admin",
@@ -33,13 +29,28 @@ export function isModuleEnabled(entity: AuthEntity, module: EntityModuleFlag): b
   return Boolean(entity[module]);
 }
 
-/** Si el usuario tiene lista de módulos, debe incluir el módulo; lista vacía = todos habilitados. */
+function primaryRole(user: { roles?: string[]; role?: string } | null | undefined): string {
+  if (!user) return "";
+  if (user.role) return user.role;
+  const priority = ["superadmin", "admin", "secretario", "ciudadano"];
+  for (const r of priority) {
+    if (user.roles?.includes(r)) return r;
+  }
+  return user.roles?.[0] || "";
+}
+
+/** Secretario: lista vacía = ningún módulo (asignación explícita). Admin/otros: vacía = todos los de la entidad. */
 export function isUserModuleEnabled(
-  user: { enabled_modules?: string[] } | null | undefined,
+  user: { enabled_modules?: string[]; roles?: string[]; role?: string } | null | undefined,
   module: EntityModuleFlag,
 ): boolean {
   if (!user) return false;
   const enabled = user.enabled_modules ?? [];
+  const role = primaryRole(user);
+  if (role === "secretario") {
+    if (enabled.length === 0) return false;
+    return enabled.includes(MODULE_FLAG_TO_KEY[module]);
+  }
   if (enabled.length === 0) return true;
   return enabled.includes(MODULE_FLAG_TO_KEY[module]);
 }
