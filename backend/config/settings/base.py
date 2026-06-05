@@ -176,6 +176,7 @@ REST_FRAMEWORK = {
         "user": "1000/min",
         "pqrs_public": "30/hour",
         "pqrs_ai_auto": "20/hour",
+        "pdm_chat_public": "60/hour",
     },
 }
 
@@ -216,6 +217,9 @@ CLERK_WEBHOOK_SIGNING_SECRET = os.getenv("CLERK_WEBHOOK_SIGNING_SECRET", "")
 # OpenAI (IA cloud para PQRS automática)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+# Chat PDM público — API key separada (PQRS sigue usando OPENAI_API_KEY)
+PDM_CHAT_OPENAI_API_KEY = os.getenv("PDM_CHAT_OPENAI_API_KEY", "")
+PDM_CHAT_MODEL = os.getenv("PDM_CHAT_MODEL", "") or OPENAI_MODEL
 
 # Email (notificaciones PQRS)
 EMAIL_BACKEND = os.getenv(

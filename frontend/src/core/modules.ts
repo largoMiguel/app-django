@@ -17,6 +17,7 @@ export const MODULES: ModuleDef[] = [
   { key: "planes_institucionales", label: "Planes institucionales", flag: "enable_planes_institucionales", scope: "all" },
   { key: "contratacion", label: "Contratación", flag: "enable_contratacion", scope: "all" },
   { key: "pdm", label: "Plan de Desarrollo Municipal", flag: "enable_pdm", scope: "all" },
+  { key: "pdm_chat", label: "Chat IA del PDM (público)", flag: "enable_pdm_chat", scope: "admin_only" },
   { key: "asistencia", label: "Asistencia", flag: "enable_asistencia", scope: "all" },
   { key: "correspondencia", label: "Correspondencia", flag: "enable_correspondencia", scope: "all" },
   { key: "presupuesto", label: "Presupuesto", flag: "enable_presupuesto", scope: "all" },

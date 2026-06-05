@@ -29,6 +29,7 @@ export interface AuthEntity {
   enable_planes_institucionales: boolean;
   enable_contratacion: boolean;
   enable_pdm: boolean;
+  enable_pdm_chat: boolean;
   enable_asistencia: boolean;
   enable_correspondencia: boolean;
   enable_presupuesto: boolean;

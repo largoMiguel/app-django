@@ -1,4 +1,5 @@
 import { api, downloadAuthenticatedFile } from "@/core/api/client";
+import type { PdmChatAnalytics } from "@/core/api/pdmChatPublic";
 
 export interface PdmEvidenciaArchivo {
   id: number;
@@ -402,4 +403,8 @@ export const pdmApi = {
     const filename = `PIIP_${slug}_${anio}.xlsx`;
     return downloadAuthenticatedFile(url, filename);
   },
+  chatAnalytics: (slug: string) =>
+    api
+      .get<PdmChatAnalytics>(`/pdm/v2/${encodeURIComponent(slug)}/chat/analytics/`)
+      .then((r) => r.data),
 };

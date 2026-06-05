@@ -12,7 +12,14 @@ import {
   Plus,
   Pencil,
   X,
+  Copy,
+  Check,
+  MessageCircle,
+  BarChart3,
+  ExternalLink,
 } from "lucide-react";
+import { pdmApi } from "@/core/api/pdm";
+import type { PdmChatAnalytics } from "@/core/api/pdmChatPublic";
 import { formatApiError } from "@/core/api/errors";
 import { entitiesApi, secretariasApi, type Entity, type Secretaria } from "@/core/api/entities";
 import { usersApi, type AppUser, type CreateUserPayload } from "@/core/api/users";
@@ -316,7 +323,16 @@ function InfoTab({
             </label>
           ))}
         </div>
+        {form.enable_pdm_chat && !form.enable_pdm && (
+          <p className="mt-2 text-xs text-amber-700">
+            El chat requiere que el módulo PDM también esté activo.
+          </p>
+        )}
       </section>
+
+      {form.enable_pdm_chat && (
+        <PdmChatSection entity={entity} slug={form.slug || entity.slug} />
+      )}
 
       {msg && (
         <div
@@ -932,6 +948,168 @@ function SecretariasTab({ entity }: { entity: Entity }) {
         )}
       </div>
     </div>
+  );
+}
+
+function PdmChatSection({ entity, slug }: { entity: Entity; slug: string }) {
+  const [copied, setCopied] = useState<"url" | "embed" | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analytics, setAnalytics] = useState<PdmChatAnalytics | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  const prodUrl = `https://app.softone360.com/chat/${slug}`;
+  const embedSnippet = `<script src="https://app.softone360.com/embed/pdm-chat.js" data-entity="${slug}"></script>`;
+
+  async function copyText(text: string, kind: "url" | "embed") {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(kind);
+      setTimeout(() => setCopied(null), 2000);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function loadAnalytics() {
+    setShowAnalytics(true);
+    setLoadingAnalytics(true);
+    try {
+      setAnalytics(await pdmApi.chatAnalytics(slug));
+    } catch {
+      setAnalytics(null);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-[#b8e8f5] bg-[#f0fbff] p-4">
+      <h3 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#0e7490]">
+        <MessageCircle className="h-4 w-4" />
+        Chat IA del PDM (público)
+      </h3>
+      <p className="mb-3 text-sm text-slate-600">
+        Chat ciudadano para consultar el PDM de <strong>{entity.name}</strong> en tiempo real.
+        Se activa automáticamente al guardar con este módulo habilitado.
+      </p>
+
+      <div className="space-y-3">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-600">URL pública (producción)</label>
+          <div className="flex items-center gap-2">
+            <input
+              readOnly
+              value={prodUrl}
+              className="flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-mono text-slate-700"
+            />
+            <button
+              type="button"
+              onClick={() => void copyText(prodUrl, "url")}
+              className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+            >
+              {copied === "url" ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+              Copiar
+            </button>
+            <a
+              href={prodUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-600">
+            Snippet para gov.co (botón flotante + iframe)
+          </label>
+          <div className="flex items-start gap-2">
+            <textarea
+              readOnly
+              rows={2}
+              value={embedSnippet}
+              className="flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-mono text-slate-700"
+            />
+            <button
+              type="button"
+              onClick={() => void copyText(embedSnippet, "embed")}
+              className="flex shrink-0 items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+            >
+              {copied === "embed" ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+              Copiar
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void loadAnalytics()}
+          className="flex items-center gap-1.5 rounded-md border border-[#3eafd4] bg-white px-3 py-2 text-sm text-[#0e7490] hover:bg-[#e0f7fc]"
+        >
+          <BarChart3 className="h-4 w-4" />
+          Ver analítica de preguntas (30 días)
+        </button>
+      </div>
+
+      {showAnalytics && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowAnalytics(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setShowAnalytics(false)}
+                className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <h3 className="mb-4 text-lg font-semibold text-slate-800">Analítica del chat PDM</h3>
+              {loadingAnalytics ? (
+                <p className="text-sm text-slate-500">Cargando…</p>
+              ) : analytics ? (
+                <div className="space-y-4 text-sm">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-lg bg-slate-50 p-3 text-center">
+                      <div className="text-2xl font-bold text-[#0e7490]">{analytics.total_conversaciones}</div>
+                      <div className="text-xs text-slate-500">Conversaciones</div>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3 text-center">
+                      <div className="text-2xl font-bold text-[#0e7490]">{analytics.total_mensajes}</div>
+                      <div className="text-xs text-slate-500">Mensajes</div>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3 text-center">
+                      <div className="text-2xl font-bold text-[#0e7490]">
+                        {analytics.promedio_mensajes_por_conversacion}
+                      </div>
+                      <div className="text-xs text-slate-500">Prom./conv.</div>
+                    </div>
+                  </div>
+                  {analytics.ultimas_preguntas.length > 0 && (
+                    <div>
+                      <h4 className="mb-2 font-semibold text-slate-700">Últimas preguntas</h4>
+                      <ul className="max-h-48 space-y-1 overflow-y-auto text-xs text-slate-600">
+                        {analytics.ultimas_preguntas.map((q, i) => (
+                          <li key={i} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
+                            {q.pregunta}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">Sin datos o sin permisos para ver analítica.</p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

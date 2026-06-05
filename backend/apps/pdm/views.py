@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
+from django.db.models import Avg, Count
+from django.db.models.functions import TruncDate
 from django.http import HttpResponse
 from django.db import transaction
 from django.db.models import Sum
@@ -59,6 +61,8 @@ from .models import (
     PDMEjecucionPresupuestal,
     PdmActividad,
     PdmActividadEvidencia,
+    PdmChatConversation,
+    PdmChatMessage,
     PdmIniciativaSGR,
     PdmProducto,
 )
@@ -916,4 +920,58 @@ class PdmContratosView(APIView):
                 "anio": int(anio) if anio else (contratos[0]["anio"] if contratos else 0),
             }
         )
+
+
+class PdmChatAnalyticsView(APIView):
+    """Analítica del chat IA público del PDM (admin de la entidad o superadmin)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, slug: str):
+        entity = _entity_or_404(slug)
+        if is_platform_superadmin(request.user):
+            pass
+        else:
+            _ensure_user_can_manage_entity(request.user, entity)
+        if not entity.enable_pdm_chat:
+            raise PermissionDenied("El chat IA del PDM no está habilitado para esta entidad.")
+
+        since = timezone.now() - timedelta(days=30)
+        conv_qs = PdmChatConversation.objects.filter(entity=entity, created_at__gte=since)
+        msg_qs = PdmChatMessage.objects.filter(
+            conversation__entity=entity,
+            created_at__gte=since,
+        )
+
+        total_conversations = conv_qs.count()
+        total_messages = msg_qs.count()
+        avg_messages = conv_qs.aggregate(avg=Avg("message_count"))["avg"] or 0
+
+        por_dia = list(
+            conv_qs.annotate(dia=TruncDate("created_at"))
+            .values("dia")
+            .annotate(conversaciones=Count("id"))
+            .order_by("dia")
+        )
+
+        ultimas_preguntas = list(
+            msg_qs.filter(role=PdmChatMessage.Role.USER)
+            .order_by("-created_at")[:20]
+            .values("content", "created_at")
+        )
+
+        return Response({
+            "total_conversaciones": total_conversations,
+            "total_mensajes": total_messages,
+            "promedio_mensajes_por_conversacion": round(float(avg_messages), 1),
+            "conversaciones_por_dia": [
+                {"fecha": str(r["dia"]), "conversaciones": r["conversaciones"]}
+                for r in por_dia
+            ],
+            "ultimas_preguntas": [
+                {"pregunta": r["content"][:200], "fecha": r["created_at"]}
+                for r in ultimas_preguntas
+            ],
+            "periodo_dias": 30,
+        })
 

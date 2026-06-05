@@ -14,6 +14,7 @@ import ModuleRouteGuard from "@/core/auth/ModuleRouteGuard";
 import RequireSuperadmin from "@/core/auth/RequireSuperadmin";
 import AppLayout from "@/components/layout/AppLayout";
 import PublicPQRSPortal from "@/features/pqrs/PublicPQRSPortal";
+import PublicPdmChatPage from "@/features/pdmchat/PublicPdmChatPage";
 import { PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
 import { firstAccessibleRoute, useAuthStore } from "@/core/auth/store";
 
@@ -31,6 +32,9 @@ export default function App(): ReactElement {
 
       {/* Portal ciudadano — público, sin auth */}
       <Route path="/portal/:slug" element={<PublicPQRSPortal />} />
+
+      {/* Chat IA del PDM — público, sin auth */}
+      <Route path="/chat/:slug" element={<PublicPdmChatPage />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>

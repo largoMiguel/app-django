@@ -19,6 +19,7 @@ def healthcheck(_request):
 urlpatterns = [
     path("api/health", healthcheck),
     path("api/v1/public/", include("apps.pqrs.public_urls")),
+    path("api/v1/public/", include("apps.pdm.public_chat_urls")),
     path("api/v1/", include("config.api_v1")),
     re_path(r"^media/(?P<path>.+)$", ProtectedMediaView.as_view(), name="protected-media"),
 ]

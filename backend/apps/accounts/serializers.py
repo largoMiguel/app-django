@@ -59,6 +59,7 @@ class UserMeSerializer(serializers.ModelSerializer):
             "enable_planes_institucionales": e.enable_planes_institucionales,
             "enable_contratacion": e.enable_contratacion,
             "enable_pdm": e.enable_pdm,
+            "enable_pdm_chat": e.enable_pdm_chat,
             "enable_asistencia": e.enable_asistencia,
             "enable_correspondencia": e.enable_correspondencia,
             "enable_presupuesto": e.enable_presupuesto,

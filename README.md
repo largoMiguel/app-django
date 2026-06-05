@@ -32,6 +32,11 @@ app_django/
 │   │   ├── accounts/              # User custom (email) + auth Clerk + gestión usuarios
 │   │   ├── rbac/                  # Roles + permissions (Group + RoleMeta)
 │   │   ├── entities/              # Entidades + Secretarías (multi-tenancy)
+│   │   ├── pdm/                   # Módulo PDM + chat IA público
+│   │   │   ├── chat_tools.py      # Consultas read-only acotadas por entidad
+│   │   │   ├── chat_service.py    # Orquestador OpenAI tool-calling
+│   │   │   ├── public_chat_views.py · public_chat_urls.py
+│   │   │   └── models.py          # Productos, actividades, chat conversations
 │   │   ├── pqrs/                  # Módulo PQRS completo
 │   │   │   ├── models.py          # PQRS, AsignacionAuditoria, PQRSArchivo
 │   │   │   ├── serializers.py
@@ -57,6 +62,7 @@ app_django/
 │   │   │   └── auth/              # store · api · RequireAuth · RequireRole · RequireModule (Clerk session)
 │   │   ├── features/
 │   │   │   ├── auth/LoginPage.tsx
+│   │   │   ├── pdmchat/           # PublicPdmChatPage (chat IA PDM público)
 │   │   │   ├── pqrs/              # Dashboard · PQRSPage · Informes · modales · PublicPQRSPortal
 │   │   │   ├── users/UsersPage.tsx
 │   │   │   └── superadmin/        # EntitiesPage · EntityDetailPage
@@ -165,6 +171,72 @@ Desde el menú **Acciones** del PDM (rol `admin`), la opción **Exportar PIIP** 
 | `GET` | `/api/v1/pdm/v2/{slug}/export-piip?anio=2026` | Descarga `PIIP_{slug}_{anio}.xlsx` (encabezados verde `#6AA84F`, texto blanco) |
 
 Query param `anio` (opcional): año de seguimiento; por defecto el año actual. El frontend usa el año del filtro de productos (`filtroAnio`) cuando está en la vista de productos; en dashboard usa el año por defecto del estado (año actual).
+
+---
+
+## Módulo Chat IA del PDM (público)
+
+Chat ciudadano **sin autenticación** para consultar el Plan de Desarrollo Municipal de cada entidad en **tiempo real** (datos leídos directamente de PostgreSQL vía herramientas OpenAI). Un chat por entidad; solo responde sobre el PDM de esa entidad.
+
+### Activación (superadmin)
+
+En **Superadmin → Entidad → Módulos**, activar **Chat IA del PDM (público)** (`enable_pdm_chat`). Requiere que el módulo **PDM** (`enable_pdm`) también esté activo. Al guardar, se generan automáticamente el mensaje de bienvenida y preguntas sugeridas.
+
+La sección **Chat IA del PDM** muestra:
+- URL pública: `https://app.softone360.com/chat/{slug}`
+- URL LAN: `http://{IP}:{LAN_HTTP_PORT}/chat/{slug}`
+- Snippet de embed para sitios gov.co
+- Analítica de preguntas (últimos 30 días)
+
+### Rutas públicas
+
+| Ruta | Descripción |
+|---|---|
+| `/chat/:slug` | Widget de chat (SPA React, modo `?embed=1` para iframe) |
+| `/embed/pdm-chat.js` | Launcher JS (botón flotante + iframe) para gov.co |
+
+### Endpoints API públicos
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/public/entity/{slug}/pdm-chat/info/` | Info del chat (logo, intro, sugerencias) |
+| `POST` | `/api/v1/public/entity/{slug}/pdm-chat/` | Enviar mensaje `{message, conversation_id?}` → `{reply, sources[]}` |
+
+Rate-limit: `60/hour` por IP (`pdm_chat_public`).
+
+### Analítica (autenticado)
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/pdm/v2/{slug}/chat/analytics/` | Conversaciones, mensajes y últimas preguntas (30 días) |
+
+Requiere rol `admin` de la entidad o `superadmin`.
+
+### Embed en gov.co
+
+```html
+<script src="https://app.softone360.com/embed/pdm-chat.js" data-entity="slug-de-la-entidad"></script>
+```
+
+Opciones: `data-position="bottom-left"`, `data-color="#3eafd4"`, `data-base="https://app.softone360.com"`.
+
+### Guardrails
+
+- Solo responde sobre el PDM de la entidad del slug (rechaza otras entidades y módulos).
+- Datos exclusivamente de herramientas read-only acotadas por `entity_id` (productos, ejecución, contratos, actividades, evidencias con URL externa, iniciativas SGR).
+- Citación de fuentes: códigos de producto, BPIN (datos.gov.co), URLs de evidencia.
+- Conversaciones registradas para analítica (IP hasheada, sin datos personales).
+
+### Variables de entorno
+
+```
+PDM_CHAT_OPENAI_API_KEY=sk-...     # obligatoria — API key dedicada al chat PDM (separada de PQRS)
+PDM_CHAT_MODEL=gpt-4o-mini         # opcional; por defecto usa OPENAI_MODEL
+```
+
+`OPENAI_API_KEY` sigue siendo **solo para PQRS** (auto-create). El chat PDM no la usa.
+
+> **Seguridad:** nunca commits API keys al repositorio. Configúralas solo en `.env` del servidor.
 
 ---
 

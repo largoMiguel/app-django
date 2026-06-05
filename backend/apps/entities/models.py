@@ -34,6 +34,9 @@ class Entity(models.Model):
     enable_planes_institucionales = models.BooleanField(default=False)
     enable_contratacion = models.BooleanField(default=False)
     enable_pdm = models.BooleanField(default=False)
+    enable_pdm_chat = models.BooleanField(default=False)
+    pdm_chat_intro = models.TextField(blank=True, null=True)
+    pdm_chat_sugerencias = models.JSONField(blank=True, null=True)
     enable_asistencia = models.BooleanField(default=True)
     enable_correspondencia = models.BooleanField(default=True)
     enable_presupuesto = models.BooleanField(default=True)
@@ -66,6 +69,7 @@ class Entity(models.Model):
             "planes_institucionales": self.enable_planes_institucionales,
             "contratacion": self.enable_contratacion,
             "pdm": self.enable_pdm,
+            "pdm_chat": self.enable_pdm_chat,
             "asistencia": self.enable_asistencia,
             "correspondencia": self.enable_correspondencia,
             "presupuesto": self.enable_presupuesto,

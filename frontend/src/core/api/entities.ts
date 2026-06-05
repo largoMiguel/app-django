@@ -21,6 +21,9 @@ export interface Entity {
   enable_planes_institucionales: boolean;
   enable_contratacion: boolean;
   enable_pdm: boolean;
+  enable_pdm_chat: boolean;
+  pdm_chat_intro: string | null;
+  pdm_chat_sugerencias: string[] | null;
   enable_asistencia: boolean;
   enable_correspondencia: boolean;
   enable_presupuesto: boolean;

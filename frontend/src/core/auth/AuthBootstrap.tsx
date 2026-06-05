@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import { authApi } from "@/core/auth/api";
 import { useAuthStore } from "@/core/auth/store";
@@ -6,9 +7,12 @@ import {
   forceClerkSignOut,
   parseAuthErrorCode,
 } from "@/core/auth/authErrors";
+import { isPublicAppPath } from "@/core/auth/publicPaths";
 import { clearClientSession } from "@/core/auth/session";
 
 export default function AuthBootstrap({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const isPublic = isPublicAppPath(pathname);
   const { isLoaded, isSignedIn } = useAuth();
   const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
@@ -24,7 +28,7 @@ export default function AuthBootstrap({ children }: { children: React.ReactNode 
       const signedIn = Boolean(session?.id);
       if (!signedIn) {
         clearClientSession();
-        if (!window.location.pathname.startsWith("/login")) {
+        if (!isPublicAppPath(window.location.pathname)) {
           window.location.href = "/login";
         }
       }
@@ -66,7 +70,7 @@ export default function AuthBootstrap({ children }: { children: React.ReactNode 
     };
   }, [isLoaded, isSignedIn, setUser, logout]);
 
-  if (!isLoaded || (isSignedIn && !profileReady)) {
+  if (!isPublic && (!isLoaded || (isSignedIn && !profileReady))) {
     return (
       <div className="flex min-h-screen items-center justify-center text-slate-500">
         Cargando sesión…

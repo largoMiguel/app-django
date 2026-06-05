@@ -289,6 +289,60 @@ class PDMEjecucionPresupuestal(models.Model):
         ]
 
 
+class PdmChatConversation(models.Model):
+    """Conversación pública del chat IA del PDM."""
+
+    entity = models.ForeignKey(
+        "entities.Entity",
+        on_delete=models.CASCADE,
+        related_name="pdm_chat_conversations",
+        db_column="entity_id",
+    )
+    session_uuid = models.UUIDField(db_index=True)
+    ip_hash = models.CharField(max_length=64, blank=True, default="")
+    user_agent = models.CharField(max_length=500, blank=True, default="")
+    message_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "pdm_chat_conversations"
+        verbose_name = "Conversación chat PDM"
+        verbose_name_plural = "Conversaciones chat PDM"
+        ordering = ["-updated_at"]
+        indexes = [
+            models.Index(fields=("entity", "created_at"), name="pdm_chat_conv_entity_idx"),
+        ]
+
+
+class PdmChatMessage(models.Model):
+    """Mensaje individual en una conversación del chat PDM."""
+
+    class Role(models.TextChoices):
+        USER = "user", "Usuario"
+        ASSISTANT = "assistant", "Asistente"
+
+    conversation = models.ForeignKey(
+        PdmChatConversation,
+        on_delete=models.CASCADE,
+        related_name="messages",
+        db_column="conversation_id",
+    )
+    role = models.CharField(max_length=16, choices=Role.choices)
+    content = models.TextField()
+    meta = models.JSONField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "pdm_chat_messages"
+        verbose_name = "Mensaje chat PDM"
+        verbose_name_plural = "Mensajes chat PDM"
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=("conversation", "created_at"), name="pdm_chat_msg_conv_idx"),
+        ]
+
+
 class PDMContratoRPS(models.Model):
     """Contratos RPS importados por entidad y año."""
 

@@ -14,6 +14,7 @@ ENTITY_MODULE_FLAGS = {
     "planes_institucionales": "enable_planes_institucionales",
     "contratacion": "enable_contratacion",
     "pdm": "enable_pdm",
+    "pdm_chat": "enable_pdm_chat",
     "asistencia": "enable_asistencia",
     "correspondencia": "enable_correspondencia",
     "presupuesto": "enable_presupuesto",

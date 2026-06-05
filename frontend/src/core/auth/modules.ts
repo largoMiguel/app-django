@@ -8,6 +8,7 @@ export type EntityModuleFlag =
   | "enable_planes_institucionales"
   | "enable_contratacion"
   | "enable_pdm"
+  | "enable_pdm_chat"
   | "enable_asistencia"
   | "enable_correspondencia"
   | "enable_presupuesto";
@@ -20,6 +21,7 @@ export const MODULE_FLAG_TO_KEY: Record<EntityModuleFlag, string> = {
   enable_planes_institucionales: "planes_institucionales",
   enable_contratacion: "contratacion",
   enable_pdm: "pdm",
+  enable_pdm_chat: "pdm_chat",
   enable_asistencia: "asistencia",
   enable_correspondencia: "correspondencia",
   enable_presupuesto: "presupuesto",
