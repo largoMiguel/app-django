@@ -69,6 +69,7 @@ class PublicEntityInfoView(APIView):
                 "description": entity.description,
                 "horario_atencion": entity.horario_atencion,
                 "enable_pqrs": entity.enable_pqrs,
+                "enable_ai_reports": entity.enable_ai_reports,
             }
         )
 

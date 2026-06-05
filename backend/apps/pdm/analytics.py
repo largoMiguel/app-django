@@ -76,6 +76,48 @@ def _parse_bpines(raw: str | None) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
+def _ejecucion_por_codigo_anio(
+    entity_id: int,
+    codigos: list[str],
+) -> dict[str, dict[int, dict[str, float]]]:
+    """Ejecución presupuestal por producto y año (para promedio de % pagos por año)."""
+    if not codigos:
+        return {}
+    rows = (
+        PDMEjecucionPresupuestal.objects.filter(
+            entity_id=entity_id,
+            codigo_producto__in=codigos,
+            anio__in=ANIOS_PDM,
+        )
+        .values("codigo_producto", "anio")
+        .annotate(pto_definitivo=Sum("pto_definitivo"), pagos=Sum("pagos"))
+    )
+    out: dict[str, dict[int, dict[str, float]]] = {}
+    for row in rows:
+        codigo = str(row["codigo_producto"])
+        anio = int(row["anio"])
+        pto = float(row["pto_definitivo"] or 0)
+        pagos = float(row["pagos"] or 0)
+        if pto <= 0:
+            continue
+        out.setdefault(codigo, {})[anio] = {
+            "pto_definitivo": pto,
+            "pagos": pagos,
+        }
+    return out
+
+
+def _avance_financiero_promedio(anios_map: dict[int, dict[str, float]]) -> float:
+    """Promedio de (pagos/pto_definitivo)*100 en años con pto_definitivo > 0."""
+    pcts: list[float] = []
+    for data in anios_map.values():
+        pto = data.get("pto_definitivo", 0)
+        pagos = data.get("pagos", 0)
+        if pto > 0:
+            pcts.append(round((pagos / pto) * 100, 1))
+    return round(sum(pcts) / len(pcts), 1) if pcts else 0.0
+
+
 def _ejecucion_por_codigo(
     entity_id: int,
     codigos: list[str],
@@ -424,7 +466,7 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
     productos = _productos_for_proyectos(productos_qs)
     codigos = [p.codigo_producto for p in productos]
     aggs_map = actividad_aggs_for_productos(entity_id, codigos)
-    ejecucion_map = _ejecucion_por_codigo(entity_id, codigos)
+    ejecucion_fin_map = _ejecucion_por_codigo_anio(entity_id, codigos)
 
     bpin_agg: dict[str, dict] = defaultdict(
         lambda: {
@@ -452,10 +494,8 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
         avance_fisico = avance_general_producto(p, aggs)
         estado = _estado_producto(p, aggs, None)
         presupuesto = _presupuesto_total_producto(p)
-        ej = ejecucion_map.get(p.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
-        pto_definitivo = ej["pto_definitivo"]
-        pagos = ej["pagos"]
-        avance_financiero = round((pagos / pto_definitivo) * 100, 1) if pto_definitivo else 0.0
+        ej_anios = ejecucion_fin_map.get(p.codigo_producto, {})
+        avance_financiero = _avance_financiero_promedio(ej_anios)
 
         item = {
             "codigo_producto": p.codigo_producto,

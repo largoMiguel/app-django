@@ -20,11 +20,7 @@ export default function RequireAuth() {
   }
 
   if (!user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-slate-500">
-        Cargando perfil…
-      </div>
-    );
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return <Outlet />;

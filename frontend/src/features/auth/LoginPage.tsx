@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { SignIn, useAuth } from "@clerk/react";
+import { consumeAuthBlockMessage } from "@/core/auth/authErrors";
 import { useAuthStore, homeForRole } from "@/core/auth/store";
 
 export default function LoginPage() {
@@ -7,6 +9,11 @@ export default function LoginPage() {
   const { isLoaded, isSignedIn } = useAuth();
   const user = useAuthStore((s) => s.user);
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+  const [blockMessage, setBlockMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setBlockMessage(consumeAuthBlockMessage());
+  }, []);
 
   if (isLoaded && isSignedIn && user) {
     return <Navigate to={from || homeForRole(user)} replace />;
@@ -48,6 +55,16 @@ export default function LoginPage() {
             <span className="text-xl font-semibold text-slate-900">SoftOne</span>
           </div>
         </div>
+
+        {blockMessage && (
+          <div
+            className="mb-4 w-full max-w-md rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            role="alert"
+          >
+            {blockMessage}
+          </div>
+        )}
+
         <div className="flex w-full max-w-md justify-center">
           <SignIn
             routing="path"

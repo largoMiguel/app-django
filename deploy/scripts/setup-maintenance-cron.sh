@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instala cron de backups diarios y limpieza de tokens JWT expirados.
+# Instala cron de backups diarios y mantenimiento Docker (prune imágenes).
 set -euo pipefail
 
 ROOT="/opt/softone-app"

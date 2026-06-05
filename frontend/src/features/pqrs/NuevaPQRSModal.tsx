@@ -32,8 +32,10 @@ import {
 } from "lucide-react";
 import { useForm } from "react-hook-form";import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { formatApiError } from "@/core/api/errors";
+import { useAuthStore } from "@/core/auth/store";
+import { isModuleEnabled, isUserModuleEnabled } from "@/core/auth/modules";
 import { TIPO_SOLICITUD_LABEL } from "@/features/pqrs/labels";
 import {
   pqrsApi,
@@ -148,6 +150,16 @@ interface Props {
 
 // ─── Componente ───────────────────────────────────────────────────────
 export default function NuevaPQRSModal({ onClose, onCreated }: Props) {
+  const user = useAuthStore((s) => s.user);
+  const aiEnabled = useMemo(
+    () =>
+      Boolean(
+        user?.entity?.enable_ai_reports &&
+          isModuleEnabled(user.entity, "enable_ai_reports") &&
+          isUserModuleEnabled(user, "enable_ai_reports"),
+      ),
+    [user],
+  );
   const [modo, setModo] = useState<"auto" | "manual">("manual");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -161,6 +173,10 @@ export default function NuevaPQRSModal({ onClose, onCreated }: Props) {
   const [archivosManual, setArchivosManual] = useState<File[]>([]);
   const [dragOverManual, setDragOverManual] = useState(false);
   const fileRefManual = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!aiEnabled && modo === "auto") setModo("manual");
+  }, [aiEnabled, modo]);
 
   const autoForm = useForm<AutoForm>({
     resolver: zodResolver(autoSchema),
@@ -335,6 +351,7 @@ export default function NuevaPQRSModal({ onClose, onCreated }: Props) {
           </div>
 
           {/* ── Selector de modo ── */}
+          {aiEnabled && (
           <div className="mx-6 mt-5 flex gap-2 rounded-xl bg-slate-100 p-1">
             {[
               { key: "auto" as const, Icon: Sparkles, title: "Automática", desc: "Solo describe tu solicitud y adjunta archivos" },
@@ -358,9 +375,10 @@ export default function NuevaPQRSModal({ onClose, onCreated }: Props) {
               </button>
             ))}
           </div>
+          )}
 
           {/* ══════════ MODO AUTO ══════════ */}
-          {modo === "auto" && (
+          {aiEnabled && modo === "auto" && (
             <form
               onSubmit={autoForm.handleSubmit(onSubmitAuto)}
               className="flex min-h-0 flex-1 flex-col"

@@ -10,6 +10,8 @@ from django.db import transaction
 
 from .models import Entity
 
+User = get_user_model()
+
 
 def delete_entity_completely(entity: Entity) -> None:
     """Borra usuarios, registros en cascada (PQRS, PDM, secretarías…) y archivos media."""
@@ -17,7 +19,7 @@ def delete_entity_completely(entity: Entity) -> None:
     media_dir = Path(settings.MEDIA_ROOT) / "entities" / str(entity_id)
 
     with transaction.atomic():
-        get_user_model().objects.filter(entity_id=entity_id).delete()
+        User.objects.filter(entity_id=entity_id).delete()
         entity.delete()
 
     if media_dir.exists():

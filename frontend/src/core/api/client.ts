@@ -2,6 +2,10 @@ import axios, {
   type AxiosInstance,
   type InternalAxiosRequestConfig,
 } from "axios";
+import {
+  forceClerkSignOut,
+  parseAuthErrorCode,
+} from "@/core/auth/authErrors";
 import { getClerkToken } from "@/core/auth/clerkToken";
 import { clearClientSession } from "@/core/auth/session";
 
@@ -24,9 +28,13 @@ async function fetchWithAuth(url: string): Promise<Response> {
   });
 
   if (response.status === 401 && token) {
-    await window.Clerk?.signOut();
+    const body = await response.clone().json().catch(() => ({}));
+    const blockCode = parseAuthErrorCode({ response: { data: body } });
     clearClientSession();
-    window.location.href = "/login";
+    await forceClerkSignOut(blockCode);
+    if (!window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
   }
 
   return response;
@@ -68,8 +76,9 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     if (err.response?.status === 401) {
-      await window.Clerk?.signOut();
+      const blockCode = parseAuthErrorCode(err);
       clearClientSession();
+      await forceClerkSignOut(blockCode);
       if (!window.location.pathname.startsWith("/login")) {
         window.location.href = "/login";
       }

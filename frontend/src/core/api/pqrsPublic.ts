@@ -17,6 +17,7 @@ export interface EntityPublicInfo {
   description: string | null;
   horario_atencion: string | null;
   enable_pqrs: boolean;
+  enable_ai_reports: boolean;
 }
 
 export interface PQRSPublicResult {

@@ -97,6 +97,12 @@ export default function PublicPQRSPortal() {
   const autoFileRef = useRef<HTMLInputElement>(null);
   const manualFileRef = useRef<HTMLInputElement>(null);
 
+  const aiEnabled = Boolean(entity?.enable_ai_reports);
+
+  useEffect(() => {
+    if (!aiEnabled && mode === "auto") setMode("manual");
+  }, [aiEnabled, mode]);
+
   useEffect(() => {
     if (!slug) return;
     publicPqrsApi
@@ -331,7 +337,8 @@ export default function PublicPQRSPortal() {
           )}
         </div>
 
-        {/* Mode switcher */}
+        {/* Mode switcher (solo si IA habilitada para la entidad) */}
+        {aiEnabled && (
         <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-xl">
           <button
             onClick={() => setMode("manual")}
@@ -356,9 +363,10 @@ export default function PublicPQRSPortal() {
             Modo automático (IA)
           </button>
         </div>
+        )}
 
         {/* ─── AUTO MODE ──────────────────────────────────────────── */}
-        {mode === "auto" && (
+        {aiEnabled && mode === "auto" && (
           <form onSubmit={submitAuto} className="space-y-5">
             <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-700">
               <p className="font-medium mb-1">¿Cómo funciona?</p>

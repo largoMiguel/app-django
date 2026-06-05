@@ -49,7 +49,12 @@ class ClerkAuthentication(BaseAuthentication):
         return (user, payload)
 
     def _resolve_user(self, clerk_id: str) -> User:
-        user = User.objects.select_related("entity").filter(clerk_id=clerk_id).first()
+        user = (
+            User.objects.select_related("entity")
+            .prefetch_related("groups")
+            .filter(clerk_id=clerk_id)
+            .first()
+        )
         if user:
             return user
 
@@ -65,7 +70,12 @@ class ClerkAuthentication(BaseAuthentication):
                 code="clerk_no_email",
             )
 
-        user = User.objects.select_related("entity").filter(email__iexact=email).first()
+        user = (
+            User.objects.select_related("entity")
+            .prefetch_related("groups")
+            .filter(email__iexact=email)
+            .first()
+        )
         if not user:
             raise AuthenticationFailed(
                 "Tu cuenta no está registrada en SoftOne. Contacta al administrador.",

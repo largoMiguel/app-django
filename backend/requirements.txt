@@ -21,3 +21,4 @@ xlrd>=2.0.1
 certifi>=2024.0.0
 clerk-backend-api>=5.0.0
 svix>=1.0.0
+django-redis>=5.4.0

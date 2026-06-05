@@ -86,10 +86,6 @@ export const useAuthStore = create<AuthState>()(
   ),
 );
 
-export function hasRole(roles: string[], required: string[]): boolean {
-  return required.some((r) => roles.includes(r));
-}
-
 export function primaryRole(user: AuthUser | null): string {
   if (!user) return "";
   if (user.role) return user.role;
@@ -131,5 +127,5 @@ export function homeForRole(user: AuthUser | null): string {
   ) {
     return "/users";
   }
-  return "/login";
+  return "/sin-acceso";
 }

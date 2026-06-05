@@ -5,10 +5,11 @@ import secrets
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from rest_framework import serializers, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from apps.common.modules import require_user_module
 from apps.common.pagination import StandardPageNumberPagination
@@ -20,6 +21,7 @@ from apps.accounts.services.clerk import (
     ban_user,
     create_invitation,
     create_user as clerk_create_user,
+    delete_user,
     unban_user,
     update_user_email,
 )
@@ -301,13 +303,34 @@ class UserViewSet(viewsets.ModelViewSet):
         actor = request.user
         if instance.pk == actor.pk:
             raise ValidationError("No puedes eliminarte a ti mismo.")
-        # Soft-delete: desactivar local + bloquear en Clerk
-        instance.is_active = False
-        instance.save(update_fields=["is_active"])
-        if instance.clerk_id:
+
+        purge = request.query_params.get("purge", "").lower() in {"true", "1", "yes"}
+
+        if purge:
+            clerk_id = instance.clerk_id
+            if clerk_id:
+                try:
+                    delete_user(clerk_id)
+                except ClerkServiceError as exc:
+                    raise ValidationError({"detail": f"Error en Clerk: {exc}"}) from exc
             try:
-                ban_user(instance.clerk_id)
-            except ClerkServiceError:
-                pass
-        from rest_framework.response import Response
+                instance.delete()
+            except IntegrityError as exc:
+                raise ValidationError(
+                    {
+                        "detail": (
+                            "No se puede eliminar: el usuario tiene registros asociados "
+                            "(PQRS, PDM, etc.). Desactívalo en su lugar."
+                        )
+                    }
+                ) from exc
+        else:
+            instance.is_active = False
+            instance.save(update_fields=["is_active"])
+            if instance.clerk_id:
+                try:
+                    ban_user(instance.clerk_id)
+                except ClerkServiceError:
+                    pass
+
         return Response(status=204)

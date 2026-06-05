@@ -16,7 +16,7 @@ class UserAdmin(DjangoUserAdmin):
         (None, {"fields": ("email", "password")}),
         ("Datos", {"fields": ("full_name",)}),
         ("Permisos", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
-        ("Importante", {"fields": ("last_login", "date_joined", "last_login_ip")}),
+        ("Importante", {"fields": ("last_login", "date_joined")}),
     )
     add_fieldsets = (
         (None, {
@@ -24,7 +24,7 @@ class UserAdmin(DjangoUserAdmin):
             "fields": ("email", "full_name", "password1", "password2"),
         }),
     )
-    readonly_fields = ("last_login", "date_joined", "last_login_ip")
+    readonly_fields = ("last_login", "date_joined")
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
