@@ -11,7 +11,13 @@ from django.db.models import Count, Q, Sum
 
 from apps.entities.models import Entity
 
-from .bpin_view import DATOS_GOV_CO_PORTAL
+from .analytics import _parse_bpines, compute_pdm_proyectos
+from .bpin_view import (
+    DATOS_GOV_CO_PORTAL,
+    _normalize_proyecto_bpin,
+    consultar_bpin_externo,
+    consultar_bpines_externos,
+)
 from .metrics import (
     ANIOS_PDM,
     actividad_aggs_for_productos,
@@ -505,6 +511,159 @@ def actividades(
     return result
 
 
+def _productos_por_bpin(entity: Entity, bpin: str) -> list[PdmProducto]:
+    """Productos del PDM vinculados a un código BPIN."""
+    bpin = (bpin or "").strip()
+    if not bpin:
+        return []
+    resultado: list[PdmProducto] = []
+    for p in _producto_base_qs(entity).exclude(bpin__isnull=True).exclude(bpin=""):
+        if bpin in _parse_bpines(p.bpin):
+            resultado.append(p)
+    return resultado
+
+
+def consultar_proyecto_bpin(
+    entity: Entity,
+    bpin: str,
+    anio: int | None = None,
+) -> dict:
+    """Consulta un proyecto BPIN: datos PIIP (datos.gov.co) + productos vinculados en el PDM."""
+    bpin = (bpin or "").strip()
+    if not bpin:
+        return {"error": "Código BPIN requerido."}
+
+    target_anio, advertencia = _normalize_anio(anio)
+    productos = _productos_por_bpin(entity, bpin)
+    codigos = [p.codigo_producto for p in productos]
+
+    externo_raw, consulta_url, ext_error = consultar_bpin_externo(bpin)
+    proyecto_piip = _normalize_proyecto_bpin(externo_raw) if externo_raw else None
+
+    aggs_map = actividad_aggs_for_productos(entity.id, codigos) if codigos else {}
+    ejec_map = ejecucion_for_productos(entity.id, codigos, target_anio) if codigos else {}
+
+    productos_vinculados = []
+    for p in productos:
+        metrics = producto_list_metrics(p, target_anio, aggs_map.get(p.codigo_producto, {}))
+        ej = ejec_map.get(p.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
+        productos_vinculados.append({
+            "codigo_producto": p.codigo_producto,
+            "nombre": _producto_label(p),
+            "linea_estrategica": p.linea_estrategica,
+            "sector_mga": p.sector_mga,
+            "bpin_registrado": p.bpin,
+            "avance_fisico_pct": metrics["avance_anio"],
+            "estado_anio": metrics["estado_anio"],
+            "presupuesto_anio_cop": metrics["presupuesto_anio"],
+            "pto_definitivo_anio_cop": ej["pto_definitivo"],
+            "pagos_anio_cop": ej["pagos"],
+        })
+
+    ejec_bpin = (
+        PDMEjecucionPresupuestal.objects.filter(
+            entity=entity, bpin__icontains=bpin, anio=target_anio
+        ).aggregate(pto=Sum("pto_definitivo"), pagos=Sum("pagos"))
+    )
+    pto_bpin = float(ejec_bpin["pto"] or 0)
+    pagos_bpin = float(ejec_bpin["pagos"] or 0)
+
+    iniciativas = list(
+        PdmIniciativaSGR.objects.filter(entity=entity, bpin__icontains=bpin)
+        .order_by("consecutivo")[:5]
+        .values("consecutivo", "iniciativa_sgr", "tipo_iniciativa", "recursos_sgr_indicativos", "bpin")
+    )
+
+    result: dict[str, Any] = {
+        "bpin": bpin,
+        "encontrado_en_pdm": bool(productos or iniciativas),
+        "proyecto_piip": proyecto_piip,
+        "datos_abiertos_error": ext_error if not proyecto_piip else None,
+        "consulta_url": consulta_url,
+        "url_portal": f"{DATOS_GOV_CO_PORTAL}?bpin={bpin}",
+        "anio": target_anio,
+        "productos_vinculados": productos_vinculados,
+        "total_productos_vinculados": len(productos_vinculados),
+        "ejecucion_presupuestal_bpin_anio": {
+            "pto_definitivo_cop": pto_bpin,
+            "pagos_cop": pagos_bpin,
+            "avance_pct": round((pagos_bpin / pto_bpin) * 100, 1) if pto_bpin else 0.0,
+        },
+        "iniciativas_sgr": [
+            {
+                **i,
+                "recursos_sgr_indicativos": float(i["recursos_sgr_indicativos"] or 0),
+                "url_bpin": f"{DATOS_GOV_CO_PORTAL}?bpin={i['bpin']}" if i.get("bpin") else None,
+            }
+            for i in iniciativas
+        ],
+    }
+    if advertencia:
+        result["advertencia_anio"] = advertencia
+    if not productos and not proyecto_piip and not iniciativas:
+        result["mensaje"] = (
+            f"No se encontró el BPIN {bpin} en el PDM de {entity.name} "
+            "ni en el portal de datos abiertos."
+        )
+    return result
+
+
+def listar_proyectos(
+    entity: Entity,
+    query: str = "",
+    limit: int = 15,
+) -> dict:
+    """Lista proyectos BPIN del PDM agrupados por código BPIN."""
+    limit = min(max(1, limit), 30)
+    data = compute_pdm_proyectos(_producto_base_qs(entity), entity.id)
+    proyectos = data["proyectos"]
+
+    if query:
+        q = query.strip().lower()
+        proyectos = [
+            p for p in proyectos
+            if q in p["bpin"].lower()
+            or any(
+                q in (pr.get("nombre") or "").lower()
+                or q in (pr.get("codigo_producto") or "").lower()
+                for pr in p.get("productos", [])
+            )
+        ]
+
+    proyectos = proyectos[:limit]
+    bpines = [p["bpin"] for p in proyectos]
+    externos, ext_error = consultar_bpines_externos(bpines)
+
+    items = []
+    for p in proyectos:
+        ext = externos.get(p["bpin"], {})
+        items.append({
+            "bpin": p["bpin"],
+            "nombre_proyecto": ext.get("nombreproyecto"),
+            "estado_piip": ext.get("estadoproyecto"),
+            "sector_piip": ext.get("sector"),
+            "entidad_responsable": ext.get("entidadresponsable"),
+            "total_productos": p["total_productos"],
+            "avance_general_pct": p["avance_general"],
+            "presupuesto_total_cop": p["presupuesto_total"],
+            "completados": p["completados"],
+            "en_progreso": p["en_progreso"],
+            "pendientes": p["pendientes"],
+            "url_portal": f"{DATOS_GOV_CO_PORTAL}?bpin={p['bpin']}",
+            "productos_codigos": [pr["codigo_producto"] for pr in p["productos"][:6]],
+        })
+
+    return {
+        "total_proyectos": data["total_proyectos"],
+        "mostrados": len(items),
+        "productos_sin_bpin": data["productos_sin_bpin"],
+        "avance_promedio_pct": data["avance_promedio"],
+        "proyectos": items,
+        "datos_abiertos_error": ext_error,
+        "portal_bpin": DATOS_GOV_CO_PORTAL,
+    }
+
+
 def iniciativas_sgr(entity: Entity) -> dict:
     """Iniciativas SGR de la entidad."""
     rows = list(
@@ -562,8 +721,48 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "consultar_proyecto_bpin",
+            "description": (
+                "Consulta un proyecto de inversión pública por código BPIN (ej. 2024157620001, 13 dígitos). "
+                "Devuelve datos PIIP de datos.gov.co y productos del PDM vinculados. "
+                "Usar SIEMPRE cuando el usuario mencione un BPIN o pregunte por un proyecto."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bpin": {"type": "string", "description": "Código BPIN del proyecto (13 dígitos)"},
+                    "anio": {"type": "integer", "description": "Año PDM para métricas (2024-2027)"},
+                },
+                "required": ["bpin"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "listar_proyectos",
+            "description": (
+                "Lista los proyectos BPIN del PDM de la entidad agrupados por código BPIN, "
+                "con avance y productos vinculados. Usar para preguntas generales sobre proyectos del plan."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Filtro opcional por BPIN, nombre o código de producto"},
+                    "limit": {"type": "integer", "description": "Máximo resultados (default 15)"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "buscar_productos",
-            "description": "Busca productos del plan indicativo por texto o filtros (línea, sector, programa, ODS, año).",
+            "description": (
+                "Busca productos del plan indicativo por texto o filtros (línea, sector, programa, ODS, año). "
+                "NO usar para códigos BPIN de proyectos PIIP; para BPIN usar consultar_proyecto_bpin."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -657,6 +856,8 @@ TOOL_DEFINITIONS: list[dict] = [
 _TOOL_FUNCS = {
     "metas_cumplidas_anio": lambda entity, args: metas_cumplidas_anio(entity, **{k: v for k, v in args.items() if v is not None}),
     "resumen_pdm": lambda entity, args: resumen_pdm(entity),
+    "consultar_proyecto_bpin": lambda entity, args: consultar_proyecto_bpin(entity, **{k: v for k, v in args.items() if v is not None}),
+    "listar_proyectos": lambda entity, args: listar_proyectos(entity, **{k: v for k, v in args.items() if v is not None}),
     "buscar_productos": lambda entity, args: buscar_productos(entity, **{k: v for k, v in args.items() if v is not None}),
     "detalle_producto": lambda entity, args: detalle_producto(entity, **{k: v for k, v in args.items() if v is not None}),
     "ejecucion_presupuestal": lambda entity, args: ejecucion_presupuestal(entity, **{k: v for k, v in args.items() if v is not None}),
@@ -725,6 +926,39 @@ def _extract_sources(tool_name: str, result: dict) -> list[dict]:
         })
         if result.get("portal_bpin"):
             sources.append({"tipo": "portal_bpin", "titulo": "Portal BPIN datos.gov.co", "url": result["portal_bpin"]})
+
+    elif tool_name == "consultar_proyecto_bpin":
+        bpin = result.get("bpin", "")
+        nombre = (result.get("proyecto_piip") or {}).get("nombreproyecto") or f"BPIN {bpin}"
+        sources.append({
+            "tipo": "proyecto_bpin",
+            "titulo": f"{bpin} — {str(nombre)[:80]}",
+            "url": result.get("url_portal"),
+            "bpin": bpin,
+        })
+        for p in result.get("productos_vinculados", [])[:6]:
+            sources.append({
+                "tipo": "producto",
+                "titulo": f"{p.get('codigo_producto')} — {p.get('nombre', '')[:60]}",
+                "url": result.get("url_portal"),
+                "codigo_producto": p.get("codigo_producto"),
+                "bpin": bpin,
+            })
+
+    elif tool_name == "listar_proyectos":
+        sources.append({
+            "tipo": "proyectos_pdm",
+            "titulo": f"Proyectos BPIN del PDM — {result.get('mostrados', 0)} mostrados",
+            "url": result.get("portal_bpin"),
+        })
+        for p in result.get("proyectos", [])[:8]:
+            titulo = p.get("nombre_proyecto") or f"BPIN {p.get('bpin')}"
+            sources.append({
+                "tipo": "proyecto_bpin",
+                "titulo": f"{p.get('bpin')} — {str(titulo)[:70]}",
+                "url": p.get("url_portal"),
+                "bpin": p.get("bpin"),
+            })
 
     elif tool_name == "buscar_productos":
         for p in result.get("productos", [])[:8]:
