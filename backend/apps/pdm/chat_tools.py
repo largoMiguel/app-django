@@ -327,11 +327,35 @@ def buscar_productos(
         for p in productos
     ]
 
+    completados = sum(1 for i in items if i["estado_anio"] == "COMPLETADO")
+    en_progreso = sum(1 for i in items if i["estado_anio"] in ("EN_PROGRESO", "POR_EJECUTAR"))
+    pendientes = sum(1 for i in items if i["estado_anio"] == "PENDIENTE")
+    filtro_txt = sector or programa or linea or query or "consulta"
+    avance_prom = round(
+        sum(i["avance_fisico_pct"] for i in items) / len(items), 1
+    ) if items else 0.0
+
     result: dict[str, Any] = {
         "total_encontrados": len(items),
         "anio_seguimiento": target_anio,
         "filtros": {k: v for k, v in filtros.items() if v},
+        "respuesta_conteo": (
+            f"En {filtro_txt} hay {len(items)} productos con seguimiento en {target_anio} "
+            f"({completados} completados, {en_progreso} en progreso, {pendientes} pendientes)."
+        ),
+        "resumen": {
+            "total": len(items),
+            "completados": completados,
+            "en_progreso": en_progreso,
+            "pendientes": pendientes,
+            "avance_fisico_promedio_pct": avance_prom,
+        },
+        "destacados": items[:5],
         "productos": items,
+        "nota_formato": (
+            "Preguntas exploratorias ('¿qué hay en salud?'): responde con respuesta_conteo + "
+            "destacados (máx. 5). Lista productos completa solo si piden detalle."
+        ),
     }
     if advertencia:
         result["advertencia_anio"] = advertencia
@@ -689,10 +713,21 @@ def metas_cumplidas_anio(
         else:
             pendientes.append(item)
 
+    total_con_meta = len(completados) + len(en_progreso) + len(pendientes)
+    avance_prom = round(
+        sum(p["avance_fisico_pct"] for p in completados + en_progreso + pendientes) / total_con_meta,
+        1,
+    ) if total_con_meta else 0.0
+
+    act_qs = PdmActividad.objects.filter(
+        entity=entity, anio=target_anio, estado="COMPLETADA"
+    )
+    if sector or query or linea:
+        codigos_filtrados = {p.codigo_producto for p in productos}
+        act_qs = act_qs.filter(codigo_producto__in=codigos_filtrados)
+
     actividades_completadas = list(
-        PdmActividad.objects.filter(
-            entity=entity, anio=target_anio, estado="COMPLETADA"
-        ).select_related("evidencia").order_by("-updated_at")[:20]
+        act_qs.select_related("evidencia").order_by("-updated_at")[:20]
     )
     act_items = []
     for a in actividades_completadas:
@@ -712,23 +747,46 @@ def metas_cumplidas_anio(
 
     ej = ejecucion_presupuestal(entity, anio=target_anio, limit=5)
 
+    if filtro_label := (sector or query or linea):
+        respuesta_conteo = (
+            f"Para {target_anio}, en {filtro_label}: {total_con_meta} productos con meta programada "
+            f"({len(completados)} completados, {len(en_progreso)} en progreso, "
+            f"{len(pendientes)} pendientes). Avance promedio: {avance_prom}%."
+        )
+    else:
+        respuesta_conteo = (
+            f"Para {target_anio}, el PDM tiene {total_con_meta} productos con meta programada "
+            f"({len(completados)} completados, {len(en_progreso)} en progreso, "
+            f"{len(pendientes)} pendientes). Avance promedio: {avance_prom}%."
+        )
+
     result = {
         "anio": target_anio,
         "anio_calendario_actual": _current_year(),
         "filtros": {
             k: v for k, v in {"query": query, "linea": linea, "sector": sector}.items() if v
         },
+        "respuesta_conteo": respuesta_conteo,
         "resumen": {
+            "total_productos_con_meta": total_con_meta,
             "productos_meta_cumplida": len(completados),
             "productos_en_progreso": len(en_progreso),
             "productos_pendientes": len(pendientes),
             "actividades_completadas": len(act_items),
+            "avance_fisico_promedio_pct": avance_prom,
         },
+        "destacados": (completados + en_progreso + pendientes)[:5],
         "productos_completados": completados[:12],
         "productos_en_progreso": en_progreso[:8],
         "productos_pendientes": pendientes[:8],
-        "actividades_completadas": act_items,
+        "actividades_completadas": act_items[:8],
+        "actividades_completadas_total": len(act_items),
         "avance_financiero_entidad": ej["totales_entidad"],
+        "nota_formato": (
+            "Para preguntas '¿cuántas metas?': usa respuesta_conteo. "
+            "Para exploración sectorial: usa destacados (máx. 5). "
+            "Listas completas solo si el usuario pide detalle."
+        ),
     }
     if advertencia:
         result["advertencia_anio"] = advertencia

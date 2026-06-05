@@ -42,6 +42,96 @@ def _extract_anio_seguimiento(user_message: str, history: list[dict[str, str]] |
     return _current_year()
 
 
+def _classify_response_style(user_message: str, history: list[dict[str, str]] | None) -> str:
+    """Infiere el nivel de detalle que espera el ciudadano."""
+    chunks = [user_message]
+    for turn in (history or [])[-4:]:
+        if turn.get("role") == "user":
+            chunks.append(turn.get("content") or "")
+    text = " ".join(chunks).lower()
+
+    if re.search(
+        r"\b(cu[aá]nt[oa]s?|n[uú]mero de|total de|cu[aá]ntas metas|cu[aá]ntos productos)\b",
+        text,
+    ):
+        return "conteo"
+
+    if re.search(
+        r"\b(detalle|detalla|espec[ií]fic|lista completa|mu[eé]strame todo|"
+        r"todos los|todas las|completo|desglose|uno por uno|actividades de|"
+        r"m[aá]s detalle|ampl[ií]a|ver todo|el primero|el segundo)\b",
+        text,
+    ):
+        return "detalle"
+
+    if re.search(
+        r"\b(qu[eé] hay|qu[eé] tiene|en (salud|educaci[oó]n|vivienda|agua|"
+        r"cultura|deporte|ambiente|infraestructura|seguridad|turismo)|"
+        r"resumen|panorama|cu[eé]ntame|hablame de|productos de|metas de)\b",
+        text,
+    ):
+        return "resumen"
+
+    if re.search(r"\b(s[ií]|no)\s*\?|^(s[ií]|no)\.?$", text.strip()):
+        return "breve"
+
+    return "equilibrado"
+
+
+def _build_response_style_prompt(style: str) -> str:
+    """Instrucciones de formato según la intención detectada."""
+    common = """
+ESTILO Y TONO (SIEMPRE):
+- Español colombiano, cercano y claro. Evita jerga técnica innecesaria.
+- Usa encabezados cortos (##) solo cuando ayuden; no sobrecargues con secciones.
+- Montos en COP con separadores de miles (ej. $196.260.000).
+- Si hay más datos disponibles, cierra con UNA frase invitando a profundizar
+  (ej. "¿Quieres el detalle de algún producto o ver todas las actividades?").
+- "**Fuentes consultadas:**" al final, breve (máx. 5 ítems).
+"""
+    styles = {
+        "conteo": """
+FORMATO DE RESPUESTA — CONTEO (prioridad máxima):
+- Responde PRIMERO con el número en una frase directa. Ejemplo:
+  "**Para 2026 hay 47 metas programadas** en el PDM de {entidad}."
+- Luego, SOLO si aporta contexto, 2-3 bullets opcionales (ej. completadas vs pendientes).
+- NO listes productos uno por uno salvo que lo pidan.
+- Máximo 4-6 líneas de cuerpo antes de fuentes.
+""",
+        "resumen": """
+FORMATO DE RESPUESTA — RESUMEN EXPLORATORIO:
+- Empieza con 1-2 frases que respondan la pregunta (ej. sector, tema, año).
+- Incluye cifras clave: cuántos productos/metas, avance general si aplica.
+- Destaca solo 3-5 ítems RELEVANTES (nombre corto + meta o avance + estado).
+- NO vuelques tablas largas ni todos los productos del sector.
+- Si preguntan por un sector (salud, educación…): usa buscar_productos o
+  metas_cumplidas_anio con filtro sector/query; menciona actividades destacadas
+  solo si hay 1-2 completadas o en progreso relevantes.
+- Ofrece ampliar: "Puedo mostrarte el detalle de uno o la lista completa."
+""",
+        "detalle": """
+FORMATO DE RESPUESTA — DETALLE COMPLETO:
+- El usuario pidió profundidad: muestra la información estructurada.
+- Usa secciones: Meta y avance | Actividades | Ejecución | Contratos (según aplique).
+- Lista actividades, contratos o productos cuando corresponda.
+- Mantén párrafos cortos; bullets para listas largas.
+""",
+        "breve": """
+FORMATO DE RESPUESTA — BREVE:
+- 1-3 oraciones. Directo al grano.
+""",
+        "equilibrado": """
+FORMATO DE RESPUESTA — EQUILIBRADO:
+- Primera línea: respuesta directa a lo preguntado.
+- Cuerpo: lo esencial (meta, avance, monto) sin listar todo el PDM.
+- Si la pregunta es sobre UN elemento (producto, contrato, BPIN): 1 bloque
+  estructurado con lo más importante; detalle extenso solo si lo piden.
+- Máximo ~8 bullets o equivalente antes de fuentes.
+""",
+    }
+    return common + styles.get(style, styles["equilibrado"])
+
+
 def _build_system_prompt(
     entity: Entity,
     user_message: str,
@@ -51,6 +141,10 @@ def _build_system_prompt(
     anio_actual = _current_year()
     anio_seguimiento = _extract_anio_seguimiento(user_message, history)
     anios_pdm = ", ".join(str(y) for y in ANIOS_PDM)
+    response_style = _classify_response_style(user_message, history)
+    estilo_respuesta = _build_response_style_prompt(response_style).replace(
+        "{entidad}", entity.name
+    )
 
     contexto_conversacion = ""
     if history:
@@ -62,6 +156,8 @@ CONVERSACIÓN EN CURSO:
   que la pregunta previa, sin reiniciar ni listar todo el PDM.
 - Si dice "ese contrato", "ese producto", "ese BPIN", "ese proyecto" o similar: extrae del historial reciente
   el contratista, CRP, codigo_producto, BPIN o nombre y consulta con la herramienta adecuada ANTES de responder.
+- Si tras un resumen pide "más detalle", "el primero", "lista completa", "actividades" o "todo": cambia a
+  formato DETALLE y muestra la información ampliada que pide.
 - No repitas información ya dada salvo que el usuario lo pida explícitamente.
 - NUNCA digas que no hay información sin haber ejecutado al menos una herramienta de búsqueda relevante.
 """
@@ -105,15 +201,22 @@ PROYECTOS BPIN:
 - consultar_proyecto_bpin devuelve productos_vinculados con meta_anio, contratos_vinculados y datos PIIP.
 - Si el usuario pregunta por "ese BPIN" o "ese proyecto", extrae el código del historial.
 
+EJEMPLOS DE ESTILO (imita este patrón):
+- "¿Cuántas metas hay para 2026?" → metas_cumplidas_anio(2026). Responde: "**Para 2026 hay 47 productos con meta.**" + 1 línea de contexto. Nada más.
+- "¿Qué hay en salud?" → metas_cumplidas_anio(anio, sector="salud") o buscar_productos(sector="salud").
+  Resumen: total + 3-5 productos destacados + 1-2 actividades relevantes si existen. Sin listar todo.
+- "Detalle del producto de alimentación escolar" → detalle_producto(query=...). Ahí sí, secciones completas.
+
 REGLAS ESTRICTAS:
 1. Responde ÚNICAMENTE sobre el PDM de {entity.name}. Rechaza otras entidades, otros módulos o temas ajenos al PDM.
 2. Usa EXCLUSIVAMENTE datos de las herramientas (tools). NUNCA inventes cifras, fechas, productos ni URLs.
 3. Para cumplimiento general del año (sin producto específico): metas_cumplidas_anio. Para UN producto: detalle_producto o buscar_productos.
 4. Para avance financiero de un año: ejecucion_presupuestal con anio; si es de un producto, pasa codigo_producto o query.
 5. Cita evidencias con URLs cuando existan (url_evidencia, portal BPIN datos.gov.co).
-6. Formatea montos en COP con separadores de miles.
-7. Responde en español colombiano, claro y accesible.
-8. Al final incluye "**Fuentes consultadas:**" con productos, proyectos BPIN o URLs usadas.
+6. ADAPTA la longitud y estructura al tipo de pregunta (ver FORMATO DE RESPUESTA abajo).
+7. Pregunta general ("¿qué hay en salud?") → resumen + lo relevante. Pregunta numérica
+   ("¿cuántas metas?") → número primero. Pide "detalle", "específico" o "todo" → respuesta completa.
+{estilo_respuesta}
 {contexto_conversacion}
 Contexto de la entidad:
 - Nombre: {entity.name}
