@@ -9,7 +9,7 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
-from apps.common.views import ProtectedMediaView
+from apps.common.views import ProtectedMediaView, SignedFileDeliveryView
 
 
 def healthcheck(_request):
@@ -21,6 +21,11 @@ urlpatterns = [
     path("api/v1/public/", include("apps.pqrs.public_urls")),
     path("api/v1/public/", include("apps.pdm.public_chat_urls")),
     path("api/v1/", include("config.api_v1")),
+    re_path(
+        r"^(?P<bucket>softone-pqrs|softone-pdm)/(?P<path>.+)$",
+        SignedFileDeliveryView.as_view(),
+        name="signed-file-delivery",
+    ),
     re_path(r"^media/(?P<path>.+)$", ProtectedMediaView.as_view(), name="protected-media"),
 ]
 

@@ -521,11 +521,17 @@ class PQRSViewSet(viewsets.ModelViewSet):
         archivo_path = None
         if archivo:
             validate_uploaded_file(archivo.name, archivo.size, field="archivo_respuesta")
-            from django.core.files.storage import default_storage
             from django.core.files.base import ContentFile
+
+            from apps.common.storage_cleanup import delete_pqrs_storage_key
+            from apps.common.storages import pqrs_storage_for_paths
+
+            if pqrs.archivo_respuesta:
+                delete_pqrs_storage_key(pqrs.archivo_respuesta)
             ext = (archivo.name.rsplit(".", 1)[-1] if "." in archivo.name else "bin")[:8]
             safe_name = f"pqrs/respuestas/{pqrs.id}_{int(timezone.now().timestamp())}.{ext}"
-            archivo_path = default_storage.save(safe_name, ContentFile(archivo.read()))
+            storage = pqrs_storage_for_paths()
+            archivo_path = storage.save(safe_name, ContentFile(archivo.read()))
 
         with transaction.atomic():
             AsignacionAuditoria.objects.create(
@@ -603,6 +609,10 @@ class PQRSViewSet(viewsets.ModelViewSet):
             pqrs.estado = nuevo_estado
             pqrs.fecha_respuesta = None
             pqrs.respuesta = None
+            if pqrs.archivo_respuesta:
+                from apps.common.storage_cleanup import delete_pqrs_storage_key
+
+                delete_pqrs_storage_key(pqrs.archivo_respuesta)
             pqrs.archivo_respuesta = None
             pqrs.email_enviado = False
             pqrs.email_error = ""

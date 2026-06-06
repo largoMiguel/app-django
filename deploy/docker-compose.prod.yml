@@ -113,6 +113,17 @@ services:
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
+      USE_B2_STORAGE: ${USE_B2_STORAGE:-true}
+      B2_ENDPOINT_URL: ${B2_ENDPOINT_URL:-https://s3.us-east-005.backblazeb2.com}
+      B2_REGION: ${B2_REGION:-us-east-005}
+      B2_KEY_ID: ${B2_KEY_ID:-}
+      B2_APP_KEY: ${B2_APP_KEY:-}
+      B2_BUCKET_PQRS: ${B2_BUCKET_PQRS:-softone-pqrs}
+      B2_BUCKET_PDM: ${B2_BUCKET_PDM:-softone-pdm}
+      B2_BUCKET_DB: ${B2_BUCKET_DB:-softone-db}
+      FILE_DELIVERY_BASE_URL: ${FILE_DELIVERY_BASE_URL:-https://files.softone360.com}
+      FILE_DELIVERY_SIGNING_KEY: ${FILE_DELIVERY_SIGNING_KEY:-}
+      FILE_DELIVERY_TTL: ${FILE_DELIVERY_TTL:-600}
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles

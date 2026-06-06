@@ -1,0 +1,13 @@
+name = "softone-files"
+main = "src/worker.js"
+compatibility_date = "2024-11-01"
+account_id = "6031fdec2d3f25ad748f6c5519281536"
+
+[vars]
+B2_ENDPOINT = "s3.us-east-005.backblazeb2.com"
+B2_REGION = "us-east-005"
+ALLOWED_BUCKETS = "softone-pqrs,softone-pdm"
+
+[[routes]]
+pattern = "files.softone360.com/*"
+zone_name = "softone360.com"

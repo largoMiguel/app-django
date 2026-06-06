@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.common.file_delivery import signed_pdm_url, signed_pqrs_url
 from apps.entities.models import Secretaria
 
 from .models import PQRS, AsignacionAuditoria, PQRSArchivo
@@ -15,9 +16,15 @@ class PQRSArchivoSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_url(self, obj):
-        request = self.context.get("request")
         if not obj.archivo:
             return None
+        from django.conf import settings
+
+        if settings.USE_B2_STORAGE and settings.FILE_DELIVERY_SIGNING_KEY:
+            filename = obj.nombre_original or obj.archivo.name.rsplit("/", 1)[-1]
+            return signed_pqrs_url(obj.archivo.name, filename=filename)
+
+        request = self.context.get("request")
         url = obj.archivo.url
         if request and not url.startswith("http"):
             return request.build_absolute_uri(url)
@@ -144,6 +151,12 @@ class PQRSSerializer(serializers.ModelSerializer):
         f = obj.archivo_respuesta
         if not f:
             return None
+        from django.conf import settings
+
+        if settings.USE_B2_STORAGE and settings.FILE_DELIVERY_SIGNING_KEY:
+            filename = f.rsplit("/", 1)[-1]
+            return signed_pqrs_url(f, filename=filename)
+
         request = self.context.get("request")
         url = f if isinstance(f, str) else getattr(f, "url", None)
         if not url:

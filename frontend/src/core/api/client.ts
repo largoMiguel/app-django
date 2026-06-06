@@ -10,6 +10,16 @@ import { getClerkToken } from "@/core/auth/clerkToken";
 import { clearClientSession } from "@/core/auth/session";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
+const FILE_DELIVERY_HOST = "files.softone360.com";
+
+function isSignedDeliveryUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return parsed.hostname === FILE_DELIVERY_HOST && parsed.searchParams.has("sig");
+  } catch {
+    return false;
+  }
+}
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_URL,
@@ -50,6 +60,15 @@ export async function fetchAuthenticatedFile(url: string): Promise<Blob> {
 }
 
 export async function downloadAuthenticatedFile(url: string, filename: string): Promise<void> {
+  if (isSignedDeliveryUrl(url)) {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.rel = "noopener";
+    anchor.click();
+    return;
+  }
+
   const blob = await fetchAuthenticatedFile(url);
   const blobUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -60,6 +79,11 @@ export async function downloadAuthenticatedFile(url: string, filename: string): 
 }
 
 export async function openAuthenticatedFile(url: string): Promise<void> {
+  if (isSignedDeliveryUrl(url)) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+
   const blob = await fetchAuthenticatedFile(url);
   const blobUrl = URL.createObjectURL(blob);
   window.open(blobUrl, "_blank");

@@ -6,6 +6,8 @@ import os
 from django.conf import settings
 from django.db import models
 
+from apps.common.storages import pdm_file_storage
+
 
 class ActividadEstado(models.TextChoices):
     PENDIENTE = "PENDIENTE", "Pendiente"
@@ -222,7 +224,11 @@ class PdmEvidenciaArchivo(models.Model):
         related_name="archivos",
         db_column="evidencia_id",
     )
-    archivo = models.FileField(upload_to=pdm_evidencia_archivo_upload_path, max_length=500)
+    archivo = models.FileField(
+        upload_to=pdm_evidencia_archivo_upload_path,
+        storage=pdm_file_storage,
+        max_length=500,
+    )
     nombre_original = models.CharField(max_length=255, blank=True, default="")
     content_type = models.CharField(max_length=120, blank=True, default="")
     size = models.PositiveIntegerField(default=0)

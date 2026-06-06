@@ -21,6 +21,8 @@ originRequest:
 ingress:
   - hostname: app.softone360.com
     service: http://nginx:80
+  - hostname: files.softone360.com
+    service: http://nginx:80
   - hostname: ssh.softone360.com
     service: ssh://host.docker.internal:22
   - service: http_status:404

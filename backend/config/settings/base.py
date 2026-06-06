@@ -130,6 +130,21 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
+# Backblaze B2 (S3-compatible)
+B2_ENDPOINT_URL = os.getenv("B2_ENDPOINT_URL", "https://s3.us-east-005.backblazeb2.com")
+B2_REGION = os.getenv("B2_REGION", "us-east-005")
+B2_KEY_ID = os.getenv("B2_KEY_ID", "")
+B2_APP_KEY = os.getenv("B2_APP_KEY", "")
+B2_BUCKET_PQRS = os.getenv("B2_BUCKET_PQRS", "softone-pqrs")
+B2_BUCKET_PDM = os.getenv("B2_BUCKET_PDM", "softone-pdm")
+B2_BUCKET_DB = os.getenv("B2_BUCKET_DB", "softone-db")
+USE_B2_STORAGE = env_bool("USE_B2_STORAGE", bool(B2_KEY_ID and B2_APP_KEY))
+
+# Entrega de archivos vía Cloudflare Worker (Bandwidth Alliance)
+FILE_DELIVERY_BASE_URL = os.getenv("FILE_DELIVERY_BASE_URL", "https://files.softone360.com")
+FILE_DELIVERY_SIGNING_KEY = os.getenv("FILE_DELIVERY_SIGNING_KEY", "")
+FILE_DELIVERY_TTL = int(os.getenv("FILE_DELIVERY_TTL", "600"))
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Cache (Redis en prod; locmem en dev si no hay REDIS_URL)
