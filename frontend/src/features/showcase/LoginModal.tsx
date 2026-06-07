@@ -52,7 +52,6 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
             <X size={20} />
           </button>
           <div className="login-dialog-brand-content">
-            <span className="login-dialog-logo">S1</span>
             <p className="login-dialog-eyebrow">SoftOne360</p>
             <h2 id="login-dialog-title" className="login-dialog-heading">
               Tu entidad, un solo lugar para gestionar
@@ -76,7 +75,6 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
 
         <section className="login-dialog-form">
           <div className="login-dialog-mobile-brand">
-            <span className="login-dialog-logo">S1</span>
             <div>
               <strong>SoftOne360</strong>
               <span>Acceso institucional seguro</span>
@@ -106,6 +104,8 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
                   rootBox: "login-clerk-root",
                   cardBox: "login-clerk-card-box",
                   card: "login-clerk-card",
+                  logoBox: "hidden",
+                  logoImage: "hidden",
                   header: "hidden",
                   headerTitle: "hidden",
                   headerSubtitle: "hidden",

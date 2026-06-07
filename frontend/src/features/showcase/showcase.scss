@@ -2103,9 +2103,9 @@ $pdm-gold: #f59e0b;
     grid-template-columns: 1fr;
     width: min(100%, 920px);
     max-height: min(calc(100dvh - 2rem), 720px);
-    background: #fff;
+    background: transparent;
     border-radius: 20px;
-    overflow: hidden;
+    overflow: visible;
     box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
     animation: loginSlideUp 0.28s cubic-bezier(0.34, 1.2, 0.64, 1);
     margin: auto;
@@ -2121,6 +2121,7 @@ $pdm-gold: #f59e0b;
     color: #fff;
     padding: clamp(1.5rem, 4vw, 2.25rem);
     display: none;
+    border-radius: 20px 0 0 20px;
 
     @media (min-width: 768px) {
         display: flex;
@@ -2129,22 +2130,13 @@ $pdm-gold: #f59e0b;
 }
 
 .login-dialog-brand-content {
-    margin-top: auto;
-    margin-bottom: auto;
+    margin: auto;
+    text-align: center;
+    width: 100%;
 }
 
 .login-dialog-logo {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    font-weight: 800;
-    font-size: 1rem;
-    margin-bottom: 1rem;
+    display: none;
 }
 
 .login-dialog-eyebrow {
@@ -2175,6 +2167,7 @@ $pdm-gold: #f59e0b;
     margin: 0;
     display: grid;
     gap: 0.85rem;
+    text-align: left;
 
     li {
         display: flex;
@@ -2200,10 +2193,15 @@ $pdm-gold: #f59e0b;
 .login-dialog-form {
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    min-width: 0;
     background: #fff;
-    overflow-y: auto;
+    overflow: visible;
+    border-radius: 20px;
+
+    @media (min-width: 768px) {
+        border-radius: 0 20px 20px 0;
+        max-height: min(calc(100dvh - 2rem), 720px);
+        overflow-y: auto;
+    }
 }
 
 .login-dialog-form-header {
@@ -2211,12 +2209,12 @@ $pdm-gold: #f59e0b;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1.25rem 1.25rem 0.5rem;
+    padding: 1rem 1rem 0.5rem;
     border-bottom: 1px solid #eef2f7;
     flex-shrink: 0;
 
     @media (min-width: 768px) {
-        padding: 1.5rem 1.75rem 0.75rem;
+        padding: 1.25rem 1.25rem 0.75rem;
     }
 }
 
@@ -2294,40 +2292,44 @@ $pdm-gold: #f59e0b;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1rem 1.25rem;
-    min-height: 280px;
+    padding: 0.25rem 0.75rem 0.5rem;
     overflow: visible;
 
     @media (min-width: 768px) {
-        padding: 1.25rem 1.75rem;
+        padding: 0.5rem 1rem 0.75rem;
+    }
+
+    * {
+        overflow: visible !important;
     }
 }
 
 .login-clerk-root {
     width: 100% !important;
-    max-width: 380px !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
+    max-width: none !important;
+    margin: 0 auto !important;
     display: flex !important;
     justify-content: center !important;
 }
 
 .login-clerk-card-box {
     width: 100% !important;
-    max-width: 380px !important;
+    max-width: none !important;
     margin: 0 auto !important;
     box-shadow: none !important;
+    overflow: visible !important;
 }
 
 .login-clerk-card {
     width: 100% !important;
-    max-width: 380px !important;
+    max-width: none !important;
     margin: 0 auto !important;
     box-shadow: none !important;
     border: 0 !important;
     background: transparent !important;
     padding: 0 !important;
-    gap: 1rem !important;
+    gap: 0.85rem !important;
+    overflow: visible !important;
 }
 
 .login-dialog-footnote {
@@ -2335,7 +2337,7 @@ $pdm-gold: #f59e0b;
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    padding: 0.85rem 1.25rem 1.15rem;
+    padding: 0.65rem 0.75rem 0.85rem;
     margin: 0;
     font-size: 0.75rem;
     color: #64748b;
@@ -2347,11 +2349,14 @@ $pdm-gold: #f59e0b;
 .login-dialog-mobile-brand {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.85rem;
-    padding: 1rem 1.25rem;
+    padding: 0.85rem 1rem;
     background: linear-gradient(135deg, #0f172a, #216ba8);
     color: #fff;
     flex-shrink: 0;
+    text-align: center;
+    border-radius: 20px 20px 0 0;
 
     @media (min-width: 768px) {
         display: none;
@@ -2366,13 +2371,6 @@ $pdm-gold: #f59e0b;
         display: block;
         font-size: 0.78rem;
         color: rgba(255, 255, 255, 0.72);
-    }
-
-    .login-dialog-logo {
-        width: 42px;
-        height: 42px;
-        margin: 0;
-        font-size: 0.85rem;
     }
 }
 
