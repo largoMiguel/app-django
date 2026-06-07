@@ -2,6 +2,7 @@ import axios, {
   type AxiosInstance,
   type InternalAxiosRequestConfig,
 } from "axios";
+import { isPublicAppPath } from "@/core/auth/publicPaths";
 import {
   forceClerkSignOut,
   parseAuthErrorCode,
@@ -42,8 +43,8 @@ async function fetchWithAuth(url: string): Promise<Response> {
     const blockCode = parseAuthErrorCode({ response: { data: body } });
     clearClientSession();
     await forceClerkSignOut(blockCode);
-    if (!window.location.pathname.startsWith("/login")) {
-      window.location.href = "/login";
+    if (!isPublicAppPath(window.location.pathname)) {
+      window.location.href = "/";
     }
   }
 

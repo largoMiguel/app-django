@@ -9,14 +9,14 @@ interface Props {
 
 export default function ModuleRouteGuard({ moduleKey }: Props) {
   const user = useAuthStore((s) => s.user);
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/" replace />;
 
   const entity = user.entity;
   if (!entity) {
     if (isPlatformSuperadmin(user)) {
       return <Navigate to="/superadmin/entities" replace />;
     }
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (!canAccessModuleRoute(user, moduleKey)) {

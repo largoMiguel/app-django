@@ -29,7 +29,7 @@ export default function AuthBootstrap({ children }: { children: React.ReactNode 
       if (!signedIn) {
         clearClientSession();
         if (!isPublicAppPath(window.location.pathname)) {
-          window.location.href = "/login";
+          window.location.href = "/";
         }
       }
     });

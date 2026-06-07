@@ -1,8 +1,9 @@
-import type { ReactElement } from "react";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactElement } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "@/features/auth/LoginPage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
+import HomePage from "@/features/showcase/HomePage";
+import NosotrosPage from "@/features/nosotros/NosotrosPage";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
 import PQRSPage from "@/features/pqrs/PQRSPage";
 import PQRSInformesPage from "@/features/pqrs/PQRSInformesPage";
@@ -20,7 +21,7 @@ import { firstAccessibleRoute, useAuthStore } from "@/core/auth/store";
 
 const PdmPage = lazy(() => import("@/features/pdm/PdmPage"));
 
-function HomeRedirect() {
+function AppHomeRedirect() {
   const user = useAuthStore((s) => s.user);
   return <Navigate to={firstAccessibleRoute(user)} replace />;
 }
@@ -28,6 +29,8 @@ function HomeRedirect() {
 export default function App(): ReactElement {
   return (
     <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/nosotros" element={<NosotrosPage />} />
       <Route path="/login/*" element={<LoginPage />} />
 
       {/* Portal ciudadano — público, sin auth */}
@@ -38,7 +41,7 @@ export default function App(): ReactElement {
 
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<HomeRedirect />} />
+          <Route path="/app" element={<AppHomeRedirect />} />
           <Route path="/sin-acceso" element={<SinAccesoPage />} />
 
           <Route element={<ModuleRouteGuard moduleKey="pqrs" />}>

@@ -5,7 +5,7 @@ import { useAuthStore } from "./store";
 
 export default function RequireSuperadmin() {
   const user = useAuthStore((s) => s.user);
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/" replace />;
 
   if (!isPlatformSuperadmin(user)) {
     return <Navigate to={firstAccessibleRoute(user)} replace />;

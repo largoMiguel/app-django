@@ -27,3 +27,7 @@ body,
 #root {
   height: 100%;
 }
+
+body.showcase-active {
+  background: #fff !important;
+}
