@@ -1,4 +1,9 @@
 import { useEffect } from "react";
+import ShowcaseIcon from "../showcase/ShowcaseIcon";
+
+function Si({ icon, className, size = 20 }: { icon: string; className?: string; size?: number }) {
+  return <ShowcaseIcon icon={icon} className={className} size={size} />;
+}
 import { Link } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { contactWhatsApp } from "@/features/showcase/showcaseData";
@@ -98,11 +103,11 @@ export default function NosotrosPage() {
         <div className="nos-hero-glow nos-hero-glow-violet" />
         <div className="container nos-hero-inner">
           <Link to="/" className="nos-back-btn">
-            <i className="fas fa-arrow-left me-2" />
+            <Si icon="fas fa-arrow-left" className="showcase-icon-inline" size={16} />
             Volver al inicio
           </Link>
           <div className="nos-hero-tag nos-animate">
-            <i className="fas fa-building me-2" />
+            <Si icon="fas fa-building" className="showcase-icon-inline" size={16} />
             Nuestra Empresa
           </div>
           <h1 className="nos-hero-title nos-animate">
@@ -116,7 +121,7 @@ export default function NosotrosPage() {
           <div className="nos-hero-pills nos-animate">
             {pills.map((pill) => (
               <span key={pill.label} className="nos-pill">
-                <i className={`${pill.icon} me-2`} />
+                <Si icon={pill.icon} className="showcase-icon-inline" size={16} />
                 {pill.label}
               </span>
             ))}
@@ -133,7 +138,7 @@ export default function NosotrosPage() {
         <div className="container">
           <div className="nos-section-header text-center nos-animate">
             <div className="nos-chip">
-              <i className="fas fa-compass me-2" />
+              <Si icon="fas fa-compass" className="showcase-icon-inline" size={16} />
               QUIÉNES SOMOS
             </div>
             <h2 className="nos-section-title">Conoce Softone360</h2>
@@ -163,7 +168,7 @@ export default function NosotrosPage() {
               <div className="nos-badges">
                 {pills.map((pill) => (
                   <span key={pill.label} className="nos-badge">
-                    <i className={`${pill.icon} me-2`} />
+                    <Si icon={pill.icon} className="showcase-icon-inline" size={16} />
                     {pill.label}
                   </span>
                 ))}
@@ -172,7 +177,7 @@ export default function NosotrosPage() {
             <div className="col-lg-6 nos-animate">
               <div className="nos-mv-card nos-mv-mission">
                 <div className="nos-mv-icon">
-                  <i className="fas fa-rocket" />
+                  <Si icon="fas fa-rocket" className="" size={16} />
                 </div>
                 <div>
                   <div className="nos-mv-label">Misión</div>
@@ -187,7 +192,7 @@ export default function NosotrosPage() {
               </div>
               <div className="nos-mv-card nos-mv-vision">
                 <div className="nos-mv-icon">
-                  <i className="fas fa-eye" />
+                  <Si icon="fas fa-eye" className="" size={16} />
                 </div>
                 <div>
                   <div className="nos-mv-label">Visión 2030</div>
@@ -221,7 +226,7 @@ export default function NosotrosPage() {
               >
                 <div className="nos-obj-card">
                   <div className="nos-obj-icon" style={{ background: obj.gradient }}>
-                    <i className={obj.icon} />
+                    <Si icon={obj.icon} size={24} />
                   </div>
                   <h5 className="nos-obj-title">{obj.title}</h5>
                   <p className="nos-obj-text">{obj.text}</p>
@@ -236,7 +241,7 @@ export default function NosotrosPage() {
         <div className="container">
           <div className="nos-section-header text-center nos-animate">
             <div className="nos-chip nos-chip-light">
-              <i className="fas fa-brain me-2" />
+              <Si icon="fas fa-brain" className="showcase-icon-inline" size={16} />
               ENFOQUE SECTOR PÚBLICO
             </div>
             <h2 className="nos-section-title text-white">
@@ -252,7 +257,7 @@ export default function NosotrosPage() {
               <div key={item.title} className="col-md-6 nos-animate">
                 <div className="nos-intel-item">
                   <div className="nos-intel-icon">
-                    <i className={item.icon} />
+                    <Si icon={item.icon} size={20} />
                   </div>
                   <div>
                     <h5 className="nos-intel-title">{item.title}</h5>
@@ -287,11 +292,11 @@ export default function NosotrosPage() {
                   className="nos-cta-btn nos-cta-btn-primary"
                   onClick={() => contactWhatsApp("Hola, quiero agendar una demo de SoftOne360.")}
                 >
-                  <i className="fab fa-whatsapp me-2" />
+                  <Si icon="fab fa-whatsapp" className="showcase-icon-inline" size={16} />
                   Solicitar Demo
                 </button>
                 <Link to="/" className="nos-cta-btn nos-cta-btn-outline">
-                  <i className="fas fa-home me-2" />
+                  <Si icon="fas fa-home" className="showcase-icon-inline" size={16} />
                   Volver al inicio
                 </Link>
               </div>

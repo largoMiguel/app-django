@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
+import ShowcaseIcon from "./ShowcaseIcon";
+import ShowcaseNav, { HeroFeatureStrip } from "./ShowcaseNav";
 import {
   benefits,
   contactWhatsApp,
@@ -18,6 +20,10 @@ import {
 import { useScrollReveal } from "./useScrollReveal";
 import "./showcase.scss";
 
+function Si({ icon, className, size = 20 }: { icon: string; className?: string; size?: number }) {
+  return <ShowcaseIcon icon={icon} className={className} size={size} />;
+}
+
 interface ShowcasePageProps {
   onLoginClick: () => void;
 }
@@ -31,13 +37,15 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
 
   return (
     <div className="showcase-main">
+      <ShowcaseNav onLoginClick={onLoginClick} onNavigate={scrollToSection} />
+
       <section className="hero-section">
         <div className="hero-overlay" />
         <div className="container">
           <div className="row align-items-center">
             <div className="col-lg-7 hero-content animate">
               <div className="badge-pill mb-3">
-                <i className="fas fa-star me-2" />
+                <Si icon="fas fa-star" className="showcase-icon-inline" size={16} />
                 Sistema Líder en Gestión Pública — Colombia
               </div>
               <h1 className="hero-title mb-4">
@@ -53,16 +61,17 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                 Pública y Planes Institucionales. IA generativa con OpenAI, informes automáticos
                 en PDF, dashboards en tiempo real y acceso seguro multi-entidad.
               </p>
+              <HeroFeatureStrip />
               <div className="hero-actions">
                 <button type="button" className="hero-btn hero-btn-ingresar" onClick={onLoginClick}>
-                  <i className="fas fa-sign-in-alt me-2" />
+                  <Si icon="fas fa-sign-in-alt" className="showcase-icon-inline" size={16} />
                   Ingresar
                 </button>
               </div>
               <div className="hero-stats mt-5">
                 {stats.map((stat) => (
                   <div key={stat.label} className="stat-item">
-                    <i className={`${stat.icon} stat-icon`} />
+                    <Si icon={stat.icon} className="stat-icon" size={24} />
                     <div>
                       <div className="stat-value">{stat.value}</div>
                       <div className="stat-label">{stat.label}</div>
@@ -71,12 +80,12 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                 ))}
               </div>
             </div>
-            <div className="col-lg-5 d-none d-lg-flex align-items-center justify-content-center animate">
+            <div className="col-lg-5 d-none d-md-flex align-items-center justify-content-center animate">
               <div className="hero-panel">
                 {heroPanelItems.map((item, pi) => (
                   <div key={item.title} className="hero-panel-item" style={{ ["--pi" as string]: pi }}>
                     <div className="hero-panel-icon" style={{ background: item.gradient }}>
-                      <i className={item.icon} />
+                      <Si icon={item.icon} size={20} />
                     </div>
                     <div>
                       <div className="hero-panel-title">{item.title}</div>
@@ -98,8 +107,8 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
         </div>
       </section>
 
-      <button type="button" className="portales-fab" onClick={onLoginClick} title="Ingresar al Sistema">
-        <i className="fas fa-sign-in-alt" />
+      <button type="button" className="portales-fab d-md-none" onClick={onLoginClick} title="Ingresar al Sistema">
+        <Si icon="fas fa-sign-in-alt" className="" size={16} />
         <span className="fab-label">Ingresar</span>
       </button>
 
@@ -108,7 +117,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
         <div className="container position-relative">
           <div className="pdm-section-header text-center animate">
             <div className="pdm-badge">
-              <i className="fas fa-star me-2" />
+              <Si icon="fas fa-star" className="showcase-icon-inline" size={16} />
               MÓDULO ESTRELLA
             </div>
             <h2 className="pdm-main-title">
@@ -126,7 +135,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
               <div key={cap.title} className="col-md-6 col-lg-4 animate">
                 <div className="pdm-cap-card">
                   <div className="pdm-cap-icon" style={{ background: cap.gradient }}>
-                    <i className={cap.icon} />
+                    <Si icon={cap.icon} size={24} />
                   </div>
                   <h4>{cap.title}</h4>
                   <p>{cap.text}</p>
@@ -141,27 +150,27 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                 <div className="pdm-visual-block">
                   <div className="pdm-flow-diagram">
                     <div className="pdm-flow-item pdm-flow-root">
-                      <i className="fas fa-flag" />
+                      <Si icon="fas fa-flag" className="" size={16} />
                       <span>Línea Estratégica</span>
                     </div>
                     <div className="pdm-flow-connector" />
                     <div className="pdm-flow-item pdm-flow-sector">
-                      <i className="fas fa-industry" />
+                      <Si icon="fas fa-industry" className="" size={16} />
                       <span>Sector / Programa</span>
                     </div>
                     <div className="pdm-flow-connector" />
                     <div className="pdm-flow-item pdm-flow-product">
-                      <i className="fas fa-box" />
+                      <Si icon="fas fa-box" className="" size={16} />
                       <span>Producto + Indicador</span>
                     </div>
                     <div className="pdm-flow-connector" />
                     <div className="pdm-flow-item pdm-flow-activity">
-                      <i className="fas fa-tasks" />
+                      <Si icon="fas fa-tasks" className="" size={16} />
                       <span>Actividad + Evidencia</span>
                     </div>
                     <div className="pdm-flow-connector" />
                     <div className="pdm-flow-item pdm-flow-budget">
-                      <i className="fas fa-dollar-sign" />
+                      <Si icon="fas fa-dollar-sign" className="" size={16} />
                       <span>Ejecución Presupuestal</span>
                     </div>
                   </div>
@@ -169,7 +178,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
               </div>
               <div className="col-lg-7">
                 <h3 className="pdm-detail-title">
-                  <i className="fas fa-map-marked-alt me-3" />
+                  <Si icon="fas fa-map-marked-alt me-3" className="" size={16} />
                   Todo el PDM en una sola plataforma
                 </h3>
                 <p className="pdm-detail-text">
@@ -180,7 +189,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                 <div className="pdm-features-grid">
                   {pdmFeatures.map((feat) => (
                     <div key={feat} className="pdm-feat-item">
-                      <i className="fas fa-check-circle" />
+                      <Si icon="fas fa-check-circle" className="" size={16} />
                       <span>{feat}</span>
                     </div>
                   ))}
@@ -193,7 +202,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
             {pdmStats.map((stat) => (
               <div key={stat.label} className="pdm-stat-box animate">
                 <div className="pdm-stat-icon">
-                  <i className={stat.icon} />
+                  <Si icon={stat.icon} size={22} />
                 </div>
                 <div className="pdm-stat-value">{stat.value}</div>
                 <div className="pdm-stat-label">{stat.label}</div>
@@ -221,7 +230,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                       background: `linear-gradient(135deg, ${feature.color}, ${feature.color}dd)`,
                     }}
                   >
-                    <i className={feature.icon} />
+                    <Si icon={feature.icon} size={28} />
                   </div>
                   <h3 className="feature-title">{feature.title}</h3>
                   <p className="feature-description">{feature.description}</p>
@@ -236,7 +245,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
         <div className="container">
           <div className="modules-v2-header text-center animate">
             <div className="section-chip">
-              <i className="fas fa-cubes me-2" />
+              <Si icon="fas fa-cubes" className="showcase-icon-inline" size={16} />
               6 MÓDULOS INTEGRADOS
             </div>
             <h2 className="section-title mt-3">Sistema Completo de Gestión Pública</h2>
@@ -256,7 +265,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
               >
                 <span className="module-v2-num">{String(i + 1).padStart(2, "0")}</span>
                 <div className="module-v2-icon">
-                  <i className={mod.icon} />
+                  <Si icon={mod.icon} size={24} />
                 </div>
                 <div className="module-v2-title-area">
                   <span className="module-v2-chip">MÓDULO</span>
@@ -270,7 +279,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                     {mod.capabilities.map((cap) => (
                       <div key={cap.title} className="module-v2-cap">
                         <div className="cap-icon-wrap" style={{ background: cap.gradient }}>
-                          <i className={cap.icon} />
+                          <Si icon={cap.icon} size={24} />
                         </div>
                         <div className="cap-text">
                           <h6 className="cap-title">{cap.title}</h6>
@@ -312,7 +321,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
               <div key={benefit.title} className="col-md-6 col-lg-4 animate">
                 <div className="benefit-card">
                   <div className="benefit-icon">
-                    <i className={benefit.icon} />
+                    <Si icon={benefit.icon} size={28} />
                   </div>
                   <h4 className="benefit-title">{benefit.title}</h4>
                   <p className="benefit-description">{benefit.description}</p>
@@ -326,7 +335,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
       <Link className="about-spotlight" to="/nosotros">
         <div className="about-spotlight-inner">
           <div className="about-spotlight-tag">
-            <i className="fas fa-building me-2" />
+            <Si icon="fas fa-building" className="showcase-icon-inline" size={16} />
             Nuestra Empresa
           </div>
           <h2 className="about-spotlight-title">
@@ -337,7 +346,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
           </p>
           <div className="about-spotlight-cta">
             <span>Conocé nuestra historia</span>
-            <i className="fas fa-arrow-right ms-3" />
+            <Si icon="fas fa-arrow-right" className="ms-3" size={16} />
           </div>
         </div>
         <div className="about-spotlight-bg-text" aria-hidden="true">
@@ -358,14 +367,14 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
               <div key={useCase.title} className="col-lg-4 animate">
                 <div className="use-case-card">
                   <div className="use-case-icon">
-                    <i className={useCase.icon} />
+                    <Si icon={useCase.icon} size={32} />
                   </div>
                   <h3 className="use-case-title">{useCase.title}</h3>
                   <p className="use-case-description">{useCase.description}</p>
                   <div className="use-case-metrics">
                     {useCase.metrics.map((metric) => (
                       <div key={metric} className="metric">
-                        <i className="fas fa-check-circle text-success me-2" />
+                        <Si icon="fas fa-check-circle" className="showcase-icon-inline" size={16} />
                         {metric}
                       </div>
                     ))}
@@ -389,7 +398,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
             {techStack.map((tech) => (
               <div key={tech.name} className="tech-item animate">
                 <div className="tech-icon" style={{ color: tech.color }}>
-                  <i className={tech.icon} />
+                  <Si icon={tech.icon} size={36} />
                 </div>
                 <div className="tech-name">{tech.name}</div>
               </div>
@@ -411,7 +420,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
               </div>
               <div className="col-lg-4 text-lg-end mt-4 mt-lg-0">
                 <button type="button" className="btn btn-light btn-lg" onClick={onLoginClick}>
-                  <i className="fas fa-sign-in-alt me-2" />
+                  <Si icon="fas fa-sign-in-alt" className="showcase-icon-inline" size={16} />
                   Ingresar al Sistema
                 </button>
               </div>
@@ -445,7 +454,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                     className="btn btn-link text-white-50 text-decoration-none p-0 border-0"
                     onClick={() => scrollToSection("pdm-destacado")}
                   >
-                    <i className="fas fa-chevron-right me-2" />
+                    <Si icon="fas fa-chevron-right" className="showcase-icon-inline" size={16} />
                     PDM 360°
                   </button>
                 </li>
@@ -455,13 +464,13 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                     className="btn btn-link text-white-50 text-decoration-none p-0 border-0"
                     onClick={() => scrollToSection("features")}
                   >
-                    <i className="fas fa-chevron-right me-2" />
+                    <Si icon="fas fa-chevron-right" className="showcase-icon-inline" size={16} />
                     Capacidades
                   </button>
                 </li>
                 <li className="mb-2">
                   <Link className="text-white-50 text-decoration-none" to="/nosotros">
-                    <i className="fas fa-chevron-right me-2" />
+                    <Si icon="fas fa-chevron-right" className="showcase-icon-inline" size={16} />
                     Nosotros
                   </Link>
                 </li>
@@ -471,7 +480,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                     className="btn btn-link text-white-50 text-decoration-none p-0 border-0"
                     onClick={() => scrollToSection("modules")}
                   >
-                    <i className="fas fa-chevron-right me-2" />
+                    <Si icon="fas fa-chevron-right" className="showcase-icon-inline" size={16} />
                     Módulos
                   </button>
                 </li>
@@ -481,7 +490,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                     className="btn btn-link text-white-50 text-decoration-none p-0 border-0"
                     onClick={() => scrollToSection("contact")}
                   >
-                    <i className="fas fa-chevron-right me-2" />
+                    <Si icon="fas fa-chevron-right" className="showcase-icon-inline" size={16} />
                     Contacto
                   </button>
                 </li>
@@ -490,15 +499,15 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
             <div className="col-md-4">
               <h6 className="fw-bold mb-3">Contacto</h6>
               <p className="text-white-50 small mb-2">
-                <i className="fas fa-envelope me-2" />
+                <Si icon="fas fa-envelope" className="showcase-icon-inline" size={16} />
                 {CONTACT_EMAIL}
               </p>
               <p className="text-white-50 small mb-2">
-                <i className="fas fa-phone me-2" />
+                <Si icon="fas fa-phone" className="showcase-icon-inline" size={16} />
                 {CONTACT_PHONE}
               </p>
               <p className="text-white-50 small mb-3">
-                <i className="fas fa-map-marker-alt me-2" />
+                <Si icon="fas fa-map-marker-alt" className="showcase-icon-inline" size={16} />
                 Tunja - Boyacá, Colombia
               </p>
               <button
@@ -508,7 +517,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                   contactWhatsApp("Hola, quiero más información sobre SoftOne360.")
                 }
               >
-                <i className="fab fa-whatsapp me-2" />
+                <Si icon="fab fa-whatsapp" className="showcase-icon-inline" size={16} />
                 Escríbenos por WhatsApp
               </button>
             </div>
@@ -517,8 +526,8 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
           <div className="row align-items-center">
             <div className="col-md-6 text-center text-md-start mb-3 mb-md-0">
               <p className="mb-0 small">
-                <i className="fas fa-code me-2" />
-                Desarrollado con <i className="fas fa-heart text-danger mx-1" /> por SoftOne360 —
+                <Si icon="fas fa-code" className="showcase-icon-inline" size={16} />
+                Desarrollado con <Si icon="fas fa-heart mx-1" className="text-danger mx-1" size={14} /> por SoftOne360 —
                 Tunja, Boyacá, Colombia
               </p>
             </div>

@@ -223,6 +223,7 @@ $dark: #212529;
     display: flex;
     align-items: center;
     padding: clamp(80px,10vh,140px) 1rem clamp(60px,8vh,120px);
+    padding-top: clamp(100px, 12vh, 150px);
 
     .container {
         position: relative;
@@ -350,7 +351,9 @@ $dark: #212529;
             .stat-icon {
                 font-size: clamp(1.5rem, 2vw, 2rem);
                 opacity: 0.85;
-                display: inline-block;
+                display: inline-flex;
+                align-items: center;
+                color: rgba(255, 255, 255, 0.9);
             }
 
             .stat-value {
@@ -2054,10 +2057,11 @@ $pdm-gold: #f59e0b;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
+        color: #fff;
 
-        i {
-            font-size: 1.25rem;
+        svg {
             color: #fff;
+            flex-shrink: 0;
         }
     }
 
@@ -2086,64 +2090,424 @@ $pdm-gold: #f59e0b;
     .pdm-stats-row { grid-template-columns: repeat(2, 1fr); }
 }
 
-// ===== LOGIN MODAL =====
-.login-modal-overlay {
-    z-index: 10000;
+// ===== LOGIN MODAL (responsive) =====
+@keyframes loginSlideUp {
+    from { transform: translateY(24px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
-.login-modal-content {
-    background: white;
-    border-radius: 20px;
-    width: 95%;
-    max-width: 440px;
-    max-height: 92vh;
+.login-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+    background: rgba(8, 15, 35, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
+    @media (min-width: 768px) {
+        align-items: center;
+        padding: 1.25rem;
+    }
+}
+
+.login-dialog {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+    max-height: min(94dvh, 900px);
+    background: #fff;
+    border-radius: 24px 24px 0 0;
     overflow: hidden;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+    animation: loginSlideUp 0.28s cubic-bezier(0.34, 1.2, 0.64, 1);
+
+    @media (min-width: 768px) {
+        grid-template-columns: minmax(280px, 360px) 1fr;
+        max-width: 920px;
+        border-radius: 24px;
+        max-height: min(90dvh, 720px);
+    }
+}
+
+.login-dialog-brand {
+    position: relative;
+    background: linear-gradient(160deg, #0b1535 0%, #1a3a6e 45%, #216ba8 100%);
+    color: #fff;
+    padding: clamp(1.5rem, 4vw, 2.25rem);
+    display: none;
+
+    @media (min-width: 768px) {
+        display: flex;
+        flex-direction: column;
+    }
+}
+
+.login-dialog-brand-content {
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+.login-dialog-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    font-weight: 800;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+}
+
+.login-dialog-eyebrow {
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.65);
+    margin: 0 0 0.75rem;
+}
+
+.login-dialog-heading {
+    font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+    font-weight: 800;
+    line-height: 1.25;
+    margin: 0 0 0.85rem;
+}
+
+.login-dialog-lead {
+    font-size: 0.92rem;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.78);
+    margin: 0 0 1.5rem;
+}
+
+.login-dialog-highlights {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.85rem;
+
+    li {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        font-size: 0.88rem;
+        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.88);
+    }
+}
+
+.login-dialog-highlight-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+    flex-shrink: 0;
+}
+
+.login-dialog-form {
     display: flex;
     flex-direction: column;
-    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.45);
-    animation: slideUpModal 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    min-height: 0;
+    min-width: 0;
+    background: #fff;
 }
 
-.login-modal-header {
+.login-dialog-form-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1.5rem 1.75rem 0.75rem;
-    background: linear-gradient(135deg, #0f172a, #1e3a5f);
-    color: white;
+    padding: 1.25rem 1.25rem 0.5rem;
+    border-bottom: 1px solid #eef2f7;
+
+    @media (min-width: 768px) {
+        padding: 1.5rem 1.75rem 0.75rem;
+    }
 }
 
-.login-modal-title {
+.login-dialog-form-title-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+}
+
+.login-dialog-form-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: rgba(33, 107, 168, 0.1);
+    color: $primary;
+    flex-shrink: 0;
+}
+
+.login-dialog-form-title {
     margin: 0;
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     font-weight: 800;
-    color: white;
+    color: $dark;
 }
 
-.login-modal-sub {
-    margin: 0.35rem 0 0;
+.login-dialog-form-sub {
+    margin: 0.2rem 0 0;
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.68);
+    color: #64748b;
 }
 
-.login-modal-close {
+.login-dialog-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 40px;
     height: 40px;
-    background: rgba(255, 255, 255, 0.12);
     border: none;
-    border-radius: 50%;
-    color: white;
+    border-radius: 12px;
+    background: #f1f5f9;
+    color: #475569;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.18s;
+    transition: background 0.18s, color 0.18s;
 
-    &:hover { background: rgba(255, 255, 255, 0.25); }
+    &:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
 }
 
-.login-modal-body {
-    padding: 1rem 1.25rem 1.5rem;
+.login-dialog-close-mobile {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    z-index: 2;
+
+    @media (min-width: 768px) {
+        display: none;
+    }
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.25);
+        color: #fff;
+    }
+}
+
+.login-dialog-clerk {
+    flex: 1;
     overflow-y: auto;
+    padding: 0.75rem 1.25rem 1rem;
+    -webkit-overflow-scrolling: touch;
+
+    @media (min-width: 768px) {
+        padding: 1rem 1.75rem 1.25rem;
+    }
+}
+
+.login-dialog-footnote {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.85rem 1.25rem 1.15rem;
+    margin: 0;
+    font-size: 0.75rem;
+    color: #64748b;
+    border-top: 1px solid #eef2f7;
+    text-align: center;
+}
+
+.login-dialog-mobile-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, #0f172a, #216ba8);
+    color: #fff;
+
+    @media (min-width: 768px) {
+        display: none;
+    }
+
+    strong {
+        display: block;
+        font-size: 0.95rem;
+    }
+
+    span {
+        display: block;
+        font-size: 0.78rem;
+        color: rgba(255, 255, 255, 0.72);
+    }
+
+    .login-dialog-logo {
+        width: 42px;
+        height: 42px;
+        margin: 0;
+        font-size: 0.85rem;
+    }
+}
+
+// ===== SHOWCASE NAV =====
+.showcase-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 900;
+    padding: 0.75rem 1rem;
+    pointer-events: none;
+}
+
+.showcase-nav-inner {
+    pointer-events: auto;
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.55rem 0.85rem;
+    border-radius: 16px;
+    background: rgba(8, 15, 35, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.showcase-nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    text-decoration: none;
+    color: #fff;
+    min-width: 0;
+}
+
+.showcase-nav-title {
+    display: block;
+    font-weight: 800;
+    font-size: 0.95rem;
+    line-height: 1.1;
+}
+
+.showcase-nav-tagline {
+    display: block;
+    font-size: 0.68rem;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 0.04em;
+}
+
+.showcase-nav-links {
+    display: none;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: auto;
+
+    @media (min-width: 992px) {
+        display: flex;
+    }
+}
+
+.showcase-nav-link {
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.45rem 0.75rem;
+    border-radius: 10px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+}
+
+.showcase-nav-link-muted {
+    opacity: 0.85;
+}
+
+.showcase-nav-cta {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border: none;
+    border-radius: 12px;
+    padding: 0.55rem 1rem;
+    background: linear-gradient(135deg, #fff, #e8f4ff);
+    color: $primary;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    transition: transform 0.2s, box-shadow 0.2s;
+
+    @media (min-width: 992px) {
+        margin-left: 0;
+    }
+
+    &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+}
+
+.hero-mobile-strip {
+    display: flex;
+    gap: 0.65rem;
+    overflow-x: auto;
+    padding: 0.25rem 0 0.75rem;
+    margin-bottom: 0.5rem;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar { display: none; }
+}
+
+.hero-mobile-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+    padding: 0.45rem 0.75rem 0.45rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.hero-mobile-chip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    color: #fff;
+}
+
+.showcase-icon-inline {
+    display: inline-flex;
+    vertical-align: middle;
+    margin-right: 0.5rem;
 }
 
 .hero-btn-ingresar {
