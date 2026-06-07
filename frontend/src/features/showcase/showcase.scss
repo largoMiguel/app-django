@@ -2209,12 +2209,12 @@ $pdm-gold: #f59e0b;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1rem 1rem 0.5rem;
+    padding: 1rem 2rem 0.5rem;
     border-bottom: 1px solid #eef2f7;
     flex-shrink: 0;
 
     @media (min-width: 768px) {
-        padding: 1.25rem 1.25rem 0.75rem;
+        padding: 1.25rem 2rem 0.75rem;
     }
 }
 
@@ -2292,11 +2292,11 @@ $pdm-gold: #f59e0b;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0.25rem 0.75rem 0.5rem;
+    padding: 0.25rem 2rem 0.5rem;
     overflow: visible;
 
     @media (min-width: 768px) {
-        padding: 0.5rem 1rem 0.75rem;
+        padding: 0.5rem 2rem 0.75rem;
     }
 
     * {
@@ -2337,7 +2337,7 @@ $pdm-gold: #f59e0b;
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    padding: 0.65rem 0.75rem 0.85rem;
+    padding: 0.65rem 2rem 0.85rem;
     margin: 0;
     font-size: 0.75rem;
     color: #64748b;
