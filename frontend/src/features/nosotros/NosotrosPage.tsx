@@ -1,14 +1,13 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import ShowcaseIcon from "../showcase/ShowcaseIcon";
+import { contactWhatsApp } from "@/features/showcase/showcaseData";
+import { useNosotrosReveal } from "./useNosotrosReveal";
+import "./nosotros.scss";
 
 function Si({ icon, className, size = 20 }: { icon: string; className?: string; size?: number }) {
   return <ShowcaseIcon icon={icon} className={className} size={size} />;
 }
-import { Link } from "react-router-dom";
-import "bootstrap/dist/css/bootstrap.min.css";
-import { contactWhatsApp } from "@/features/showcase/showcaseData";
-import { useNosotrosReveal } from "./useNosotrosReveal";
-import "./nosotros.scss";
 
 const pills = [
   { icon: "fas fa-code", label: "Ingeniería de Software" },
