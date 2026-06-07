@@ -2076,8 +2076,8 @@ $pdm-gold: #f59e0b;
 
 // ===== LOGIN MODAL =====
 @keyframes loginSlideUp {
-    from { transform: translateY(12px) scale(0.98); opacity: 0; }
-    to { transform: translateY(0) scale(1); opacity: 1; }
+    from { transform: translateY(16px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 .login-shell {
@@ -2091,90 +2091,289 @@ $pdm-gold: #f59e0b;
              max(1rem, env(safe-area-inset-right))
              max(1rem, env(safe-area-inset-bottom))
              max(1rem, env(safe-area-inset-left));
-    background: rgba(8, 15, 35, 0.78);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(8, 15, 35, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     overflow-y: auto;
     overscroll-behavior: contain;
 }
 
-.login-card {
-    width: min(100%, 420px);
-    margin: auto;
+.login-dialog {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: min(100%, 920px);
+    max-height: min(calc(100dvh - 2rem), 720px);
     background: #fff;
     border-radius: 20px;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.38);
-    animation: loginSlideUp 0.24s ease-out;
+    overflow: hidden;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+    animation: loginSlideUp 0.28s cubic-bezier(0.34, 1.2, 0.64, 1);
+    margin: auto;
+
+    @media (min-width: 768px) {
+        grid-template-columns: minmax(280px, 360px) 1fr;
+    }
+}
+
+.login-dialog-brand {
+    position: relative;
+    background: linear-gradient(160deg, #0b1535 0%, #1a3a6e 45%, #216ba8 100%);
+    color: #fff;
+    padding: clamp(1.5rem, 4vw, 2.25rem);
+    display: none;
+
+    @media (min-width: 768px) {
+        display: flex;
+        flex-direction: column;
+    }
+}
+
+.login-dialog-brand-content {
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+.login-dialog-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    font-weight: 800;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+}
+
+.login-dialog-eyebrow {
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.65);
+    margin: 0 0 0.75rem;
+}
+
+.login-dialog-heading {
+    font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+    font-weight: 800;
+    line-height: 1.25;
+    margin: 0 0 0.85rem;
+}
+
+.login-dialog-lead {
+    font-size: 0.92rem;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.78);
+    margin: 0 0 1.5rem;
+}
+
+.login-dialog-highlights {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.85rem;
+
+    li {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        font-size: 0.88rem;
+        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.88);
+    }
+}
+
+.login-dialog-highlight-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
     flex-shrink: 0;
 }
 
-.login-card-header {
+.login-dialog-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    background: #fff;
+    overflow-y: auto;
+}
+
+.login-dialog-form-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1.25rem 1.25rem 1rem;
-    background: linear-gradient(135deg, #0f172a 0%, #216ba8 100%);
-    color: #fff;
-    border-radius: 20px 20px 0 0;
-}
-
-.login-card-eyebrow {
-    margin: 0 0 0.35rem;
-    font-size: 0.72rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.65);
-}
-
-.login-card-title {
-    margin: 0;
-    font-size: 1.2rem;
-    font-weight: 800;
-    line-height: 1.25;
-}
-
-.login-card-sub {
-    margin: 0.35rem 0 0;
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.75);
-}
-
-.login-card-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    height: 38px;
-    border: none;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
-    cursor: pointer;
+    padding: 1.25rem 1.25rem 0.5rem;
+    border-bottom: 1px solid #eef2f7;
     flex-shrink: 0;
-    transition: background 0.18s;
 
-    &:hover {
-        background: rgba(255, 255, 255, 0.28);
+    @media (min-width: 768px) {
+        padding: 1.5rem 1.75rem 0.75rem;
     }
 }
 
-.login-card-body {
-    padding: 1rem 1.25rem 0.5rem;
+.login-dialog-form-title-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
 }
 
-.login-card-footnote {
+.login-dialog-form-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: rgba(33, 107, 168, 0.1);
+    color: $primary;
+    flex-shrink: 0;
+}
+
+.login-dialog-form-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: $dark;
+}
+
+.login-dialog-form-sub {
+    margin: 0.2rem 0 0;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.login-dialog-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 12px;
+    background: #f1f5f9;
+    color: #475569;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.18s, color 0.18s;
+
+    &:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+}
+
+.login-dialog-close-mobile {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    z-index: 2;
+
+    @media (min-width: 768px) {
+        display: none;
+    }
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.25);
+        color: #fff;
+    }
+}
+
+.login-dialog-clerk {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem 1.25rem;
+    min-height: 280px;
+    overflow: visible;
+
+    @media (min-width: 768px) {
+        padding: 1.25rem 1.75rem;
+    }
+}
+
+.login-clerk-root {
+    width: 100% !important;
+    max-width: 380px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    display: flex !important;
+    justify-content: center !important;
+}
+
+.login-clerk-card-box {
+    width: 100% !important;
+    max-width: 380px !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+}
+
+.login-clerk-card {
+    width: 100% !important;
+    max-width: 380px !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    gap: 1rem !important;
+}
+
+.login-dialog-footnote {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    padding: 0.85rem 1.25rem 1.1rem;
+    padding: 0.85rem 1.25rem 1.15rem;
     margin: 0;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     color: #64748b;
     border-top: 1px solid #eef2f7;
     text-align: center;
-    border-radius: 0 0 20px 20px;
+    flex-shrink: 0;
+}
+
+.login-dialog-mobile-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, #0f172a, #216ba8);
+    color: #fff;
+    flex-shrink: 0;
+
+    @media (min-width: 768px) {
+        display: none;
+    }
+
+    strong {
+        display: block;
+        font-size: 0.95rem;
+    }
+
+    span {
+        display: block;
+        font-size: 0.78rem;
+        color: rgba(255, 255, 255, 0.72);
+    }
+
+    .login-dialog-logo {
+        width: 42px;
+        height: 42px;
+        margin: 0;
+        font-size: 0.85rem;
+    }
 }
 
 .showcase-icon-inline {
