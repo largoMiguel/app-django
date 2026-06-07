@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
 import ShowcaseIcon from "./ShowcaseIcon";
-import ShowcaseNav, { HeroFeatureStrip } from "./ShowcaseNav";
 import {
   benefits,
   contactWhatsApp,
@@ -37,8 +36,6 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
 
   return (
     <div className="showcase-main">
-      <ShowcaseNav onLoginClick={onLoginClick} onNavigate={scrollToSection} />
-
       <section className="hero-section">
         <div className="hero-overlay" />
         <div className="container">
@@ -61,7 +58,6 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                 Pública y Planes Institucionales. IA generativa con OpenAI, informes automáticos
                 en PDF, dashboards en tiempo real y acceso seguro multi-entidad.
               </p>
-              <HeroFeatureStrip />
               <div className="hero-actions">
                 <button type="button" className="hero-btn hero-btn-ingresar" onClick={onLoginClick}>
                   <Si icon="fas fa-sign-in-alt" className="showcase-icon-inline" size={16} />
@@ -97,17 +93,9 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
             </div>
           </div>
         </div>
-        <div className="hero-wave">
-          <svg viewBox="0 0 1440 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path
-              fill="#ffffff"
-              d="M0,64L80,69.3C160,75,320,85,480,80C640,75,800,53,960,48C1120,43,1280,53,1360,58.7L1440,64L1440,120L1360,120C1280,120,1120,120,960,120C800,120,640,120,480,120C320,120,160,120,80,120L0,120Z"
-            />
-          </svg>
-        </div>
       </section>
 
-      <button type="button" className="portales-fab d-md-none" onClick={onLoginClick} title="Ingresar al Sistema">
+      <button type="button" className="portales-fab" onClick={onLoginClick} title="Ingresar al Sistema">
         <Si icon="fas fa-sign-in-alt" className="" size={16} />
         <span className="fab-label">Ingresar</span>
       </button>
