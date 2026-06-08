@@ -9,10 +9,14 @@ export const pqrsKeys = {
   detail: (id: number) => [...pqrsKeys.all, "detail", id] as const,
 };
 
-export function usePqrsList(params: Record<string, string | number | boolean | undefined>) {
+export function usePqrsList(
+  params: Record<string, string | number | boolean | undefined>,
+  options?: { enabled?: boolean },
+) {
   return useQuery<PaginatedPQRS>({
     queryKey: pqrsKeys.list(params),
     queryFn: () => pqrsApi.listPaginated(params),
+    enabled: options?.enabled ?? true,
   });
 }
 

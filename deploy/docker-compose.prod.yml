@@ -124,6 +124,11 @@ services:
       FILE_DELIVERY_BASE_URL: ${FILE_DELIVERY_BASE_URL:-https://files.softone360.com}
       FILE_DELIVERY_SIGNING_KEY: ${FILE_DELIVERY_SIGNING_KEY:-}
       FILE_DELIVERY_TTL: ${FILE_DELIVERY_TTL:-600}
+      PQRS_EMAIL_ENABLED: ${PQRS_EMAIL_ENABLED:-true}
+      ZEPTOMAIL_API_URL: ${ZEPTOMAIL_API_URL:-https://api.zeptomail.com/v1.1/email}
+      ZEPTOMAIL_TOKEN: ${ZEPTOMAIL_TOKEN:-}
+      ZEPTOMAIL_FROM_EMAIL: ${ZEPTOMAIL_FROM_EMAIL:-noreply@softone360.com}
+      ZEPTOMAIL_WEBHOOK_SECRET: ${ZEPTOMAIL_WEBHOOK_SECRET:-}
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles

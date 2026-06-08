@@ -199,6 +199,11 @@ class PQRS(models.Model):
 
     email_enviado = models.BooleanField(default=False)
     email_error = models.CharField(max_length=500, blank=True, null=True)
+    correo_alerta = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="True si algún correo PQRS tiene rebote, error o spam pendiente.",
+    )
 
     fecha_solicitud = models.DateTimeField(default=timezone.now, null=True)
     fecha_cierre = models.DateTimeField(blank=True, null=True)
@@ -355,4 +360,63 @@ class PQRSArchivo(models.Model):
 
     def __str__(self) -> str:
         return f"{self.pqrs_id} — {self.nombre_original or self.archivo.name}"
+
+
+class TipoCorreoPQRS(models.TextChoices):
+    RADICACION = "radicacion", "Radicación"
+    RESPUESTA = "respuesta", "Respuesta"
+
+
+class EstadoCorreoPQRS(models.TextChoices):
+    PENDIENTE = "pendiente", "Pendiente"
+    ENVIADO = "enviado", "Enviado"
+    ENTREGADO = "entregado", "Entregado"
+    REBOTE_TEMPORAL = "rebote_temporal", "Rebote temporal"
+    REBOTADO = "rebotado", "Rebotado"
+    RECLAMACION_SPAM = "reclamacion_spam", "Marcado como spam"
+    ERROR = "error", "Error"
+
+
+class PQRSCorreo(models.Model):
+    """Historial y estado de correos PQRS enviados vía ZeptoMail."""
+
+    pqrs = models.ForeignKey(
+        PQRS,
+        on_delete=models.CASCADE,
+        related_name="correos",
+        db_column="pqrs_id",
+    )
+    tipo = models.CharField(max_length=20, choices=TipoCorreoPQRS.choices)
+    asunto = models.CharField(max_length=255)
+    cuerpo_resumen = models.TextField(blank=True, default="")
+    request_id = models.CharField(max_length=128, blank=True, null=True, db_index=True)
+    estado = models.CharField(
+        max_length=20,
+        choices=EstadoCorreoPQRS.choices,
+        default=EstadoCorreoPQRS.PENDIENTE,
+    )
+    error = models.CharField(max_length=500, blank=True, null=True)
+    destinatarios = models.JSONField(default=list, blank=True)
+    enviado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pqrs_correos_enviados",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "pqrs_correos"
+        verbose_name = "Correo PQRS"
+        verbose_name_plural = "Correos PQRS"
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["pqrs", "-created_at"]),
+            models.Index(fields=["request_id"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.pqrs_id} — {self.tipo} — {self.estado}"
 

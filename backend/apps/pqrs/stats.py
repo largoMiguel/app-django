@@ -1,8 +1,6 @@
 """Agregados de PQRS para dashboard e informes."""
 from __future__ import annotations
 
-from datetime import timedelta
-
 from django.db.models import Count, Q
 from django.db.models.functions import ExtractMonth
 from django.utils import timezone
@@ -17,7 +15,6 @@ def compute_pqrs_stats(queryset, user) -> dict:
     roles = user_roles(user)
     now = timezone.now()
     month = now.month
-    alert_limit = now + timedelta(days=5)
     closed_states = (EstadoPQRS.RESPONDIDA, EstadoPQRS.CERRADA)
 
     by_estado = {
@@ -45,11 +42,7 @@ def compute_pqrs_stats(queryset, user) -> dict:
 
     this_month = queryset.filter(fecha_solicitud__month=month).count()
     sin_asignar = queryset.filter(~Q(estado__in=closed_states), assigned_to__isnull=True).count()
-    alerta_count = queryset.filter(
-        ~Q(estado__in=closed_states),
-        fecha_vencimiento__isnull=False,
-        fecha_vencimiento__lte=alert_limit,
-    ).count()
+    alerta_count = queryset.filter(correo_alerta=True).count()
 
     by_secretaria = []
     if "admin" in roles:

@@ -3,7 +3,8 @@ from rest_framework import serializers
 from apps.common.file_delivery import signed_pdm_url, signed_pqrs_url
 from apps.entities.models import Secretaria
 
-from .models import PQRS, AsignacionAuditoria, PQRSArchivo
+from .models import PQRS, AsignacionAuditoria, PQRSArchivo, PQRSCorreo
+from .services.email import parse_email_list
 
 
 class PQRSArchivoSerializer(serializers.ModelSerializer):
@@ -75,11 +76,29 @@ class AsignacionAuditoriaSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class PQRSCorreoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PQRSCorreo
+        fields = (
+            "id",
+            "tipo",
+            "asunto",
+            "estado",
+            "error",
+            "request_id",
+            "destinatarios",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+
 class PQRSSerializer(serializers.ModelSerializer):
     assigned_to_nombre = serializers.CharField(
         source="assigned_to.nombre", read_only=True, default=None
     )
     auditoria = AsignacionAuditoriaSerializer(many=True, read_only=True)
+    correos = PQRSCorreoSerializer(many=True, read_only=True)
     is_anonima = serializers.SerializerMethodField()
     archivo_respuesta_url = serializers.SerializerMethodField()
     archivos = PQRSArchivoSerializer(many=True, read_only=True)
@@ -110,6 +129,9 @@ class PQRSSerializer(serializers.ModelSerializer):
             "respuesta",
             "archivo_respuesta",
             "justificacion_asignacion",
+            "email_enviado",
+            "email_error",
+            "correo_alerta",
             "fecha_solicitud",
             "fecha_cierre",
             "fecha_delegacion",
@@ -118,6 +140,7 @@ class PQRSSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "auditoria",
+            "correos",
             "is_anonima",
             "archivo_respuesta_url",
             "archivos",
@@ -131,6 +154,8 @@ class PQRSSerializer(serializers.ModelSerializer):
             "respuesta",
             "archivo_respuesta",
             "justificacion_asignacion",
+            "email_enviado",
+            "email_error",
             "fecha_cierre",
             "fecha_delegacion",
             "fecha_respuesta",
@@ -138,6 +163,7 @@ class PQRSSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "auditoria",
+            "correos",
             "assigned_to_nombre",
             "is_anonima",
             "archivo_respuesta_url",
@@ -242,4 +268,27 @@ class RechazarAsignacionSerializer(serializers.Serializer):
 class ResponderSerializer(serializers.Serializer):
     respuesta = serializers.CharField()
     enviar_email = serializers.BooleanField(required=False, default=False)
-    email_destino = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    email_destino = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_email_destino(self, value):
+        if not value or not str(value).strip():
+            return ""
+        try:
+            emails = parse_email_list(str(value))
+        except Exception as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+        return ", ".join(emails)
+
+
+class ReenviarCorreoSerializer(serializers.Serializer):
+    correo_id = serializers.IntegerField(required=False, allow_null=True)
+    email_destino = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_email_destino(self, value):
+        if not value or not str(value).strip():
+            return ""
+        try:
+            emails = parse_email_list(str(value))
+        except Exception as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+        return ", ".join(emails)

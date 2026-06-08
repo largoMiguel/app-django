@@ -36,6 +36,36 @@ export interface AuditoriaItem {
   fecha_asignacion: string | null;
 }
 
+export type EstadoCorreoPQRS =
+  | "pendiente"
+  | "enviado"
+  | "entregado"
+  | "rebote_temporal"
+  | "rebotado"
+  | "reclamacion_spam"
+  | "error";
+
+export type TipoCorreoPQRS = "radicacion" | "respuesta";
+
+export interface PQRSCorreoDestinatario {
+  email: string;
+  estado: string;
+  motivo?: string | null;
+  evento_at?: string | null;
+}
+
+export interface PQRSCorreoItem {
+  id: number;
+  tipo: TipoCorreoPQRS;
+  asunto: string;
+  estado: EstadoCorreoPQRS;
+  error: string | null;
+  request_id: string | null;
+  destinatarios: PQRSCorreoDestinatario[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PQRS {
   id: number;
   entity: number;
@@ -62,6 +92,10 @@ export interface PQRS {
   archivo_respuesta_url: string | null;
   is_anonima?: boolean;
   justificacion_asignacion: string | null;
+  email_enviado?: boolean;
+  email_error?: string | null;
+  correo_alerta?: boolean;
+  correos?: PQRSCorreoItem[];
   fecha_solicitud: string | null;
   fecha_respuesta: string | null;
   fecha_cierre: string | null;
@@ -303,6 +337,18 @@ export const pqrsApi = {
   },
   cerrar: (id: number) => api.post<PQRS>(`/pqrs/${id}/cerrar/`).then((r) => r.data),
   reabrir: (id: number) => api.post<PQRS>(`/pqrs/${id}/reabrir/`).then((r) => r.data),
+  reenviarCorreo: (
+    id: number,
+    opts?: { correoId?: number; emailDestino?: string },
+  ) =>
+    api
+      .post<PQRS>(`/pqrs/${id}/reenviar-correo/`, {
+        ...(opts?.correoId != null && { correo_id: opts.correoId }),
+        ...(opts?.emailDestino && { email_destino: opts.emailDestino }),
+      })
+      .then((r) => r.data),
+  descartarAlertaCorreo: (id: number) =>
+    api.post<PQRS>(`/pqrs/${id}/descartar-alerta-correo/`).then((r) => r.data),
 };
 
 export {

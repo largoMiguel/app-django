@@ -1,7 +1,7 @@
 """Filtros de listado PQRS."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import django_filters
 from django.utils import timezone
@@ -29,10 +29,7 @@ class PQRSFilterSet(django_filters.FilterSet):
     def filter_alerta(self, queryset, name, value):
         if not value:
             return queryset
-        limite = timezone.now() + timedelta(days=5)
-        return queryset.exclude(
-            estado__in=(EstadoPQRS.RESPONDIDA, EstadoPQRS.CERRADA)
-        ).filter(fecha_vencimiento__isnull=False, fecha_vencimiento__lte=limite)
+        return queryset.filter(correo_alerta=True)
 
     def filter_fecha_hasta(self, queryset, name, value):
         if not value:

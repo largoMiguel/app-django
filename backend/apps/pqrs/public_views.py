@@ -19,6 +19,7 @@ from .models import (
     PQRSArchivo,
     sumar_dias_habiles,
 )
+from .services.email import enviar_radicacion
 from .views import MAX_ARCHIVOS, _attach_archivos, _create_text_pdf
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,9 @@ class PublicPQRSCreateView(APIView):
                     )
                 _attach_archivos(pqrs, files, None)
 
+        if pqrs.email_ciudadano:
+            transaction.on_commit(lambda: enviar_radicacion(pqrs))
+
         return Response(
             {
                 "numero_radicado": pqrs.numero_radicado,
@@ -261,6 +265,9 @@ class PublicPQRSAutoCreateView(APIView):
 
             if files:
                 _attach_archivos(pqrs, files, None)
+
+        if pqrs.email_ciudadano:
+            transaction.on_commit(lambda: enviar_radicacion(pqrs))
 
         return Response(
             {

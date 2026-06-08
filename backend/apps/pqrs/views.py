@@ -1,7 +1,6 @@
 """PQRS endpoints — admin/secretario flow."""
 from __future__ import annotations
 
-import html
 import logging
 
 from django.core.files.base import ContentFile
@@ -37,8 +36,11 @@ from .serializers import (
     PQRSArchivoSerializer,
     PQRSSerializer,
     RechazarAsignacionSerializer,
+    ReenviarCorreoSerializer,
     ResponderSerializer,
 )
+from .services.correo_alerta import descartar_alerta_correo
+from .services.email import enviar_respuesta, merge_corrected_emails, reenviar_correo
 from .services.ai import extraer_pqrs_con_ia
 from .filters import PQRSFilterSet
 from .stats import compute_pqrs_stats
@@ -48,112 +50,6 @@ from .validators import validate_uploaded_file
 logger = logging.getLogger(__name__)
 
 MAX_ARCHIVOS = PQRSArchivo.MAX_ARCHIVOS
-
-
-def _enviar_respuesta_email(pqrs: PQRS, texto_respuesta: str, email_destino: str) -> tuple[bool, str | None]:
-    """Envía la respuesta de la PQRS al ciudadano por correo electrónico."""
-    from django.conf import settings
-    from django.core.mail import send_mail
-
-    entity_name = pqrs.entity.name if pqrs.entity else "la entidad"
-    safe_entity = html.escape(entity_name)
-    safe_texto = html.escape(texto_respuesta)
-    tipo_labels = {
-        "peticion": "Petición",
-        "queja": "Queja",
-        "reclamo": "Reclamo",
-        "sugerencia": "Sugerencia",
-        "denuncia": "Denuncia",
-        "felicitacion": "Felicitación",
-        "solicitud_informacion": "Solicitud de Información",
-        "copia": "Copia",
-        "otro": "Solicitud",
-    }
-    tipo_label = tipo_labels.get(pqrs.tipo_solicitud, "Solicitud")
-    subject = f"Respuesta a su {tipo_label} No. {pqrs.numero_radicado}"
-
-    fecha_str = (
-        pqrs.fecha_respuesta.strftime("%d/%m/%Y %H:%M")
-        if pqrs.fecha_respuesta
-        else timezone.now().strftime("%d/%m/%Y %H:%M")
-    )
-
-    text_body = (
-        f"Estimado/a ciudadano/a,\n\n"
-        f"{entity_name} ha dado respuesta a su {tipo_label} con número de radicado "
-        f"{pqrs.numero_radicado}.\n\n"
-        f"RESPUESTA:\n{texto_respuesta}\n\n"
-        f"Fecha de respuesta: {fecha_str}\n\n"
-        f"Atentamente,\n{entity_name}\n\n"
-        f"Este mensaje es generado automáticamente. Por favor no responda a este correo."
-    )
-
-    html_body = f"""
-<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;
-            border:1px solid #e2e8f0;border-radius:8px;">
-  <div style="background:#1c2536;padding:20px;border-radius:6px 6px 0 0;">
-    <h2 style="color:white;margin:0;font-size:16px;">Respuesta a su solicitud PQRS</h2>
-    <p style="color:#94a3b8;margin:4px 0 0;font-size:13px;">{safe_entity}</p>
-  </div>
-  <div style="padding:24px 20px;">
-    <p style="color:#475569;font-size:14px;margin-bottom:16px;">Estimado/a ciudadano/a,</p>
-    <p style="color:#475569;font-size:14px;">
-      {safe_entity} ha dado respuesta a su <strong>{html.escape(tipo_label)}</strong>
-      con número de radicado:
-    </p>
-    <div style="background:#f1f5f9;border-radius:6px;padding:12px 16px;margin:12px 0;
-                font-size:15px;font-weight:bold;color:#1e293b;">
-      {html.escape(pqrs.numero_radicado)}
-    </div>
-    <h3 style="color:#1e293b;font-size:13px;text-transform:uppercase;
-               letter-spacing:0.5px;margin:20px 0 8px;">
-      Respuesta:
-    </h3>
-    <div style="background:#f8fafc;border-left:3px solid #3eafd4;padding:14px 16px;
-                border-radius:0 6px 6px 0;color:#334155;font-size:14px;
-                line-height:1.6;white-space:pre-wrap;">
-      {safe_texto}
-    </div>
-    <p style="color:#94a3b8;font-size:12px;margin-top:4px;">
-      Fecha de respuesta: {html.escape(fecha_str)}
-    </p>
-    <p style="color:#94a3b8;font-size:12px;margin-top:24px;padding-top:16px;
-              border-top:1px solid #e2e8f0;">
-      Este mensaje es generado automáticamente. Por favor no responda a este correo.
-    </p>
-  </div>
-</div>
-"""
-    try:
-        recipient_list = [
-            e.strip()
-            for e in email_destino.replace(";", ",").split(",")
-            if e.strip()
-        ]
-        if not recipient_list:
-            return False, "No hay destinatarios válidos."
-        send_mail(
-            subject=subject,
-            message=text_body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=recipient_list,
-            html_message=html_body,
-            fail_silently=False,
-        )
-        logger.info(
-            "Email de respuesta PQRS %s enviado a %s",
-            pqrs.numero_radicado,
-            ", ".join(recipient_list),
-        )
-        return True, None
-    except Exception as exc:
-        logger.warning(
-            "No se pudo enviar email de respuesta PQRS %s a %s: %s",
-            pqrs.numero_radicado,
-            email_destino,
-            exc,
-        )
-        return False, str(exc)[:500]
 
 
 def _create_text_pdf(texto: str, asunto: str, radicado: str) -> bytes:
@@ -276,6 +172,10 @@ class PQRSViewSet(viewsets.ModelViewSet):
             "asignar": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "rechazar_asignacion": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("secretario",))],
             "responder": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
+            "reenviar_correo": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
+            "reenviar_correo_action": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
+            "descartar_alerta_correo": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
+            "descartar_alerta_correo_action": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
             "cerrar": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "reabrir": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "archivos": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "ciudadano"))],
@@ -296,9 +196,20 @@ class PQRSViewSet(viewsets.ModelViewSet):
         qs = PQRS.objects.select_related("entity", "assigned_to", "created_by")
         if self.action == "list":
             qs = qs.annotate(archivos_count=Count("archivos"))
-        elif self.action in {"retrieve", "responder", "archivos", "archivo_remove", "asignar"}:
+        elif self.action in {
+            "retrieve",
+            "responder",
+            "reenviar_correo",
+            "reenviar_correo_action",
+            "descartar_alerta_correo",
+            "descartar_alerta_correo_action",
+            "archivos",
+            "archivo_remove",
+            "asignar",
+        }:
             qs = qs.prefetch_related(
                 "archivos",
+                "correos",
                 "auditoria",
                 "auditoria__secretaria_anterior",
                 "auditoria__secretaria_nueva",
@@ -510,7 +421,10 @@ class PQRSViewSet(viewsets.ModelViewSet):
 
         if pqrs.estado == EstadoPQRS.RESPONDIDA:
             raise ValidationError({"detail": "Esta PQRS ya fue respondida."})
-        if pqrs.estado not in (EstadoPQRS.ASIGNADA, EstadoPQRS.EN_PROCESO):
+        estados_permitidos = (EstadoPQRS.ASIGNADA, EstadoPQRS.EN_PROCESO)
+        if "admin" in roles:
+            estados_permitidos = (EstadoPQRS.RECIBIDA, EstadoPQRS.ASIGNADA, EstadoPQRS.EN_PROCESO)
+        if pqrs.estado not in estados_permitidos:
             raise ValidationError({"detail": "Solo se puede responder una PQRS asignada."})
 
         ser = ResponderSerializer(data=request.data)
@@ -557,23 +471,85 @@ class PQRSViewSet(viewsets.ModelViewSet):
             )
 
         # Notificación por email (opcional)
-        enviar_email = ser.validated_data.get("enviar_email", False)
+        enviar_email_flag = ser.validated_data.get("enviar_email", False)
         email_destino = (ser.validated_data.get("email_destino") or "").strip()
         if not email_destino:
             email_destino = (pqrs.email_ciudadano or "").strip()
-        if enviar_email:
+        if enviar_email_flag:
             if not email_destino:
-                raise ValidationError({"email_destino": "La PQRS no tiene email de ciudadano registrado."})
-            registro = (pqrs.email_ciudadano or "").strip().lower()
-            if email_destino.lower() != registro:
                 raise ValidationError(
-                    {"email_destino": "Solo se puede enviar al email registrado en la PQRS."}
+                    {"email_destino": "La PQRS no tiene email de ciudadano registrado."}
                 )
-            ok, err = _enviar_respuesta_email(pqrs, ser.validated_data["respuesta"], email_destino)
-            pqrs.email_enviado = ok
-            pqrs.email_error = err or ""
-            pqrs.save(update_fields=["email_enviado", "email_error", "updated_at"])
+            if email_destino != (pqrs.email_ciudadano or "").strip():
+                pqrs.email_ciudadano = email_destino
+                pqrs.save(update_fields=["email_ciudadano", "updated_at"])
+            try:
+                enviar_respuesta(
+                    pqrs,
+                    ser.validated_data["respuesta"],
+                    email_destino,
+                    enviado_por=user,
+                )
+            except ValueError as exc:
+                raise ValidationError({"email_destino": str(exc)}) from exc
 
+        pqrs.refresh_from_db()
+        return Response(PQRSSerializer(pqrs, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"], url_path="reenviar-correo")
+    def reenviar_correo_action(self, request, pk=None):
+        pqrs = self.get_object()
+        user = request.user
+        roles = _roles(user)
+        if not ("admin" in roles or "secretario" in roles):
+            raise PermissionDenied("Sin permiso para reenviar correo.")
+        if "secretario" in roles and "admin" not in roles:
+            if pqrs.assigned_to_id != user.secretaria_id:
+                raise PermissionDenied("No tienes esta PQRS asignada.")
+
+        ser = ReenviarCorreoSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        correo_id = ser.validated_data.get("correo_id")
+        email_destino = (ser.validated_data.get("email_destino") or "").strip()
+
+        if correo_id:
+            correo = pqrs.correos.filter(pk=correo_id).first()
+            if not correo:
+                raise ValidationError({"correo_id": "Correo no encontrado para esta PQRS."})
+        else:
+            correo = pqrs.correos.order_by("-created_at").first()
+            if not correo:
+                raise ValidationError({"detail": "No hay correos previos para reenviar."})
+
+        if email_destino:
+            nuevo_email = merge_corrected_emails(pqrs, correo, email_destino)
+            if nuevo_email != (pqrs.email_ciudadano or "").strip():
+                pqrs.email_ciudadano = nuevo_email
+                pqrs.save(update_fields=["email_ciudadano", "updated_at"])
+
+        try:
+            reenviar_correo(correo, email_destino or None)
+        except ValueError as exc:
+            raise ValidationError({"email_destino": str(exc)}) from exc
+
+        pqrs.refresh_from_db()
+        return Response(PQRSSerializer(pqrs, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"], url_path="descartar-alerta-correo")
+    def descartar_alerta_correo_action(self, request, pk=None):
+        pqrs = self.get_object()
+        user = request.user
+        roles = _roles(user)
+        if not ("admin" in roles or "secretario" in roles):
+            raise PermissionDenied("Sin permiso para descartar alerta de correo.")
+        if "secretario" in roles and "admin" not in roles:
+            if pqrs.assigned_to_id != user.secretaria_id:
+                raise PermissionDenied("No tienes esta PQRS asignada.")
+        if not pqrs.correo_alerta:
+            raise ValidationError({"detail": "Esta PQRS no tiene alerta de correo activa."})
+
+        descartar_alerta_correo(pqrs)
+        pqrs.refresh_from_db()
         return Response(PQRSSerializer(pqrs, context={"request": request}).data)
 
     # ── Cerrar PQRS (admin) ───────────────────────────────────────────

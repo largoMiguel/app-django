@@ -1,6 +1,6 @@
 import {
   Search, ChevronLeft, ChevronRight, Plus, FileText, Eye, Trash2,
-  AlertTriangle, ArrowLeft, SlidersHorizontal, Users, ListFilter, Tag, RotateCcw, Info, BellRing, Clock,
+  AlertTriangle, ArrowLeft, SlidersHorizontal, Users, ListFilter, Tag, RotateCcw, Info, BellRing, Clock, Mail,
 } from "lucide-react";
 import { useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -56,6 +56,11 @@ export default function PQRSPage() {
     roles: ["admin"],
     permissions: [PERM.PQRS_DELETE],
   });
+  const canVerCorreoAlerta = canAccess(user, {
+    roles: ["admin", "secretario"],
+    permissions: [PERM.PQRS_CHANGE],
+  });
+  const isAdminCorreo = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_CHANGE] });
 
   const urlParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const searchTerm = urlParams.get("q") || "";
@@ -110,6 +115,12 @@ export default function PQRSPage() {
     page_size: 5,
   });
   const rechazadas = rechazadasData?.results ?? [];
+
+  const { data: correoAlertaData } = usePqrsList(
+    { alerta: true, page: 1, page_size: 5 },
+    { enabled: canVerCorreoAlerta },
+  );
+  const correoAlertas = correoAlertaData?.results ?? [];
 
   const { data: secretarias = [] } = useQuery({
     queryKey: ["secretarias", user?.entity?.id],
@@ -236,6 +247,38 @@ export default function PQRSPage() {
         </button>
       )}
 
+      {canVerCorreoAlerta && correoAlertas.length > 0 && (
+        <button
+          type="button"
+          onClick={() => updateParams({ id: String(correoAlertas[0].id) }, { resetPage: false })}
+          className="flex w-full items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-left transition-colors hover:bg-amber-100"
+        >
+          <Mail className="h-5 w-5 flex-shrink-0 text-amber-600" />
+          <div className="flex-1">
+            <div className="font-semibold text-amber-900">
+              {correoAlertas.length === 1
+                ? "Hay 1 PQRS con error en el envío de correo"
+                : `Hay ${correoAlertaData?.count ?? correoAlertas.length} PQRS con error en el envío de correo`}
+            </div>
+            <div className="text-sm text-amber-700">
+              {isAdminCorreo
+                ? "Corrige el destinatario y reenvía la notificación al ciudadano."
+                : "Revisa el correo del ciudadano, corrígelo si es necesario y reenvía la notificación."}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {correoAlertas.map((p) => (
+                <span
+                  key={p.id}
+                  className="rounded border border-amber-200 bg-white px-1.5 py-0.5 font-mono text-[0.7rem] text-amber-800"
+                >
+                  {p.numero_radicado}
+                </span>
+              ))}
+            </div>
+          </div>
+        </button>
+      )}
+
       {loadError && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {loadError}
@@ -348,7 +391,7 @@ export default function PQRSPage() {
         <div className="flex items-center gap-1.5 border-t border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-500">
           <Info className="h-3.5 w-3.5" />
           {filterPendientes && "Filtro: pendientes · "}
-          {modoAlerta && "Filtro: vencen en ≤5 días · "}
+          {modoAlerta && "Filtro: correos con error de envío · "}
           Mostrando {items.length} de {totalCount} PQRS
         </div>
       </div>
@@ -392,7 +435,14 @@ export default function PQRSPage() {
               {items.map((p) => (
                 <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50/60">
                   <td className="px-4 py-3 font-mono text-[0.78rem] font-medium text-slate-800">
-                    {p.numero_radicado}
+                    <span className="inline-flex items-center gap-1.5">
+                      {p.numero_radicado}
+                      {p.correo_alerta && (
+                        <span title="Correo con error de envío">
+                          <Mail className="h-3.5 w-3.5 text-red-500" />
+                        </span>
+                      )}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded bg-[#f0fbff] px-1.5 py-0.5 text-[0.72rem] text-[#0e7490]">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   X,
   Send,
@@ -15,10 +15,14 @@ import {
   Download,
   Mail,
   CheckCircle2,
+  CloudUpload,
+  File as FileIcon,
+  XCircle,
 } from "lucide-react";
 import {
   pqrsApi,
   type PQRS,
+  type PQRSCorreoItem,
   TIPO_SOLICITUD_LABEL,
   ESTADO_LABEL,
   MAX_FILE_SIZE_MB,
@@ -67,6 +71,11 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
   const [emailDestino, setEmailDestino] = useState("");
   const [emailEditando, setEmailEditando] = useState(false);
   const [emailTemporal, setEmailTemporal] = useState("");
+  const [reenviarCorreoId, setReenviarCorreoId] = useState<number | null>(null);
+  const [reenviarEmailEditado, setReenviarEmailEditado] = useState(false);
+  const [showDescartarConfirm, setShowDescartarConfirm] = useState(false);
+  const [dragOverArchivo, setDragOverArchivo] = useState(false);
+  const archivoRef = useRef<HTMLInputElement>(null);
 
   async function abrirArchivo(url: string) {
     try {
@@ -93,6 +102,21 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
     (canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] }) &&
       data?.assigned_to === user?.secretaria?.id);
   const estadoFinal = data?.estado === "respondida" || data?.estado === "cerrada";
+  const puedeResponderEstado =
+    data?.estado === "asignada" ||
+    data?.estado === "en_proceso" ||
+    (canAdmin && data?.estado === "recibida");
+
+  function seleccionarArchivoRespuesta(file: File | null) {
+    if (!file) return;
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      setErr(`El archivo supera el límite de ${MAX_FILE_SIZE_MB} MB.`);
+      setArchivo(null);
+      return;
+    }
+    setErr(null);
+    setArchivo(file);
+  }
 
   async function load() {
     setLoading(true);
@@ -279,6 +303,92 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
 
                 </section>
 
+                {/* Estado de correos */}
+                {(data.correos?.length ?? 0) > 0 && (() => {
+                  const correos = data.correos || [];
+                  const latestPorEmail = latestEstadoPorEmail(correos);
+                  const alertaActiva =
+                    data.correo_alerta ?? tieneCorreoAlertaActiva(latestPorEmail);
+                  const correoReenvio = alertaActiva ? correoParaReenviar(correos, latestPorEmail) : null;
+                  const mensajeExito = mensajeEstadoCorreo(latestPorEmail);
+                  const abrirReenvio = (correo: PQRSCorreoItem) => {
+                    const destinos = destinatariosFallidosActivos(correo, latestPorEmail)
+                      .map((d) => d.email)
+                      .filter(Boolean)
+                      .join(", ");
+                    setReenviarCorreoId(correo.id);
+                    setEmailDestino(destinos);
+                    setEmailTemporal(destinos);
+                    setReenviarEmailEditado(false);
+                    setEmailEditando(false);
+                    setShowEmailConfirm(true);
+                  };
+                  return (
+                    <section
+                      className={`rounded-lg border p-4 ${
+                        alertaActiva
+                          ? "border-red-300 bg-red-50"
+                          : "border-emerald-200 bg-emerald-50"
+                      }`}
+                    >
+                      <h3
+                        className={`text-xs font-bold uppercase tracking-wide mb-2 flex items-center gap-1.5 ${
+                          alertaActiva ? "text-red-800" : "text-emerald-800"
+                        }`}
+                      >
+                        <Mail className="h-3.5 w-3.5" />
+                        Estado del correo
+                        {alertaActiva ? (
+                          <span className="inline-flex items-center gap-1 rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white normal-case">
+                            <AlertTriangle className="h-3 w-3" /> Requiere atención
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white normal-case">
+                            <CheckCircle2 className="h-3 w-3" /> Enviado correctamente
+                          </span>
+                        )}
+                      </h3>
+                      {!alertaActiva && (
+                        <p className="mb-3 text-sm text-emerald-800">{mensajeExito}</p>
+                      )}
+                      {alertaActiva && (canRespond || canAdmin) && (
+                        <div className="mb-3 flex flex-wrap gap-2">
+                          {correoReenvio && (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => abrirReenvio(correoReenvio)}
+                              className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                            >
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                              Corregir y reenviar
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setShowDescartarConfirm(true)}
+                            className="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            No enviar más por correo
+                          </button>
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                        {correos.map((c) => (
+                          <CorreoEstadoCard
+                            key={c.id}
+                            correo={c}
+                            latestPorEmail={latestPorEmail}
+                            modoHistorial={!alertaActiva}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })()}
+
                 {/* Respuesta existente */}
                 {data.respuesta && (
                   <section>
@@ -348,11 +458,16 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                 )}
 
                 {/* Responder (admin o secretario asignado) */}
-                {canRespond && !estadoFinal && (
+                {canRespond && !estadoFinal && puedeResponderEstado && (
                   <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                     <h3 className="text-xs font-bold uppercase tracking-wide text-emerald-800 mb-2 flex items-center gap-1.5">
                       <Send className="h-3.5 w-3.5" /> Responder PQRS
                     </h3>
+                    {canAdmin && data.estado === "recibida" && !data.assigned_to && (
+                      <p className="mb-2 text-xs text-emerald-800">
+                        Esta PQRS no está asignada. Como administrador, puedes responder directamente.
+                      </p>
+                    )}
                     <textarea
                       value={respuesta}
                       onChange={(e) => setRespuesta(e.target.value)}
@@ -360,72 +475,112 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                       placeholder="Texto de respuesta al ciudadano"
                       className="w-full rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
-                    <label className="mt-2 flex items-center gap-2 text-sm text-emerald-900">
-                      <Paperclip className="h-4 w-4" />
-                      <span>Adjuntar documento (opcional):</span>
-                      <input
-                        type="file"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0] || null;
-                          if (f && f.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-                            setErr(`El archivo supera el límite de ${MAX_FILE_SIZE_MB} MB.`);
-                            setArchivo(null);
-                            e.target.value = "";
-                            return;
-                          }
-                          setErr(null);
-                          setArchivo(f);
+                    <div className="mt-3">
+                      <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-emerald-900">
+                        <Paperclip className="h-3.5 w-3.5" />
+                        Adjuntar documento (opcional)
+                      </p>
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverArchivo(true);
                         }}
-                        className="text-xs"
-                      />
-                    </label>
-                    {archivo && (
-                      <p className="mt-1 text-xs text-emerald-800">📎 {archivo.name}</p>
-                    )}
+                        onDragLeave={() => setDragOverArchivo(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDragOverArchivo(false);
+                          seleccionarArchivoRespuesta(e.dataTransfer.files?.[0] || null);
+                        }}
+                        onClick={() => archivoRef.current?.click()}
+                        className={`cursor-pointer rounded-lg border-2 border-dashed px-4 py-5 text-center transition-all ${
+                          dragOverArchivo
+                            ? "border-emerald-400 bg-emerald-100/60"
+                            : "border-emerald-200 bg-white hover:border-emerald-300"
+                        }`}
+                      >
+                        <CloudUpload className="mx-auto mb-1 h-6 w-6 text-emerald-400" />
+                        <div className="text-sm text-emerald-800">Arrastra un archivo aquí</div>
+                        <div className="text-xs text-emerald-600">o</div>
+                        <span className="mt-1 inline-block text-sm font-semibold text-emerald-700 underline-offset-2 hover:underline">
+                          Seleccionar archivo
+                        </span>
+                        <p className="mt-1 text-[0.7rem] text-emerald-600">
+                          Máximo {MAX_FILE_SIZE_MB} MB
+                        </p>
+                        <input
+                          ref={archivoRef}
+                          type="file"
+                          className="hidden"
+                          onChange={(e) => {
+                            seleccionarArchivoRespuesta(e.target.files?.[0] || null);
+                            e.target.value = "";
+                          }}
+                        />
+                      </div>
+                      {archivo && (
+                        <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm">
+                          <FileIcon className="h-4 w-4 flex-shrink-0 text-emerald-600" />
+                          <span className="flex-1 truncate text-emerald-900">{archivo.name}</span>
+                          <span className="text-xs text-emerald-600">{formatBytes(archivo.size)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setArchivo(null)}
+                            className="text-emerald-500 hover:text-red-500"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Opción de notificación por email */}
-                    {data.email_ciudadano && (
-                      <div className="mt-3 rounded-md border border-emerald-200 bg-white p-3 space-y-2">
-                        <label className="flex cursor-pointer select-none items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={enviarEmail}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setEnviarEmail(checked);
-                              if (checked) {
-                                setEmailDestino(data.email_ciudadano ?? "");
-                                setEmailEditando(false);
-                                setShowEmailConfirm(true);
-                              }
+                    <div className="mt-3 rounded-md border border-emerald-200 bg-white p-3 space-y-2">
+                      <label className="flex cursor-pointer select-none items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={enviarEmail}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setEnviarEmail(checked);
+                            if (checked) {
+                              setReenviarCorreoId(null);
+                              setEmailDestino(data.email_ciudadano ?? "");
+                              setEmailEditando(false);
+                              setShowEmailConfirm(true);
+                            }
+                          }}
+                          className="h-4 w-4 rounded accent-emerald-600"
+                        />
+                        <Mail className="h-4 w-4 text-emerald-600" />
+                        <span className="font-medium text-emerald-900">
+                          Notificar al ciudadano por email
+                        </span>
+                      </label>
+                      {enviarEmail && (
+                        <p className="text-xs text-emerald-800">
+                          Puede indicar varios correos separados por coma.
+                        </p>
+                      )}
+                      {enviarEmail && emailDestino && (
+                        <div className="flex items-center gap-2 rounded border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-sm">
+                          <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-600" />
+                          <span className="text-slate-500 text-xs">Para:</span>
+                          <span className="flex-1 font-medium text-slate-800 break-all">{emailDestino}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReenviarCorreoId(null);
+                              setEmailTemporal(emailDestino);
+                              setEmailEditando(true);
+                              setShowEmailConfirm(true);
                             }}
-                            className="h-4 w-4 rounded accent-emerald-600"
-                          />
-                          <Mail className="h-4 w-4 text-emerald-600" />
-                          <span className="font-medium text-emerald-900">
-                            Notificar al ciudadano por email
-                          </span>
-                        </label>
-                        {enviarEmail && emailDestino && (
-                          <div className="flex items-center gap-2 rounded border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-sm">
-                            <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-600" />
-                            <span className="text-slate-500 text-xs">Para:</span>
-                            <span className="flex-1 font-medium text-slate-800 truncate">{emailDestino}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEmailTemporal(emailDestino);
-                                setEmailEditando(true);
-                                setShowEmailConfirm(true);
-                              }}
-                              className="text-xs text-emerald-600 underline hover:text-emerald-800"
-                            >
-                              Cambiar
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                            className="text-xs text-emerald-600 underline hover:text-emerald-800 shrink-0"
+                          >
+                            Cambiar
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     <button
                       disabled={!respuesta.trim() || busy}
@@ -578,7 +733,7 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
         />
       )}
 
-      {/* Email confirmation dialog */}
+      {/* Email confirmation / reenvío dialog */}
       {showEmailConfirm && (
         <>
           <div
@@ -586,6 +741,8 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
             onClick={() => {
               setShowEmailConfirm(false);
               setEmailEditando(false);
+              setReenviarCorreoId(null);
+              setReenviarEmailEditado(false);
               if (!emailDestino) setEnviarEmail(false);
             }}
           />
@@ -595,37 +752,63 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                 <Mail className="h-4 w-4 text-emerald-700" />
               </div>
               <h3 className="text-base font-semibold text-slate-800">
-                Confirmar correo del ciudadano
+                {reenviarCorreoId
+                  ? "Corregir y reenviar correo"
+                  : "Confirmar correo del ciudadano"}
               </h3>
             </div>
 
             {!emailEditando ? (
               <>
                 <p className="text-sm text-slate-600 mb-3">
-                  La respuesta se notificará al siguiente correo electrónico:
+                  {reenviarCorreoId
+                    ? "Se reenviará solo a los correos que fallaron:"
+                    : "La respuesta se notificará a:"}
                 </p>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800 break-all">
-                  {emailDestino || "(sin correo registrado)"}
+                  {emailDestino || emailTemporal || "(sin correo registrado)"}
                 </div>
-                <p className="mt-3 text-xs text-slate-500">¿Es correcto este correo?</p>
+                {reenviarCorreoId && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Los destinatarios que ya recibieron el correo no se volverán a notificar.
+                  </p>
+                )}
+                <p className="mt-3 text-xs text-slate-500">
+                  {reenviarCorreoId ? "¿Desea reenviar a estos destinatarios?" : "¿Es correcto?"}
+                </p>
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => {
-                      setShowEmailConfirm(false);
-                      setEmailEditando(false);
+                      if (reenviarCorreoId && data) {
+                        handleAction(() =>
+                          pqrsApi.reenviarCorreo(data.id, {
+                            correoId: reenviarCorreoId,
+                            ...(reenviarEmailEditado && {
+                              emailDestino: emailDestino || emailTemporal,
+                            }),
+                          }),
+                        ).then(() => {
+                          setShowEmailConfirm(false);
+                          setReenviarCorreoId(null);
+                          setReenviarEmailEditado(false);
+                        });
+                      } else {
+                        setShowEmailConfirm(false);
+                        setEmailEditando(false);
+                      }
                     }}
                     className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700"
                   >
-                    Sí, es correcto
+                    {reenviarCorreoId ? "Reenviar" : "Sí, es correcto"}
                   </button>
                   <button
                     onClick={() => {
-                      setEmailTemporal(emailDestino);
+                      setEmailTemporal(emailDestino || emailTemporal);
                       setEmailEditando(true);
                     }}
                     className="flex-1 rounded-lg border border-slate-200 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                   >
-                    No, editar correo
+                    {reenviarCorreoId ? "Cambiar destinatarios" : "No, editar correo"}
                   </button>
                 </div>
                 <button
@@ -633,6 +816,8 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                     setEnviarEmail(false);
                     setEmailDestino("");
                     setEmailEditando(false);
+                    setReenviarCorreoId(null);
+                    setReenviarEmailEditado(false);
                     setShowEmailConfirm(false);
                   }}
                   className="mt-2 w-full rounded-lg border border-slate-200 py-2 text-sm font-medium text-slate-500 hover:bg-slate-50"
@@ -643,27 +828,44 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
             ) : (
               <>
                 <p className="text-sm text-slate-600 mb-3">
-                  Ingresa el correo electrónico correcto:
+                  Ingrese uno o varios correos separados por coma:
                 </p>
                 <input
-                  type="email"
+                  type="text"
                   value={emailTemporal}
                   onChange={(e) => setEmailTemporal(e.target.value)}
-                  placeholder="correo@ejemplo.com"
+                  placeholder="correo1@ejemplo.com, correo2@ejemplo.com"
                   autoFocus
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 <div className="mt-3 flex gap-2">
                   <button
-                    disabled={!emailTemporal.includes("@")}
+                    disabled={!emailTemporal.split(/[,;]/).some((e) => e.trim().includes("@"))}
                     onClick={() => {
-                      setEmailDestino(emailTemporal.trim());
-                      setEmailEditando(false);
-                      setShowEmailConfirm(false);
+                      const trimmed = emailTemporal.trim();
+                      if (reenviarCorreoId && data) {
+                        setEmailDestino(trimmed);
+                        setReenviarEmailEditado(true);
+                        handleAction(() =>
+                          pqrsApi.reenviarCorreo(data.id, {
+                            correoId: reenviarCorreoId,
+                            emailDestino: trimmed,
+                          }),
+                        ).then(() => {
+                          setShowEmailConfirm(false);
+                          setReenviarCorreoId(null);
+                          setReenviarEmailEditado(false);
+                          setEmailEditando(false);
+                        });
+                      } else {
+                        setEmailDestino(trimmed);
+                        setEmailEditando(false);
+                        setShowEmailConfirm(false);
+                      }
                     }}
                     className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
                   >
-                    Guardar correo
+                    {reenviarCorreoId ? "Reenviar" : "Guardar correo"}
                   </button>
                   <button
                     onClick={() => setEmailEditando(false)}
@@ -674,6 +876,51 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                 </div>
               </>
             )}
+          </div>
+        </>
+      )}
+
+      {showDescartarConfirm && data && (
+        <>
+          <div
+            className="fixed inset-0 z-[70] bg-black/40"
+            onClick={() => setShowDescartarConfirm(false)}
+          />
+          <div className="fixed left-1/2 top-1/2 z-[70] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100">
+                <AlertTriangle className="h-4 w-4 text-amber-700" />
+              </div>
+              <h3 className="text-base font-semibold text-slate-800">
+                Descartar alerta de correo
+              </h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-3">
+              Si el correo es incorrecto y no se conoce un destinatario válido, puedes quitar la
+              alerta. No se enviará más notificación a los correos con error.
+            </p>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Los destinatarios con fallo dejarán de generar alertas en el listado.
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                disabled={busy}
+                onClick={() =>
+                  handleAction(() => pqrsApi.descartarAlertaCorreo(data.id)).then(() => {
+                    setShowDescartarConfirm(false);
+                  })
+                }
+                className="flex-1 rounded-lg bg-amber-600 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+              >
+                Sí, descartar alerta
+              </button>
+              <button
+                onClick={() => setShowDescartarConfirm(false)}
+                className="flex-1 rounded-lg border border-slate-200 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -709,6 +956,179 @@ function Info({ label, value }: { label: string; value: string | null | undefine
     <div>
       <span className="block text-xs font-semibold text-slate-500">{label}</span>
       <span className="text-sm text-slate-800">{value || "—"}</span>
+    </div>
+  );
+}
+
+const CORREO_ESTADO_LABEL: Record<string, { label: string; color: string; alert?: boolean }> = {
+  pendiente: { label: "Pendiente", color: "bg-slate-100 text-slate-700" },
+  enviado: { label: "Enviado", color: "bg-blue-100 text-blue-800" },
+  entregado: { label: "Entregado", color: "bg-emerald-100 text-emerald-800" },
+  sustituido: { label: "Corregido", color: "bg-sky-100 text-sky-800" },
+  descartado: { label: "Descartado", color: "bg-slate-100 text-slate-600" },
+  rebote_temporal: { label: "Devolución temporal", color: "bg-amber-100 text-amber-900", alert: true },
+  rebotado: { label: "Devolución permanente", color: "bg-orange-100 text-orange-900", alert: true },
+  reclamacion_spam: { label: "Marcado como spam", color: "bg-purple-100 text-purple-900", alert: true },
+  error: { label: "Error de envío", color: "bg-red-100 text-red-800", alert: true },
+};
+
+const TIPO_CORREO_LABEL: Record<string, string> = {
+  radicacion: "Radicación",
+  respuesta: "Respuesta",
+};
+
+function estadoCorreoBadge(estado: string) {
+  const cfg = CORREO_ESTADO_LABEL[estado] || CORREO_ESTADO_LABEL.pendiente;
+  return (
+    <span className={`rounded px-2 py-0.5 text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+  );
+}
+
+const ESTADOS_ALERTA = new Set([
+  "error",
+  "rebotado",
+  "rebote_temporal",
+  "reclamacion_spam",
+]);
+
+function esEstadoAlerta(estado: string) {
+  return ESTADOS_ALERTA.has(estado);
+}
+
+function latestEstadoPorEmail(correos: PQRSCorreoItem[]): Record<string, string> {
+  const latest: Record<string, string> = {};
+  const sorted = [...correos].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+  for (const c of sorted) {
+    for (const d of c.destinatarios || []) {
+      if (d.email && d.estado) latest[d.email.toLowerCase()] = d.estado;
+    }
+  }
+  return latest;
+}
+
+function tieneCorreoAlertaActiva(latestPorEmail: Record<string, string>) {
+  return Object.values(latestPorEmail).some(esEstadoAlerta);
+}
+
+function mensajeEstadoCorreo(latestPorEmail: Record<string, string>) {
+  const valores = Object.values(latestPorEmail);
+  const hayDescartado = valores.some((e) => e === "descartado");
+  const haySustituido = valores.some((e) => e === "sustituido");
+  const hayEntregado = valores.some((e) => e === "enviado" || e === "entregado");
+
+  if (hayDescartado && !hayEntregado) {
+    return "Se descartó la notificación por correo a destinatarios inválidos.";
+  }
+  if (hayDescartado && hayEntregado) {
+    return "La notificación se envió a los destinatarios válidos. Los correos inválidos fueron descartados.";
+  }
+  if (haySustituido) {
+    return "La notificación se reenvió correctamente tras corregir el destinatario.";
+  }
+  return "La notificación fue entregada a todos los destinatarios.";
+}
+
+function destinatariosFallidosActivos(
+  correo: PQRSCorreoItem,
+  latestPorEmail: Record<string, string>,
+) {
+  return (correo.destinatarios || []).filter(
+    (d) => d.email && esEstadoAlerta(latestPorEmail[d.email.toLowerCase()] || ""),
+  );
+}
+
+function correoParaReenviar(
+  correos: PQRSCorreoItem[],
+  latestPorEmail: Record<string, string>,
+): PQRSCorreoItem | null {
+  const activos = new Set(
+    Object.entries(latestPorEmail)
+      .filter(([, est]) => esEstadoAlerta(est))
+      .map(([email]) => email),
+  );
+  if (activos.size === 0) return null;
+  const sorted = [...correos].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+  return (
+    sorted.find((c) =>
+      (c.destinatarios || []).some((d) => activos.has(d.email.toLowerCase())),
+    ) ?? null
+  );
+}
+
+function CorreoEstadoCard({
+  correo,
+  latestPorEmail,
+  modoHistorial,
+}: {
+  correo: PQRSCorreoItem;
+  latestPorEmail: Record<string, string>;
+  modoHistorial: boolean;
+}) {
+  const fallosActivos = destinatariosFallidosActivos(correo, latestPorEmail);
+  const alerta = !modoHistorial && fallosActivos.length > 0;
+  return (
+    <div
+      className={`rounded-md border p-3 text-sm ${
+        alerta ? "border-red-300 bg-red-50/60" : "border-slate-200 bg-white"
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-slate-800">
+            {TIPO_CORREO_LABEL[correo.tipo] || correo.tipo}
+          </span>
+          {modoHistorial ? (
+            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+              Historial
+            </span>
+          ) : (
+            estadoCorreoBadge(correo.estado)
+          )}
+        </div>
+        <span className="text-xs text-slate-500">
+          {new Date(correo.created_at).toLocaleString("es-CO")}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-slate-600 truncate" title={correo.asunto}>
+        {correo.asunto}
+      </p>
+      {(correo.destinatarios || []).length > 0 && (
+        <ul className="mt-2 space-y-1.5">
+          {correo.destinatarios.map((d) => {
+            const estadoActual = latestPorEmail[d.email.toLowerCase()] || d.estado;
+            const destAlerta = !modoHistorial && esEstadoAlerta(estadoActual);
+            return (
+              <li
+                key={d.email}
+                className={`rounded px-2 py-1.5 text-xs ${
+                  destAlerta ? "border border-red-200 bg-white" : "bg-slate-50"
+                }`}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-slate-700 break-all">{d.email}</span>
+                  {estadoCorreoBadge(estadoActual)}
+                </div>
+                {d.motivo && (destAlerta || estadoActual === "sustituido" || estadoActual === "descartado") && (
+                  <p
+                    className={`mt-1 break-all whitespace-pre-wrap ${
+                      destAlerta ? "text-red-700" : "text-slate-600"
+                    }`}
+                  >
+                    {d.motivo}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {correo.error && !correo.destinatarios?.some((d) => d.motivo) && alerta && (
+        <p className="mt-2 text-xs text-red-600 break-all">{correo.error}</p>
+      )}
     </div>
   );
 }
