@@ -24,7 +24,12 @@ from apps.pqrs.models import (
     EstadoCorreoEntrante,
     PQRS,
 )
-from apps.pqrs.services.email_sanitize import prepare_inbound_email_text, scrub_entity_from_extraction
+from apps.pqrs.services.email_sanitize import (
+    apply_original_sender_to_extraction,
+    build_inbound_ia_context,
+    prepare_inbound_email_text,
+    scrub_entity_from_extraction,
+)
 from apps.pqrs.services.creation import crear_pqrs_desde_ia
 from apps.pqrs.services.email import enviar_radicacion
 from apps.pqrs.validators import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES
@@ -276,9 +281,15 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
         )
         return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
 
-    texto = prepare_inbound_email_text(parsed.texto.strip(), entity, user)
-    if parsed.asunto and parsed.asunto.lower() not in texto.lower()[:200]:
-        texto = f"Asunto: {parsed.asunto}\n\n{texto}".strip()
+    forward_meta = prepare_inbound_email_text(parsed.texto.strip(), entity, user)
+    texto = forward_meta.body
+    ia_hint = build_inbound_ia_context(forward_meta)
+    if ia_hint:
+        texto = f"{ia_hint}\n\n{texto}".strip()
+
+    subject_line = forward_meta.subject or parsed.asunto
+    if subject_line and subject_line.lower() not in texto.lower()[:300]:
+        texto = f"Asunto: {subject_line}\n\n{texto}".strip()
 
     archivos_ia = [(name, content) for name, content, _ctype in parsed.adjuntos]
     if not texto and not archivos_ia:
@@ -301,6 +312,7 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
             inbound_entity_name=entity.name,
         )
         extraido = scrub_entity_from_extraction(extraido, entity, user)
+        extraido = apply_original_sender_to_extraction(extraido, forward_meta, entity, user)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Error IA procesando correo %s", parsed.message_id)
         correo = _registrar_correo(

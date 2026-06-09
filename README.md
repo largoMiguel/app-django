@@ -176,7 +176,7 @@ Un admin o secretario **reenvía** la PQRS desde su correo institucional (`*.gov
 
 Correos de remitentes no registrados se **ignoran** (aunque sean `gov.co`). Cada `Message-ID` se registra en `CorreoEntrantePQRS` para idempotencia.
 
-Antes de la IA, el sistema extrae el cuerpo reenviado y **elimina el pie de página/firma de la entidad** (nombre, NIT, teléfono, email, `footer_text` configurado en la entidad, secretarías y correo del funcionario que reenvía).
+Antes de la IA, el sistema extrae el cuerpo reenviado, lee el **From/De original** del bloque reenviado (ej. `amadolargo@gmail.com` o `concejo@otro-municipio.gov.co`) y lo usa como `email_ciudadano` y `medio_respuesta=email`. Solo se ignoran el correo del funcionario que reenvía y la bandeja institucional de **esta** entidad (ej. `gobierno@chiquiza-boyaca.gov.co` en To). Otros `@*.gov.co` de entidades distintas sí se conservan como solicitante. Si hay varios correos del solicitante en el hilo, se guardan separados por coma.
 
 **Comando manual:**
 

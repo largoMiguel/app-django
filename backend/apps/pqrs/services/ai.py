@@ -165,8 +165,10 @@ def _build_prompt(
     if inbound_entity_name:
         inbound_rules = f"""
 - CONTEXTO CORREO REENVIADO: el texto proviene de un funcionario de "{inbound_entity_name}" que reenvía una PQRS ciudadana.
+- Si aparece "Remitente original:" al inicio, ese es el ciudadano solicitante; usa ese correo como email_ciudadano y medio_respuesta=email.
 - IGNORA por completo firmas, pies de página, datos de contacto, NIT, teléfonos, direcciones y nombres de la entidad reenviadora o de sus secretarías/dependencias.
 - El solicitante (nombre_ciudadano, documento, email, teléfono) es SOLO el ciudadano del mensaje original reenviado, nunca la entidad ni el funcionario.
+- Los correos @*.gov.co de OTRA entidad pública pueden ser el solicitante (tipo_persona=juridica); no confundirlos con la entidad que reenvía.
 """
     return f"""Eres un asistente experto en derecho administrativo colombiano (Ley 1755 de 2015) que clasifica y estructura PQRS (Peticiones, Quejas, Reclamos, Sugerencias y Denuncias).
 
