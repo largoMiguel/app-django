@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from apps.common.roles import is_platform_superadmin
 
-from .models import PQRS, AsignacionAuditoria, PQRSArchivo
+from .models import PQRS, AsignacionAuditoria, CorreoEntrantePQRS, PQRSArchivo
 
 
 class EntityScopedAdminMixin:
@@ -44,3 +44,13 @@ class PQRSArchivoAdmin(EntityScopedAdminMixin, admin.ModelAdmin):
 
     list_display = ("id", "pqrs", "nombre_original", "size", "created_at")
     search_fields = ("pqrs__numero_radicado", "nombre_original")
+
+
+@admin.register(CorreoEntrantePQRS)
+class CorreoEntrantePQRSAdmin(EntityScopedAdminMixin, admin.ModelAdmin):
+    entity_field = "entity_id"
+
+    list_display = ("remitente", "estado", "entity", "pqrs", "recibido_at", "created_at")
+    list_filter = ("estado", "entity")
+    search_fields = ("remitente", "asunto", "message_id", "pqrs__numero_radicado")
+    readonly_fields = ("message_id", "created_at")

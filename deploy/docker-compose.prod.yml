@@ -129,6 +129,13 @@ services:
       ZEPTOMAIL_TOKEN: ${ZEPTOMAIL_TOKEN:-}
       ZEPTOMAIL_FROM_EMAIL: ${ZEPTOMAIL_FROM_EMAIL:-noreply@softone360.com}
       ZEPTOMAIL_WEBHOOK_SECRET: ${ZEPTOMAIL_WEBHOOK_SECRET:-}
+      PQRS_INBOUND_ENABLED: ${PQRS_INBOUND_ENABLED:-false}
+      PQRS_INBOUND_REQUIRE_GOVCO: ${PQRS_INBOUND_REQUIRE_GOVCO:-true}
+      IMAP_HOST: ${IMAP_HOST:-imap.gmail.com}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      IMAP_MAILBOX: ${IMAP_MAILBOX:-INBOX}
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles

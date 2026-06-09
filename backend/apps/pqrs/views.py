@@ -42,6 +42,7 @@ from .serializers import (
 from .services.correo_alerta import descartar_alerta_correo
 from .services.email import enviar_respuesta, merge_corrected_emails, reenviar_correo
 from .services.ai import extraer_pqrs_con_ia
+from .services.creation import attach_archivos_from_uploads, crear_pqrs_desde_ia
 from .filters import PQRSFilterSet
 from .stats import compute_pqrs_stats
 from .throttles import PQRSAIAutoCreateThrottle
@@ -50,31 +51,6 @@ from .validators import validate_uploaded_file
 logger = logging.getLogger(__name__)
 
 MAX_ARCHIVOS = PQRSArchivo.MAX_ARCHIVOS
-
-
-def _create_text_pdf(texto: str, asunto: str, radicado: str) -> bytes:
-    """Genera un PDF con el texto completo del ciudadano."""
-    from fpdf import FPDF
-
-    def _safe(s: str) -> str:
-        return s.encode("latin-1", errors="replace").decode("latin-1")
-
-    pdf = FPDF(orientation="P", unit="mm", format="A4")
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-
-    pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 10, _safe(f"Radicado: {radicado}"), new_x="LMARGIN", new_y="NEXT", align="C")
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.multi_cell(0, 7, _safe(asunto))
-    pdf.ln(3)
-    pdf.set_draw_color(180, 180, 180)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(5)
-
-    pdf.set_font("Helvetica", size=10)
-    pdf.multi_cell(0, 6, _safe(texto))
-    return bytes(pdf.output())
 
 
 def _roles(user) -> set[str]:
@@ -286,7 +262,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
         # Adjuntos múltiples (multipart con campo "archivos")
         files = self.request.FILES.getlist("archivos") or self.request.FILES.getlist("archivos[]")
         if files:
-            _attach_archivos(pqrs, files, user)
+            attach_archivos_from_uploads(pqrs, files, user)
 
     def perform_update(self, serializer):
         instance = serializer.instance
@@ -326,7 +302,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
         # Adjuntos nuevos en multipart
         files = self.request.FILES.getlist("archivos") or self.request.FILES.getlist("archivos[]")
         if files:
-            _attach_archivos(instance, files, user)
+            attach_archivos_from_uploads(instance, files, user)
 
     def destroy(self, request, *args, **kwargs):
         if not _can_manage_pqrs(request.user):
@@ -625,7 +601,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
             files = [request.FILES["archivo"]]
         if not files:
             raise ValidationError({"archivos": "Debes adjuntar al menos un archivo."})
-        _attach_archivos(pqrs, files, request.user)
+        attach_archivos_from_uploads(pqrs, files, request.user)
         _maybe_mark_en_proceso(pqrs, request.user)
         ser = PQRSArchivoSerializer(pqrs.archivos.all(), many=True, context={"request": request})
         return Response(ser.data, status=status.HTTP_201_CREATED)
@@ -704,111 +680,19 @@ class PQRSViewSet(viewsets.ModelViewSet):
         tipo = extraido["tipo_solicitud"]
         dias = DIAS_RESPUESTA_LEY1755.get(tipo, 15)
         fecha_base = timezone.now()
-        fecha_venc = sumar_dias_habiles(fecha_base, dias)
 
-        with transaction.atomic():
-            numero = PQRS.generar_radicado(entity.id)
-            pqrs = PQRS.objects.create(
-                entity=entity,
+        try:
+            pqrs = crear_pqrs_desde_ia(
+                entity,
+                extraido,
                 created_by=user,
-                numero_radicado=numero,
-                tipo_solicitud=tipo,
-                asunto=extraido["asunto"],
-                descripcion=extraido["descripcion"],
-                tipo_persona=extraido.get("tipo_persona"),
-                tipo_identificacion=extraido.get("tipo_identificacion") or "CC",
-                cedula_ciudadano=extraido.get("cedula_ciudadano"),
-                nombre_ciudadano=extraido.get("nombre_ciudadano"),
-                email_ciudadano=extraido.get("email_ciudadano"),
-                telefono_ciudadano=extraido.get("telefono_ciudadano"),
-                direccion_ciudadano=extraido.get("direccion_ciudadano"),
-                medio_respuesta=extraido["medio_respuesta"],
+                texto=texto,
+                files_uploads=files or None,
                 canal_llegada=extraido["canal_llegada"],
-                estado=EstadoPQRS.RECIBIDA,
-                dias_respuesta=dias,
-                fecha_solicitud=fecha_base,
-                fecha_vencimiento=fecha_venc,
+                fecha_base=fecha_base,
             )
-
-            # Asignación automática si la IA detectó secretaría
-            sec_id = extraido.get("secretaria_id")
-            if sec_id:
-                secretaria = Secretaria.objects.filter(
-                    pk=sec_id, entity_id=entity.id, is_active=True
-                ).first()
-                if secretaria:
-                    pqrs.assigned_to = secretaria
-                    pqrs.estado = EstadoPQRS.ASIGNADA
-                    pqrs.fecha_delegacion = timezone.now()
-                    pqrs.justificacion_asignacion = (
-                        f"[IA] {extraido.get('secretaria_justificacion') or 'Asignación automática'}"
-                    )
-                    pqrs.save(update_fields=[
-                        "assigned_to", "estado", "fecha_delegacion",
-                        "justificacion_asignacion", "updated_at",
-                    ])
-                    AsignacionAuditoria.objects.create(
-                        pqrs=pqrs,
-                        secretaria_nueva=secretaria,
-                        usuario_nuevo=user,
-                        accion="asignacion",
-                        justificacion=f"[IA] {extraido.get('secretaria_justificacion') or ''}",
-                    )
-
-            AsignacionAuditoria.objects.create(
-                pqrs=pqrs,
-                usuario_nuevo=user,
-                accion="creacion_ia",
-                justificacion="PQRS creada automáticamente por IA (OpenAI).",
-            )
-
-            # Adjuntar PDF con el texto original completo del ciudadano
-            if texto:
-                pdf_bytes = _create_text_pdf(texto, extraido["asunto"], numero)
-                arch_pdf = PQRSArchivo(
-                    pqrs=pqrs,
-                    nombre_original=f"solicitud_{numero}.pdf",
-                    content_type="application/pdf",
-                    size=len(pdf_bytes),
-                    uploaded_by=user if getattr(user, "is_authenticated", False) else None,
-                )
-                arch_pdf.archivo.save(f"solicitud_{numero}.pdf", ContentFile(pdf_bytes), save=False)
-                arch_pdf.save()
-
-            if files:
-                _attach_archivos(pqrs, files, user)
+        except ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
 
         ser = PQRSSerializer(pqrs, context={"request": request})
         return Response(ser.data, status=status.HTTP_201_CREATED)
-
-
-# ─── Helpers ───────────────────────────────────────────────────────────
-def _attach_archivos(pqrs: PQRS, files: list, user) -> None:
-    existentes = pqrs.archivos.count()
-    disponibles = MAX_ARCHIVOS - existentes
-    if disponibles <= 0:
-        raise ValidationError({"archivos": f"Ya se alcanzó el límite de {MAX_ARCHIVOS} archivos."})
-    a_subir = files[:disponibles]
-    if len(files) > disponibles:
-        raise ValidationError(
-            {"archivos": f"Solo puedes subir {disponibles} archivo(s) más (máx {MAX_ARCHIVOS})."}
-        )
-    for f in a_subir:
-        filename = getattr(f, "name", "archivo")
-        content = f.read() if hasattr(f, "read") else b""
-        size = getattr(f, "size", len(content)) or len(content)
-        validate_uploaded_file(filename, size)
-        # Reposicionar para guardado real (FieldFile.save consumirá de su propio buffer)
-        try:
-            f.seek(0)
-        except Exception:  # noqa: BLE001
-            pass
-        arch = PQRSArchivo(
-            pqrs=pqrs,
-            nombre_original=filename,
-            content_type=getattr(f, "content_type", "") or "",
-            size=size,
-            uploaded_by=user if getattr(user, "is_authenticated", False) else None,
-        )
-        arch.archivo.save(filename, ContentFile(content), save=False)
-        arch.save()

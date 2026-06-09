@@ -33,6 +33,9 @@ if grep -qE '^B2_KEY_ID=.+' "$ENV_FILE" && grep -qE '^B2_APP_KEY=.+' "$ENV_FILE"
       --content-type "application/octet-stream" \
       --prune-days 30 \
       --prefix "backups/" < "$OUT"
+else
+  echo "WARNING: B2_KEY_ID o B2_APP_KEY vacíos en .env — backup local OK pero NO se subió a la nube." >&2
+  exit 2
 fi
 
 # Retención 14 días

@@ -16,11 +16,10 @@ from .models import (
     DIAS_RESPUESTA_LEY1755,
     EstadoPQRS,
     PQRS,
-    PQRSArchivo,
     sumar_dias_habiles,
 )
 from .services.email import enviar_radicacion
-from .views import MAX_ARCHIVOS, _attach_archivos, _create_text_pdf
+from .services.creation import MAX_ARCHIVOS, attach_archivos_from_uploads, crear_pqrs_desde_ia
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +141,7 @@ class PublicPQRSCreateView(APIView):
                         {"detail": f"Máximo {MAX_ARCHIVOS} archivos permitidos."},
                         status=400,
                     )
-                _attach_archivos(pqrs, files, None)
+                attach_archivos_from_uploads(pqrs, files, None)
 
         if pqrs.email_ciudadano:
             transaction.on_commit(lambda: enviar_radicacion(pqrs))
@@ -172,8 +171,6 @@ class PublicPQRSAutoCreateView(APIView):
     parser_classes = (JSONParser, MultiPartParser, FormParser)
 
     def post(self, request, slug):
-        from django.core.files.base import ContentFile
-
         from .services.ai import extraer_pqrs_con_ia
 
         entity = _resolve_entity(slug)
@@ -221,50 +218,24 @@ class PublicPQRSAutoCreateView(APIView):
                 extraido[campo] = valor
 
         tipo = extraido["tipo_solicitud"]
-        dias = DIAS_RESPUESTA_LEY1755.get(tipo, 15)
         fecha_base = timezone.now()
-        fecha_venc = sumar_dias_habiles(fecha_base, dias)
 
-        with transaction.atomic():
-            numero = PQRS.generar_radicado(entity.id)
-            pqrs = PQRS.objects.create(
-                entity=entity,
+        try:
+            pqrs = crear_pqrs_desde_ia(
+                entity,
+                extraido,
                 created_by=None,
-                numero_radicado=numero,
-                tipo_solicitud=tipo,
-                asunto=extraido["asunto"],
-                descripcion=extraido["descripcion"],
-                tipo_persona=extraido.get("tipo_persona"),
-                tipo_identificacion=extraido.get("tipo_identificacion") or "CC",
-                cedula_ciudadano=extraido.get("cedula_ciudadano"),
-                nombre_ciudadano=extraido.get("nombre_ciudadano"),
-                email_ciudadano=extraido.get("email_ciudadano"),
-                telefono_ciudadano=extraido.get("telefono_ciudadano"),
-                direccion_ciudadano=extraido.get("direccion_ciudadano"),
-                medio_respuesta=extraido["medio_respuesta"],
+                texto=texto,
+                files_uploads=files or None,
                 canal_llegada="web",
-                estado=EstadoPQRS.RECIBIDA,
-                dias_respuesta=dias,
-                fecha_solicitud=fecha_base,
-                fecha_vencimiento=fecha_venc,
+                fecha_base=fecha_base,
             )
+        except Exception as exc:  # noqa: BLE001
+            from rest_framework.exceptions import ValidationError
 
-            if texto:
-                pdf_bytes = _create_text_pdf(texto, extraido["asunto"], numero)
-                arch_pdf = PQRSArchivo(
-                    pqrs=pqrs,
-                    nombre_original=f"solicitud_{numero}.pdf",
-                    content_type="application/pdf",
-                    size=len(pdf_bytes),
-                    uploaded_by=None,
-                )
-                arch_pdf.archivo.save(
-                    f"solicitud_{numero}.pdf", ContentFile(pdf_bytes), save=False
-                )
-                arch_pdf.save()
-
-            if files:
-                _attach_archivos(pqrs, files, None)
+            if isinstance(exc, ValidationError):
+                return Response(exc.detail, status=400)
+            raise
 
         if pqrs.email_ciudadano:
             transaction.on_commit(lambda: enviar_radicacion(pqrs))

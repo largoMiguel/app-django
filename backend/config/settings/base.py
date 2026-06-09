@@ -254,6 +254,15 @@ ZEPTOMAIL_FROM_EMAIL = os.getenv("ZEPTOMAIL_FROM_EMAIL", "noreply@softone360.com
 ZEPTOMAIL_WEBHOOK_SECRET = os.getenv("ZEPTOMAIL_WEBHOOK_SECRET", "")
 PQRS_EMAIL_ENABLED = env_bool("PQRS_EMAIL_ENABLED", True)
 
+# PQRS — ingreso por correo (IMAP Zoho)
+PQRS_INBOUND_ENABLED = env_bool("PQRS_INBOUND_ENABLED", False)
+PQRS_INBOUND_REQUIRE_GOVCO = env_bool("PQRS_INBOUND_REQUIRE_GOVCO", True)
+IMAP_HOST = os.getenv("IMAP_HOST", "imap.gmail.com")
+IMAP_PORT = int(os.getenv("IMAP_PORT", "993"))
+IMAP_USER = os.getenv("IMAP_USER", "")
+IMAP_PASSWORD = os.getenv("IMAP_PASSWORD", "")
+IMAP_MAILBOX = os.getenv("IMAP_MAILBOX", "INBOX")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

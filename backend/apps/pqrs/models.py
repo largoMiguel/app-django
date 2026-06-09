@@ -419,3 +419,65 @@ class PQRSCorreo(models.Model):
     def __str__(self) -> str:
         return f"{self.pqrs_id} — {self.tipo} — {self.estado}"
 
+
+class EstadoCorreoEntrante(models.TextChoices):
+    PROCESADO = "procesado", "Procesado"
+    IGNORADO_NO_REGISTRADO = "ignorado_no_registrado", "Remitente no registrado"
+    IGNORADO_SIN_ENTIDAD = "ignorado_sin_entidad", "Usuario sin entidad"
+    IGNORADO_NO_GOVCO = "ignorado_no_govco", "Dominio no gov.co"
+    IGNORADO_DUPLICADO = "ignorado_duplicado", "Duplicado"
+    ERROR = "error", "Error"
+
+
+class CorreoEntrantePQRS(models.Model):
+    """Registro de correos recibidos en el buzón PQRS (idempotencia + auditoría)."""
+
+    message_id = models.CharField(max_length=500, unique=True, db_index=True)
+    remitente = models.CharField(max_length=255, db_index=True)
+    entity = models.ForeignKey(
+        "entities.Entity",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="correos_entrantes_pqrs",
+        db_column="entity_id",
+    )
+    pqrs = models.ForeignKey(
+        PQRS,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="correos_entrantes",
+        db_column="pqrs_id",
+    )
+    remitente_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="correos_entrantes_pqrs",
+        db_column="remitente_user_id",
+    )
+    estado = models.CharField(
+        max_length=40,
+        choices=EstadoCorreoEntrante.choices,
+        default=EstadoCorreoEntrante.ERROR,
+    )
+    motivo = models.TextField(blank=True, default="")
+    asunto = models.CharField(max_length=500, blank=True, default="")
+    recibido_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "pqrs_correos_entrantes"
+        verbose_name = "Correo entrante PQRS"
+        verbose_name_plural = "Correos entrantes PQRS"
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["remitente", "-created_at"]),
+            models.Index(fields=["estado", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.remitente} — {self.estado}"
+

@@ -163,6 +163,40 @@ Query params soportados en `GET /api/v1/pqrs/`:
 - Formatos soportados para extracción de texto: PDF, DOCX, TXT, CSV, MD.
 - Los archivos se sirven vía `MEDIA_URL=/media/` y requieren **token Clerk válido** (`ProtectedMediaView`); el frontend usa `downloadAuthenticatedFile` / `openAuthenticatedFile` en lugar de enlaces directos.
 
+### Ingreso automático por correo (IMAP)
+
+Un admin o secretario **reenvía** la PQRS desde su correo institucional (`*.gov.co`) al buzón `pqrssoftone@gmail.com`. Un cron lee el buzón por IMAP cada 3 minutos y:
+
+1. Valida que el remitente (`From`) sea un **usuario registrado** en la plataforma con rol `admin` o `secretario` y entidad asignada (correo del usuario en Usuarios).
+2. Opcionalmente exige dominio `.gov.co` (`PQRS_INBOUND_REQUIRE_GOVCO=true`).
+3. Extrae texto y adjuntos del correo reenviado.
+4. Usa **OpenAI** (`extraer_pqrs_con_ia`) para estructurar y clasificar la PQRS.
+5. Crea la PQRS con `canal_llegada=email`, adjuntos y asignación automática a secretaría (IA; fallback: secretaría del usuario que reenvió).
+6. Envía confirmación de radicación al ciudadano si hay email.
+
+Correos de remitentes no registrados se **ignoran** (aunque sean `gov.co`). Cada `Message-ID` se registra en `CorreoEntrantePQRS` para idempotencia.
+
+**Comando manual:**
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file .env exec -T backend \
+  python manage.py ingest_pqrs_inbox
+```
+
+**Variables (.env):**
+
+```
+PQRS_INBOUND_ENABLED=true
+PQRS_INBOUND_REQUIRE_GOVCO=true
+IMAP_HOST=imap.gmail.com
+IMAP_PORT=993
+IMAP_USER=pqrssoftone@gmail.com
+IMAP_PASSWORD=<app-password-gmail>
+IMAP_MAILBOX=INBOX
+```
+
+Log del cron: `logs/softone-pqrs-inbox.log` (en `/opt/softone-app/logs/`).
+
 ---
 
 ## Módulo PDM — Exportar PIIP
@@ -474,7 +508,7 @@ $COMPOSE logs -f --tail=100 cloudflared
 ssh softone-prod 'cd /opt/softone-app && deploy/scripts/backup-db.sh'
 ```
 
-Backups en `/var/backups/softone/softone_YYYYMMDD_HHMMSS.dump`. Retención 14 días.
+Backups en `/var/backups/softone/softone_YYYYMMDD_HHMMSS.dump`. Retención 14 días. Log del cron: `/opt/softone-app/logs/softone-backup.log`.
 
 Restaurar:
 
