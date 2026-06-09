@@ -20,6 +20,7 @@ from apps.pqrs.models import (
     PQRSArchivo,
     sumar_dias_habiles,
 )
+from apps.pqrs.services.ai import normalize_ia_contact_fields
 from apps.pqrs.validators import validate_uploaded_file
 
 logger = logging.getLogger(__name__)
@@ -177,6 +178,7 @@ def crear_pqrs_desde_ia(
     generar_pdf_texto: bool = True,
 ) -> PQRS:
     """Crea PQRS estructurada por IA, con asignación automática opcional."""
+    extraido = normalize_ia_contact_fields(dict(extraido))
     tipo = extraido["tipo_solicitud"]
     dias = DIAS_RESPUESTA_LEY1755.get(tipo, 15)
     fecha_base = fecha_base or timezone.now()

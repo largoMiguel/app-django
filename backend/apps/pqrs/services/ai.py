@@ -85,6 +85,71 @@ TIPOS_VALIDOS = [
     "felicitacion", "solicitud_informacion", "copia", "otro",
 ]
 CANALES_RESPUESTA = ["email", "telefono", "fisica", "presencial", "otro"]
+_NULLISH_STRINGS = frozenset({"null", "none", "n/a", "na", "undefined", "sin dato", "no aplica"})
+
+
+def clean_optional_str(value: Any) -> str | None:
+    """Convierte valores vacíos o literales 'null' de la IA en None."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s or s.lower() in _NULLISH_STRINGS:
+        return None
+    return s
+
+
+def resolve_medio_respuesta(
+    medio: str,
+    *,
+    anonimo: bool,
+    email: str | None,
+    telefono: str | None,
+    direccion: str | None,
+) -> str:
+    """Ajusta medio_respuesta según datos de contacto disponibles."""
+    if anonimo:
+        return "otro"
+
+    medio = (medio or "otro").lower()
+    if medio not in CANALES_RESPUESTA:
+        medio = "otro"
+
+    if medio == "email" and not email:
+        medio = "otro"
+    elif medio == "telefono" and not telefono:
+        medio = "otro"
+    elif medio in ("fisica", "presencial") and not direccion:
+        medio = "otro"
+
+    return medio
+
+
+def normalize_ia_contact_fields(extraido: dict[str, Any]) -> dict[str, Any]:
+    """Normaliza contacto y medio_respuesta en el dict devuelto por la IA."""
+    anonimo = bool(extraido.get("anonimo"))
+    nombre = clean_optional_str(extraido.get("nombre_ciudadano"))
+    cedula = clean_optional_str(extraido.get("cedula_ciudadano"))
+    email = clean_optional_str(extraido.get("email_ciudadano"))
+    telefono = clean_optional_str(extraido.get("telefono_ciudadano"))
+    direccion = clean_optional_str(extraido.get("direccion_ciudadano"))
+
+    if nombre or cedula:
+        anonimo = False
+
+    extraido["anonimo"] = anonimo
+    extraido["nombre_ciudadano"] = None if anonimo else nombre
+    extraido["cedula_ciudadano"] = None if anonimo else cedula
+    extraido["email_ciudadano"] = None if anonimo else email
+    extraido["telefono_ciudadano"] = None if anonimo else telefono
+    extraido["direccion_ciudadano"] = None if anonimo else direccion
+    extraido["medio_respuesta"] = resolve_medio_respuesta(
+        extraido.get("medio_respuesta", "otro"),
+        anonimo=anonimo,
+        email=email,
+        telefono=telefono,
+        direccion=direccion,
+    )
+    return extraido
 
 
 def _build_prompt(texto: str, secretarias: list[dict]) -> str:
@@ -107,7 +172,7 @@ A partir del siguiente texto del ciudadano (puede incluir contenido extraído de
   "email_ciudadano": "string|null",
   "telefono_ciudadano": "string|null",
   "direccion_ciudadano": "string|null",
-  "medio_respuesta": "email|telefono|fisica|presencial",
+  "medio_respuesta": "email|telefono|fisica|presencial|otro",
   "canal_llegada": "web|presencial|email|telefono",
   "secretaria_id": <id numérico de la secretaría más adecuada de la lista, o null>,
   "secretaria_justificacion": "string explicando por qué"
@@ -121,7 +186,8 @@ REGLAS:
 - El asunto es UN RENGLÓN corto. La descripción es completa y formal.
 - Si el texto menciona reembolso, daño, mal servicio → "reclamo". Si pide información oficial → "solicitud_informacion". Si denuncia hechos irregulares → "denuncia". Si felicita → "felicitacion". Si propone mejora → "sugerencia". Si presenta inconformidad sin reclamar → "queja". Si pide algo en general → "peticion".
 - Selecciona secretaria_id SOLO si claramente coincide con un área de la lista; si no, null.
-- medio_respuesta: infiere del texto el canal preferido (email si menciona correo electrónico, telefono si menciona llamada/teléfono, fisica si menciona dirección/correspondencia/carta, presencial si indica que irá en persona). Si no está claro, usa "email".
+- medio_respuesta: infiere del texto el canal preferido (email SOLO si hay correo del solicitante; telefono si hay teléfono; fisica/presencial si hay dirección o indica retiro en persona). Si no hay dato de contacto suficiente o no está claro, usa "otro". NUNCA uses "email" si no extrajiste email_ciudadano.
+- Para campos sin dato usa null JSON (no la cadena "null").
 
 Secretarías disponibles:
 {secretarias_txt}
@@ -193,16 +259,20 @@ def extraer_pqrs_con_ia(texto_usuario: str, archivos: list[tuple[str, bytes]], e
     tipo = (data.get("tipo_solicitud") or "otro").lower()
     if tipo not in TIPOS_VALIDOS:
         tipo = "otro"
-    medio = (data.get("medio_respuesta") or "email").lower()
+    medio = (data.get("medio_respuesta") or "otro").lower()
     if medio not in CANALES_RESPUESTA:
-        medio = "email"
+        medio = "otro"
     canal = (data.get("canal_llegada") or "web").lower()
     if canal not in ("web", "presencial", "email", "telefono"):
         canal = "web"
 
     anonimo = bool(data.get("anonimo"))
-    # Salvaguarda: si la IA extrajo nombre, NIT o documento, NO puede ser anónimo
-    if data.get("nombre_ciudadano") or data.get("cedula_ciudadano"):
+    nombre = clean_optional_str(data.get("nombre_ciudadano"))
+    cedula = clean_optional_str(data.get("cedula_ciudadano"))
+    email = clean_optional_str(data.get("email_ciudadano"))
+    telefono = clean_optional_str(data.get("telefono_ciudadano"))
+    direccion = clean_optional_str(data.get("direccion_ciudadano"))
+    if nombre or cedula:
         anonimo = False
     sec_id = data.get("secretaria_id")
     if sec_id is not None:
@@ -224,20 +294,20 @@ def extraer_pqrs_con_ia(texto_usuario: str, archivos: list[tuple[str, bytes]], e
         if tipo_id not in ("CC", "CE", "TI", "PA"):
             tipo_id = "CC"
 
-    return {
+    return normalize_ia_contact_fields({
         "tipo_solicitud": tipo,
         "asunto": (data.get("asunto") or "Solicitud ciudadana")[:200],
         "descripcion": data.get("descripcion") or texto_completo[:3000],
         "anonimo": anonimo,
         "tipo_persona": None if anonimo else tipo_persona,
         "tipo_identificacion": tipo_id if not anonimo else None,
-        "cedula_ciudadano": None if anonimo else (data.get("cedula_ciudadano") or None),
-        "nombre_ciudadano": None if anonimo else (data.get("nombre_ciudadano") or None),
-        "email_ciudadano": None if anonimo else (data.get("email_ciudadano") or None),
-        "telefono_ciudadano": None if anonimo else (data.get("telefono_ciudadano") or None),
-        "direccion_ciudadano": None if anonimo else (data.get("direccion_ciudadano") or None),
-        "medio_respuesta": "otro" if (medio == "email" and not (None if anonimo else (data.get("email_ciudadano") or None))) else medio,
+        "cedula_ciudadano": None if anonimo else cedula,
+        "nombre_ciudadano": None if anonimo else nombre,
+        "email_ciudadano": None if anonimo else email,
+        "telefono_ciudadano": None if anonimo else telefono,
+        "direccion_ciudadano": None if anonimo else direccion,
+        "medio_respuesta": medio,
         "canal_llegada": canal,
         "secretaria_id": sec_id,
         "secretaria_justificacion": data.get("secretaria_justificacion") or "",
-    }
+    })
