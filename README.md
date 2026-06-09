@@ -176,6 +176,8 @@ Un admin o secretario **reenvía** la PQRS desde su correo institucional (`*.gov
 
 Correos de remitentes no registrados se **ignoran** (aunque sean `gov.co`). Cada `Message-ID` se registra en `CorreoEntrantePQRS` para idempotencia.
 
+Antes de la IA, el sistema extrae el cuerpo reenviado y **elimina el pie de página/firma de la entidad** (nombre, NIT, teléfono, email, `footer_text` configurado en la entidad, secretarías y correo del funcionario que reenvía).
+
 **Comando manual:**
 
 ```bash

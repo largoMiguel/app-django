@@ -24,7 +24,7 @@ from apps.pqrs.models import (
     EstadoCorreoEntrante,
     PQRS,
 )
-from apps.pqrs.services.ai import extraer_pqrs_con_ia
+from apps.pqrs.services.email_sanitize import prepare_inbound_email_text, scrub_entity_from_extraction
 from apps.pqrs.services.creation import crear_pqrs_desde_ia
 from apps.pqrs.services.email import enviar_radicacion
 from apps.pqrs.validators import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES
@@ -276,7 +276,7 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
         )
         return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
 
-    texto = parsed.texto.strip()
+    texto = prepare_inbound_email_text(parsed.texto.strip(), entity, user)
     if parsed.asunto and parsed.asunto.lower() not in texto.lower()[:200]:
         texto = f"Asunto: {parsed.asunto}\n\n{texto}".strip()
 
@@ -292,7 +292,15 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
         return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
 
     try:
-        extraido = extraer_pqrs_con_ia(texto, archivos_ia, entity.id)
+        from apps.pqrs.services.ai import extraer_pqrs_con_ia
+
+        extraido = extraer_pqrs_con_ia(
+            texto,
+            archivos_ia,
+            entity.id,
+            inbound_entity_name=entity.name,
+        )
+        extraido = scrub_entity_from_extraction(extraido, entity, user)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Error IA procesando correo %s", parsed.message_id)
         correo = _registrar_correo(

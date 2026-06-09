@@ -152,10 +152,22 @@ def normalize_ia_contact_fields(extraido: dict[str, Any]) -> dict[str, Any]:
     return extraido
 
 
-def _build_prompt(texto: str, secretarias: list[dict]) -> str:
+def _build_prompt(
+    texto: str,
+    secretarias: list[dict],
+    *,
+    inbound_entity_name: str | None = None,
+) -> str:
     secretarias_txt = "\n".join(
         f"- id={s['id']}: {s['nombre']}" for s in secretarias
     ) or "(sin secretarías registradas)"
+    inbound_rules = ""
+    if inbound_entity_name:
+        inbound_rules = f"""
+- CONTEXTO CORREO REENVIADO: el texto proviene de un funcionario de "{inbound_entity_name}" que reenvía una PQRS ciudadana.
+- IGNORA por completo firmas, pies de página, datos de contacto, NIT, teléfonos, direcciones y nombres de la entidad reenviadora o de sus secretarías/dependencias.
+- El solicitante (nombre_ciudadano, documento, email, teléfono) es SOLO el ciudadano del mensaje original reenviado, nunca la entidad ni el funcionario.
+"""
     return f"""Eres un asistente experto en derecho administrativo colombiano (Ley 1755 de 2015) que clasifica y estructura PQRS (Peticiones, Quejas, Reclamos, Sugerencias y Denuncias).
 
 A partir del siguiente texto del ciudadano (puede incluir contenido extraído de documentos adjuntos), extrae los campos en JSON ESTRICTAMENTE válido (sin texto adicional, sin markdown, sin ```), siguiendo este esquema:
@@ -188,7 +200,7 @@ REGLAS:
 - Selecciona secretaria_id SOLO si claramente coincide con un área de la lista; si no, null.
 - medio_respuesta: infiere del texto el canal preferido (email SOLO si hay correo del solicitante; telefono si hay teléfono; fisica/presencial si hay dirección o indica retiro en persona). Si no hay dato de contacto suficiente o no está claro, usa "otro". NUNCA uses "email" si no extrajiste email_ciudadano.
 - Para campos sin dato usa null JSON (no la cadena "null").
-
+{inbound_rules}
 Secretarías disponibles:
 {secretarias_txt}
 
@@ -226,7 +238,13 @@ def call_openai(prompt: str) -> str:
     return response.choices[0].message.content or ""
 
 
-def extraer_pqrs_con_ia(texto_usuario: str, archivos: list[tuple[str, bytes]], entity_id: int) -> dict[str, Any]:
+def extraer_pqrs_con_ia(
+    texto_usuario: str,
+    archivos: list[tuple[str, bytes]],
+    entity_id: int,
+    *,
+    inbound_entity_name: str | None = None,
+) -> dict[str, Any]:
     """Combina texto + adjuntos y pide a OpenAI estructurar la PQRS.
 
     archivos: lista de tuplas (filename, bytes_content).
@@ -247,7 +265,7 @@ def extraer_pqrs_con_ia(texto_usuario: str, archivos: list[tuple[str, bytes]], e
         .values("id", "nombre")
     )
 
-    prompt = _build_prompt(texto_completo, secretarias)
+    prompt = _build_prompt(texto_completo, secretarias, inbound_entity_name=inbound_entity_name)
     raw = call_openai(prompt)
     try:
         data = _coerce_json(raw)
