@@ -40,5 +40,8 @@ echo "==> Smoke test interno…"
 docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T nginx wget -qO- http://127.0.0.1/healthz | grep -q ok
 docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T backend curl -fsS http://localhost:8000/api/health | grep -q ok
 
+echo "==> Cron de backups y mantenimiento…"
+bash "$DEPLOY_DIR/scripts/setup-maintenance-cron.sh"
+
 echo
 echo "OK. App pública: https://app.softone360.com"

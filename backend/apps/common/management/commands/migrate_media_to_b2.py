@@ -13,11 +13,15 @@ from apps.common.storages import b2_pdm_storage, b2_pqrs_storage
 
 def _bucket_for_key(key: str) -> str | None:
     normalized = key.replace("\\", "/").lstrip("/")
-    if normalized.startswith("entities/") and "/pqrs/" in normalized:
+    if normalized.startswith("entities/") and (
+        "/solicitud/" in normalized
+        or "/respuesta/" in normalized
+        or "/pqrs/" in normalized
+    ):
         return settings.B2_BUCKET_PQRS
     if normalized.startswith("pqrs/respuestas/"):
         return settings.B2_BUCKET_PQRS
-    if normalized.startswith("entities/") and "/pdm/" in normalized:
+    if normalized.startswith("entities/") and "/pdm/evidencias/" in normalized:
         return settings.B2_BUCKET_PDM
     return None
 

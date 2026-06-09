@@ -160,8 +160,36 @@ def user_can_access_pdm_media_path(user, path: str) -> bool:
     if not is_safe_media_relative_path(path):
         return False
 
-    match = re.match(
+    from .models import PdmActividad, PdmEvidenciaArchivo
+
+    arch = (
+        PdmEvidenciaArchivo.objects.filter(archivo=path)
+        .select_related("evidencia__actividad", "evidencia__entity")
+        .first()
+    )
+    if arch:
+        return user_can_access_actividad(user, arch.evidencia.entity, arch.evidencia.actividad)
+
+    # Rutas legacy: entities/.../pdm/evidencias/<actividad_id>/
+    legacy = re.match(
         r"^entities/(?P<entity_id>\d+)/pdm/evidencias/(?P<actividad_id>\d+)/",
+        path,
+    )
+    if legacy:
+        entity = Entity.objects.filter(pk=int(legacy.group("entity_id"))).first()
+        if entity is None:
+            return False
+        actividad = PdmActividad.objects.filter(
+            pk=int(legacy.group("actividad_id")),
+            entity_id=entity.id,
+        ).first()
+        if actividad is None:
+            return False
+        return user_can_access_actividad(user, entity, actividad)
+
+    # Ruta nueva sin registro en BD (archivo huérfano): codigo_producto + año + archivo
+    match = re.match(
+        r"^entities/(?P<entity_id>\d+)/pdm/evidencias/(?P<codigo>[^/]+)/(?P<anio>\d+)/(?:archivos/)?(?P<file>[^/]+)$",
         path,
     )
     if not match:
@@ -171,11 +199,12 @@ def user_can_access_pdm_media_path(user, path: str) -> bool:
     if entity is None:
         return False
 
-    actividad = PdmActividad.objects.filter(
-        pk=int(match.group("actividad_id")),
-        entity_id=entity.id,
-    ).first()
-    if actividad is None:
-        return False
+    codigo_path = match.group("codigo")
+    anio = int(match.group("anio"))
+    for actividad in PdmActividad.objects.filter(entity=entity, anio=anio):
+        from .storage_paths import _safe_path_segment
 
-    return user_can_access_actividad(user, entity, actividad)
+        if _safe_path_segment(actividad.codigo_producto) == codigo_path:
+            if user_can_access_actividad(user, entity, actividad):
+                return True
+    return False

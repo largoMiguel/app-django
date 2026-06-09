@@ -442,8 +442,12 @@ class PQRSViewSet(viewsets.ModelViewSet):
 
             if pqrs.archivo_respuesta:
                 delete_pqrs_storage_key(pqrs.archivo_respuesta)
+            from .storage_paths import pqrs_respuesta_path
+
             ext = (archivo.name.rsplit(".", 1)[-1] if "." in archivo.name else "bin")[:8]
-            safe_name = f"pqrs/respuestas/{pqrs.id}_{int(timezone.now().timestamp())}.{ext}"
+            safe_name = pqrs_respuesta_path(
+                pqrs, f"respuesta_{int(timezone.now().timestamp())}.{ext}"
+            )
             storage = pqrs_storage_for_paths()
             archivo_path = storage.save(safe_name, ContentFile(archivo.read()))
 

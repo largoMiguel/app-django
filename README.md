@@ -156,7 +156,10 @@ Query params soportados en `GET /api/v1/pqrs/`:
 
 
 - Máximo **4 archivos** por PQRS (campo `archivos` en multipart).
-- Ruta de almacenamiento: `media/entities/<entity_id>/pqrs/<pqrs_id>/<nombre_seguro>`.
+- Ruta de almacenamiento (B2 `softone-pqrs`):
+  - Solicitud (adjuntos ciudadano): `entities/<entity_id>/<numero_radicado>/solicitud/<nombre_seguro>`
+  - Respuesta (adjunto secretaría): `entities/<entity_id>/<numero_radicado>/respuesta/<nombre_seguro>`
+  - Ejemplo: `entities/1/PQRS-1-20260608-001/solicitud/documento.pdf`
 - Formatos soportados para extracción de texto: PDF, DOCX, TXT, CSV, MD.
 - Los archivos se sirven vía `MEDIA_URL=/media/` y requieren **token Clerk válido** (`ProtectedMediaView`); el frontend usa `downloadAuthenticatedFile` / `openAuthenticatedFile` en lugar de enlaces directos.
 

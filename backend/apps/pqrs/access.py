@@ -60,20 +60,43 @@ def user_can_access_media_path(user, path: str) -> bool:
     if not is_safe_media_relative_path(path):
         return False
 
-    entity_match = re.match(
-        r"^entities/(?P<entity_id>\d+)/pqrs/(?P<pqrs_id>\d+)/",
+    solicitud_match = re.match(
+        r"^entities/(?P<entity_id>\d+)/(?P<radicado>[^/]+)/solicitud/",
         path,
     )
-    if entity_match:
+    if solicitud_match:
         pqrs = PQRS.objects.filter(
-            pk=int(entity_match.group("pqrs_id")),
-            entity_id=int(entity_match.group("entity_id")),
+            entity_id=int(solicitud_match.group("entity_id")),
+            numero_radicado=solicitud_match.group("radicado"),
         ).first()
         return pqrs is not None and user_can_access_pqrs(user, pqrs)
 
-    resp_match = re.match(r"^pqrs/respuestas/(?P<pqrs_id>\d+)_", path)
-    if resp_match:
-        pqrs = PQRS.objects.filter(pk=int(resp_match.group("pqrs_id"))).first()
+    respuesta_match = re.match(
+        r"^entities/(?P<entity_id>\d+)/(?P<radicado>[^/]+)/respuesta/",
+        path,
+    )
+    if respuesta_match:
+        pqrs = PQRS.objects.filter(
+            entity_id=int(respuesta_match.group("entity_id")),
+            numero_radicado=respuesta_match.group("radicado"),
+        ).first()
+        return pqrs is not None and user_can_access_pqrs(user, pqrs)
+
+    # Rutas legacy (pqrs/<id> y pqrs/respuestas/<id>_…)
+    entity_legacy = re.match(
+        r"^entities/(?P<entity_id>\d+)/pqrs/(?P<pqrs_id>\d+)/",
+        path,
+    )
+    if entity_legacy:
+        pqrs = PQRS.objects.filter(
+            pk=int(entity_legacy.group("pqrs_id")),
+            entity_id=int(entity_legacy.group("entity_id")),
+        ).first()
+        return pqrs is not None and user_can_access_pqrs(user, pqrs)
+
+    resp_legacy = re.match(r"^pqrs/respuestas/(?P<pqrs_id>\d+)_", path)
+    if resp_legacy:
+        pqrs = PQRS.objects.filter(pk=int(resp_legacy.group("pqrs_id"))).first()
         return pqrs is not None and user_can_access_pqrs(user, pqrs)
 
     return False

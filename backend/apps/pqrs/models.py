@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import datetime
-import os
 
 from apps.common.storages import pqrs_file_storage
 from django.conf import settings
@@ -11,10 +10,10 @@ from django.utils import timezone
 
 
 def pqrs_archivo_upload_path(instance, filename: str) -> str:
-    """Ruta: entities/<entity_id>/pqrs/<pqrs_id>/<filename>."""
-    pqrs = instance.pqrs
-    safe_name = os.path.basename(filename)
-    return f"entities/{pqrs.entity_id}/pqrs/{pqrs.id}/{safe_name}"
+    """Ruta: entities/<entity_id>/<numero_radicado>/solicitud/<filename>."""
+    from .storage_paths import pqrs_solicitud_path
+
+    return pqrs_solicitud_path(instance.pqrs, filename)
 
 # ─── Plazos Ley 1755 de 2015 (días hábiles) ─────────────────────────────────
 DIAS_RESPUESTA_LEY1755: dict[str, int] = {

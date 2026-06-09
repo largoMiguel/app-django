@@ -1,8 +1,6 @@
 """Modelos del módulo PDM (Plan de Desarrollo Municipal)."""
 from __future__ import annotations
 
-import os
-
 from django.conf import settings
 from django.db import models
 
@@ -179,10 +177,10 @@ class PdmActividad(models.Model):
 
 
 def pdm_evidencia_archivo_upload_path(instance, filename: str) -> str:
-    """Ruta: entities/<entity_id>/pdm/evidencias/<actividad_id>/<filename>."""
-    evidencia = instance.evidencia
-    safe_name = os.path.basename(filename)
-    return f"entities/{evidencia.entity_id}/pdm/evidencias/{evidencia.actividad_id}/{safe_name}"
+    """Ruta: entities/<entity_id>/pdm/evidencias/<codigo>/<anio>/<filename>."""
+    from .storage_paths import pdm_evidencia_archivo_path
+
+    return pdm_evidencia_archivo_path(instance.evidencia, filename)
 
 
 class PdmActividadEvidencia(models.Model):
