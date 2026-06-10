@@ -69,6 +69,15 @@ class PQRSAssignmentTests(TestCase):
             role="secretario",
             enabled_modules=["pqrs"],
         )
+        self.funcionario_a = User.objects.create_user(
+            email="funcionario@test.com",
+            password="testpass1234",
+            full_name="Funcionario A",
+            entity=self.entity,
+            secretaria=self.secretaria_a,
+            role="admin",
+            enabled_modules=["pqrs"],
+        )
         self.pqrs = PQRS.objects.create(
             entity=self.entity,
             numero_radicado="PQRS-1-20260101-001",
@@ -129,6 +138,30 @@ class PQRSAssignmentTests(TestCase):
         self.assertIsNotNone(correo)
         destinos = {d["email"].lower() for d in correo.destinatarios}
         self.assertIn("seca@test.com", destinos)
+        self.assertIn("funcionario@test.com", destinos)
+
+    def test_secretario_remitente_asigna_su_secretaria(self):
+        from apps.pqrs.services.creation import crear_pqrs_desde_ia
+
+        extraido = {
+            "tipo_solicitud": "peticion",
+            "asunto": "Desde correo",
+            "descripcion": "Texto",
+            "medio_respuesta": "email",
+            "secretaria_ids": [self.secretaria_b.id],
+            "secretaria_justificacion": "IA eligió otra",
+        }
+        pqrs = crear_pqrs_desde_ia(
+            self.entity,
+            extraido,
+            created_by=self.secretario_a,
+            canal_llegada=CanalLlegada.EMAIL,
+            secretaria_fallback=self.secretaria_a,
+            generar_pdf_texto=False,
+        )
+        ids = set(pqrs.assigned_secretarias.values_list("id", flat=True))
+        self.assertEqual(ids, {self.secretaria_a.id})
+        self.assertEqual(pqrs.assigned_to_id, self.secretaria_a.id)
 
 
 class PQRSInboundAttachmentsTests(TestCase):
@@ -141,6 +174,18 @@ class PQRSInboundAttachmentsTests(TestCase):
         msg = email.message_from_bytes(raw)
         extraidos = _extract_attachments(msg)
         self.assertEqual(len(extraidos), 6)
+
+    def test_extract_attachments_acepta_excel(self):
+        attachments = [
+            ("datos.xlsx", b"PK\x03\x04 fake xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            ("legacy.xls", b"\xd0\xcf\x11\xe0 fake xls", "application/vnd.ms-excel"),
+        ]
+        raw = _build_multipart_email(attachments)
+        msg = email.message_from_bytes(raw)
+        extraidos = _extract_attachments(msg)
+        self.assertEqual(len(extraidos), 2)
+        nombres = {a[0] for a in extraidos}
+        self.assertEqual(nombres, {"datos.xlsx", "legacy.xls"})
 
     def test_attach_archivos_from_bytes_sin_limite_en_correo(self):
         from apps.pqrs.services.creation import attach_archivos_from_bytes
@@ -155,6 +200,28 @@ class PQRSInboundAttachmentsTests(TestCase):
             canal_llegada=CanalLlegada.EMAIL,
         )
         files = [(f"doc{i}.txt", b"hola") for i in range(6)]
-        attach_archivos_from_bytes(pqrs, files, user=None, limit_archivos=False)
+        attach_archivos_from_bytes(
+            pqrs, files, user=None, limit_archivos=False, skip_extension_check=True
+        )
         self.assertEqual(pqrs.archivos.count(), 6)
         self.assertGreater(PQRSArchivo.MAX_ARCHIVOS, 0)
+
+    def test_attach_archivos_correo_acepta_excel(self):
+        from apps.pqrs.services.creation import attach_archivos_from_bytes
+
+        entity = Entity.objects.create(name="E3", code="E3", slug="e3")
+        pqrs = PQRS.objects.create(
+            entity=entity,
+            numero_radicado="PQRS-3-20260101-001",
+            tipo_solicitud="peticion",
+            asunto="Excel",
+            descripcion="Desc",
+            canal_llegada=CanalLlegada.EMAIL,
+        )
+        files = [("reporte.xlsx", b"PK\x03\x04"), ("notas.xls", b"\xd0\xcf")]
+        attach_archivos_from_bytes(
+            pqrs, files, user=None, limit_archivos=False, skip_extension_check=True
+        )
+        self.assertEqual(pqrs.archivos.count(), 2)
+        nombres = set(pqrs.archivos.values_list("nombre_original", flat=True))
+        self.assertEqual(nombres, {"reporte.xlsx", "notas.xls"})

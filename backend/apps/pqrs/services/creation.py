@@ -22,7 +22,7 @@ from apps.pqrs.models import (
 )
 from apps.common.roles import user_roles
 from apps.pqrs.services.ai import normalize_ia_contact_fields
-from apps.pqrs.validators import validate_uploaded_file
+from apps.pqrs.validators import validate_inbound_attachment, validate_uploaded_file
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +91,11 @@ def attach_archivos_from_bytes(
     *,
     content_types: dict[str, str] | None = None,
     limit_archivos: bool = True,
+    skip_extension_check: bool = False,
 ) -> None:
     """Adjunta archivos desde tuplas (nombre, bytes)."""
     content_types = content_types or {}
+    validate = validate_inbound_attachment if skip_extension_check else validate_uploaded_file
     if limit_archivos:
         existentes = pqrs.archivos.count()
         disponibles = MAX_ARCHIVOS - existentes
@@ -105,7 +107,7 @@ def attach_archivos_from_bytes(
     for filename, content in files_to_save:
         size = len(content)
         try:
-            validate_uploaded_file(filename, size)
+            validate(filename, size)
         except ValidationError:
             logger.warning("Adjunto omitido en PQRS %s: %s", pqrs.numero_radicado, filename)
             continue
@@ -307,24 +309,33 @@ def crear_pqrs_desde_ia(
             fecha_vencimiento=sumar_dias_habiles(fecha_base, dias),
         )
 
-        sec_ids = extraido.get("secretaria_ids") or []
-        if not sec_ids and extraido.get("secretaria_id"):
-            sec_ids = [extraido["secretaria_id"]]
-        secretarias = list(
-            Secretaria.objects.filter(
-                pk__in=sec_ids, entity_id=entity.id, is_active=True
-            ).order_by("nombre", "id")
-        )
-        if not secretarias and secretaria_fallback and secretaria_fallback.is_active:
-            roles = user_roles(created_by) if created_by else set()
-            if "secretario" in roles:
-                secretarias = [secretaria_fallback]
+        roles = user_roles(created_by) if created_by else set()
+        secretarias: list[Secretaria] = []
+        just = ""
 
-        if secretarias:
+        if (
+            "secretario" in roles
+            and secretaria_fallback
+            and secretaria_fallback.is_active
+            and secretaria_fallback.entity_id == entity.id
+        ):
+            secretarias = [secretaria_fallback]
+            just = f"Asignación automática a {secretaria_fallback.nombre} (remitente secretario)"
+        else:
+            sec_ids = extraido.get("secretaria_ids") or []
+            if not sec_ids and extraido.get("secretaria_id"):
+                sec_ids = [extraido["secretaria_id"]]
+            secretarias = list(
+                Secretaria.objects.filter(
+                    pk__in=sec_ids, entity_id=entity.id, is_active=True
+                ).order_by("nombre", "id")
+            )
             just = extraido.get("secretaria_justificacion") or ""
-            if not just:
+            if not just and secretarias:
                 nombres = ", ".join(s.nombre for s in secretarias)
                 just = f"Asignación automática a {nombres}"
+
+        if secretarias:
             sincronizar_asignaciones(
                 pqrs,
                 secretarias,
@@ -360,6 +371,7 @@ def crear_pqrs_desde_ia(
                 created_by,
                 content_types=files_content_types,
                 limit_archivos=limit_archivos,
+                skip_extension_check=canal_llegada == CanalLlegada.EMAIL,
             )
 
     return pqrs

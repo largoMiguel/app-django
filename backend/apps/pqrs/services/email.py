@@ -442,11 +442,8 @@ def _destinatarios_secretaria(secretaria) -> list[str]:
     qs = User.objects.filter(
         secretaria=secretaria,
         is_active=True,
-    ).exclude(email="")
+    ).exclude(email="").order_by("full_name", "email")
     for user in qs:
-        role_names = {r.lower() for r in getattr(user, "role_names", [])}
-        if "secretario" not in role_names and getattr(user, "role", "").lower() != "secretario":
-            continue
         email = (user.email or "").strip()
         lower = email.lower()
         if email and lower not in seen:

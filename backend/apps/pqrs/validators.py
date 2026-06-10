@@ -26,6 +26,17 @@ def validate_uploaded_file(filename: str, size: int, *, field: str = "archivos")
         raise ValidationError(
             {field: f"Tipo de archivo no permitido ({ext or 'sin extensión'})."}
         )
+    _validate_file_size(size, field=field)
+
+
+def validate_inbound_attachment(filename: str, size: int, *, field: str = "archivos") -> None:
+    """Adjuntos de correo entrante: acepta cualquier extensión, solo valida tamaño."""
+    if not (filename or "").strip():
+        raise ValidationError({field: "El adjunto no tiene nombre de archivo."})
+    _validate_file_size(size, field=field)
+
+
+def _validate_file_size(size: int, *, field: str = "archivos") -> None:
     if size > MAX_UPLOAD_BYTES:
         raise ValidationError(
             {field: f"El archivo supera el límite de {MAX_UPLOAD_BYTES // (1024 * 1024)} MB."}

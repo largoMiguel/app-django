@@ -32,7 +32,9 @@ from apps.pqrs.services.email_sanitize import (
 )
 from apps.pqrs.services.creation import crear_pqrs_desde_ia
 from apps.pqrs.services.email import enviar_radicacion
-from apps.pqrs.validators import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES
+from rest_framework.exceptions import ValidationError
+
+from apps.pqrs.validators import validate_inbound_attachment
 
 logger = logging.getLogger(__name__)
 
@@ -122,12 +124,12 @@ def _extract_attachments(msg: email.message.Message) -> list[tuple[str, bytes, s
         if not content:
             continue
         fname = _safe_filename(_decode_mime(filename))
-        ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
-        if f".{ext}" not in ALLOWED_EXTENSIONS:
-            logger.info("Adjunto omitido (extensión no permitida): %s", fname)
+        if not fname:
             continue
-        if len(content) > MAX_UPLOAD_BYTES:
-            logger.info("Adjunto omitido (tamaño): %s", fname)
+        try:
+            validate_inbound_attachment(fname, len(content))
+        except ValidationError:
+            logger.info("Adjunto omitido (tamaño o nombre inválido): %s", fname)
             continue
         adjuntos.append((fname, content, part.get_content_type() or ""))
     return adjuntos
