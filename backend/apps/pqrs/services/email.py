@@ -23,6 +23,7 @@ from apps.pqrs.models import (
     TipoCorreoPQRS,
     TipoSolicitud,
 )
+from apps.common.roles import user_roles
 from apps.pqrs.services.correo_alerta import (
     failed_recipients_from_correo,
     marcar_destinatarios_sustituidos,
@@ -207,6 +208,24 @@ def _adjuntos_respuesta(pqrs: PQRS) -> list[dict[str, str]]:
     return [_build_zeptomail_attachment(name=nombre, content=content)]
 
 
+def _zeptomail_recipients(addrs: list[str]) -> list[dict[str, Any]]:
+    return [
+        {"email_address": {"address": addr, "name": addr.split("@")[0]}}
+        for addr in addrs
+    ]
+
+
+def _cc_respondedor(enviado_por) -> list[str]:
+    """Copia al correo del funcionario que responde (admin o secretario)."""
+    if not enviado_por:
+        return []
+    roles = user_roles(enviado_por)
+    if not (roles & {"admin", "secretario"}):
+        return []
+    email = (getattr(enviado_por, "email", None) or "").strip()
+    return [email] if email else []
+
+
 def _post_zeptomail(
     *,
     from_name: str,
@@ -216,6 +235,7 @@ def _post_zeptomail(
     text_body: str,
     reply_to: list[dict[str, str]] | None = None,
     attachments: list[dict[str, str]] | None = None,
+    cc: list[str] | None = None,
 ) -> tuple[bool, str | None, str | None]:
     """Envía correo vía ZeptoMail. Retorna (ok, request_id, error)."""
     if not settings.PQRS_EMAIL_ENABLED:
@@ -224,20 +244,22 @@ def _post_zeptomail(
     if not token:
         return False, None, "ZEPTOMAIL_TOKEN no configurado."
 
+    to_lower = {addr.lower() for addr in recipients}
+    cc_addrs = [addr for addr in (cc or []) if addr.lower() not in to_lower]
+
     payload: dict[str, Any] = {
         "from": {
             "address": settings.ZEPTOMAIL_FROM_EMAIL,
             "name": from_name,
         },
-        "to": [
-            {"email_address": {"address": addr, "name": addr.split("@")[0]}}
-            for addr in recipients
-        ],
+        "to": _zeptomail_recipients(recipients),
         "subject": subject,
         "htmlbody": html_body,
         "textbody": text_body,
         "track_opens": True,
     }
+    if cc_addrs:
+        payload["cc"] = _zeptomail_recipients(cc_addrs)
     if reply_to:
         payload["reply_to"] = reply_to
     if attachments:
@@ -396,8 +418,25 @@ def _build_respuesta_bodies(pqrs: PQRS, texto_respuesta: str) -> tuple[str, str,
     return subject, text_body, html_body
 
 
-def _destinatarios_inicial(emails: list[str]) -> list[dict[str, Any]]:
-    return [{"email": e, "estado": "pendiente", "motivo": None, "evento_at": None} for e in emails]
+def _destinatarios_inicial(
+    emails: list[str],
+    *,
+    cc_emails: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    dests = [
+        {"email": e, "estado": "pendiente", "motivo": None, "evento_at": None, "rol": "to"}
+        for e in emails
+    ]
+    seen = {d["email"].lower() for d in dests}
+    for email in cc_emails or []:
+        lower = email.lower()
+        if lower in seen:
+            continue
+        dests.append(
+            {"email": email, "estado": "pendiente", "motivo": None, "evento_at": None, "rol": "cc"}
+        )
+        seen.add(lower)
+    return dests
 
 
 def _crear_registro_correo(
@@ -408,13 +447,14 @@ def _crear_registro_correo(
     cuerpo_resumen: str,
     destinatarios: list[str],
     enviado_por=None,
+    cc_destinatarios: list[str] | None = None,
 ) -> PQRSCorreo:
     return PQRSCorreo.objects.create(
         pqrs=pqrs,
         tipo=tipo,
         asunto=asunto,
         cuerpo_resumen=cuerpo_resumen[:500],
-        destinatarios=_destinatarios_inicial(destinatarios),
+        destinatarios=_destinatarios_inicial(destinatarios, cc_emails=cc_destinatarios),
         enviado_por=enviado_por,
         estado=EstadoCorreoPQRS.PENDIENTE,
     )
@@ -657,6 +697,7 @@ def enviar_respuesta(
     recipients = parse_email_list(destinatarios_raw)
     if not recipients:
         raise ValueError("No hay destinatarios válidos.")
+    cc = _cc_respondedor(enviado_por)
 
     subject, text_body, html_body = _build_respuesta_bodies(pqrs, texto_respuesta)
     registro = _crear_registro_correo(
@@ -666,6 +707,7 @@ def enviar_respuesta(
         cuerpo_resumen=text_body,
         destinatarios=recipients,
         enviado_por=enviado_por,
+        cc_destinatarios=cc,
     )
 
     attachments = _adjuntos_respuesta(pqrs)
@@ -677,6 +719,7 @@ def enviar_respuesta(
         text_body=text_body,
         reply_to=_reply_to(pqrs),
         attachments=attachments or None,
+        cc=cc,
     )
     if ok:
         registro.estado = EstadoCorreoPQRS.ENVIADO
@@ -716,6 +759,11 @@ def reenviar_correo(
         subject, text_body, html_body = _build_respuesta_bodies(pqrs, texto)
         from_name = _from_name(pqrs, include_secretaria=True)
 
+    if correo.tipo == TipoCorreoPQRS.RADICACION:
+        cc: list[str] = []
+    else:
+        cc = _cc_respondedor(correo.enviado_por)
+
     nuevo = _crear_registro_correo(
         pqrs=pqrs,
         tipo=correo.tipo,
@@ -723,6 +771,7 @@ def reenviar_correo(
         cuerpo_resumen=text_body,
         destinatarios=recipients,
         enviado_por=correo.enviado_por,
+        cc_destinatarios=cc,
     )
 
     if correo.tipo == TipoCorreoPQRS.RADICACION:
@@ -739,6 +788,7 @@ def reenviar_correo(
         text_body=text_body,
         reply_to=_reply_to(pqrs),
         attachments=attachments or None,
+        cc=cc,
     )
     if ok:
         nuevo.estado = EstadoCorreoPQRS.ENVIADO
