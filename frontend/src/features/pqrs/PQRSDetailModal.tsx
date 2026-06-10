@@ -4,10 +4,9 @@ import {
   Send,
   AlertTriangle,
   History,
-  UserCheck,
   ThumbsDown,
-  Save,
   Pencil,
+  Briefcase,
   Paperclip,
   Lock,
   RotateCcw,
@@ -32,6 +31,7 @@ import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import { formatApiError } from "@/core/api/errors";
 import { useAuthStore, primaryRole, canAccess, PERM } from "@/core/auth/store";
 import EditPQRSModal from "./EditPQRSModal";
+import PQRSAssignmentPanel from "./PQRSAssignmentPanel";
 
 function formatBytes(bytes?: number): string {
   if (!bytes && bytes !== 0) return "";
@@ -55,8 +55,6 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"detalle" | "historial">("detalle");
 
-  const [secretariasSel, setSecretariasSel] = useState<number[]>([]);
-  const [justificacion, setJustificacion] = useState("");
   const [respuesta, setRespuesta] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [motivoRechazo, setMotivoRechazo] = useState("");
@@ -131,10 +129,6 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
       ]);
       setData(d);
       setSecretarias(secs);
-      setSecretariasSel(
-        d.assigned_secretarias?.map((s) => s.id) ??
-          (d.assigned_to ? [d.assigned_to] : []),
-      );
     } finally {
       setLoading(false);
     }
@@ -259,15 +253,32 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                         <p className="text-sm text-slate-700 whitespace-pre-wrap">{data.descripcion}</p>
                       </div>
                     </>
-                  <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
-                    <Info
-                      label="Secretarías asignadas"
-                      value={
-                        data.assigned_secretarias?.length
-                          ? data.assigned_secretarias.map((s) => s.nombre).join(", ")
-                          : data.assigned_to_nombre || "Sin asignar"
-                      }
-                    />
+                  <div className="mt-3">
+                    <span className="block text-xs font-semibold text-slate-500 mb-1.5">
+                      Dependencias asignadas
+                    </span>
+                    {(data.assigned_secretarias?.length ?? 0) > 0 || data.assigned_to_nombre ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {(data.assigned_secretarias?.length
+                          ? data.assigned_secretarias.map((s) => s.nombre)
+                          : data.assigned_to_nombre
+                            ? [data.assigned_to_nombre]
+                            : []
+                        ).map((nombre) => (
+                          <span
+                            key={nombre}
+                            className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                          >
+                            <Briefcase className="h-3 w-3 text-slate-500" />
+                            {nombre}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-amber-700 font-medium">Sin asignar</span>
+                    )}
+                  </div>
+                  <div className="mt-2 text-sm">
                     <Info
                       label="Fecha de solicitud"
                       value={data.fecha_solicitud ? new Date(data.fecha_solicitud).toLocaleString("es-CO") : null}
@@ -316,6 +327,28 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
 
 
                 </section>
+
+                {/* Asignar / Reasignar */}
+                {canAdmin && !estadoFinal && (
+                  <PQRSAssignmentPanel
+                    assignedIds={
+                      data.assigned_secretarias?.map((s) => s.id) ??
+                      (data.assigned_to ? [data.assigned_to] : [])
+                    }
+                    assignedNames={
+                      data.assigned_secretarias?.length
+                        ? data.assigned_secretarias.map((s) => s.nombre)
+                        : data.assigned_to_nombre
+                          ? [data.assigned_to_nombre]
+                          : []
+                    }
+                    secretarias={secretarias}
+                    busy={busy}
+                    onSave={(ids, justificacion) =>
+                      handleAction(() => pqrsApi.asignar(data.id, ids, justificacion))
+                    }
+                  />
+                )}
 
                 {/* Estado de correos */}
                 {(data.correos?.length ?? 0) > 0 && (() => {
@@ -458,67 +491,6 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                         </button>
                       </div>
                     )}
-                  </section>
-                )}
-
-                {/* Asignar / Reasignar */}
-                {canAdmin && !estadoFinal && (
-                  <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-slate-600 mb-2 flex items-center gap-1.5">
-                      <UserCheck className="h-3.5 w-3.5" />{" "}
-                      {(data.assigned_secretarias?.length ?? (data.assigned_to ? 1 : 0)) > 0
-                        ? "Reasignar"
-                        : "Asignar"}{" "}
-                      a secretarías
-                    </h3>
-                    <div className="space-y-2">
-                      <div className="max-h-40 overflow-y-auto rounded-md border border-slate-300 bg-white p-2 space-y-1">
-                        {secretarias.length === 0 && (
-                          <p className="text-xs text-slate-500 px-1 py-2">No hay secretarías activas.</p>
-                        )}
-                        {secretarias.map((s) => {
-                          const checked = secretariasSel.includes(s.id);
-                          return (
-                            <label
-                              key={s.id}
-                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
-                                  setSecretariasSel((prev) =>
-                                    checked
-                                      ? prev.filter((id) => id !== s.id)
-                                      : [...prev, s.id],
-                                  );
-                                }}
-                                className="h-4 w-4 rounded accent-[#3eafd4]"
-                              />
-                              <span className="text-slate-800">{s.nombre}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                      <textarea
-                        value={justificacion}
-                        onChange={(e) => setJustificacion(e.target.value)}
-                        rows={2}
-                        placeholder="Justificación (opcional)"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
-                      />
-                      <button
-                        disabled={secretariasSel.length === 0 || busy}
-                        onClick={() =>
-                          handleAction(() =>
-                            pqrsApi.asignar(data.id, secretariasSel, justificacion),
-                          )
-                        }
-                        className="flex items-center gap-1.5 rounded-md bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2] disabled:opacity-60"
-                      >
-                        <Save className="h-4 w-4" /> {data.assigned_to ? "Reasignar" : "Asignar"}
-                      </button>
-                    </div>
                   </section>
                 )}
 
