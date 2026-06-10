@@ -41,23 +41,29 @@ def compute_pqrs_stats(queryset, user) -> dict:
             timeline[month_index]["resueltas"] = row["resueltas"]
 
     this_month = queryset.filter(fecha_solicitud__month=month).count()
-    sin_asignar = queryset.filter(~Q(estado__in=closed_states), assigned_to__isnull=True).count()
+    sin_asignar = (
+        queryset.filter(~Q(estado__in=closed_states))
+        .annotate(_asig_count=Count("assigned_secretarias"))
+        .filter(_asig_count=0)
+        .count()
+    )
     alerta_count = queryset.filter(correo_alerta=True).count()
 
     by_secretaria = []
     if "admin" in roles:
         by_secretaria = list(
-            queryset.filter(assigned_to__isnull=False)
-            .values("assigned_to_id", "assigned_to__nombre")
+            queryset.filter(assigned_secretarias__isnull=False)
+            .values("assigned_secretarias__id", "assigned_secretarias__nombre")
             .annotate(
-                total=Count("id"),
-                respondidas=Count("id", filter=Q(estado=EstadoPQRS.RESPONDIDA)),
-                cerradas=Count("id", filter=Q(estado=EstadoPQRS.CERRADA)),
-                en_proceso=Count("id", filter=Q(estado=EstadoPQRS.EN_PROCESO)),
-                pendientes=Count("id", filter=~Q(estado__in=closed_states)),
+                total=Count("id", distinct=True),
+                respondidas=Count("id", filter=Q(estado=EstadoPQRS.RESPONDIDA), distinct=True),
+                cerradas=Count("id", filter=Q(estado=EstadoPQRS.CERRADA), distinct=True),
+                en_proceso=Count("id", filter=Q(estado=EstadoPQRS.EN_PROCESO), distinct=True),
+                pendientes=Count("id", filter=~Q(estado__in=closed_states), distinct=True),
                 vencidas=Count(
                     "id",
                     filter=~Q(estado__in=closed_states) & Q(fecha_vencimiento__lt=now),
+                    distinct=True,
                 ),
             )
             .order_by("-total")
@@ -83,8 +89,8 @@ def compute_pqrs_stats(queryset, user) -> dict:
         ],
         "by_secretaria": [
             {
-                "secretaria_id": row["assigned_to_id"],
-                "nombre": row["assigned_to__nombre"] or f"#{row['assigned_to_id']}",
+                "secretaria_id": row["assigned_secretarias__id"],
+                "nombre": row["assigned_secretarias__nombre"] or f"#{row['assigned_secretarias__id']}",
                 "total": row["total"],
                 "respondidas": row["respondidas"],
                 "cerradas": row["cerradas"],

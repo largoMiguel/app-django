@@ -453,7 +453,17 @@ export default function PQRSPage() {
                   <td className="px-4 py-3 text-slate-700">
                     <span className="block max-w-[280px] truncate">{p.asunto}</span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{p.assigned_to_nombre || "—"}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {p.assigned_to_nombre || "—"}
+                    {(p.assigned_secretarias?.length ?? 0) > 1 && (
+                      <span
+                        className="ml-1 text-xs text-slate-400"
+                        title={p.assigned_secretarias?.map((s) => s.nombre).join(", ")}
+                      >
+                        +{(p.assigned_secretarias?.length ?? 0) - 1}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={`rounded px-2 py-0.5 text-[0.72rem] font-medium ${ESTADO_LABEL[p.estado].color}`}

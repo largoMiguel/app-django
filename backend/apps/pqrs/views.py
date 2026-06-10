@@ -20,7 +20,7 @@ from apps.entities.models import Secretaria
 from apps.rbac.permissions import HasPermOrRole
 
 from apps.common.roles import is_platform_superadmin, user_roles
-from .access import pqrs_queryset_for_user
+from .access import pqrs_queryset_for_user, usuario_asignado_a_pqrs
 from .models import (
     DIAS_RESPUESTA_LEY1755,
     EstadoPQRS,
@@ -42,7 +42,12 @@ from .serializers import (
 from .services.correo_alerta import descartar_alerta_correo
 from .services.email import enviar_respuesta, merge_corrected_emails, reenviar_correo
 from .services.ai import extraer_pqrs_con_ia
-from .services.creation import attach_archivos_from_uploads, crear_pqrs_desde_ia
+from .services.creation import (
+    attach_archivos_from_uploads,
+    crear_pqrs_desde_ia,
+    rechazar_asignacion_secretaria,
+    sincronizar_asignaciones,
+)
 from .filters import PQRSFilterSet
 from .stats import compute_pqrs_stats
 from .throttles import PQRSAIAutoCreateThrottle
@@ -93,7 +98,7 @@ def _can_upload_archivos(user, pqrs: PQRS) -> bool:
     if pqrs.estado == EstadoPQRS.CERRADA:
         return False
     if "secretario" in roles:
-        return pqrs.assigned_to_id == user.secretaria_id
+        return usuario_asignado_a_pqrs(user, pqrs)
     if "ciudadano" in roles:
         return pqrs.created_by_id == user.id and pqrs.estado == EstadoPQRS.RECIBIDA
     return False
@@ -112,7 +117,7 @@ def _maybe_mark_en_proceso(pqrs: PQRS, user) -> None:
     if (
         "secretario" in roles
         and pqrs.estado == EstadoPQRS.ASIGNADA
-        and pqrs.assigned_to_id == user.secretaria_id
+        and usuario_asignado_a_pqrs(user, pqrs)
     ):
         pqrs.estado = EstadoPQRS.EN_PROCESO
         pqrs.save(update_fields=["estado", "updated_at"])
@@ -169,7 +174,9 @@ class PQRSViewSet(viewsets.ModelViewSet):
         return PQRSSerializer
 
     def get_queryset(self):
-        qs = PQRS.objects.select_related("entity", "assigned_to", "created_by")
+        qs = PQRS.objects.select_related("entity", "assigned_to", "created_by").prefetch_related(
+            "assigned_secretarias"
+        )
         if self.action == "list":
             qs = qs.annotate(archivos_count=Count("archivos"))
         elif self.action in {
@@ -319,40 +326,35 @@ class PQRSViewSet(viewsets.ModelViewSet):
 
         ser = AsignarSerializer(data=request.data, context={"entity_id": pqrs.entity_id})
         ser.is_valid(raise_exception=True)
-        secretaria = Secretaria.objects.get(pk=ser.validated_data["secretaria_id"])
-        if secretaria.entity_id != pqrs.entity_id:
-            raise ValidationError({"secretaria_id": "La secretaría no pertenece a la entidad."})
-        if not secretaria.is_active:
-            raise ValidationError({"secretaria_id": "La secretaría está inactiva."})
+        secretaria_ids = ser.validated_data["secretaria_ids"]
+        if not secretaria_ids:
+            raise ValidationError({"secretaria_ids": "Debes seleccionar al menos una secretaría."})
+        secretarias = list(
+            Secretaria.objects.filter(
+                pk__in=secretaria_ids,
+                entity_id=pqrs.entity_id,
+                is_active=True,
+            ).order_by("nombre", "id")
+        )
+        if len(secretarias) != len(secretaria_ids):
+            raise ValidationError(
+                {"secretaria_ids": "Una o más secretarías no existen, están inactivas o no pertenecen a la entidad."}
+            )
         if pqrs.estado not in _ASIGNABLE_STATES:
             raise ValidationError(
                 {"estado": "Solo se puede asignar una PQRS recibida, asignada o con asignación rechazada."}
             )
 
-        accion = "reasignacion" if pqrs.assigned_to_id else "asignacion"
         with transaction.atomic():
-            AsignacionAuditoria.objects.create(
-                pqrs=pqrs,
-                secretaria_anterior_id=pqrs.assigned_to_id,
-                secretaria_nueva=secretaria,
-                usuario_nuevo=user,
-                accion=accion,
+            sincronizar_asignaciones(
+                pqrs,
+                secretarias,
+                user=user,
                 justificacion=ser.validated_data.get("justificacion") or "",
+                notificar=True,
             )
-            pqrs.assigned_to = secretaria
-            pqrs.estado = EstadoPQRS.ASIGNADA
-            pqrs.fecha_delegacion = timezone.now()
-            pqrs.justificacion_asignacion = ser.validated_data.get("justificacion") or ""
-            pqrs.save(
-                update_fields=[
-                    "assigned_to",
-                    "estado",
-                    "fecha_delegacion",
-                    "justificacion_asignacion",
-                    "updated_at",
-                ]
-            )
-        return Response(PQRSSerializer(pqrs).data)
+        pqrs.refresh_from_db()
+        return Response(PQRSSerializer(pqrs, context={"request": request}).data)
 
     # ── Secretario rechaza la asignación con justificación ────────────
     @action(detail=True, methods=["post"], url_path="rechazar-asignacion")
@@ -362,7 +364,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
         roles = _roles(user)
         if "secretario" not in roles:
             raise PermissionDenied("Solo secretario puede rechazar la asignación.")
-        if pqrs.assigned_to_id != user.secretaria_id:
+        if not usuario_asignado_a_pqrs(user, pqrs):
             raise PermissionDenied("No tienes esta PQRS asignada.")
 
         ser = RechazarAsignacionSerializer(data=request.data)
@@ -370,18 +372,14 @@ class PQRSViewSet(viewsets.ModelViewSet):
         motivo = ser.validated_data["motivo"]
 
         with transaction.atomic():
-            AsignacionAuditoria.objects.create(
-                pqrs=pqrs,
-                secretaria_anterior=pqrs.assigned_to,
-                secretaria_nueva=None,
-                usuario_anterior=user,
-                accion="rechazo",
-                justificacion=motivo,
+            rechazar_asignacion_secretaria(
+                pqrs,
+                user.secretaria,
+                user=user,
+                motivo=motivo,
             )
-            pqrs.assigned_to = None
-            pqrs.estado = EstadoPQRS.RECHAZADA_ASIGNACION
-            pqrs.save(update_fields=["assigned_to", "estado", "updated_at"])
-        return Response(PQRSSerializer(pqrs).data)
+        pqrs.refresh_from_db()
+        return Response(PQRSSerializer(pqrs, context={"request": request}).data)
 
     # ── Secretario responde la PQRS ───────────────────────────────────
     @action(detail=True, methods=["post"], url_path="responder")
@@ -392,7 +390,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
         if not ("admin" in roles or "secretario" in roles):
             raise PermissionDenied("Sin permiso para responder.")
         if "secretario" in roles and "admin" not in roles:
-            if pqrs.assigned_to_id != user.secretaria_id:
+            if not usuario_asignado_a_pqrs(user, pqrs):
                 raise PermissionDenied("No tienes esta PQRS asignada.")
 
         if pqrs.estado == EstadoPQRS.RESPONDIDA:
@@ -484,7 +482,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
         if not ("admin" in roles or "secretario" in roles):
             raise PermissionDenied("Sin permiso para reenviar correo.")
         if "secretario" in roles and "admin" not in roles:
-            if pqrs.assigned_to_id != user.secretaria_id:
+            if not usuario_asignado_a_pqrs(user, pqrs):
                 raise PermissionDenied("No tienes esta PQRS asignada.")
 
         ser = ReenviarCorreoSerializer(data=request.data)
@@ -523,7 +521,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
         if not ("admin" in roles or "secretario" in roles):
             raise PermissionDenied("Sin permiso para descartar alerta de correo.")
         if "secretario" in roles and "admin" not in roles:
-            if pqrs.assigned_to_id != user.secretaria_id:
+            if not usuario_asignado_a_pqrs(user, pqrs):
                 raise PermissionDenied("No tienes esta PQRS asignada.")
         if not pqrs.correo_alerta:
             raise ValidationError({"detail": "Esta PQRS no tiene alerta de correo activa."})
@@ -554,7 +552,11 @@ class PQRSViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Solo admin puede reabrir PQRS.")
         if pqrs.estado != EstadoPQRS.RESPONDIDA:
             raise ValidationError({"estado": "Solo se puede reabrir una PQRS respondida."})
-        nuevo_estado = EstadoPQRS.ASIGNADA if pqrs.assigned_to_id else EstadoPQRS.RECIBIDA
+        nuevo_estado = (
+            EstadoPQRS.ASIGNADA
+            if pqrs.assigned_secretarias.exists()
+            else EstadoPQRS.RECIBIDA
+        )
         with transaction.atomic():
             AsignacionAuditoria.objects.create(
                 pqrs=pqrs,

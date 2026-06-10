@@ -162,7 +162,14 @@ class PQRS(models.Model):
         blank=True,
         related_name="pqrs_asignadas",
         db_column="assigned_to_id",
-        help_text="Secretaría asignada (no usuario individual).",
+        help_text="Secretaría principal (denormalizada; ver assigned_secretarias).",
+    )
+    assigned_secretarias = models.ManyToManyField(
+        "entities.Secretaria",
+        related_name="pqrs_asignadas_m2m",
+        blank=True,
+        db_table="pqrs_secretarias_asignadas",
+        help_text="Secretarías asignadas (puede ser más de una).",
     )
 
     numero_radicado = models.CharField(max_length=64, unique=True, db_index=True)
@@ -364,6 +371,7 @@ class PQRSArchivo(models.Model):
 class TipoCorreoPQRS(models.TextChoices):
     RADICACION = "radicacion", "Radicación"
     RESPUESTA = "respuesta", "Respuesta"
+    ASIGNACION = "asignacion", "Asignación"
 
 
 class EstadoCorreoPQRS(models.TextChoices):

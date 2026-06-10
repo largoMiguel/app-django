@@ -35,6 +35,11 @@ class PQRSArchivoSerializer(serializers.ModelSerializer):
         return obj.nombre_original or (obj.archivo.name.rsplit("/", 1)[-1] if obj.archivo else "")
 
 
+class SecretariaAsignadaSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    nombre = serializers.CharField()
+
+
 class AsignacionAuditoriaSerializer(serializers.ModelSerializer):
     secretaria_anterior_nombre = serializers.CharField(
         source="secretaria_anterior.nombre", read_only=True, default=None
@@ -97,6 +102,7 @@ class PQRSSerializer(serializers.ModelSerializer):
     assigned_to_nombre = serializers.CharField(
         source="assigned_to.nombre", read_only=True, default=None
     )
+    assigned_secretarias = serializers.SerializerMethodField()
     auditoria = AsignacionAuditoriaSerializer(many=True, read_only=True)
     correos = PQRSCorreoSerializer(many=True, read_only=True)
     is_anonima = serializers.SerializerMethodField()
@@ -111,6 +117,7 @@ class PQRSSerializer(serializers.ModelSerializer):
             "created_by",
             "assigned_to",
             "assigned_to_nombre",
+            "assigned_secretarias",
             "numero_radicado",
             "tipo_identificacion",
             "medio_respuesta",
@@ -165,10 +172,17 @@ class PQRSSerializer(serializers.ModelSerializer):
             "auditoria",
             "correos",
             "assigned_to_nombre",
+            "assigned_secretarias",
             "is_anonima",
             "archivo_respuesta_url",
             "archivos",
         )
+
+    def get_assigned_secretarias(self, obj) -> list[dict]:
+        secretarias = getattr(obj, "_prefetched_objects_cache", {}).get("assigned_secretarias")
+        if secretarias is None:
+            secretarias = obj.assigned_secretarias.order_by("nombre", "id")
+        return [{"id": s.id, "nombre": s.nombre} for s in secretarias]
 
     def get_is_anonima(self, obj) -> bool:
         return not (obj.nombre_ciudadano and obj.nombre_ciudadano.strip())
@@ -196,6 +210,7 @@ class PQRSListSerializer(serializers.ModelSerializer):
     assigned_to_nombre = serializers.CharField(
         source="assigned_to.nombre", read_only=True, default=None
     )
+    assigned_secretarias = serializers.SerializerMethodField()
     is_anonima = serializers.SerializerMethodField()
     archivos_count = serializers.IntegerField(read_only=True)
 
@@ -207,6 +222,7 @@ class PQRSListSerializer(serializers.ModelSerializer):
             "created_by",
             "assigned_to",
             "assigned_to_nombre",
+            "assigned_secretarias",
             "numero_radicado",
             "tipo_solicitud",
             "asunto",
@@ -221,6 +237,12 @@ class PQRSListSerializer(serializers.ModelSerializer):
             "archivos_count",
         )
         read_only_fields = fields
+
+    def get_assigned_secretarias(self, obj) -> list[dict]:
+        secretarias = getattr(obj, "_prefetched_objects_cache", {}).get("assigned_secretarias")
+        if secretarias is None:
+            secretarias = obj.assigned_secretarias.order_by("nombre", "id")
+        return [{"id": s.id, "nombre": s.nombre} for s in secretarias]
 
     def get_is_anonima(self, obj) -> bool:
         return not (obj.nombre_ciudadano and obj.nombre_ciudadano.strip())
@@ -248,17 +270,41 @@ class PQRSReportRowSerializer(serializers.ModelSerializer):
 
 
 class AsignarSerializer(serializers.Serializer):
-    secretaria_id = serializers.IntegerField()
+    secretaria_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        min_length=1,
+        required=False,
+    )
+    secretaria_id = serializers.IntegerField(required=False)
     justificacion = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
-    def validate_secretaria_id(self, v):
-        secretaria = Secretaria.objects.filter(pk=v, is_active=True).first()
-        if not secretaria:
-            raise serializers.ValidationError("Secretaría no existe o está inactiva.")
+    def validate(self, attrs):
+        ids = attrs.get("secretaria_ids")
+        if not ids and attrs.get("secretaria_id") is not None:
+            ids = [attrs["secretaria_id"]]
+        if not ids:
+            raise serializers.ValidationError(
+                {"secretaria_ids": "Debes indicar al menos una secretaría."}
+            )
         expected_entity_id = self.context.get("entity_id")
-        if expected_entity_id and secretaria.entity_id != expected_entity_id:
-            raise serializers.ValidationError("La secretaría no pertenece a la entidad de la PQRS.")
-        return v
+        seen: set[int] = set()
+        ordered: list[int] = []
+        for sec_id in ids:
+            if sec_id in seen:
+                continue
+            secretaria = Secretaria.objects.filter(pk=sec_id, is_active=True).first()
+            if not secretaria:
+                raise serializers.ValidationError(
+                    {"secretaria_ids": f"Secretaría {sec_id} no existe o está inactiva."}
+                )
+            if expected_entity_id and secretaria.entity_id != expected_entity_id:
+                raise serializers.ValidationError(
+                    {"secretaria_ids": "Una o más secretarías no pertenecen a la entidad de la PQRS."}
+                )
+            seen.add(sec_id)
+            ordered.append(sec_id)
+        attrs["secretaria_ids"] = ordered
+        return attrs
 
 
 class RechazarAsignacionSerializer(serializers.Serializer):

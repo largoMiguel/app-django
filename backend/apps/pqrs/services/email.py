@@ -391,10 +391,171 @@ def _crear_registro_correo(
     )
 
 
-def _actualizar_pqrs_resumen(pqrs: PQRS, ok: bool, error: str | None) -> None:
+def _actualizar_pqrs_resumen(
+    pqrs: PQRS,
+    ok: bool,
+    error: str | None,
+    *,
+    actualizar_resumen_ciudadano: bool = True,
+) -> None:
+    if not actualizar_resumen_ciudadano:
+        return
     pqrs.email_enviado = ok
     pqrs.email_error = (error or "")[:500] if not ok else ""
     pqrs.save(update_fields=["email_enviado", "email_error", "updated_at"])
+
+
+def _destinatarios_secretaria(secretaria) -> list[str]:
+    from apps.accounts.models import User
+
+    emails: list[str] = []
+    seen: set[str] = set()
+    qs = User.objects.filter(
+        secretaria=secretaria,
+        is_active=True,
+    ).exclude(email="")
+    for user in qs:
+        role_names = {r.lower() for r in getattr(user, "role_names", [])}
+        if "secretario" not in role_names and getattr(user, "role", "").lower() != "secretario":
+            continue
+        email = (user.email or "").strip()
+        lower = email.lower()
+        if email and lower not in seen:
+            emails.append(email)
+            seen.add(lower)
+    return emails
+
+
+def _build_asignacion_bodies(
+    pqrs: PQRS,
+    secretaria,
+    *,
+    justificacion: str = "",
+    asignado_por=None,
+) -> tuple[str, str, str]:
+    entity_name = _entity_name(pqrs)
+    tipo_label = _tipo_label(pqrs)
+    subject = f"PQRS asignada — {pqrs.numero_radicado}"
+    fecha_sol = (
+        pqrs.fecha_solicitud.strftime("%d/%m/%Y %H:%M")
+        if pqrs.fecha_solicitud
+        else timezone.now().strftime("%d/%m/%Y %H:%M")
+    )
+    fecha_venc = (
+        pqrs.fecha_vencimiento.strftime("%d/%m/%Y")
+        if pqrs.fecha_vencimiento
+        else "—"
+    )
+    asignador = ""
+    if asignado_por is not None:
+        asignador = getattr(asignado_por, "full_name", None) or getattr(asignado_por, "email", "") or ""
+    just_txt = (justificacion or pqrs.justificacion_asignacion or "").strip()
+
+    text_body = (
+        f"Se le ha asignado una {tipo_label} en {entity_name}.\n\n"
+        f"Secretaría: {secretaria.nombre}\n"
+        f"Radicado: {pqrs.numero_radicado}\n"
+        f"Asunto: {pqrs.asunto}\n"
+        f"Fecha de solicitud: {fecha_sol}\n"
+        f"Plazo de respuesta (Ley 1755/2015): {fecha_venc}\n"
+    )
+    if asignador:
+        text_body += f"Asignado por: {asignador}\n"
+    if just_txt:
+        text_body += f"Justificación: {just_txt}\n"
+    text_body += "\nIngrese al sistema PQRS para gestionar la solicitud."
+
+    inner = f"""
+    <p style="color:#475569;font-size:14px;">
+      Se le ha asignado una <strong>{html.escape(tipo_label)}</strong> en
+      <strong>{html.escape(secretaria.nombre)}</strong>.
+    </p>
+    <div style="background:#f1f5f9;border-radius:6px;padding:12px 16px;margin:12px 0;
+                font-size:15px;font-weight:bold;color:#1e293b;text-align:center;">
+      {html.escape(pqrs.numero_radicado)}
+    </div>
+    <table style="width:100%;font-size:13px;color:#475569;margin-top:12px;">
+      <tr><td style="padding:4px 0;font-weight:600;">Asunto:</td>
+          <td>{html.escape(pqrs.asunto)}</td></tr>
+      <tr><td style="padding:4px 0;font-weight:600;">Fecha solicitud:</td>
+          <td>{html.escape(fecha_sol)}</td></tr>
+      <tr><td style="padding:4px 0;font-weight:600;">Plazo de respuesta:</td>
+          <td>{html.escape(fecha_venc)}</td></tr>
+    """
+    if asignador:
+        inner += f"""
+      <tr><td style="padding:4px 0;font-weight:600;">Asignado por:</td>
+          <td>{html.escape(asignador)}</td></tr>
+        """
+    if just_txt:
+        inner += f"""
+      <tr><td style="padding:4px 0;font-weight:600;vertical-align:top;">Justificación:</td>
+          <td>{html.escape(just_txt)}</td></tr>
+        """
+    inner += "</table>"
+    html_body = _wrap_html(entity_name, "Notificación de asignación PQRS", inner)
+    return subject, text_body, html_body
+
+
+def enviar_notificacion_asignacion(
+    pqrs: PQRS,
+    secretaria,
+    *,
+    asignado_por=None,
+    justificacion: str = "",
+) -> PQRSCorreo | None:
+    """Notifica por correo a los secretarios de la dependencia asignada."""
+    recipients = _destinatarios_secretaria(secretaria)
+    if not recipients:
+        logger.info(
+            "PQRS %s — sin correos de secretarios para %s",
+            pqrs.numero_radicado,
+            secretaria.nombre,
+        )
+        return None
+
+    subject, text_body, html_body = _build_asignacion_bodies(
+        pqrs,
+        secretaria,
+        justificacion=justificacion,
+        asignado_por=asignado_por,
+    )
+    registro = _crear_registro_correo(
+        pqrs=pqrs,
+        tipo=TipoCorreoPQRS.ASIGNACION,
+        asunto=subject,
+        cuerpo_resumen=text_body,
+        destinatarios=recipients,
+        enviado_por=asignado_por,
+    )
+
+    ok, request_id, error = _post_zeptomail(
+        from_name=_from_name(pqrs),
+        recipients=recipients,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+        reply_to=_reply_to(pqrs),
+    )
+    if ok:
+        registro.estado = EstadoCorreoPQRS.ENVIADO
+        registro.request_id = request_id
+        for d in registro.destinatarios:
+            d["estado"] = "enviado"
+    else:
+        registro.estado = EstadoCorreoPQRS.ERROR
+        registro.error = error
+        for d in registro.destinatarios:
+            d["estado"] = "error"
+            d["motivo"] = error
+    registro.save(update_fields=["estado", "request_id", "error", "destinatarios", "updated_at"])
+    logger.info(
+        "Asignación PQRS %s — correo a %s (%s)",
+        pqrs.numero_radicado,
+        secretaria.nombre,
+        ", ".join(recipients) if ok else f"error: {error}",
+    )
+    return registro
 
 
 def enviar_radicacion(pqrs: PQRS) -> PQRSCorreo | None:

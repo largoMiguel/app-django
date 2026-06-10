@@ -130,8 +130,6 @@ def _extract_attachments(msg: email.message.Message) -> list[tuple[str, bytes, s
             logger.info("Adjunto omitido (tamaño): %s", fname)
             continue
         adjuntos.append((fname, content, part.get_content_type() or ""))
-        if len(adjuntos) >= 4:
-            break
     return adjuntos
 
 
@@ -292,6 +290,7 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
         texto = f"Asunto: {subject_line}\n\n{texto}".strip()
 
     archivos_ia = [(name, content) for name, content, _ctype in parsed.adjuntos]
+    content_types = {name: ctype for name, _content, ctype in parsed.adjuntos}
     if not texto and not archivos_ia:
         correo = _registrar_correo(
             parsed,
@@ -335,10 +334,12 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
                 created_by=user,
                 texto=texto,
                 files_bytes=archivos_ia or None,
+                files_content_types=content_types or None,
                 canal_llegada=CanalLlegada.EMAIL,
                 fecha_base=fecha_base,
                 auditoria_creacion="PQRS creada automáticamente desde correo reenviado (IA).",
                 secretaria_fallback=user.secretaria,
+                limit_archivos=False,
             )
             correo = _registrar_correo(
                 parsed,

@@ -188,7 +188,8 @@ A partir del siguiente texto del ciudadano (puede incluir contenido extraído de
   "direccion_ciudadano": "string|null",
   "medio_respuesta": "email|telefono|fisica|presencial|otro",
   "canal_llegada": "web|presencial|email|telefono",
-  "secretaria_id": <id numérico de la secretaría más adecuada de la lista, o null>,
+  "secretaria_id": <id numérico de la secretaría principal, o null>,
+  "secretaria_ids": [<ids numéricos de TODAS las secretarías pertinentes de la lista, o []>],
   "secretaria_justificacion": "string explicando por qué"
 }}
 
@@ -199,7 +200,8 @@ REGLAS:
 - Para persona natural: cedula_ciudadano es el número de cédula/documento.
 - El asunto es UN RENGLÓN corto. La descripción es completa y formal.
 - Si el texto menciona reembolso, daño, mal servicio → "reclamo". Si pide información oficial → "solicitud_informacion". Si denuncia hechos irregulares → "denuncia". Si felicita → "felicitacion". Si propone mejora → "sugerencia". Si presenta inconformidad sin reclamar → "queja". Si pide algo en general → "peticion".
-- Selecciona secretaria_id SOLO si claramente coincide con un área de la lista; si no, null.
+- Selecciona secretaria_ids SOLO con ids de la lista de secretarías de la entidad. Puede ser una o varias si el asunto involucra múltiples dependencias. secretaria_id debe ser el id principal (el primero de secretaria_ids) o null si no hay coincidencia clara.
+- Si ninguna secretaría coincide claramente, usa secretaria_ids=[] y secretaria_id=null.
 - medio_respuesta: infiere del texto el canal preferido (email SOLO si hay correo del solicitante; telefono si hay teléfono; fisica/presencial si hay dirección o indica retiro en persona). Si no hay dato de contacto suficiente o no está claro, usa "otro". NUNCA uses "email" si no extrajiste email_ciudadano.
 - Para campos sin dato usa null JSON (no la cadena "null").
 {inbound_rules}
@@ -223,6 +225,44 @@ def _coerce_json(raw: str) -> dict[str, Any]:
     if a >= 0 and b > a:
         s = s[a : b + 1]
     return json.loads(s)
+
+
+def _normalize_secretaria_name(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip().lower())
+
+
+def _valid_secretaria_ids(data: dict[str, Any], secretarias: list[dict]) -> list[int]:
+    valid_ids = {s["id"] for s in secretarias}
+    raw_ids = data.get("secretaria_ids")
+    if not isinstance(raw_ids, list):
+        raw_ids = []
+    sec_ids: list[int] = []
+    seen: set[int] = set()
+    for item in raw_ids:
+        try:
+            sec_id = int(item)
+        except (TypeError, ValueError):
+            continue
+        if sec_id in valid_ids and sec_id not in seen:
+            sec_ids.append(sec_id)
+            seen.add(sec_id)
+    if not sec_ids:
+        sec_id = data.get("secretaria_id")
+        if sec_id is not None:
+            try:
+                sec_id = int(sec_id)
+            except (TypeError, ValueError):
+                sec_id = None
+            if sec_id and sec_id in valid_ids:
+                sec_ids = [sec_id]
+    if not sec_ids:
+        justificacion = (data.get("secretaria_justificacion") or "").lower()
+        for sec in secretarias:
+            nombre = _normalize_secretaria_name(sec["nombre"])
+            if nombre and nombre in justificacion:
+                sec_ids.append(sec["id"])
+        sec_ids = list(dict.fromkeys(sec_ids))
+    return sec_ids
 
 
 def call_openai(prompt: str) -> str:
@@ -294,14 +334,8 @@ def extraer_pqrs_con_ia(
     direccion = clean_optional_str(data.get("direccion_ciudadano"))
     if nombre or cedula:
         anonimo = False
-    sec_id = data.get("secretaria_id")
-    if sec_id is not None:
-        try:
-            sec_id = int(sec_id)
-        except (TypeError, ValueError):
-            sec_id = None
-        if sec_id and not any(s["id"] == sec_id for s in secretarias):
-            sec_id = None
+    sec_ids = _valid_secretaria_ids(data, secretarias)
+    sec_id = sec_ids[0] if sec_ids else None
 
     tipo_id = (data.get("tipo_identificacion") or "").upper()
     tipo_persona_raw = (data.get("tipo_persona") or "").lower()
@@ -329,5 +363,6 @@ def extraer_pqrs_con_ia(
         "medio_respuesta": medio,
         "canal_llegada": canal,
         "secretaria_id": sec_id,
+        "secretaria_ids": sec_ids,
         "secretaria_justificacion": data.get("secretaria_justificacion") or "",
     })

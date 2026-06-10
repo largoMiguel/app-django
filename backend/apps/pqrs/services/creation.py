@@ -20,6 +20,7 @@ from apps.pqrs.models import (
     PQRSArchivo,
     sumar_dias_habiles,
 )
+from apps.common.roles import user_roles
 from apps.pqrs.services.ai import normalize_ia_contact_fields
 from apps.pqrs.validators import validate_uploaded_file
 
@@ -89,14 +90,19 @@ def attach_archivos_from_bytes(
     user,
     *,
     content_types: dict[str, str] | None = None,
+    limit_archivos: bool = True,
 ) -> None:
     """Adjunta archivos desde tuplas (nombre, bytes)."""
     content_types = content_types or {}
-    existentes = pqrs.archivos.count()
-    disponibles = MAX_ARCHIVOS - existentes
-    if disponibles <= 0:
-        return
-    for filename, content in files[:disponibles]:
+    if limit_archivos:
+        existentes = pqrs.archivos.count()
+        disponibles = MAX_ARCHIVOS - existentes
+        if disponibles <= 0:
+            return
+        files_to_save = files[:disponibles]
+    else:
+        files_to_save = files
+    for filename, content in files_to_save:
         size = len(content)
         try:
             validate_uploaded_file(filename, size)
@@ -133,18 +139,51 @@ def _save_archivo(
     arch.save()
 
 
-def _asignar_secretaria(
+def _sync_assigned_to_principal(pqrs: PQRS, secretarias: list[Secretaria]) -> None:
+    pqrs.assigned_to = secretarias[0] if secretarias else None
+
+
+def sincronizar_asignaciones(
     pqrs: PQRS,
-    secretaria: Secretaria,
+    secretarias: list[Secretaria],
     *,
     user,
-    justificacion: str,
-    accion: str = "asignacion",
-) -> None:
-    pqrs.assigned_to = secretaria
-    pqrs.estado = EstadoPQRS.ASIGNADA
-    pqrs.fecha_delegacion = timezone.now()
-    pqrs.justificacion_asignacion = justificacion
+    justificacion: str = "",
+    notificar: bool = True,
+) -> list[Secretaria]:
+    """Sincroniza el M2M con la lista dada. Retorna secretarías recién agregadas."""
+    secretarias = list(dict.fromkeys(secretarias))
+    current_ids = set(pqrs.assigned_secretarias.values_list("id", flat=True))
+    target_ids = {s.id for s in secretarias}
+    agregadas = [s for s in secretarias if s.id not in current_ids]
+    removidas_ids = current_ids - target_ids
+
+    if removidas_ids:
+        removidas = list(
+            Secretaria.objects.filter(pk__in=removidas_ids).order_by("nombre", "id")
+        )
+        for sec in removidas:
+            AsignacionAuditoria.objects.create(
+                pqrs=pqrs,
+                secretaria_anterior=sec,
+                secretaria_nueva=None,
+                usuario_nuevo=user if getattr(user, "is_authenticated", False) else None,
+                accion="reasignacion",
+                justificacion=justificacion or f"Secretaría {sec.nombre} removida de la asignación.",
+            )
+
+    pqrs.assigned_secretarias.set(secretarias)
+    _sync_assigned_to_principal(pqrs, secretarias)
+
+    if secretarias:
+        pqrs.estado = EstadoPQRS.ASIGNADA
+        pqrs.fecha_delegacion = timezone.now()
+        pqrs.justificacion_asignacion = justificacion
+    else:
+        pqrs.estado = EstadoPQRS.RECIBIDA
+        pqrs.fecha_delegacion = None
+        pqrs.justificacion_asignacion = ""
+
     pqrs.save(
         update_fields=[
             "assigned_to",
@@ -154,13 +193,68 @@ def _asignar_secretaria(
             "updated_at",
         ]
     )
+
+    accion = "reasignacion" if current_ids else "asignacion"
+    for sec in agregadas:
+        AsignacionAuditoria.objects.create(
+            pqrs=pqrs,
+            secretaria_nueva=sec,
+            usuario_nuevo=user if getattr(user, "is_authenticated", False) else None,
+            accion=accion,
+            justificacion=justificacion,
+        )
+        if notificar:
+            try:
+                from apps.pqrs.services.email import enviar_notificacion_asignacion
+
+                enviar_notificacion_asignacion(
+                    pqrs,
+                    sec,
+                    asignado_por=user,
+                    justificacion=justificacion,
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "Error notificando asignación PQRS %s a %s",
+                    pqrs.numero_radicado,
+                    sec.nombre,
+                )
+
+    return agregadas
+
+
+def rechazar_asignacion_secretaria(
+    pqrs: PQRS,
+    secretaria: Secretaria,
+    *,
+    user,
+    motivo: str,
+) -> None:
+    """El secretario rechaza solo su dependencia; las demás permanecen."""
+    if not pqrs.assigned_secretarias.filter(pk=secretaria.id).exists():
+        return
+
+    pqrs.assigned_secretarias.remove(secretaria)
+    restantes = list(pqrs.assigned_secretarias.order_by("nombre", "id"))
+    _sync_assigned_to_principal(pqrs, restantes)
+
     AsignacionAuditoria.objects.create(
         pqrs=pqrs,
-        secretaria_nueva=secretaria,
-        usuario_nuevo=user if getattr(user, "is_authenticated", False) else None,
-        accion=accion,
-        justificacion=justificacion,
+        secretaria_anterior=secretaria,
+        secretaria_nueva=None,
+        usuario_anterior=user if getattr(user, "is_authenticated", False) else None,
+        accion="rechazo",
+        justificacion=motivo,
     )
+
+    if restantes:
+        pqrs.estado = EstadoPQRS.ASIGNADA
+        update_fields = ["assigned_to", "estado", "updated_at"]
+    else:
+        pqrs.estado = EstadoPQRS.RECHAZADA_ASIGNACION
+        update_fields = ["assigned_to", "estado", "updated_at"]
+
+    pqrs.save(update_fields=update_fields)
 
 
 def crear_pqrs_desde_ia(
@@ -171,13 +265,17 @@ def crear_pqrs_desde_ia(
     texto: str = "",
     files_uploads: list | None = None,
     files_bytes: list[tuple[str, bytes]] | None = None,
+    files_content_types: dict[str, str] | None = None,
     canal_llegada: str = CanalLlegada.WEB,
     fecha_base: datetime | None = None,
     auditoria_creacion: str = "PQRS creada automáticamente por IA (OpenAI).",
     secretaria_fallback: Secretaria | None = None,
     generar_pdf_texto: bool = True,
+    limit_archivos: bool | None = None,
 ) -> PQRS:
     """Crea PQRS estructurada por IA, con asignación automática opcional."""
+    if limit_archivos is None:
+        limit_archivos = canal_llegada != CanalLlegada.EMAIL
     extraido = normalize_ia_contact_fields(dict(extraido))
     tipo = extraido["tipo_solicitud"]
     dias = DIAS_RESPUESTA_LEY1755.get(tipo, 15)
@@ -209,24 +307,30 @@ def crear_pqrs_desde_ia(
             fecha_vencimiento=sumar_dias_habiles(fecha_base, dias),
         )
 
-        sec_id = extraido.get("secretaria_id")
-        secretaria = None
-        if sec_id:
-            secretaria = Secretaria.objects.filter(
-                pk=sec_id, entity_id=entity.id, is_active=True
-            ).first()
-        if not secretaria and secretaria_fallback and secretaria_fallback.is_active:
-            secretaria = secretaria_fallback
+        sec_ids = extraido.get("secretaria_ids") or []
+        if not sec_ids and extraido.get("secretaria_id"):
+            sec_ids = [extraido["secretaria_id"]]
+        secretarias = list(
+            Secretaria.objects.filter(
+                pk__in=sec_ids, entity_id=entity.id, is_active=True
+            ).order_by("nombre", "id")
+        )
+        if not secretarias and secretaria_fallback and secretaria_fallback.is_active:
+            roles = user_roles(created_by) if created_by else set()
+            if "secretario" in roles:
+                secretarias = [secretaria_fallback]
 
-        if secretaria:
+        if secretarias:
             just = extraido.get("secretaria_justificacion") or ""
-            if secretaria.id != sec_id:
-                just = just or f"Asignación automática a {secretaria.nombre}"
-            _asignar_secretaria(
+            if not just:
+                nombres = ", ".join(s.nombre for s in secretarias)
+                just = f"Asignación automática a {nombres}"
+            sincronizar_asignaciones(
                 pqrs,
-                secretaria,
+                secretarias,
                 user=created_by,
                 justificacion=f"[IA] {just}".strip(),
+                notificar=True,
             )
 
         AsignacionAuditoria.objects.create(
@@ -250,6 +354,12 @@ def crear_pqrs_desde_ia(
         if files_uploads:
             attach_archivos_from_uploads(pqrs, files_uploads, created_by)
         if files_bytes:
-            attach_archivos_from_bytes(pqrs, files_bytes, created_by)
+            attach_archivos_from_bytes(
+                pqrs,
+                files_bytes,
+                created_by,
+                content_types=files_content_types,
+                limit_archivos=limit_archivos,
+            )
 
     return pqrs

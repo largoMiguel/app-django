@@ -1,7 +1,12 @@
 """Sincronización de alertas de correo PQRS."""
 from __future__ import annotations
 
-from apps.pqrs.models import PQRS, PQRSCorreo
+from apps.pqrs.models import PQRS, PQRSCorreo, TipoCorreoPQRS
+
+TIPOS_CORREO_CIUDADANO = frozenset({
+    TipoCorreoPQRS.RADICACION,
+    TipoCorreoPQRS.RESPUESTA,
+})
 
 ESTADOS_ALERTA_DEST = frozenset({
     "error",
@@ -18,10 +23,17 @@ ESTADOS_RESUELTOS = frozenset({
 })
 
 
+def _correos_ciudadano(pqrs_id: int):
+    return PQRSCorreo.objects.filter(
+        pqrs_id=pqrs_id,
+        tipo__in=TIPOS_CORREO_CIUDADANO,
+    ).order_by("created_at", "id")
+
+
 def latest_estado_por_email(pqrs_id: int) -> dict[str, str]:
-    """Último estado conocido por destinatario (cronológico)."""
+    """Último estado conocido por destinatario (solo correos al ciudadano)."""
     latest: dict[str, str] = {}
-    correos = PQRSCorreo.objects.filter(pqrs_id=pqrs_id).order_by("created_at", "id")
+    correos = _correos_ciudadano(pqrs_id)
     for correo in correos:
         for d in correo.destinatarios or []:
             email = (d.get("email") or "").strip().lower()
@@ -64,7 +76,7 @@ def failed_recipients_from_correo(correo: PQRSCorreo) -> list[str]:
 def _emails_en_alerta(pqrs_id: int) -> list[str]:
     latest = latest_estado_por_email(pqrs_id)
     casing: dict[str, str] = {}
-    for correo in PQRSCorreo.objects.filter(pqrs_id=pqrs_id).order_by("created_at", "id"):
+    for correo in _correos_ciudadano(pqrs_id):
         for d in correo.destinatarios or []:
             email = (d.get("email") or "").strip()
             if email:
@@ -79,7 +91,7 @@ def marcar_emails_estado(
     motivo: str,
 ) -> None:
     """Actualiza destinatarios en alerta para dejar de contarlos como fallo activo."""
-    for correo in PQRSCorreo.objects.filter(pqrs_id=pqrs_id):
+    for correo in _correos_ciudadano(pqrs_id):
         destinatarios = list(correo.destinatarios or [])
         changed = False
         for d in destinatarios:

@@ -11,6 +11,13 @@ from apps.common.roles import is_platform_superadmin, user_roles
 from .models import PQRS
 
 
+def usuario_asignado_a_pqrs(user, pqrs: PQRS) -> bool:
+    """True si la secretaría del usuario está en el M2M de asignación."""
+    if not user.secretaria_id:
+        return False
+    return pqrs.assigned_secretarias.filter(pk=user.secretaria_id).exists()
+
+
 def user_can_access_pqrs(user, pqrs: PQRS) -> bool:
     roles = user_roles(user)
     if is_platform_superadmin(user):
@@ -20,7 +27,7 @@ def user_can_access_pqrs(user, pqrs: PQRS) -> bool:
     if "admin" in roles:
         return True
     if "secretario" in roles:
-        return bool(user.secretaria_id and pqrs.assigned_to_id == user.secretaria_id)
+        return usuario_asignado_a_pqrs(user, pqrs)
     if "ciudadano" in roles:
         return pqrs.created_by_id == user.id
     return False
@@ -46,12 +53,14 @@ def pqrs_queryset_for_user(user, qs):
 
     combined: Q | None = None
     if "secretario" in roles and user.secretaria_id:
-        combined = Q(assigned_to_id=user.secretaria_id)
+        combined = Q(assigned_secretarias=user.secretaria_id)
     if "ciudadano" in roles:
         citizen_q = ciudadano_pqrs_filter(user)
         combined = citizen_q if combined is None else (combined | citizen_q)
 
-    return entity_qs.filter(combined) if combined is not None else qs.none()
+    if combined is not None:
+        return entity_qs.filter(combined).distinct()
+    return qs.none()
 
 
 def user_can_access_media_path(user, path: str) -> bool:

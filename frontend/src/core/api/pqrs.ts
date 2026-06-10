@@ -45,7 +45,12 @@ export type EstadoCorreoPQRS =
   | "reclamacion_spam"
   | "error";
 
-export type TipoCorreoPQRS = "radicacion" | "respuesta";
+export type TipoCorreoPQRS = "radicacion" | "respuesta" | "asignacion";
+
+export interface SecretariaAsignada {
+  id: number;
+  nombre: string;
+}
 
 export interface PQRSCorreoDestinatario {
   email: string;
@@ -73,6 +78,7 @@ export interface PQRS {
   /** ID de la secretaría asignada (no del usuario). */
   assigned_to: number | null;
   assigned_to_nombre: string | null;
+  assigned_secretarias?: SecretariaAsignada[];
   numero_radicado: string;
   tipo_identificacion: string;
   medio_respuesta: string;
@@ -299,9 +305,9 @@ export const pqrsApi = {
   removeArchivo: (id: number, archivoId: number) =>
     api.delete(`/pqrs/${id}/archivos/${archivoId}/`),
   remove: (id: number) => api.delete(`/pqrs/${id}/`),
-  asignar: (id: number, secretaria_id: number, justificacion?: string) =>
+  asignar: (id: number, secretaria_ids: number[], justificacion?: string) =>
     api
-      .post<PQRS>(`/pqrs/${id}/asignar/`, { secretaria_id, justificacion })
+      .post<PQRS>(`/pqrs/${id}/asignar/`, { secretaria_ids, justificacion })
       .then((r) => r.data),
   rechazarAsignacion: (id: number, motivo: string) =>
     api.post<PQRS>(`/pqrs/${id}/rechazar-asignacion/`, { motivo }).then((r) => r.data),

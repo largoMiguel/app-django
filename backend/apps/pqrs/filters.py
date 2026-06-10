@@ -14,10 +14,16 @@ class PQRSFilterSet(django_filters.FilterSet):
     alerta = django_filters.BooleanFilter(method="filter_alerta")
     fecha_desde = django_filters.DateFilter(field_name="fecha_solicitud", lookup_expr="date__gte")
     fecha_hasta = django_filters.DateFilter(method="filter_fecha_hasta")
+    assigned_to = django_filters.NumberFilter(method="filter_assigned_to")
 
     class Meta:
         model = PQRS
-        fields = ("estado", "tipo_solicitud", "canal_llegada", "assigned_to")
+        fields = ("estado", "tipo_solicitud", "canal_llegada")
+
+    def filter_assigned_to(self, queryset, name, value):
+        if value is None:
+            return queryset
+        return queryset.filter(assigned_secretarias__id=value).distinct()
 
     def filter_pendientes(self, queryset, name, value):
         if value:

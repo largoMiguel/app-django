@@ -66,6 +66,7 @@ class PQRSAccessTests(TestCase):
             descripcion="Desc",
             estado=EstadoPQRS.ASIGNADA,
         )
+        self.pqrs_asignada.assigned_secretarias.add(self.secretaria)
         self.pqrs_propia = PQRS.objects.create(
             entity=self.entity,
             created_by=self.ciudadano,

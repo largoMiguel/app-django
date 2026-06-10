@@ -55,7 +55,7 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"detalle" | "historial">("detalle");
 
-  const [secretariaSel, setSecretariaSel] = useState<number | "">("");
+  const [secretariasSel, setSecretariasSel] = useState<number[]>([]);
   const [justificacion, setJustificacion] = useState("");
   const [respuesta, setRespuesta] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -94,13 +94,17 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
   }
 
   const canAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_CHANGE] });
-  const canSecretaryAct =
-    canAccess(user, { roles: ["secretario"] }) &&
-    data?.assigned_to === user?.secretaria?.id;
+  const usuarioAsignado =
+    Boolean(
+      user?.secretaria?.id &&
+        (data?.assigned_secretarias?.some((s) => s.id === user.secretaria?.id) ||
+          data?.assigned_to === user.secretaria.id),
+    );
+  const canSecretaryAct = canAccess(user, { roles: ["secretario"] }) && usuarioAsignado;
   const canRespond =
     canAdmin ||
     (canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] }) &&
-      data?.assigned_to === user?.secretaria?.id);
+      usuarioAsignado);
   const estadoFinal = data?.estado === "respondida" || data?.estado === "cerrada";
   const puedeResponderEstado =
     data?.estado === "asignada" ||
@@ -127,7 +131,10 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
       ]);
       setData(d);
       setSecretarias(secs);
-      setSecretariaSel(d.assigned_to ?? "");
+      setSecretariasSel(
+        d.assigned_secretarias?.map((s) => s.id) ??
+          (d.assigned_to ? [d.assigned_to] : []),
+      );
     } finally {
       setLoading(false);
     }
@@ -253,7 +260,14 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                       </div>
                     </>
                   <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
-                    <Info label="Secretaría asignada" value={data.assigned_to_nombre || "Sin asignar"} />
+                    <Info
+                      label="Secretarías asignadas"
+                      value={
+                        data.assigned_secretarias?.length
+                          ? data.assigned_secretarias.map((s) => s.nombre).join(", ")
+                          : data.assigned_to_nombre || "Sin asignar"
+                      }
+                    />
                     <Info
                       label="Fecha de solicitud"
                       value={data.fecha_solicitud ? new Date(data.fecha_solicitud).toLocaleString("es-CO") : null}
@@ -306,11 +320,18 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                 {/* Estado de correos */}
                 {(data.correos?.length ?? 0) > 0 && (() => {
                   const correos = data.correos || [];
-                  const latestPorEmail = latestEstadoPorEmail(correos);
+                  const correosCiudadano = correos.filter(
+                    (c) => c.tipo === "radicacion" || c.tipo === "respuesta",
+                  );
+                  const correosAsignacion = correos.filter((c) => c.tipo === "asignacion");
+                  const latestPorEmail = latestEstadoPorEmail(correosCiudadano);
                   const alertaActiva =
                     data.correo_alerta ?? tieneCorreoAlertaActiva(latestPorEmail);
-                  const correoReenvio = alertaActiva ? correoParaReenviar(correos, latestPorEmail) : null;
+                  const correoReenvio = alertaActiva
+                    ? correoParaReenviar(correosCiudadano, latestPorEmail)
+                    : null;
                   const mensajeExito = mensajeEstadoCorreo(latestPorEmail);
+                  const tieneCorreosCiudadano = correosCiudadano.length > 0;
                   const abrirReenvio = (correo: PQRSCorreoItem) => {
                     const destinos = destinatariosFallidosActivos(correo, latestPorEmail)
                       .map((d) => d.email)
@@ -326,32 +347,39 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                   return (
                     <section
                       className={`rounded-lg border p-4 ${
-                        alertaActiva
-                          ? "border-red-300 bg-red-50"
-                          : "border-emerald-200 bg-emerald-50"
+                        !tieneCorreosCiudadano
+                          ? "border-slate-200 bg-slate-50"
+                          : alertaActiva
+                            ? "border-red-300 bg-red-50"
+                            : "border-emerald-200 bg-emerald-50"
                       }`}
                     >
                       <h3
                         className={`text-xs font-bold uppercase tracking-wide mb-2 flex items-center gap-1.5 ${
-                          alertaActiva ? "text-red-800" : "text-emerald-800"
+                          !tieneCorreosCiudadano
+                            ? "text-slate-700"
+                            : alertaActiva
+                              ? "text-red-800"
+                              : "text-emerald-800"
                         }`}
                       >
                         <Mail className="h-3.5 w-3.5" />
                         Estado del correo
-                        {alertaActiva ? (
+                        {tieneCorreosCiudadano && alertaActiva && (
                           <span className="inline-flex items-center gap-1 rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white normal-case">
                             <AlertTriangle className="h-3 w-3" /> Requiere atención
                           </span>
-                        ) : (
+                        )}
+                        {tieneCorreosCiudadano && !alertaActiva && (
                           <span className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white normal-case">
                             <CheckCircle2 className="h-3 w-3" /> Enviado correctamente
                           </span>
                         )}
                       </h3>
-                      {!alertaActiva && (
+                      {tieneCorreosCiudadano && !alertaActiva && (
                         <p className="mb-3 text-sm text-emerald-800">{mensajeExito}</p>
                       )}
-                      {alertaActiva && (canRespond || canAdmin) && (
+                      {tieneCorreosCiudadano && alertaActiva && (canRespond || canAdmin) && (
                         <div className="mb-3 flex flex-wrap gap-2">
                           {correoReenvio && (
                             <button
@@ -376,7 +404,7 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                         </div>
                       )}
                       <div className="space-y-3">
-                        {correos.map((c) => (
+                        {correosCiudadano.map((c) => (
                           <CorreoEstadoCard
                             key={c.id}
                             correo={c}
@@ -384,6 +412,23 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                             modoHistorial={!alertaActiva}
                           />
                         ))}
+                        {correosAsignacion.length > 0 && (
+                          <div className="pt-2 border-t border-slate-200">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Notificaciones de asignación
+                            </p>
+                            <div className="space-y-2">
+                              {correosAsignacion.map((c) => (
+                                <CorreoEstadoCard
+                                  key={c.id}
+                                  correo={c}
+                                  latestPorEmail={latestEstadoPorEmail(correosAsignacion)}
+                                  modoHistorial
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </section>
                   );
@@ -420,21 +465,41 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                 {canAdmin && !estadoFinal && (
                   <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                     <h3 className="text-xs font-bold uppercase tracking-wide text-slate-600 mb-2 flex items-center gap-1.5">
-                      <UserCheck className="h-3.5 w-3.5" /> {data.assigned_to ? "Reasignar" : "Asignar"} a secretaría
+                      <UserCheck className="h-3.5 w-3.5" />{" "}
+                      {(data.assigned_secretarias?.length ?? (data.assigned_to ? 1 : 0)) > 0
+                        ? "Reasignar"
+                        : "Asignar"}{" "}
+                      a secretarías
                     </h3>
                     <div className="space-y-2">
-                      <select
-                        value={secretariaSel}
-                        onChange={(e) => setSecretariaSel(Number(e.target.value))}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
-                      >
-                        <option value="">— Selecciona —</option>
-                        {secretarias.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.nombre}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="max-h-40 overflow-y-auto rounded-md border border-slate-300 bg-white p-2 space-y-1">
+                        {secretarias.length === 0 && (
+                          <p className="text-xs text-slate-500 px-1 py-2">No hay secretarías activas.</p>
+                        )}
+                        {secretarias.map((s) => {
+                          const checked = secretariasSel.includes(s.id);
+                          return (
+                            <label
+                              key={s.id}
+                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setSecretariasSel((prev) =>
+                                    checked
+                                      ? prev.filter((id) => id !== s.id)
+                                      : [...prev, s.id],
+                                  );
+                                }}
+                                className="h-4 w-4 rounded accent-[#3eafd4]"
+                              />
+                              <span className="text-slate-800">{s.nombre}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                       <textarea
                         value={justificacion}
                         onChange={(e) => setJustificacion(e.target.value)}
@@ -443,10 +508,10 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
                       />
                       <button
-                        disabled={!secretariaSel || busy}
+                        disabled={secretariasSel.length === 0 || busy}
                         onClick={() =>
                           handleAction(() =>
-                            pqrsApi.asignar(data.id, secretariaSel as number, justificacion),
+                            pqrsApi.asignar(data.id, secretariasSel, justificacion),
                           )
                         }
                         className="flex items-center gap-1.5 rounded-md bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2] disabled:opacity-60"
@@ -975,6 +1040,7 @@ const CORREO_ESTADO_LABEL: Record<string, { label: string; color: string; alert?
 const TIPO_CORREO_LABEL: Record<string, string> = {
   radicacion: "Radicación",
   respuesta: "Respuesta",
+  asignacion: "Asignación",
 };
 
 function estadoCorreoBadge(estado: string) {
@@ -994,6 +1060,8 @@ const ESTADOS_ALERTA = new Set([
 function esEstadoAlerta(estado: string) {
   return ESTADOS_ALERTA.has(estado);
 }
+
+const CORREOS_CIUDADANO = new Set(["radicacion", "respuesta"]);
 
 function latestEstadoPorEmail(correos: PQRSCorreoItem[]): Record<string, string> {
   const latest: Record<string, string> = {};
@@ -1049,7 +1117,9 @@ function correoParaReenviar(
       .map(([email]) => email),
   );
   if (activos.size === 0) return null;
-  const sorted = [...correos].sort(
+  const sorted = [...correos]
+    .filter((c) => CORREOS_CIUDADANO.has(c.tipo))
+    .sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
   return (
