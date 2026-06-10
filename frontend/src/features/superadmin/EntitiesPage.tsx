@@ -12,8 +12,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import { formatApiError } from "@/core/api/errors";
 import { entitiesApi, type Entity } from "@/core/api/entities";
-import { usersApi } from "@/core/api/users";
 import { MODULES } from "@/core/modules";
+import { sanitizeSlugInput, slugFromName } from "@/core/slug";
 
 export default function SuperAdminEntitiesPage() {
   const navigate = useNavigate();
@@ -171,11 +171,7 @@ export default function SuperAdminEntitiesPage() {
   );
 }
 
-type NewEntityForm = Partial<Entity> & {
-  admin_email?: string;
-  admin_full_name?: string;
-  admin_password?: string;
-};
+type NewEntityForm = Partial<Entity>;
 
 function NewEntityModal({
   onClose,
@@ -199,9 +195,6 @@ function NewEntityModal({
     enable_asistencia: false,
     enable_correspondencia: false,
     enable_presupuesto: false,
-    admin_email: "",
-    admin_full_name: "",
-    admin_password: "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -215,23 +208,7 @@ function NewEntityModal({
     setSaving(true);
     setError(null);
     try {
-      const {
-        admin_email,
-        admin_full_name,
-        admin_password,
-        ...entityPayload
-      } = form;
-      const created = await entitiesApi.create(entityPayload as Partial<Entity>);
-      if (admin_email && admin_full_name && admin_password) {
-        await usersApi.create({
-          email: admin_email,
-          full_name: admin_full_name,
-          password: admin_password,
-          role: "admin",
-          entity: created.id,
-          is_active: true,
-        });
-      }
+      const created = await entitiesApi.create(form as Partial<Entity>);
       onCreated(created.id);
     } catch (err) {
       const e = err as { response?: { data?: Record<string, unknown> } };
@@ -284,17 +261,8 @@ function NewEntityModal({
                 <Field label="Slug (URL del portal)">
                   <input
                     value={form.slug || ""}
-                    onChange={(e) =>
-                      set(
-                        "slug",
-                        e.target.value
-                          .toLowerCase()
-                          .replace(/[^a-z0-9-]/g, "-")
-                          .replace(/-+/g, "-")
-                          .replace(/^-|-$/g, ""),
-                      )
-                    }
-                    placeholder={form.name ? form.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-") : "nombre-de-la-entidad"}
+                    onChange={(e) => set("slug", sanitizeSlugInput(e.target.value))}
+                    placeholder={form.name ? slugFromName(form.name) : "nombre-de-la-entidad"}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
                   />
                   {(form.slug || form.name) && (
@@ -341,45 +309,6 @@ function NewEntityModal({
                     <span className="text-slate-700">{m.label}</span>
                   </label>
                 ))}
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-[#3eafd4]/30 bg-[#f0fbff] p-4">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-[#0e7490] mb-2">
-                Administrador inicial
-              </h3>
-              <p className="text-xs text-slate-600 mb-3">
-                Crea el primer admin de esta entidad. Podrá gestionar usuarios y secretarías
-                desde el portal administrativo.
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Nombre completo *">
-                  <input
-                    required
-                    value={form.admin_full_name || ""}
-                    onChange={(e) => set("admin_full_name", e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
-                  />
-                </Field>
-                <Field label="Email *">
-                  <input
-                    required
-                    type="email"
-                    value={form.admin_email || ""}
-                    onChange={(e) => set("admin_email", e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
-                  />
-                </Field>
-                <Field label="Contraseña inicial *">
-                  <input
-                    required
-                    type="password"
-                    minLength={8}
-                    value={form.admin_password || ""}
-                    onChange={(e) => set("admin_password", e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
-                  />
-                </Field>
               </div>
             </section>
 

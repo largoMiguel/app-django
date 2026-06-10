@@ -24,6 +24,7 @@ import { formatApiError } from "@/core/api/errors";
 import { entitiesApi, secretariasApi, type Entity, type Secretaria } from "@/core/api/entities";
 import { usersApi, type AppUser, type CreateUserPayload } from "@/core/api/users";
 import { MODULES, modulesForEntity } from "@/core/modules";
+import { sanitizeSlugInput } from "@/core/slug";
 
 type Tab = "info" | "users" | "secretarias";
 
@@ -226,7 +227,7 @@ function InfoTab({
           <Field label="Slug (URL del portal)" hint={`/portal/${form.slug || "..."}`}>
             <input
               value={form.slug || ""}
-              onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, ""))}
+              onChange={(e) => set("slug", sanitizeSlugInput(e.target.value))}
               placeholder="nombre-de-la-entidad"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
             />
