@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { formatApiError } from "@/core/api/errors";
 import { entitiesApi, type Entity } from "@/core/api/entities";
 import { MODULES } from "@/core/modules";
-import { sanitizeSlugInput, slugFromName } from "@/core/slug";
+import { finalizeSlugInput, sanitizeSlugInput, slugFromName } from "@/core/slug";
 
 export default function SuperAdminEntitiesPage() {
   const navigate = useNavigate();
@@ -208,7 +208,11 @@ function NewEntityModal({
     setSaving(true);
     setError(null);
     try {
-      const created = await entitiesApi.create(form as Partial<Entity>);
+      const payload = { ...form } as Partial<Entity>;
+      if (payload.slug) {
+        payload.slug = finalizeSlugInput(payload.slug);
+      }
+      const created = await entitiesApi.create(payload);
       onCreated(created.id);
     } catch (err) {
       const e = err as { response?: { data?: Record<string, unknown> } };
@@ -262,6 +266,7 @@ function NewEntityModal({
                   <input
                     value={form.slug || ""}
                     onChange={(e) => set("slug", sanitizeSlugInput(e.target.value))}
+                    onBlur={(e) => set("slug", finalizeSlugInput(e.target.value))}
                     placeholder={form.name ? slugFromName(form.name) : "nombre-de-la-entidad"}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
                   />
