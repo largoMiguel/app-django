@@ -99,6 +99,35 @@ def _entity_name(pqrs: PQRS) -> str:
     return pqrs.entity.name if pqrs.entity else "la entidad"
 
 
+def _app_base_url() -> str:
+    base = (getattr(settings, "APP_BASE_URL", "") or "").strip()
+    if base:
+        return base.rstrip("/")
+    for origin in (getattr(settings, "CORS_ALLOWED_ORIGINS", "") or "").split(","):
+        origin = origin.strip()
+        if origin.startswith("https://"):
+            return origin.rstrip("/")
+    return "https://app.softone360.com"
+
+
+def _pqrs_detail_url(pqrs: PQRS) -> str:
+    return f"{_app_base_url()}/pqrs?id={pqrs.id}"
+
+
+def _email_cta_button(url: str, label: str) -> str:
+    safe_url = html.escape(url, quote=True)
+    safe_label = html.escape(label)
+    return f"""
+    <div style="text-align:center;margin:24px 0 8px;">
+      <a href="{safe_url}"
+         style="display:inline-block;background:#3eafd4;color:#ffffff;text-decoration:none;
+                font-size:14px;font-weight:600;padding:12px 28px;border-radius:6px;">
+        {safe_label}
+      </a>
+    </div>
+    """
+
+
 def _from_name(pqrs: PQRS, *, include_secretaria: bool = False) -> str:
     name = _entity_name(pqrs)
     if include_secretaria and pqrs.assigned_to and pqrs.assigned_to.nombre:
@@ -463,7 +492,8 @@ def _build_asignacion_bodies(
         text_body += f"Asignado por: {asignador}\n"
     if just_txt:
         text_body += f"Justificación: {just_txt}\n"
-    text_body += "\nIngrese al sistema PQRS para gestionar la solicitud."
+    detail_url = _pqrs_detail_url(pqrs)
+    text_body += f"\nVer y gestionar la PQRS: {detail_url}\n"
 
     inner = f"""
     <p style="color:#475569;font-size:14px;">
@@ -493,6 +523,15 @@ def _build_asignacion_bodies(
           <td>{html.escape(just_txt)}</td></tr>
         """
     inner += "</table>"
+    inner += _email_cta_button(detail_url, "Ver PQRS asignada")
+    inner += f"""
+    <p style="color:#64748b;font-size:12px;text-align:center;margin-top:8px;">
+      Si el botón no funciona, copie este enlace:<br>
+      <a href="{html.escape(detail_url, quote=True)}" style="color:#0e7490;word-break:break-all;">
+        {html.escape(detail_url)}
+      </a>
+    </p>
+    """
     html_body = _wrap_html(entity_name, "Notificación de asignación PQRS", inner)
     return subject, text_body, html_body
 
