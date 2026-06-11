@@ -440,16 +440,55 @@ development (trabajo diario) → PR → main → deploy automático
 2. Abre PR `development` → `main` (corre CI en el PR).
 3. Al hacer merge a `main`, GitHub Actions despliega al servidor con `deploy/scripts/deploy.sh`.
 
-### Desplegar manualmente (SSH remoto vía Cloudflare)
+### Acceso SSH al servidor
 
-Alias en `~/.ssh/config`:
+| Método | Cuándo usarlo | Comando |
+|---|---|---|
+| **LAN** | Misma red que el servidor (oficina/casa) | `ssh softone@192.168.1.2` |
+| **Cloudflare** | Desde cualquier red (requiere Access) | `ssh softone-prod` |
+
+**Servidor de producción:** IP LAN `192.168.1.2` · usuario `softone` · ruta app `/opt/softone-app`
+
+La autenticación SSH usa **clave** (`deploy/keys/softone_deploy`). La contraseña del usuario del sistema no es necesaria para deploy ni administración habitual.
+
+#### Configurar SSH remoto en macOS
+
+1. Instalar `cloudflared` CLI (no basta con la app WARP):
+
+```bash
+mkdir -p ~/bin
+# Descargar el binario desde https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
+# o copiarlo a ~/bin/cloudflared y chmod +x
+export PATH="$HOME/bin:$PATH"   # añadir a ~/.zshrc
+```
+
+2. Alias en `~/.ssh/config`:
 
 ```
 Host softone-prod
   HostName ssh.softone360.com
   User softone
-  ProxyCommand cloudflared access ssh --hostname %h
+  IdentityFile /ruta/a/app_django/deploy/keys/softone_deploy
+  StrictHostKeyChecking accept-new
+  ProxyCommand ~/bin/cloudflared access ssh --hostname %h
 ```
+
+3. Verificar:
+
+```bash
+ssh softone-prod 'hostname'    # debe responder: softone
+```
+
+**Si SSH falla:**
+
+| Síntoma | Causa probable | Solución |
+|---|---|---|
+| `cloudflared: command not found` | CLI no instalado o no está en PATH | Instalar en `~/bin` y actualizar `ProxyCommand` |
+| `Permission denied` con contraseña | El servidor espera clave SSH | Usar la clave de deploy o `ssh softone@192.168.1.2` en LAN |
+| `Broken pipe` / timeout remoto | Túnel Cloudflare reconectando | Esperar 1 min o conectar por LAN |
+| `softone-prod` no resuelve | Falta alias SSH | Crear entrada en `~/.ssh/config` |
+
+### Desplegar manualmente (SSH remoto vía Cloudflare)
 
 ```bash
 deploy/scripts/sync.sh softone-prod
@@ -501,8 +540,26 @@ $COMPOSE logs -f --tail=100 cloudflared
 **Si `https://app.softone360.com` no responde:**
 
 1. `$COMPOSE ps` — todos los servicios deben estar `Up` y `healthy`.
-2. `$COMPOSE logs cloudflared` — errores de credenciales o DNS.
+2. `$COMPOSE logs cloudflared` — errores de credenciales, DNS o timeouts QUIC al arrancar.
 3. `$COMPOSE exec nginx wget -qO- http://127.0.0.1/healthz` — debe devolver `ok`.
+
+**Si la app responde lento por Internet pero rápido en LAN:**
+
+El servidor en LAN suele responder en ~1 ms (`/healthz`). La latencia por Internet (~500–800 ms en el primer byte) proviene del **ruteo de Cloudflare** (tráfico de usuario → edge global → túnel → origen), no del ancho de banda del servidor.
+
+Diagnóstico rápido:
+
+```bash
+# En el servidor (debe ser ~1 ms)
+curl -s -o /dev/null -w "LAN: %{time_starttransfer}s\n" http://127.0.0.1:8080/healthz
+
+# Desde tu Mac (incluye Cloudflare + túnel)
+curl -s -o /dev/null -w "Internet: %{time_starttransfer}s\n" https://app.softone360.com/healthz
+```
+
+Si LAN es rápido e Internet lento, el origen está bien. Revisa `$COMPOSE logs cloudflared` por errores `Failed to dial a quic connection` (UDP 7844 bloqueado por el ISP/router). El túnel está configurado con `protocol: http2` para evitar esos timeouts al reiniciar.
+
+Mejoras adicionales posibles (Cloudflare Dashboard): Argo Smart Routing, reglas de caché para `/assets/*`.
 
 ### Backups
 
@@ -622,8 +679,9 @@ DEFAULT_FROM_EMAIL=noreply@softone360.com
 # LAN — acceso directo sin Cloudflare (opcional)
 # LAN_HTTP_PORT=8080
 
-# Gunicorn (opcional; default: hasta 8 workers × 4 threads)
-# GUNICORN_WORKERS=8
+# Gunicorn (opcional; default en prod: min(cores+1, 6) workers × 4 threads)
+# En servidor de 4 cores se recomienda GUNICORN_WORKERS=5
+# GUNICORN_WORKERS=5
 # GUNICORN_THREADS=4
 
 # Cloudflare Tunnel — credenciales JSON en el servidor (modo config-file)
@@ -650,6 +708,16 @@ En este stack el túnel corre como contenedor Docker en modo **config file + cre
 - Override del directorio: `CLOUDFLARED_CREDS_DIR` en `.env`.
 
 El ingress HTTP apunta a `http://nginx:80`; el ingress SSH apunta a `ssh://host.docker.internal:22` (SSH del host Ubuntu vía `extra_hosts` en Docker Compose).
+
+**Tuning de rendimiento** (`deploy/cloudflared/config.yml`):
+
+- `protocol: http2` — conexión estable al edge (evita timeouts QUIC si UDP:7844 está bloqueado).
+- `ha-connections: 4` — múltiples conexiones persistentes al edge de Cloudflare.
+- `originRequest.keepAliveConnections: 100` — reutiliza conexiones hacia Nginx.
+
+Tras cambiar la config del túnel: `$COMPOSE restart cloudflared`.
+
+**Nginx** (`deploy/nginx/conf.d/app.conf`): assets con hash en `/assets/*` llevan `Cache-Control: public, immutable` (1 año) para reducir recargas en visitas repetidas.
 
 Comandos útiles:
 

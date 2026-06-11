@@ -81,6 +81,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         help_text="Módulos específicos habilitados para este usuario (subset de la entidad). Para secretarios.",
     )
+    email_firma = models.TextField(
+        blank=True,
+        default="",
+        help_text="Pie de página / firma incluida al responder PQRS por correo.",
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: list[str] = ["full_name"]

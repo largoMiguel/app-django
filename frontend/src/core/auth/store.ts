@@ -52,6 +52,7 @@ export interface AuthUser {
   role?: string;
   entity?: AuthEntity | null;
   secretaria?: AuthSecretaria | null;
+  email_firma?: string;
   enabled_modules?: string[];
   capabilities?: {
     pqrs?: {

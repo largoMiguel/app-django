@@ -17,6 +17,7 @@ export function usePqrsList(
     queryKey: pqrsKeys.list(params),
     queryFn: () => pqrsApi.listPaginated(params),
     enabled: options?.enabled ?? true,
+    staleTime: 30_000,
   });
 }
 
@@ -25,6 +26,7 @@ export function usePqrsStats(options?: { enabled?: boolean }) {
     queryKey: pqrsKeys.stats(),
     queryFn: () => pqrsApi.stats(),
     enabled: options?.enabled ?? true,
+    staleTime: 90_000,
   });
 }
 

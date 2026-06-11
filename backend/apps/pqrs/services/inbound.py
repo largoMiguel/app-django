@@ -30,6 +30,7 @@ from apps.pqrs.services.email_sanitize import (
     prepare_inbound_email_text,
     scrub_entity_from_extraction,
 )
+from apps.pqrs.services.email_print import email_meta_from_forward
 from apps.pqrs.services.creation import crear_pqrs_desde_ia
 from apps.pqrs.services.email import enviar_radicacion
 from rest_framework.exceptions import ValidationError
@@ -342,6 +343,14 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
                 auditoria_creacion="PQRS creada automáticamente desde correo reenviado (IA).",
                 secretaria_fallback=user.secretaria,
                 limit_archivos=False,
+                email_meta={
+                    **email_meta_from_forward(
+                        forward_meta,
+                        entity_email=(entity.email or "").strip(),
+                    ),
+                    "subject": subject_line,
+                    "date": fecha_base,
+                },
             )
             correo = _registrar_correo(
                 parsed,

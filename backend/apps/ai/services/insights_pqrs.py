@@ -51,10 +51,15 @@ def _compliance_to_insights(stats: dict[str, Any]) -> list[dict]:
     return insights
 
 
-def generate_pqrs_insights(entity_id: int) -> dict[str, Any]:
-    """Insights PQRS: reglas SLA + narrativa IA."""
-    stats = compute_compliance_stats(entity_id)
-    sla_risks = compute_sla_risk_scores(entity_id)
+def generate_pqrs_insights(entity_id: int, user=None) -> dict[str, Any]:
+    """Insights PQRS: reglas SLA + narrativa IA (alcance por rol)."""
+    from apps.ai.scoping import pqrs_queryset_for_ai_user
+
+    qs = pqrs_queryset_for_ai_user(user) if user else None
+    if qs is not None:
+        qs = qs.filter(entity_id=entity_id)
+    stats = compute_compliance_stats(entity_id, qs=qs)
+    sla_risks = compute_sla_risk_scores(entity_id, qs=qs)
     rule_insights = _compliance_to_insights(stats)
     rule_insights.extend([_sla_risk_to_insight(r) for r in sla_risks[:6] if r["risk_score"] >= 50])
 

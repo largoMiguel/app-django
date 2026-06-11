@@ -6,17 +6,21 @@
 tunnel: 1b010f95-dd5a-4236-bd6d-a71c6ef79d15
 credentials-file: /etc/cloudflared/creds/1b010f95-dd5a-4236-bd6d-a71c6ef79d15.json
 
+# http2 evita timeouts QUIC al arrancar si el ISP bloquea UDP:7844; quic suele ser
+# más rápido cuando UDP funciona — cambiar a quic si el túnel es estable.
 protocol: http2
 retries: 5
 grace-period: 30s
 edge-ip-version: auto
+ha-connections: 4
 
 originRequest:
   tcpKeepAlive: 30s
   keepAliveConnections: 100
   keepAliveTimeout: 90s
-  connectTimeout: 30s
+  connectTimeout: 10s
   noTLSVerify: true
+  http2Origin: true
 
 ingress:
   - hostname: app.softone360.com

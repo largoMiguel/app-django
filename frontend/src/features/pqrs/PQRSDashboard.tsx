@@ -183,7 +183,10 @@ export default function PQRSDashboard() {
 
   return (
     <div className="space-y-6">
-      <ModuleAIAlertsBanner module="pqrs" />
+      <ModuleAIAlertsBanner
+        module="pqrs"
+        onAlertClick={(a) => a.object_id && navigate(`/pqrs?id=${a.object_id}`)}
+      />
       <PqrsAICommandBar />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -218,7 +221,13 @@ export default function PQRSDashboard() {
           </Link>
         </div>
       </div>
-      <PqrsAIInsights title="Insights IA PQRS" />
+      <PqrsAIInsights
+        title="Insights IA PQRS"
+        onInsightClick={(insight) => {
+          const id = insight.metadata?.pqrs_id as number | undefined;
+          if (id) navigate(`/pqrs?id=${id}`);
+        }}
+      />
       {/* Stats — 4 tarjetas principales clickeables */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard

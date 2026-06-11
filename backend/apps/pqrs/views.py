@@ -73,7 +73,7 @@ def _can_create_pqrs(user) -> bool:
     if is_platform_superadmin(user):
         return False
     roles = _roles(user)
-    return bool({"admin", "ciudadano"} & roles)
+    return bool({"admin", "secretario", "ciudadano"} & roles)
 
 
 def _ensure_pqrs_enabled(entity):
@@ -136,6 +136,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
     filterset_class = PQRSFilterSet
     search_fields = ("numero_radicado", "asunto", "nombre_ciudadano", "cedula_ciudadano")
     ordering_fields = ("fecha_solicitud", "created_at", "estado")
+    ordering = ("-fecha_solicitud", "-id")
     pagination_class = StandardPageNumberPagination
 
     def initial(self, request, *args, **kwargs):
@@ -146,7 +147,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
         perm_map = {
             "list": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "ciudadano"))],
             "retrieve": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "ciudadano"))],
-            "create": [IsAuthenticated, HasPermOrRole(perms=("pqrs.add_pqrs",), roles=("admin", "ciudadano"))],
+            "create": [IsAuthenticated, HasPermOrRole(perms=("pqrs.add_pqrs",), roles=("admin", "secretario", "ciudadano"))],
             "update": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "partial_update": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "destroy": [IsAuthenticated, HasPermOrRole(perms=("pqrs.delete_pqrs",), roles=("admin",))],
@@ -162,7 +163,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
             "archivos": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "ciudadano"))],
             "archivo_remove": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "stats": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario"))],
-            "auto_create": [IsAuthenticated, HasPermOrRole(perms=("pqrs.add_pqrs",), roles=("admin", "ciudadano"))],
+            "auto_create": [IsAuthenticated, HasPermOrRole(perms=("pqrs.add_pqrs",), roles=("admin", "secretario", "ciudadano"))],
             "reports_preview": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin",))],
         }
         classes = perm_map.get(self.action, [IsAuthenticated])
@@ -199,13 +200,22 @@ class PQRSViewSet(viewsets.ModelViewSet):
                 "auditoria__usuario_anterior",
                 "auditoria__usuario_nuevo",
             )
-        return pqrs_queryset_for_user(self.request.user, qs)
+        return pqrs_queryset_for_user(self.request.user, qs).order_by("-fecha_solicitud", "-id")
 
     @action(detail=False, methods=["get"], url_path="stats")
     def stats(self, request):
         """Agregados para dashboard (sin traer todas las PQRS)."""
+        from django.core.cache import cache
+
+        user = request.user
+        cache_key = f"pqrs:stats:{user.id}:{user.entity_id or 0}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
         qs = self.filter_queryset(self.get_queryset())
-        return Response(compute_pqrs_stats(qs, request.user))
+        payload = compute_pqrs_stats(qs, user)
+        cache.set(cache_key, payload, 90)
+        return Response(payload)
 
     @action(detail=False, methods=["get"], url_path="reports-preview")
     def reports_preview(self, request):

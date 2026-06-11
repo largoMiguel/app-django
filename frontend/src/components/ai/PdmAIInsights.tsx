@@ -1,12 +1,14 @@
 import AIInsightsSection from "./AIInsightsSection";
 import { usePdmInsights } from "@/core/api/hooks/usePdmAi";
 import { useAuthStore } from "@/core/auth/store";
+import type { AIInsight } from "@/core/api/ai/types";
 
 interface Props {
   slug: string;
   anio?: number;
   title?: string;
   className?: string;
+  onInsightClick?: (insight: AIInsight) => void;
 }
 
 /** Insights IA del módulo PDM (API /ai/pdm/{slug}/insights/). */
@@ -15,6 +17,7 @@ export default function PdmAIInsights({
   anio,
   title = "Insights IA del PDM",
   className,
+  onInsightClick,
 }: Props) {
   const enabled = Boolean(useAuthStore((s) => s.user?.entity?.enable_pdm));
   const { data, isLoading } = usePdmInsights(slug, anio, enabled && Boolean(slug));
@@ -27,6 +30,7 @@ export default function PdmAIInsights({
       loading={isLoading}
       title={title}
       className={className}
+      onInsightClick={onInsightClick}
     />
   );
 }

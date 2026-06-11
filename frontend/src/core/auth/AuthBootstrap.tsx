@@ -16,6 +16,7 @@ export default function AuthBootstrap({ children }: { children: React.ReactNode 
   const { isLoaded, isSignedIn } = useAuth();
   const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
+  const cachedUser = useAuthStore((s) => s.user);
   const [profileReady, setProfileReady] = useState(!isSignedIn);
 
   // Revocación de sesión / cierre en todos los dispositivos (Clerk rota token ~cada 20s).
@@ -70,7 +71,9 @@ export default function AuthBootstrap({ children }: { children: React.ReactNode 
     };
   }, [isLoaded, isSignedIn, setUser, logout]);
 
-  if (!isPublic && (!isLoaded || (isSignedIn && !profileReady))) {
+  const waitingProfile = isSignedIn && !profileReady && !cachedUser;
+
+  if (!isPublic && (!isLoaded || waitingProfile)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-slate-500">
         Cargando sesión…

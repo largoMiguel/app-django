@@ -22,12 +22,25 @@ def _anomaly_to_insight(anomaly: dict) -> dict:
     }
 
 
-def generate_pdm_insights(entity_id: int, anio: int | None = None) -> dict[str, Any]:
-    """Insights PDM: anomalías por reglas + narrativa IA."""
+def generate_pdm_insights(entity_id: int, anio: int | None = None, user=None) -> dict[str, Any]:
+    """Insights PDM: anomalías por reglas + narrativa IA (alcance por rol)."""
+    from apps.ai.scoping import pdm_codigos_for_ai_user
+
     if anio is None:
         anio = datetime.now().year
 
-    anomalies = detect_pdm_anomalies(entity_id, anio=anio)
+    codigos = None
+    if user and user.entity:
+        codigos = pdm_codigos_for_ai_user(user, user.entity)
+        if codigos is not None and not codigos:
+            return {
+                "insights": [],
+                "anomalies_count": 0,
+                "anomalies": [],
+                "anio": anio,
+            }
+
+    anomalies = detect_pdm_anomalies(entity_id, anio=anio, codigos=codigos)
     rule_insights = [_anomaly_to_insight(a) for a in anomalies[:8]]
 
     ai_insights: list[dict] = []

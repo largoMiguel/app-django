@@ -30,7 +30,7 @@ MAX_ARCHIVOS = PQRSArchivo.MAX_ARCHIVOS
 
 
 def create_text_pdf(texto: str, asunto: str, radicado: str) -> bytes:
-    """Genera un PDF con el texto completo del ciudadano."""
+    """Genera PDF plano (fallback si no hay metadatos de correo)."""
     from fpdf import FPDF
 
     def _safe(s: str) -> str:
@@ -52,6 +52,37 @@ def create_text_pdf(texto: str, asunto: str, radicado: str) -> bytes:
     pdf.set_font("Helvetica", size=10)
     pdf.multi_cell(0, 6, _safe(texto))
     return bytes(pdf.output())
+
+
+def _save_email_content_document(
+    pqrs: PQRS,
+    *,
+    texto: str,
+    asunto: str,
+    radicado: str,
+    user,
+    email_meta: dict[str, Any] | None = None,
+) -> None:
+    from apps.pqrs.services.email_print import create_email_print_document
+
+    meta = email_meta or {}
+    content, filename, content_type = create_email_print_document(
+        body=texto,
+        subject=meta.get("subject") or asunto,
+        radicado=radicado,
+        from_name=meta.get("from_name") or "",
+        from_email=meta.get("from_email") or "",
+        to_emails=meta.get("to_emails") or [],
+        date=meta.get("date"),
+    )
+    _save_archivo(
+        pqrs,
+        filename=filename,
+        content=content,
+        size=len(content),
+        content_type=content_type,
+        user=user,
+    )
 
 
 def attach_archivos_from_uploads(pqrs: PQRS, files: list, user) -> None:
@@ -205,10 +236,21 @@ def sincronizar_asignaciones(
             accion=accion,
             justificacion=justificacion,
         )
-        if notificar:
-            try:
-                from apps.pqrs.services.email import enviar_notificacion_asignacion
 
+    if notificar:
+        from apps.pqrs.services.email import (
+            enviar_notificacion_asignacion,
+            secretarias_pendientes_notificacion_asignacion,
+        )
+
+        a_notificar = secretarias_pendientes_notificacion_asignacion(
+            pqrs,
+            secretarias,
+            current_ids=current_ids,
+            agregadas=agregadas,
+        )
+        for sec in a_notificar:
+            try:
                 enviar_notificacion_asignacion(
                     pqrs,
                     sec,
@@ -274,6 +316,7 @@ def crear_pqrs_desde_ia(
     secretaria_fallback: Secretaria | None = None,
     generar_pdf_texto: bool = True,
     limit_archivos: bool | None = None,
+    email_meta: dict[str, Any] | None = None,
 ) -> PQRS:
     """Crea PQRS estructurada por IA, con asignación automática opcional."""
     if limit_archivos is None:
@@ -352,15 +395,25 @@ def crear_pqrs_desde_ia(
         )
 
         if generar_pdf_texto and texto:
-            pdf_bytes = create_text_pdf(texto, extraido["asunto"], numero)
-            _save_archivo(
-                pqrs,
-                filename=f"solicitud_{numero}.pdf",
-                content=pdf_bytes,
-                size=len(pdf_bytes),
-                content_type="application/pdf",
-                user=created_by,
-            )
+            if email_meta:
+                _save_email_content_document(
+                    pqrs,
+                    texto=texto,
+                    asunto=extraido["asunto"],
+                    radicado=numero,
+                    user=created_by,
+                    email_meta=email_meta,
+                )
+            else:
+                pdf_bytes = create_text_pdf(texto, extraido["asunto"], numero)
+                _save_archivo(
+                    pqrs,
+                    filename=f"solicitud_{numero}.pdf",
+                    content=pdf_bytes,
+                    size=len(pdf_bytes),
+                    content_type="application/pdf",
+                    user=created_by,
+                )
 
         if files_uploads:
             attach_archivos_from_uploads(pqrs, files_uploads, created_by)

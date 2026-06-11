@@ -671,7 +671,13 @@ export default function PdmPage(): ReactElement {
       </div>
 
       {enablePdm && tieneDatos && vista === "analisis" && (
-        <ModuleAIAlertsBanner module="pdm" />
+        <ModuleAIAlertsBanner
+          module="pdm"
+          onAlertClick={(a) => {
+            const codigo = a.metadata?.codigo_producto as string | undefined;
+            if (codigo) navegarVista("detalle", { codigo, from: "analisis" });
+          }}
+        />
       )}
 
       {enablePdm && tieneDatos && vista === "analisis" && (
@@ -679,6 +685,10 @@ export default function PdmPage(): ReactElement {
           slug={slug}
           anio={filtroAnioAnalisis === "all" ? undefined : filtroAnioAnalisis}
           title="Insights IA del PDM"
+          onInsightClick={(insight) => {
+            const codigo = insight.metadata?.codigo_producto as string | undefined;
+            if (codigo) navegarVista("detalle", { codigo, from: "analisis" });
+          }}
         />
       )}
 

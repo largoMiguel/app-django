@@ -1,5 +1,5 @@
 import { Sparkles } from "lucide-react";
-import type { AIInsight } from "@/core/api/ai";
+import type { AIInsight } from "@/core/api/ai/types";
 import AIInsightCard from "./AIInsightCard";
 
 interface Props {
@@ -7,6 +7,7 @@ interface Props {
   title?: string;
   loading?: boolean;
   className?: string;
+  onInsightClick?: (insight: AIInsight) => void;
 }
 
 export default function AIInsightsSection({
@@ -14,6 +15,7 @@ export default function AIInsightsSection({
   title = "Insights IA",
   loading = false,
   className = "",
+  onInsightClick,
 }: Props) {
   if (loading) {
     return (
@@ -36,7 +38,11 @@ export default function AIInsightsSection({
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {insights.map((insight, i) => (
-          <AIInsightCard key={`${insight.title}-${i}`} insight={insight} />
+          <AIInsightCard
+            key={`${insight.title}-${i}`}
+            insight={insight}
+            onClick={onInsightClick}
+          />
         ))}
       </div>
     </div>

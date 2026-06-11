@@ -249,8 +249,8 @@ export default function PQRSAssignmentPanel({
 
         {isAssigned && !editing && (
           <p className="text-xs text-slate-500">
-            Las secretarías asignadas reciben notificación por correo. Usa «Cambiar» para
-            agregar o quitar dependencias.
+            Al asignar o cambiar dependencias, los secretarios reciben correo (o se reintenta si
+            el envío anterior falló). Usa «Cambiar» para agregar o quitar dependencias.
           </p>
         )}
       </div>

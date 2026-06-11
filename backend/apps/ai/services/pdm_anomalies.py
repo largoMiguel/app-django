@@ -16,15 +16,25 @@ def _avance_fisico(producto: PdmProducto, anio: int, aggs_by_anio: dict) -> floa
     return float(resumen_anio(producto, anio, aggs_by_anio).get("porcentaje_avance", 0))
 
 
-def detect_pdm_anomalies(entity_id: int, anio: int | None = None) -> list[dict[str, Any]]:
-    """Detecta anomalías en productos PDM."""
+def detect_pdm_anomalies(
+    entity_id: int,
+    anio: int | None = None,
+    *,
+    codigos: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Detecta anomalías en productos PDM (opcional: solo códigos dados)."""
     if anio is None:
         from datetime import datetime
         anio = datetime.now().year
         if anio not in ANIOS_PDM:
             anio = ANIOS_PDM[-1]
 
-    productos = list(PdmProducto.objects.filter(entity_id=entity_id).select_related("responsable_secretaria"))
+    productos_qs = PdmProducto.objects.filter(entity_id=entity_id).select_related("responsable_secretaria")
+    if codigos is not None:
+        if not codigos:
+            return []
+        productos_qs = productos_qs.filter(codigo_producto__in=codigos)
+    productos = list(productos_qs)
     codigos = [p.codigo_producto for p in productos]
     all_aggs = actividad_aggs_for_productos(entity_id, codigos)
     anomalies: list[dict[str, Any]] = []

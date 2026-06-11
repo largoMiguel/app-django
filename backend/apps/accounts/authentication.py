@@ -50,8 +50,8 @@ class ClerkAuthentication(BaseAuthentication):
 
     def _resolve_user(self, clerk_id: str) -> User:
         user = (
-            User.objects.select_related("entity")
-            .prefetch_related("groups")
+            User.objects.select_related("entity", "secretaria")
+            .prefetch_related("groups", "groups__permissions", "user_permissions")
             .filter(clerk_id=clerk_id)
             .first()
         )
@@ -71,8 +71,8 @@ class ClerkAuthentication(BaseAuthentication):
             )
 
         user = (
-            User.objects.select_related("entity")
-            .prefetch_related("groups")
+            User.objects.select_related("entity", "secretaria")
+            .prefetch_related("groups", "groups__permissions", "user_permissions")
             .filter(email__iexact=email)
             .first()
         )

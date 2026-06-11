@@ -372,46 +372,46 @@ def _build_radicacion_bodies(pqrs: PQRS) -> tuple[str, str, str]:
     return subject, text_body, html_body
 
 
-def _build_respuesta_bodies(pqrs: PQRS, texto_respuesta: str) -> tuple[str, str, str]:
-    entity_name = _entity_name(pqrs)
+def _firma_respondedor(enviado_por) -> str:
+    if not enviado_por:
+        return ""
+    return (getattr(enviado_por, "email_firma", None) or "").strip()
+
+
+def _html_firma_block(firma: str) -> str:
+    if not firma:
+        return ""
+    safe = html.escape(firma).replace("\n", "<br>\n")
+    return (
+        f'<div style="margin-top:12px;color:#202124;font-size:13px;line-height:1.5;">{safe}</div>'
+    )
+
+
+def _texto_con_firma(texto: str, firma: str) -> str:
+    if not firma:
+        return texto
+    return f"{texto.rstrip()}\n\n{firma}"
+
+
+def _build_respuesta_bodies(
+    pqrs: PQRS,
+    texto_respuesta: str,
+    *,
+    enviado_por=None,
+) -> tuple[str, str, str]:
     tipo_label = _tipo_label(pqrs)
     subject = f"Respuesta a su {tipo_label} No. {pqrs.numero_radicado}"
-    fecha_str = (
-        format_fecha_hora_co(pqrs.fecha_respuesta)
-        if pqrs.fecha_respuesta
-        else format_now_fecha_hora_co()
-    )
-    safe_texto = html.escape(texto_respuesta)
 
-    text_body = (
-        f"Estimado/a ciudadano/a,\n\n"
-        f"{entity_name} ha dado respuesta a su {tipo_label} con número de radicado "
-        f"{pqrs.numero_radicado}.\n\n"
-        f"RESPUESTA:\n{texto_respuesta}\n\n"
-        f"Fecha de respuesta: {fecha_str}\n\n"
-        f"Atentamente,\n{entity_name}"
+    firma = _firma_respondedor(enviado_por)
+    text_body = _texto_con_firma(texto_respuesta, firma)
+    safe_texto = html.escape(texto_respuesta).replace("\n", "<br>\n")
+    html_body = (
+        '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;'
+        'color:#202124;line-height:1.5;margin:0;padding:0;">'
+        f"<div>{safe_texto}</div>"
+        f"{_html_firma_block(firma)}"
+        "</div>"
     )
-
-    inner = f"""
-    <p style="color:#475569;font-size:14px;">Estimado/a ciudadano/a,</p>
-    <p style="color:#475569;font-size:14px;">
-      {html.escape(entity_name)} ha dado respuesta a su
-      <strong>{html.escape(tipo_label)}</strong> con número de radicado:
-    </p>
-    <div style="background:#f1f5f9;border-radius:6px;padding:12px 16px;margin:12px 0;
-                font-size:15px;font-weight:bold;color:#1e293b;">
-      {html.escape(pqrs.numero_radicado)}
-    </div>
-    <h3 style="color:#1e293b;font-size:13px;text-transform:uppercase;
-               letter-spacing:0.5px;margin:20px 0 8px;">Respuesta:</h3>
-    <div style="background:#f8fafc;border-left:3px solid #3eafd4;padding:14px 16px;
-                border-radius:0 6px 6px 0;color:#334155;font-size:14px;
-                line-height:1.6;white-space:pre-wrap;">{safe_texto}</div>
-    <p style="color:#94a3b8;font-size:12px;margin-top:4px;">
-      Fecha de respuesta: {html.escape(fecha_str)}
-    </p>
-    """
-    html_body = _wrap_html(entity_name, "Respuesta a su solicitud PQRS", inner)
     return subject, text_body, html_body
 
 
@@ -472,21 +472,79 @@ def _actualizar_pqrs_resumen(
 
 
 def _destinatarios_secretaria(secretaria) -> list[str]:
+    """Correos de secretarios (y admins vinculados) activos de la dependencia."""
     from apps.accounts.models import User
+    from apps.common.roles import user_roles
 
     emails: list[str] = []
     seen: set[str] = set()
     qs = User.objects.filter(
         secretaria=secretaria,
+        entity_id=secretaria.entity_id,
         is_active=True,
     ).exclude(email="").order_by("full_name", "email")
     for user in qs:
+        roles = user_roles(user)
+        if "secretario" not in roles and "admin" not in roles:
+            continue
         email = (user.email or "").strip()
         lower = email.lower()
         if email and lower not in seen:
             emails.append(email)
             seen.add(lower)
     return emails
+
+
+_ESTADOS_ASIGNACION_OK = frozenset(
+    {EstadoCorreoPQRS.ENVIADO, EstadoCorreoPQRS.ENTREGADO},
+)
+
+
+def asignacion_notificada_exitosa(pqrs: PQRS, secretaria) -> bool:
+    """True si ya hubo un envío exitoso de asignación a esa dependencia."""
+    recipients = _destinatarios_secretaria(secretaria)
+    if not recipients:
+        return False
+    destinos_ok = {addr.lower() for addr in recipients}
+    for correo in PQRSCorreo.objects.filter(
+        pqrs=pqrs,
+        tipo=TipoCorreoPQRS.ASIGNACION,
+        estado__in=_ESTADOS_ASIGNACION_OK,
+    ):
+        for item in correo.destinatarios or []:
+            email = (item.get("email") or "").strip().lower()
+            if email in destinos_ok:
+                return True
+    return False
+
+
+def secretarias_pendientes_notificacion_asignacion(
+    pqrs: PQRS,
+    secretarias: list,
+    *,
+    current_ids: set[int],
+    agregadas: list,
+) -> list:
+    """Dependencias que deben recibir (o reintentar) correo de asignación."""
+    target_ids = {s.id for s in secretarias}
+    pendientes: list = []
+    seen_ids: set[int] = set()
+
+    for sec in agregadas:
+        if sec.id not in seen_ids:
+            pendientes.append(sec)
+            seen_ids.add(sec.id)
+
+    # Misma asignación pero sin envío previo (p. ej. IA asignó y el correo nunca salió).
+    if current_ids == target_ids:
+        for sec in secretarias:
+            if sec.id in seen_ids:
+                continue
+            if not asignacion_notificada_exitosa(pqrs, sec):
+                pendientes.append(sec)
+                seen_ids.add(sec.id)
+
+    return pendientes
 
 
 def _build_asignacion_bodies(
@@ -575,20 +633,35 @@ def enviar_notificacion_asignacion(
 ) -> PQRSCorreo | None:
     """Notifica por correo a los secretarios de la dependencia asignada."""
     recipients = _destinatarios_secretaria(secretaria)
-    if not recipients:
-        logger.info(
-            "PQRS %s — sin correos de secretarios para %s",
-            pqrs.numero_radicado,
-            secretaria.nombre,
-        )
-        return None
-
     subject, text_body, html_body = _build_asignacion_bodies(
         pqrs,
         secretaria,
         justificacion=justificacion,
         asignado_por=asignado_por,
     )
+
+    if not recipients:
+        sin_dest_msg = (
+            f"Sin usuarios secretario/admin activos con email "
+            f"en {secretaria.nombre}."
+        )
+        logger.warning(
+            "PQRS %s — %s",
+            pqrs.numero_radicado,
+            sin_dest_msg,
+        )
+        registro = PQRSCorreo.objects.create(
+            pqrs=pqrs,
+            tipo=TipoCorreoPQRS.ASIGNACION,
+            asunto=subject,
+            cuerpo_resumen=text_body[:500],
+            destinatarios=[],
+            enviado_por=asignado_por,
+            estado=EstadoCorreoPQRS.ERROR,
+            error=sin_dest_msg[:500],
+        )
+        return registro
+
     registro = _crear_registro_correo(
         pqrs=pqrs,
         tipo=TipoCorreoPQRS.ASIGNACION,
@@ -692,7 +765,9 @@ def enviar_respuesta(
         raise ValueError("No hay destinatarios válidos.")
     cc = _cc_respondedor(enviado_por)
 
-    subject, text_body, html_body = _build_respuesta_bodies(pqrs, texto_respuesta)
+    subject, text_body, html_body = _build_respuesta_bodies(
+        pqrs, texto_respuesta, enviado_por=enviado_por
+    )
     registro = _crear_registro_correo(
         pqrs=pqrs,
         tipo=TipoCorreoPQRS.RESPUESTA,
@@ -749,7 +824,9 @@ def reenviar_correo(
         from_name = _from_name(pqrs)
     else:
         texto = pqrs.respuesta or correo.cuerpo_resumen or ""
-        subject, text_body, html_body = _build_respuesta_bodies(pqrs, texto)
+        subject, text_body, html_body = _build_respuesta_bodies(
+            pqrs, texto, enviado_por=correo.enviado_por
+        )
         from_name = _from_name(pqrs, include_secretaria=True)
 
     if correo.tipo == TipoCorreoPQRS.RADICACION:

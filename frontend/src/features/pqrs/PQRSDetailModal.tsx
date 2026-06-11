@@ -36,6 +36,7 @@ import { useAuthStore, primaryRole, canAccess, PERM } from "@/core/auth/store";
 import { formatFechaHoraCO } from "@/core/datetime";
 import EditPQRSModal from "./EditPQRSModal";
 import PQRSAssignmentPanel from "./PQRSAssignmentPanel";
+import EmailFirmaPanel from "./EmailFirmaPanel";
 
 function formatBytes(bytes?: number): string {
   if (!bytes && bytes !== 0) return "";
@@ -57,7 +58,7 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
   const [data, setData] = useState<PQRS | null>(null);
   const [secretarias, setSecretarias] = useState<Secretaria[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"detalle" | "correos" | "historial">("detalle");
+  const [tab, setTab] = useState<"detalle" | "correos" | "firma" | "historial">("detalle");
 
   const [respuesta, setRespuesta] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -123,6 +124,8 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
           data?.assigned_to === user.secretaria.id),
     );
   const canSecretaryAct = canAccess(user, { roles: ["secretario"] }) && usuarioAsignado;
+  const canEditFirma =
+    canAdmin || canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] });
   const canRespond =
     canAdmin ||
     (canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] }) &&
@@ -246,6 +249,11 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                   <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-500" title="Requiere atención" />
                 )}
               </TabBtn>
+              {canEditFirma && (
+                <TabBtn active={tab === "firma"} onClick={() => setTab("firma")}>
+                  Firma
+                </TabBtn>
+              )}
               <TabBtn active={tab === "historial"} onClick={() => setTab("historial")}>
                 <History className="inline h-3.5 w-3.5 mr-1" /> Historial
               </TabBtn>
@@ -775,6 +783,10 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                 </section>
               );
             })()}
+
+            {!loading && canEditFirma && tab === "firma" && (
+              <EmailFirmaPanel variant="tab" />
+            )}
 
             {!loading && data && tab === "historial" && (
               <div className="space-y-3">

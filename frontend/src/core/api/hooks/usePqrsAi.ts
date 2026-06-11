@@ -23,6 +23,7 @@ export function usePqrsCompliance(enabled = true) {
     queryFn: () => pqrsAiApi.compliance(),
     enabled,
     staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -31,5 +32,7 @@ export function usePqrsAlerts(unread = true, enabled = true) {
     queryKey: pqrsAiKeys.alerts(unread),
     queryFn: () => sharedAiApi.alerts({ unread, module: "pqrs" }),
     enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }

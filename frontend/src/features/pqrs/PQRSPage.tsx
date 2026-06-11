@@ -49,18 +49,13 @@ function pageNumbers(totalPages: number, currentPage: number): (number | "...")[
 
 export default function PQRSPage() {
   const { user } = useAuthStore();
-  const { data: complianceData } = usePqrsCompliance();
-  const slaRisks = useMemo(() => {
-    const map: Record<number, NonNullable<typeof complianceData>["sla_risks"][number]> = {};
-    complianceData?.sla_risks.forEach((r) => { map[r.pqrs_id] = r; });
-    return map;
-  }, [complianceData]);
+  const canAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_CHANGE] });
   const navigate = useNavigate();
   const location = useLocation();
   const invalidatePqrs = useInvalidatePqrs();
 
   const canCreate = canAccess(user, {
-    roles: ["admin", "ciudadano"],
+    roles: ["admin", "secretario", "ciudadano"],
     permissions: [PERM.PQRS_ADD],
   });
   const canDelete = canAccess(user, {
@@ -113,6 +108,13 @@ export default function PQRSPage() {
   }, [currentPage, searchTerm, filterEstado, filterTipo, filterSecretaria, filterPendientes, modoAlerta]);
 
   const { data, isLoading, isError, error } = usePqrsList(listParams);
+  const { data: complianceData } = usePqrsCompliance(canAdmin && !isLoading);
+  const slaRisks = useMemo(() => {
+    const map: Record<number, NonNullable<typeof complianceData>["sla_risks"][number]> = {};
+    complianceData?.sla_risks.forEach((r) => { map[r.pqrs_id] = r; });
+    return map;
+  }, [complianceData]);
+
   const items = data?.results ?? [];
   const totalCount = data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -120,11 +122,10 @@ export default function PQRSPage() {
   const { data: statsData } = usePqrsStats({ enabled: true });
   const alertCount = statsData?.alerta_count ?? 0;
 
-  const { data: rechazadasData } = usePqrsList({
-    estado: "rechazada_asignacion",
-    page: 1,
-    page_size: 5,
-  });
+  const { data: rechazadasData } = usePqrsList(
+    { estado: "rechazada_asignacion", page: 1, page_size: 5 },
+    { enabled: canAdmin && !isLoading },
+  );
   const rechazadas = rechazadasData?.results ?? [];
 
   const { data: correoAlertaData } = usePqrsList(
@@ -136,7 +137,9 @@ export default function PQRSPage() {
   const { data: secretarias = [] } = useQuery({
     queryKey: ["secretarias", user?.entity?.id],
     queryFn: () => secretariasApi.list(user?.entity?.id),
-    enabled: Boolean(user?.entity?.id),
+    enabled: canAdmin && Boolean(user?.entity?.id),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
   async function handleDelete(p: PQRS) {
@@ -215,7 +218,15 @@ export default function PQRSPage() {
         </div>
       </div>
 
-      {modoAlerta && <PqrsAIInsights title="Insights IA PQRS" />}
+      {modoAlerta && (
+        <PqrsAIInsights
+          title="Insights IA PQRS"
+          onInsightClick={(insight) => {
+            const id = insight.metadata?.pqrs_id as number | undefined;
+            if (id) navigate(`?id=${id}`, { replace: false });
+          }}
+        />
+      )}
 
       {showNuevaModal && (
         <NuevaPQRSModal

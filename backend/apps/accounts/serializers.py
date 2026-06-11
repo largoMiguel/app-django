@@ -32,16 +32,39 @@ class UserMeSerializer(serializers.ModelSerializer):
             "entity",
             "secretaria",
             "capabilities",
+            "email_firma",
             "date_joined",
             "last_login",
         )
-        read_only_fields = fields
+        read_only_fields = (
+            "id",
+            "email",
+            "full_name",
+            "is_active",
+            "is_staff",
+            "is_superuser",
+            "role",
+            "roles",
+            "permissions",
+            "entity",
+            "secretaria",
+            "capabilities",
+            "date_joined",
+            "last_login",
+        )
 
     def get_roles(self, obj) -> list[str]:
         return obj.role_names
 
+    def _permission_codes(self, obj) -> set[str]:
+        cached = getattr(obj, "_perm_codes_cache", None)
+        if cached is None:
+            cached = set(obj.get_all_permissions())
+            obj._perm_codes_cache = cached
+        return cached
+
     def get_permissions(self, obj) -> list[str]:
-        return sorted(obj.get_all_permissions())
+        return sorted(self._permission_codes(obj))
 
     def get_entity(self, obj):
         if not obj.entity_id:
@@ -74,7 +97,7 @@ class UserMeSerializer(serializers.ModelSerializer):
         return {"id": obj.secretaria.id, "nombre": obj.secretaria.nombre}
 
     def get_capabilities(self, obj):
-        perms = set(obj.get_all_permissions())
+        perms = self._permission_codes(obj)
         roles = {r.lower() for r in user_roles(obj)}
         is_admin = "admin" in roles
         is_secretario = "secretario" in roles
@@ -99,3 +122,9 @@ class UserMeSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data["enabled_modules"] = instance.enabled_modules or []
         return data
+
+
+class UserMeUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("email_firma",)

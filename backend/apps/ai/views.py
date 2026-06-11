@@ -24,6 +24,7 @@ from .serializers import (
     PQRSDraftRequestSerializer,
     SemanticSearchSerializer,
 )
+from .scoping import filter_alerts_for_user, pqrs_queryset_for_ai_user
 from .services.embeddings import find_similar, semantic_search
 from .services.global_copilot import run_global_copilot
 from .services.insights import generate_pdm_insights, generate_pqrs_insights
@@ -79,6 +80,7 @@ class AIAlertViewSet(ReadOnlyModelViewSet):
                 AIAlert.AlertType.PDM_ANOMALY,
                 AIAlert.AlertType.PDM_FORECAST,
             ])
+        qs = filter_alerts_for_user(user, qs)
         return qs.order_by("-created_at")[:100]
 
     @action(detail=True, methods=["post"])
@@ -190,12 +192,21 @@ class PQRSComplianceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from django.core.cache import cache
+
         user = request.user
         _ensure_entity_user(user)
         require_user_module(user, "pqrs")
-        stats = compute_compliance_stats(user.entity_id)
-        risks = compute_sla_risk_scores(user.entity_id)[:20]
-        return Response({"compliance": stats, "sla_risks": risks})
+        cache_key = f"pqrs:compliance:{user.id}:{user.entity_id}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+        qs = pqrs_queryset_for_ai_user(user).filter(entity_id=user.entity_id)
+        stats = compute_compliance_stats(user.entity_id, qs=qs)
+        risks = compute_sla_risk_scores(user.entity_id, qs=qs)[:20]
+        payload = {"compliance": stats, "sla_risks": risks}
+        cache.set(cache_key, payload, 120)
+        return Response(payload)
 
 
 class PQRSInsightsView(APIView):
@@ -203,10 +214,18 @@ class PQRSInsightsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from django.core.cache import cache
+
         user = request.user
         _ensure_entity_user(user)
         require_user_module(user, "pqrs")
-        return Response(generate_pqrs_insights(user.entity_id))
+        cache_key = f"pqrs:insights:{user.id}:{user.entity_id}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+        payload = generate_pqrs_insights(user.entity_id, user=user)
+        cache.set(cache_key, payload, 300)
+        return Response(payload)
 
 
 class PdmInsightsView(APIView):
@@ -219,7 +238,7 @@ class PdmInsightsView(APIView):
         require_user_module(user, "pdm")
         anio = request.query_params.get("anio")
         anio_int = int(anio) if anio else None
-        return Response(generate_pdm_insights(user.entity_id, anio=anio_int))
+        return Response(generate_pdm_insights(user.entity_id, anio=anio_int, user=user))
 
 
 class PdmAnomaliesView(APIView):
@@ -232,7 +251,14 @@ class PdmAnomaliesView(APIView):
         require_user_module(user, "pdm")
         anio = request.query_params.get("anio")
         anio_int = int(anio) if anio else None
-        anomalies = detect_pdm_anomalies(user.entity_id, anio=anio_int)
+        from apps.ai.scoping import pdm_codigos_for_ai_user
+
+        codigos = pdm_codigos_for_ai_user(user, user.entity)
+        anomalies = detect_pdm_anomalies(
+            user.entity_id,
+            anio=anio_int,
+            codigos=codigos,
+        )
         forecasts = forecast_pdm_completion(user.entity_id, anio=anio_int)
         return Response({"anomalies": anomalies, "forecasts": forecasts})
 

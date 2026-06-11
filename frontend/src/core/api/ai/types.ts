@@ -55,6 +55,7 @@ export interface AIInsight {
   severity: "low" | "medium" | "high";
   score?: number;
   source?: "ai" | "rule";
+  metadata?: Record<string, unknown>;
 }
 
 export interface SemanticSearchResult {

@@ -11,9 +11,16 @@ from django.utils import timezone
 from apps.pqrs.models import EstadoPQRS, PQRS
 
 
-def compute_compliance_stats(entity_id: int, *, fecha_desde=None, fecha_hasta=None) -> dict[str, Any]:
+def compute_compliance_stats(
+    entity_id: int,
+    *,
+    qs=None,
+    fecha_desde=None,
+    fecha_hasta=None,
+) -> dict[str, Any]:
     """Calcula métricas de cumplimiento SLA y compliance."""
-    qs = PQRS.objects.filter(entity_id=entity_id)
+    if qs is None:
+        qs = PQRS.objects.filter(entity_id=entity_id)
     if fecha_desde:
         qs = qs.filter(fecha_solicitud__gte=fecha_desde)
     if fecha_hasta:
@@ -112,14 +119,13 @@ def compute_compliance_stats(entity_id: int, *, fecha_desde=None, fecha_hasta=No
     }
 
 
-def compute_sla_risk_scores(entity_id: int) -> list[dict[str, Any]]:
+def compute_sla_risk_scores(entity_id: int, qs=None) -> list[dict[str, Any]]:
     """Calcula score de riesgo SLA (0-100) para PQRS abiertas."""
     now = timezone.now()
-    abiertas = PQRS.objects.filter(
-        entity_id=entity_id,
-    ).exclude(estado__in=[EstadoPQRS.RESPONDIDA, EstadoPQRS.CERRADA]).select_related(
-        "assigned_to"
-    )
+    base = qs if qs is not None else PQRS.objects.filter(entity_id=entity_id)
+    abiertas = base.exclude(
+        estado__in=[EstadoPQRS.RESPONDIDA, EstadoPQRS.CERRADA],
+    ).select_related("assigned_to")
 
     results: list[dict[str, Any]] = []
     for pqrs in abiertas:

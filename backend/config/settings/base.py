@@ -223,7 +223,7 @@ INITIAL_ADMIN_NAME = os.getenv("INITIAL_ADMIN_NAME", "Admin")
 # Clerk authentication
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY", "")
 CLERK_PUBLISHABLE_KEY = os.getenv("CLERK_PUBLISHABLE_KEY", "")
-CLERK_JWT_KEY = os.getenv("CLERK_JWT_KEY", "")
+CLERK_JWT_KEY = os.getenv("CLERK_JWT_KEY", "").replace("\\n", "\n").strip()
 CLERK_AUTHORIZED_PARTIES = env_list(
     "CLERK_AUTHORIZED_PARTIES",
     "http://localhost:5173,http://127.0.0.1:5173,https://app.softone360.com",

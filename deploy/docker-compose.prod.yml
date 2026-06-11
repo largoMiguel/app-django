@@ -78,6 +78,12 @@ services:
     container_name: softone-celery-worker
     restart: unless-stopped
     command: celery -A config worker -l info --concurrency=2
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME -t 5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     depends_on:
       db:
         condition: service_healthy
@@ -117,6 +123,12 @@ services:
     container_name: softone-celery-beat
     restart: unless-stopped
     command: celery -A config beat -l info
+    healthcheck:
+      test: ["CMD-SHELL", "test -f celerybeat-schedule || test -f celerybeat-schedule.db"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
     depends_on:
       redis:
         condition: service_healthy

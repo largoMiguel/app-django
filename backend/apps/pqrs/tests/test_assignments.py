@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import email
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -9,6 +11,7 @@ from rest_framework.test import APIClient
 from apps.entities.models import Entity, Secretaria
 from apps.pqrs.models import (
     CanalLlegada,
+    EstadoCorreoPQRS,
     EstadoPQRS,
     PQRS,
     PQRSArchivo,
@@ -123,7 +126,8 @@ class PQRSAssignmentTests(TestCase):
         self.assertEqual(ids, {self.secretaria_a.id})
         self.assertEqual(self.pqrs.estado, EstadoPQRS.ASIGNADA)
 
-    def test_notificacion_asignacion_crea_correo(self):
+    @patch("apps.pqrs.services.email._post_zeptomail", return_value=(True, "req-asig", None))
+    def test_notificacion_asignacion_crea_correo(self, _mock_mail):
         sincronizar_asignaciones(
             self.pqrs,
             [self.secretaria_a],
@@ -136,9 +140,76 @@ class PQRSAssignmentTests(TestCase):
             tipo=TipoCorreoPQRS.ASIGNACION,
         ).first()
         self.assertIsNotNone(correo)
+        self.assertEqual(correo.estado, EstadoCorreoPQRS.ENVIADO)
         destinos = {d["email"].lower() for d in correo.destinatarios}
         self.assertIn("seca@test.com", destinos)
         self.assertIn("funcionario@test.com", destinos)
+
+    @patch("apps.pqrs.services.email._post_zeptomail", return_value=(True, "req-asig", None))
+    def test_reasignacion_notifica_secretaria_nueva(self, _mock_mail):
+        sincronizar_asignaciones(
+            self.pqrs,
+            [self.secretaria_a],
+            user=self.admin,
+            justificacion="Inicial",
+            notificar=False,
+        )
+        sincronizar_asignaciones(
+            self.pqrs,
+            [self.secretaria_b],
+            user=self.admin,
+            justificacion="Cambio de dependencia",
+            notificar=True,
+        )
+        correos = PQRSCorreo.objects.filter(
+            pqrs=self.pqrs,
+            tipo=TipoCorreoPQRS.ASIGNACION,
+            estado=EstadoCorreoPQRS.ENVIADO,
+        )
+        self.assertEqual(correos.count(), 1)
+        destinos = {d["email"].lower() for correo in correos for d in correo.destinatarios}
+        self.assertIn("secb@test.com", destinos)
+        self.assertNotIn("seca@test.com", destinos)
+
+    @patch("apps.pqrs.services.email._post_zeptomail", return_value=(True, "req-asig", None))
+    def test_reintenta_notificacion_si_ya_estaba_asignada_sin_correo(self, _mock_mail):
+        sincronizar_asignaciones(
+            self.pqrs,
+            [self.secretaria_a],
+            user=self.admin,
+            justificacion="Asignación IA",
+            notificar=False,
+        )
+        sincronizar_asignaciones(
+            self.pqrs,
+            [self.secretaria_a],
+            user=self.admin,
+            justificacion="Confirmación admin",
+            notificar=True,
+        )
+        correo = PQRSCorreo.objects.filter(
+            pqrs=self.pqrs,
+            tipo=TipoCorreoPQRS.ASIGNACION,
+            estado=EstadoCorreoPQRS.ENVIADO,
+        ).first()
+        self.assertIsNotNone(correo)
+        destinos = {d["email"].lower() for d in correo.destinatarios}
+        self.assertIn("seca@test.com", destinos)
+
+    @patch("apps.pqrs.services.email._post_zeptomail", return_value=(True, "req-asig", None))
+    def test_asignar_api_notifica_secretario(self, _mock_mail):
+        response = self.client.post(
+            f"/api/v1/pqrs/{self.pqrs.id}/asignar/",
+            {"secretaria_ids": [self.secretaria_a.id], "justificacion": "Por admin"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        correo = PQRSCorreo.objects.filter(
+            pqrs=self.pqrs,
+            tipo=TipoCorreoPQRS.ASIGNACION,
+            estado=EstadoCorreoPQRS.ENVIADO,
+        ).first()
+        self.assertIsNotNone(correo)
 
     def test_secretario_remitente_asigna_su_secretaria(self):
         from apps.pqrs.services.creation import crear_pqrs_desde_ia
