@@ -3,10 +3,12 @@ from __future__ import annotations
 
 from django.db.models import Sum
 
-from .access import ejecucion_queryset_for_user, productos_queryset_for_user
-from .metrics import ANIOS_PDM
-from .models import PDMEjecucionPresupuestal
 from apps.entities.models import Entity
+
+from .access import ejecucion_queryset_for_user, productos_queryset_for_user
+from .models import PDMEjecucionPresupuestal
+
+ANIOS_PDM = (2024, 2025, 2026, 2027)
 
 
 def _float(value) -> float:

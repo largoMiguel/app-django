@@ -5,7 +5,6 @@ from datetime import datetime
 
 from django.db.models import Count, Q
 
-from .ejecucion_resumen import ejecucion_por_codigo
 from .models import ActividadEstado, PdmActividad, PdmProducto
 
 ANIOS_PDM = (2024, 2025, 2026, 2027)
@@ -37,6 +36,8 @@ def _presupuesto_anio(producto: PdmProducto, anio: int) -> float:
 
 def ejecucion_for_productos(entity_id: int, codigos: list[str], anio: int) -> dict[str, dict[str, float]]:
     """Suma pto. definitivo y pagos de ejecución por codigo_producto para un año."""
+    from .ejecucion_resumen import ejecucion_por_codigo
+
     return ejecucion_por_codigo(entity_id, codigos, anio)
 
 

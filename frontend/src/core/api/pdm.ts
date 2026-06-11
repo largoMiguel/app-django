@@ -155,7 +155,7 @@ export interface PdmAnalisisResponse {
     pto_definitivo: number;
     pagos: number;
   }[];
-  por_ods: { ods: string; productos: number; avance_pct: number; presupuesto: number }[];
+  por_ods: { ods: string; productos: number; avance_pct: number; presupuesto: number; ejecucion?: number }[];
   presupuestal_por_anio: {
     anio: number;
     plan: number;
