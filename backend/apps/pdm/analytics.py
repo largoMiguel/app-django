@@ -377,6 +377,7 @@ def compute_pdm_analytics(
                 "productos": data["productos"],
                 "avance_pct": round(data["avance_sum"] / data["productos"], 1) if data["productos"] else 0.0,
                 "presupuesto": data["presupuesto"],
+                "ejecucion": data["presupuesto"],
             }
             for ods_name, data in ods_agg.items()
             if ods_name != "Sin ODS" or data["productos"] > 0 or data["presupuesto"] > 0

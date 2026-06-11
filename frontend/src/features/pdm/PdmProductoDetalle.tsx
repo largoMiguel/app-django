@@ -229,7 +229,7 @@ export default function PdmProductoDetalle({
                 <p className="text-xs text-slate-500">años con metas</p>
               </div>
               <div>
-                <FieldLabel>% de Avance</FieldLabel>
+                <FieldLabel>Avance Físico (Cuatrienio)</FieldLabel>
                 <p className="mt-0.5 text-2xl font-bold text-slate-900">{producto.porcentaje_ejecucion.toFixed(1)}%</p>
               </div>
             </div>

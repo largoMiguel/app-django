@@ -19,6 +19,7 @@ from .bpin_view import (
     consultar_bpin_externo,
     consultar_bpines_externos,
 )
+from .ejecucion_resumen import ejecucion_por_anio
 from .metrics import (
     ANIOS_PDM,
     actividad_aggs_for_productos,
@@ -201,19 +202,17 @@ def resumen_pdm(entity: Entity) -> dict:
         for p in productos
     )
 
+    ejecucion_por_anio_map = ejecucion_por_anio(entity.id, codigos) if codigos else {}
     ejecucion_por_anio: list[dict] = []
     for y in ANIOS_PDM:
-        rows = (
-            PDMEjecucionPresupuestal.objects.filter(entity=entity, anio=y)
-            .aggregate(pto=Sum("pto_definitivo"), pagos=Sum("pagos"))
-        )
+        row = ejecucion_por_anio_map.get(y, {"pto_definitivo": 0.0, "pagos": 0.0})
+        pto = row["pto_definitivo"]
+        pagos = row["pagos"]
         ejecucion_por_anio.append({
             "anio": y,
-            "pto_definitivo": float(rows["pto"] or 0),
-            "pagos": float(rows["pagos"] or 0),
-            "avance_financiero_pct": round(
-                (float(rows["pagos"] or 0) / float(rows["pto"] or 1)) * 100, 1
-            ) if rows["pto"] else 0.0,
+            "pto_definitivo": pto,
+            "pagos": pagos,
+            "avance_financiero_pct": round((pagos / pto) * 100, 1) if pto else 0.0,
         })
 
     aggs_map = actividad_aggs_for_productos(entity.id, codigos) if codigos else {}
@@ -509,6 +508,10 @@ def ejecucion_presupuestal(
     qs = PDMEjecucionPresupuestal.objects.filter(entity=entity, anio=target_anio)
     if resolved_codigo:
         qs = qs.filter(codigo_producto=resolved_codigo)
+    else:
+        codigos_plan = list(_producto_base_qs(entity).values_list("codigo_producto", flat=True))
+        if codigos_plan:
+            qs = qs.filter(codigo_producto__in=codigos_plan)
 
     totales = qs.aggregate(pto=Sum("pto_definitivo"), pagos=Sum("pagos"))
     pto = float(totales["pto"] or 0)

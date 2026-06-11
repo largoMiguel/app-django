@@ -336,8 +336,10 @@ export default function PdmPage(): ReactElement {
   const comparativaPresupuestal = useMemo(() => {
     if (!productoSeleccionado) return [];
     const pdm = getPresupuestoAnio(productoSeleccionado, anioDetalle);
-    const ptoDefinitivo = Number(ejecucionPresupuestal?.totales?.pto_definitivo || 0);
-    const pagos = Number(ejecucionPresupuestal?.totales?.pagos || 0);
+    const ptoDefinitivo = Number(
+      ejecucionPresupuestal?.totales?.pto_definitivo ?? productoSeleccionado.pto_definitivo_anio ?? 0,
+    );
+    const pagos = Number(ejecucionPresupuestal?.totales?.pagos ?? productoSeleccionado.pagos_anio ?? 0);
     const pctPagado = ptoDefinitivo > 0 ? Math.round((pagos / ptoDefinitivo) * 1000) / 10 : 0;
     return [
       {
@@ -766,6 +768,7 @@ export default function PdmPage(): ReactElement {
             totalPages={totalPages}
             isLoading={loadingProductos}
             statsEstado={statsEstado}
+            ejecucionAnio={statsData?.ejecucion_anio}
             filtroLinea={filtroLinea}
             filtroSector={filtroSector}
             filtroSecretaria={filtroSecretaria}

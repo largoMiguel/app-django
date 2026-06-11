@@ -118,6 +118,13 @@ export interface PdmStatsResponse {
     total: number;
   };
   anio_seguimiento: number;
+  ejecucion_anio?: {
+    anio: number;
+    pto_definitivo: number;
+    pagos: number;
+    pct_pagado: number;
+    plan_ppi: number;
+  };
 }
 
 export interface PdmAnalisisResponse {
@@ -229,6 +236,8 @@ export interface PdmContrato {
 export interface PdmEjecucionResumenAnual {
   anios: { anio: number; pto_definitivo: number; pagos: number }[];
   totales: { pto_definitivo: number; pagos: number };
+  totales_incluye_huerfanos?: { pto_definitivo: number; pagos: number };
+  anios_incluye_huerfanos?: { anio: number; pto_definitivo: number; pagos: number }[];
   ejecucion_por_linea?: { linea: string; total: number }[];
   ejecucion_por_sector?: { sector: string; total: number }[];
   ejecucion_sin_producto_plan?: {

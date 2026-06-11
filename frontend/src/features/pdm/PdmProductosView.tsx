@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Box, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock, Loader2, Search, X } from "lucide-react";
+import { Box, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock, DollarSign, Loader2, Search, X } from "lucide-react";
 import type { Secretaria } from "@/core/api/entities";
 import type { PdmMetaResponse } from "@/core/api/pdm";
 import {
@@ -32,6 +32,13 @@ interface PdmProductosViewProps {
   totalPages: number;
   isLoading: boolean;
   statsEstado: { pendiente: number; en_progreso: number; completado: number; por_ejecutar: number; total: number };
+  ejecucionAnio?: {
+    anio: number;
+    pto_definitivo: number;
+    pagos: number;
+    pct_pagado: number;
+    plan_ppi: number;
+  };
   filtroLinea: string;
   filtroSector: string;
   filtroSecretaria: string;
@@ -136,6 +143,7 @@ export default function PdmProductosView({
   totalPages,
   isLoading,
   statsEstado,
+  ejecucionAnio,
   filtroLinea,
   filtroSector,
   filtroSecretaria,
@@ -207,6 +215,39 @@ export default function PdmProductosView({
           onClick={() => onFiltroEstado("POR_EJECUTAR")}
         />
       </div>
+
+      {ejecucionAnio && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <PdmStatCard
+            label="Plan PPI"
+            hint={`Presupuesto planificado ${filtroAnio}`}
+            value={formatearMoneda(ejecucionAnio.plan_ppi)}
+            icon={<Calendar size={24} className="text-blue-600" />}
+            accent="blue"
+          />
+          <PdmStatCard
+            label="Ejecución (Pto. Def.)"
+            hint={`Asignado real ${filtroAnio}`}
+            value={formatearMoneda(ejecucionAnio.pto_definitivo)}
+            icon={<DollarSign size={24} className="text-emerald-600" />}
+            accent="emerald"
+          />
+          <PdmStatCard
+            label="Pagado"
+            hint={`${ejecucionAnio.pct_pagado}% de la ejecución`}
+            value={formatearMoneda(ejecucionAnio.pagos)}
+            icon={<DollarSign size={24} className="text-amber-600" />}
+            accent="amber"
+          />
+          <PdmStatCard
+            label="Productos con meta"
+            hint={`En seguimiento ${filtroAnio}`}
+            value={statsEstado.total}
+            icon={<Box size={24} className="text-cyan-600" />}
+            accent="cyan"
+          />
+        </div>
+      )}
 
       <PdmCard>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

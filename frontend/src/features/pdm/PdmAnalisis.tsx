@@ -408,7 +408,7 @@ function AnalisisContent({
                   <th className="px-3 py-2 font-semibold">ODS</th>
                   <th className="px-3 py-2 text-right font-semibold">Productos</th>
                   <th className="px-3 py-2 text-right font-semibold">Avance %</th>
-                  <th className="px-3 py-2 text-right font-semibold">Presupuesto</th>
+                  <th className="px-3 py-2 text-right font-semibold">Ejecución (Pto. Def.)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -426,7 +426,7 @@ function AnalisisContent({
                       </td>
                       <td className="px-3 py-2 text-right font-medium">{row.productos}</td>
                       <td className="px-3 py-2 text-right">{row.avance_pct.toFixed(1)}%</td>
-                      <td className="px-3 py-2 text-right font-medium">{formatearMoneda(row.presupuesto)}</td>
+                      <td className="px-3 py-2 text-right font-medium">{formatearMoneda(row.ejecucion ?? row.presupuesto)}</td>
                     </tr>
                   ))
                 )}

@@ -146,3 +146,26 @@ def totales_ejecucion_codigos(
         pto += data.get("pto_definitivo", 0.0)
         pagos += data.get("pagos", 0.0)
     return {"pto_definitivo": pto, "pagos": pagos}
+
+
+def ejecucion_totales_anio_plan(entity_id: int, codigos: list[str], anio: int) -> dict[str, float]:
+    """Totales de ejecución del año para los productos del plan indicados."""
+    ejecucion_map = ejecucion_por_codigo(entity_id, codigos, anio)
+    totales = totales_ejecucion_codigos(ejecucion_map, codigos)
+    pto = totales["pto_definitivo"]
+    pagos = totales["pagos"]
+    return {
+        **totales,
+        "pct_pagado": round((pagos / pto) * 100, 1) if pto else 0.0,
+    }
+
+
+def normalizar_anio_pdm(anio: int | None) -> int:
+    """Restringe el año de seguimiento al cuatrienio PDM."""
+    from datetime import datetime
+
+    if anio is None:
+        anio = datetime.now().year
+    if anio in ANIOS_PDM:
+        return anio
+    return ANIOS_PDM[-1]
