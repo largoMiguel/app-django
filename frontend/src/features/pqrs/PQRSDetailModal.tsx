@@ -53,7 +53,7 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
   const [data, setData] = useState<PQRS | null>(null);
   const [secretarias, setSecretarias] = useState<Secretaria[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"detalle" | "historial">("detalle");
+  const [tab, setTab] = useState<"detalle" | "correos" | "historial">("detalle");
 
   const [respuesta, setRespuesta] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -143,6 +143,16 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
     [data],
   );
 
+  const correoAlertaActiva = useMemo(() => {
+    if (!data?.correos?.length) return false;
+    const correosCiudadano = data.correos.filter(
+      (c) => c.tipo === "radicacion" || c.tipo === "respuesta",
+    );
+    if (!correosCiudadano.length) return false;
+    const latestPorEmail = latestEstadoPorEmail(correosCiudadano);
+    return data.correo_alerta ?? tieneCorreoAlertaActiva(latestPorEmail);
+  }, [data]);
+
   async function handleAction(fn: () => Promise<PQRS>) {
     setBusy(true);
     setErr(null);
@@ -204,6 +214,13 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
             <div className="flex gap-3">
               <TabBtn active={tab === "detalle"} onClick={() => setTab("detalle")}>
                 Detalle
+              </TabBtn>
+              <TabBtn active={tab === "correos"} onClick={() => setTab("correos")}>
+                <Mail className="inline h-3.5 w-3.5 mr-1" />
+                Correos
+                {correoAlertaActiva && (
+                  <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-500" title="Requiere atención" />
+                )}
               </TabBtn>
               <TabBtn active={tab === "historial"} onClick={() => setTab("historial")}>
                 <History className="inline h-3.5 w-3.5 mr-1" /> Historial
@@ -349,123 +366,6 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                     }
                   />
                 )}
-
-                {/* Estado de correos */}
-                {(data.correos?.length ?? 0) > 0 && (() => {
-                  const correos = data.correos || [];
-                  const correosCiudadano = correos.filter(
-                    (c) => c.tipo === "radicacion" || c.tipo === "respuesta",
-                  );
-                  const correosAsignacion = correos.filter((c) => c.tipo === "asignacion");
-                  const latestPorEmail = latestEstadoPorEmail(correosCiudadano);
-                  const alertaActiva =
-                    data.correo_alerta ?? tieneCorreoAlertaActiva(latestPorEmail);
-                  const correoReenvio = alertaActiva
-                    ? correoParaReenviar(correosCiudadano, latestPorEmail)
-                    : null;
-                  const mensajeExito = mensajeEstadoCorreo(latestPorEmail);
-                  const tieneCorreosCiudadano = correosCiudadano.length > 0;
-                  const abrirReenvio = (correo: PQRSCorreoItem) => {
-                    const destinos = destinatariosFallidosActivos(correo, latestPorEmail)
-                      .map((d) => d.email)
-                      .filter(Boolean)
-                      .join(", ");
-                    setReenviarCorreoId(correo.id);
-                    setEmailDestino(destinos);
-                    setEmailTemporal(destinos);
-                    setReenviarEmailEditado(false);
-                    setEmailEditando(false);
-                    setShowEmailConfirm(true);
-                  };
-                  return (
-                    <section
-                      className={`rounded-lg border p-4 ${
-                        !tieneCorreosCiudadano
-                          ? "border-slate-200 bg-slate-50"
-                          : alertaActiva
-                            ? "border-red-300 bg-red-50"
-                            : "border-emerald-200 bg-emerald-50"
-                      }`}
-                    >
-                      <h3
-                        className={`text-xs font-bold uppercase tracking-wide mb-2 flex items-center gap-1.5 ${
-                          !tieneCorreosCiudadano
-                            ? "text-slate-700"
-                            : alertaActiva
-                              ? "text-red-800"
-                              : "text-emerald-800"
-                        }`}
-                      >
-                        <Mail className="h-3.5 w-3.5" />
-                        Estado del correo
-                        {tieneCorreosCiudadano && alertaActiva && (
-                          <span className="inline-flex items-center gap-1 rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white normal-case">
-                            <AlertTriangle className="h-3 w-3" /> Requiere atención
-                          </span>
-                        )}
-                        {tieneCorreosCiudadano && !alertaActiva && (
-                          <span className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white normal-case">
-                            <CheckCircle2 className="h-3 w-3" /> Enviado correctamente
-                          </span>
-                        )}
-                      </h3>
-                      {tieneCorreosCiudadano && !alertaActiva && (
-                        <p className="mb-3 text-sm text-emerald-800">{mensajeExito}</p>
-                      )}
-                      {tieneCorreosCiudadano && alertaActiva && (canRespond || canAdmin) && (
-                        <div className="mb-3 flex flex-wrap gap-2">
-                          {correoReenvio && (
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => abrirReenvio(correoReenvio)}
-                              className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-                            >
-                              <AlertTriangle className="h-3.5 w-3.5" />
-                              Corregir y reenviar
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => setShowDescartarConfirm(true)}
-                            className="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                            No enviar más por correo
-                          </button>
-                        </div>
-                      )}
-                      <div className="space-y-3">
-                        {correosCiudadano.map((c) => (
-                          <CorreoEstadoCard
-                            key={c.id}
-                            correo={c}
-                            latestPorEmail={latestPorEmail}
-                            modoHistorial={!alertaActiva}
-                          />
-                        ))}
-                        {correosAsignacion.length > 0 && (
-                          <div className="pt-2 border-t border-slate-200">
-                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                              Notificaciones de asignación
-                            </p>
-                            <div className="space-y-2">
-                              {correosAsignacion.map((c) => (
-                                <CorreoEstadoCard
-                                  key={c.id}
-                                  correo={c}
-                                  latestPorEmail={latestEstadoPorEmail(correosAsignacion)}
-                                  modoHistorial
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                  );
-                })()}
 
                 {/* Respuesta existente */}
                 {data.respuesta && (
@@ -691,6 +591,140 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                 )}
               </div>
             )}
+
+            {!loading && data && tab === "correos" && (() => {
+              const correos = data.correos || [];
+              const correosCiudadano = correos.filter(
+                (c) => c.tipo === "radicacion" || c.tipo === "respuesta",
+              );
+              const correosAsignacion = correos.filter((c) => c.tipo === "asignacion");
+              const latestPorEmail = latestEstadoPorEmail(correosCiudadano);
+              const alertaActiva =
+                data.correo_alerta ?? tieneCorreoAlertaActiva(latestPorEmail);
+              const correoReenvio = alertaActiva
+                ? correoParaReenviar(correosCiudadano, latestPorEmail)
+                : null;
+              const mensajeExito = mensajeEstadoCorreo(latestPorEmail);
+              const tieneCorreosCiudadano = correosCiudadano.length > 0;
+              const abrirReenvio = (correo: PQRSCorreoItem) => {
+                const destinos = destinatariosFallidosActivos(correo, latestPorEmail)
+                  .map((d) => d.email)
+                  .filter(Boolean)
+                  .join(", ");
+                setReenviarCorreoId(correo.id);
+                setEmailDestino(destinos);
+                setEmailTemporal(destinos);
+                setReenviarEmailEditado(false);
+                setEmailEditando(false);
+                setShowEmailConfirm(true);
+              };
+
+              if (correos.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+                    <Mail className="mb-3 h-10 w-10 text-slate-300" />
+                    <p className="text-sm font-medium text-slate-600">Sin notificaciones por correo</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Aquí aparecerán los envíos de radicación, respuesta y asignación.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <section
+                  className={`rounded-lg border p-4 ${
+                    !tieneCorreosCiudadano
+                      ? "border-slate-200 bg-slate-50"
+                      : alertaActiva
+                        ? "border-red-300 bg-red-50"
+                        : "border-emerald-200 bg-emerald-50"
+                  }`}
+                >
+                  <h3
+                    className={`text-xs font-bold uppercase tracking-wide mb-2 flex items-center gap-1.5 ${
+                      !tieneCorreosCiudadano
+                        ? "text-slate-700"
+                        : alertaActiva
+                          ? "text-red-800"
+                          : "text-emerald-800"
+                    }`}
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    Estado del correo
+                    {tieneCorreosCiudadano && alertaActiva && (
+                      <span className="inline-flex items-center gap-1 rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white normal-case">
+                        <AlertTriangle className="h-3 w-3" /> Requiere atención
+                      </span>
+                    )}
+                    {tieneCorreosCiudadano && !alertaActiva && (
+                      <span className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white normal-case">
+                        <CheckCircle2 className="h-3 w-3" /> Enviado correctamente
+                      </span>
+                    )}
+                  </h3>
+                  {tieneCorreosCiudadano && !alertaActiva && (
+                    <p className="mb-3 text-sm text-emerald-800">{mensajeExito}</p>
+                  )}
+                  {tieneCorreosCiudadano && alertaActiva && (canRespond || canAdmin) && (
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {correoReenvio && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => abrirReenvio(correoReenvio)}
+                          className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          Corregir y reenviar
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => setShowDescartarConfirm(true)}
+                        className="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        No enviar más por correo
+                      </button>
+                    </div>
+                  )}
+                  <div className="space-y-3">
+                    {correosCiudadano.map((c) => (
+                      <CorreoEstadoCard
+                        key={c.id}
+                        correo={c}
+                        latestPorEmail={latestPorEmail}
+                        modoHistorial={!alertaActiva}
+                      />
+                    ))}
+                    {correosAsignacion.length > 0 && (
+                      <div className="pt-2 border-t border-slate-200">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Notificaciones de asignación
+                        </p>
+                        <div className="space-y-2">
+                          {correosAsignacion.map((c) => (
+                            <CorreoEstadoCard
+                              key={c.id}
+                              correo={c}
+                              latestPorEmail={latestEstadoPorEmail(correosAsignacion)}
+                              modoHistorial
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {err && (
+                    <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {err}
+                    </div>
+                  )}
+                </section>
+              );
+            })()}
 
             {!loading && data && tab === "historial" && (
               <div className="space-y-3">
