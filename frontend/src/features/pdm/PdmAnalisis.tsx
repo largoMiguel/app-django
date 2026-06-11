@@ -108,7 +108,13 @@ function AnalisisContent({
   isAdmin: boolean;
 }) {
   const anioLabel = filtroAnio === "all" ? "todos los años" : String(filtroAnio);
-  const estado = data.estado_distribucion;
+  const estado = data.estado_distribucion ?? {
+    pendiente: 0,
+    en_progreso: 0,
+    completado: 0,
+    por_ejecutar: 0,
+    total: 0,
+  };
   const estadoTotal = estado.total || 1;
 
   const pieEstadoData = useMemo(
@@ -124,7 +130,7 @@ function AnalisisContent({
 
   const sectorChartData = useMemo(
     () =>
-      data.por_sector_estado.map((s) => ({
+      (data.por_sector_estado ?? []).map((s) => ({
         ...s,
         sectorShort: truncateLabel(s.sector, 32),
       })),
@@ -133,7 +139,7 @@ function AnalisisContent({
 
   const metasChartData = useMemo(
     () =>
-      data.metas_por_anio.map((m) => ({
+      (data.metas_por_anio ?? []).map((m) => ({
         anio: String(m.anio),
         programada: m.programada,
         ejecutada: m.ejecutada,
@@ -144,7 +150,7 @@ function AnalisisContent({
 
   const odsPieData = useMemo(
     () =>
-      data.por_ods.map((o, idx) => ({
+      (data.por_ods ?? []).map((o, idx) => ({
         name: truncateLabel(o.ods, 32),
         fullName: o.ods,
         value: o.productos,
@@ -154,8 +160,8 @@ function AnalisisContent({
   );
 
   const pctPagadoGlobal =
-    data.presupuesto.pto_definitivo > 0
-      ? Math.round((data.presupuesto.pagos / data.presupuesto.pto_definitivo) * 1000) / 10
+    (data.presupuesto?.pto_definitivo ?? 0) > 0
+      ? Math.round(((data.presupuesto?.pagos ?? 0) / (data.presupuesto?.pto_definitivo ?? 1)) * 1000) / 10
       : 0;
 
   return (
@@ -181,14 +187,14 @@ function AnalisisContent({
         />
         <PdmStatCard
           label="Presupuesto Total (Ejecución)"
-          value={formatearMoneda(data.presupuesto.pto_definitivo)}
+          value={formatearMoneda(data.presupuesto?.pto_definitivo ?? 0)}
           hint="Pto. definitivo"
           icon={<DollarSign size={24} className="text-blue-600" />}
           accent="blue"
         />
         <PdmStatCard
           label="Presupuesto Pagado"
-          value={formatearMoneda(data.presupuesto.pagos)}
+          value={formatearMoneda(data.presupuesto?.pagos ?? 0)}
           hint={`${pctPagadoGlobal}% de la ejecución`}
           icon={<DollarSign size={24} className="text-amber-600" />}
           accent="amber"
@@ -324,10 +330,10 @@ function AnalisisContent({
 
       <PdmCard title="Por Línea Estratégica" icon={<Layers size={16} />}>
         <div className="max-h-96 space-y-4 overflow-y-auto pr-1">
-          {data.por_linea.length === 0 ? (
+          {(data.por_linea ?? []).length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-500">Sin datos por línea estratégica.</p>
           ) : (
-            data.por_linea.map((item) => (
+            (data.por_linea ?? []).map((item) => (
               <div key={item.linea}>
                 <div className="mb-1 flex flex-wrap justify-between gap-2 text-sm">
                   <span className="min-w-0 flex-1 truncate text-slate-700" title={item.linea}>
@@ -379,7 +385,7 @@ function AnalisisContent({
                 </ResponsiveContainer>
               </div>
               <div className="min-h-0 max-h-[220px] flex-1 space-y-1 overflow-y-auto pr-1">
-                {data.por_ods.map((o, idx) => (
+                {(data.por_ods ?? []).map((o, idx) => (
                   <div key={o.ods} className="flex items-start gap-2 text-xs text-slate-600">
                     <span
                       className="mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm"
@@ -412,14 +418,14 @@ function AnalisisContent({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {data.por_ods.length === 0 ? (
+                {(data.por_ods ?? []).length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-3 py-8 text-center text-slate-400">
                       Sin datos
                     </td>
                   </tr>
                 ) : (
-                  data.por_ods.map((row, idx) => (
+                  (data.por_ods ?? []).map((row, idx) => (
                     <tr key={row.ods} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
                       <td className="max-w-[200px] truncate px-3 py-2 text-slate-800" title={row.ods}>
                         {row.ods}
@@ -453,7 +459,7 @@ function AnalisisContent({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {data.presupuestal_por_anio.map((row, idx) => (
+              {(data.presupuestal_por_anio ?? []).map((row, idx) => (
                 <tr key={row.anio} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
                   <td className="px-4 py-2 font-medium text-slate-800">{row.anio}</td>
                   <td className="px-4 py-2 text-right">{formatearMoneda(row.plan)}</td>
@@ -472,7 +478,7 @@ function AnalisisContent({
         <div className="mt-4 hidden sm:block">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart
-              data={data.presupuestal_por_anio.map((r) => ({
+              data={(data.presupuestal_por_anio ?? []).map((r) => ({
                 anio: String(r.anio),
                 ejecucion: r.ejecucion,
                 pagos: r.pagos,
@@ -491,7 +497,7 @@ function AnalisisContent({
         </div>
       </ChartCard>
 
-      {isAdmin && data.por_secretaria.length > 0 && (
+      {isAdmin && (data.por_secretaria ?? []).length > 0 && (
         <ChartCard
           title="Análisis por Secretaría"
           icon={<Layers size={16} className="text-indigo-600" />}
@@ -513,7 +519,7 @@ function AnalisisContent({
                 </tr>
               </thead>
               <tbody>
-                {data.por_secretaria.map((s) => (
+                {(data.por_secretaria ?? []).map((s) => (
                   <tr key={s.secretaria_id} className="border-b border-slate-50 hover:bg-slate-50/80">
                     <td className="max-w-[180px] truncate px-3 py-3 font-medium text-slate-800" title={s.secretaria}>
                       {s.secretaria}
@@ -615,6 +621,13 @@ export default function PdmAnalisis({
         <div className="flex h-48 flex-col items-center justify-center gap-2 text-center text-red-600 text-sm">
           <AlertTriangle className="h-8 w-8" />
           <p>{loadError}</p>
+        </div>
+      )}
+
+      {!isLoading && !loadError && !data && (
+        <div className="flex h-48 flex-col items-center justify-center gap-2 text-center text-slate-500 text-sm">
+          <AlertTriangle className="h-8 w-8 text-amber-500" />
+          <p>No hay datos de análisis disponibles.</p>
         </div>
       )}
 

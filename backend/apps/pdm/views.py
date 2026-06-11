@@ -33,7 +33,7 @@ from .access import (
     user_can_access_producto,
 )
 from .ejecucion_resumen import (
-    ejecucion_totales_anio_plan,
+    ejecucion_totales_anio_entidad,
     normalizar_anio_pdm,
     resumen_ejecucion_entidad,
 )
@@ -234,8 +234,7 @@ class PdmStatsView(APIView):
         except (TypeError, ValueError):
             anio = datetime.now().year
         anio = normalizar_anio_pdm(anio)
-        codigos_plan = list(productos_qs.values_list("codigo_producto", flat=True))
-        ejecucion_anio = ejecucion_totales_anio_plan(entity.id, codigos_plan, anio)
+        ejecucion_anio = ejecucion_totales_anio_entidad(request.user, entity, anio)
         plan_anio = float(stats["presupuesto_por_anio"].get(str(anio), 0))
         productos_estado = productos_for_stats(productos_qs)
         stats["estado_por_anio"] = compute_estado_stats(productos_estado, entity.id, anio)

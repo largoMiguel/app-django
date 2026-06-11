@@ -150,15 +150,90 @@ def totales_ejecucion_codigos(
     return {"pto_definitivo": pto, "pagos": pagos}
 
 
+def ejecucion_totales_anio_entidad(user, entity: Entity, anio: int) -> dict[str, float]:
+    """Totales de ejecución del año para productos del plan (subquery, sin materializar códigos)."""
+    codigos_qs = productos_queryset_for_user(user, entity).values_list("codigo_producto", flat=True)
+    qs = ejecucion_queryset_for_user(user, entity).filter(anio=anio, codigo_producto__in=codigos_qs)
+    agg = qs.aggregate(pto_definitivo=Sum("pto_definitivo"), pagos=Sum("pagos"))
+    pto = _float(agg["pto_definitivo"])
+    pagos = _float(agg["pagos"])
+    return {
+        "pto_definitivo": pto,
+        "pagos": pagos,
+        "pct_pagado": round((pagos / pto) * 100, 1) if pto else 0.0,
+    }
+
+
 def ejecucion_totales_anio_plan(entity_id: int, codigos: list[str], anio: int) -> dict[str, float]:
     """Totales de ejecución del año para los productos del plan indicados."""
-    ejecucion_map = ejecucion_por_codigo(entity_id, codigos, anio)
-    totales = totales_ejecucion_codigos(ejecucion_map, codigos)
-    pto = totales["pto_definitivo"]
-    pagos = totales["pagos"]
+    if not codigos:
+        return {"pto_definitivo": 0.0, "pagos": 0.0, "pct_pagado": 0.0}
+    agg = (
+        PDMEjecucionPresupuestal.objects.filter(
+            entity_id=entity_id,
+            codigo_producto__in=codigos,
+            anio=anio,
+        )
+        .aggregate(pto_definitivo=Sum("pto_definitivo"), pagos=Sum("pagos"))
+    )
+    pto = _float(agg["pto_definitivo"])
+    pagos = _float(agg["pagos"])
     return {
-        **totales,
+        "pto_definitivo": pto,
+        "pagos": pagos,
         "pct_pagado": round((pagos / pto) * 100, 1) if pto else 0.0,
+    }
+
+
+def ejecucion_totales_productos_qs(entity_id: int, productos_qs, anio: int | None = None) -> dict[str, float]:
+    """Totales de ejecución para un queryset de productos (usa subquery)."""
+    codigos_qs = productos_qs.values_list("codigo_producto", flat=True)
+    qs = PDMEjecucionPresupuestal.objects.filter(entity_id=entity_id, codigo_producto__in=codigos_qs)
+    if anio is not None:
+        qs = qs.filter(anio=anio)
+    agg = qs.aggregate(pto_definitivo=Sum("pto_definitivo"), pagos=Sum("pagos"))
+    pto = _float(agg["pto_definitivo"])
+    pagos = _float(agg["pagos"])
+    return {"pto_definitivo": pto, "pagos": pagos}
+
+
+def ejecucion_map_productos_qs(entity_id: int, productos_qs, anio: int | None = None) -> dict[str, dict[str, float]]:
+    """Ejecución agrupada por código para productos del queryset (usa subquery)."""
+    codigos_qs = productos_qs.values_list("codigo_producto", flat=True)
+    qs = PDMEjecucionPresupuestal.objects.filter(entity_id=entity_id, codigo_producto__in=codigos_qs)
+    if anio is not None:
+        qs = qs.filter(anio=anio)
+    rows = qs.values("codigo_producto").annotate(
+        pto_definitivo=Sum("pto_definitivo"),
+        pagos=Sum("pagos"),
+    )
+    return {
+        str(row["codigo_producto"]): {
+            "pto_definitivo": _float(row["pto_definitivo"]),
+            "pagos": _float(row["pagos"]),
+        }
+        for row in rows
+    }
+
+
+def ejecucion_por_anio_productos_qs(entity_id: int, productos_qs) -> dict[int, dict[str, float]]:
+    """Ejecución por año para productos del queryset (usa subquery)."""
+    codigos_qs = productos_qs.values_list("codigo_producto", flat=True)
+    rows = (
+        PDMEjecucionPresupuestal.objects.filter(
+            entity_id=entity_id,
+            codigo_producto__in=codigos_qs,
+            anio__in=ANIOS_PDM,
+        )
+        .values("anio")
+        .annotate(pto_definitivo=Sum("pto_definitivo"), pagos=Sum("pagos"))
+    )
+    return {
+        int(row["anio"]): {
+            "pto_definitivo": _float(row["pto_definitivo"]),
+            "pagos": _float(row["pagos"]),
+        }
+        for row in rows
     }
 
 

@@ -158,7 +158,11 @@ export default function PdmPage(): ReactElement {
   const tieneDatos = Boolean(status?.tiene_datos);
 
   const { data: meta } = usePdmMeta(slug, tieneDatos && vista === "productos");
-  const { data: statsData } = usePdmStats(slug, filtroAnio, tieneDatos && vista !== "detalle");
+  const { data: statsData } = usePdmStats(
+    slug,
+    filtroAnio,
+    tieneDatos && (vista === "dashboard" || vista === "productos"),
+  );
   const estadisticas = useMemo(() => (statsData ? statsFromApi(statsData) : null), [statsData]);
   const statsEstado = useMemo(
     () =>
