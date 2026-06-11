@@ -1,4 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { aiApi, type AIInsight } from "@/core/api/ai";
+import AIAlertsBanner from "@/components/ai/AIAlertsBanner";
+import AIInsightsSection from "@/components/ai/AIInsightsSection";
+import AICommandBar from "@/components/ai/AICommandBar";
 import {
   PieChart,
   Pie,
@@ -92,11 +96,22 @@ export default function PQRSDashboard() {
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const [showInformes, setShowInformes] = useState(false);
+  const [insights, setInsights] = useState<AIInsight[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
 
   const canSeePqrs = canAccess(user, {
     roles: ["admin", "secretario", "ciudadano"],
     permissions: [PERM.PQRS_VIEW],
   });
+
+  useEffect(() => {
+    if (!canSeePqrs) return;
+    setInsightsLoading(true);
+    aiApi.pqrsInsights()
+      .then((d) => setInsights(d.insights))
+      .catch(() => {})
+      .finally(() => setInsightsLoading(false));
+  }, [canSeePqrs]);
 
   const isAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_CHANGE] });
   const canSeeInformes = isAdmin && Boolean(user?.entity?.enable_reports_pdf);
@@ -181,6 +196,11 @@ export default function PQRSDashboard() {
 
   return (
     <div className="space-y-6">
+      <AIAlertsBanner />
+      <AICommandBar
+        placeholder="Búsqueda inteligente en PQRS..."
+        contentTypes={["pqrs_descripcion", "pqrs_respuesta"]}
+      />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -214,6 +234,7 @@ export default function PQRSDashboard() {
           </Link>
         </div>
       </div>
+      <AIInsightsSection insights={insights} loading={insightsLoading} />
       {/* Stats — 4 tarjetas principales clickeables */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard

@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "apps.entities",
     "apps.pqrs",
     "apps.pdm",
+    "apps.ai",
 ]
 
 MIDDLEWARE = [
@@ -232,9 +233,20 @@ CLERK_WEBHOOK_SIGNING_SECRET = os.getenv("CLERK_WEBHOOK_SIGNING_SECRET", "")
 # OpenAI (IA cloud para PQRS automática)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+AI_EMBEDDING_MODEL = os.getenv("AI_EMBEDDING_MODEL", "text-embedding-3-small")
 # Chat PDM público — API key separada (PQRS sigue usando OPENAI_API_KEY)
 PDM_CHAT_OPENAI_API_KEY = os.getenv("PDM_CHAT_OPENAI_API_KEY", "")
 PDM_CHAT_MODEL = os.getenv("PDM_CHAT_MODEL", "") or OPENAI_MODEL
+
+# Celery (broker Redis)
+CELERY_BROKER_URL = _redis_url or "redis://localhost:6379/1"
+CELERY_RESULT_BACKEND = _redis_url or "redis://localhost:6379/1"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 300
 
 # Email (notificaciones PQRS)
 EMAIL_BACKEND = os.getenv(

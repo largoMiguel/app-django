@@ -17,7 +17,10 @@ import {
   CloudUpload,
   File as FileIcon,
   XCircle,
+  Sparkles,
 } from "lucide-react";
+import { aiApi } from "@/core/api/ai";
+import AIDraftPanel from "@/components/ai/AIDraftPanel";
 import {
   pqrsApi,
   type PQRS,
@@ -75,6 +78,26 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
   const [showDescartarConfirm, setShowDescartarConfirm] = useState(false);
   const [dragOverArchivo, setDragOverArchivo] = useState(false);
   const archivoRef = useRef<HTMLInputElement>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftText, setDraftText] = useState("");
+  const [draftNormativa, setDraftNormativa] = useState("");
+  const [showDraft, setShowDraft] = useState(false);
+
+  async function generarBorrador() {
+    if (!data) return;
+    setDraftLoading(true);
+    setErr(null);
+    try {
+      const result = await aiApi.pqrsDraft(data.id);
+      setDraftText(result.draft);
+      setDraftNormativa(result.normativa);
+      setShowDraft(true);
+    } catch (e) {
+      setErr(formatApiError(e));
+    } finally {
+      setDraftLoading(false);
+    }
+  }
 
   async function abrirArchivo(url: string) {
     try {
@@ -405,6 +428,32 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                       <p className="mb-2 text-xs text-emerald-800">
                         Esta PQRS no está asignada. Como administrador, puedes responder directamente.
                       </p>
+                    )}
+                    <div className="mb-3 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={generarBorrador}
+                        disabled={draftLoading}
+                        className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {draftLoading ? "Generando..." : "Borrador con IA"}
+                      </button>
+                    </div>
+                    {showDraft && (
+                      <div className="mb-3">
+                        <AIDraftPanel
+                          draft={draftText}
+                          loading={draftLoading}
+                          normativa={draftNormativa}
+                          onAccept={(text) => {
+                            setRespuesta(text);
+                            setShowDraft(false);
+                          }}
+                          onRegenerate={generarBorrador}
+                          onClose={() => setShowDraft(false)}
+                        />
+                      </div>
                     )}
                     <textarea
                       value={respuesta}

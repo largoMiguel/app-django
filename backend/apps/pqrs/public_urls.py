@@ -1,5 +1,7 @@
 from django.urls import path
 
+from apps.ai.views import PQRSStatusLookupView
+
 from .public_views import (
     PublicEntityInfoView,
     PublicPQRSAutoCreateView,
@@ -13,5 +15,10 @@ urlpatterns = [
         "entity/<slug:slug>/pqrs/auto/",
         PublicPQRSAutoCreateView.as_view(),
         name="public-pqrs-auto-create",
+    ),
+    path(
+        "entity/<slug:slug>/pqrs/status/",
+        PQRSStatusLookupView.as_view(),
+        name="public-pqrs-status",
     ),
 ]

@@ -2,7 +2,7 @@ import {
   Search, ChevronLeft, ChevronRight, Plus, FileText, Eye, Trash2,
   AlertTriangle, ArrowLeft, SlidersHorizontal, Users, ListFilter, Tag, RotateCcw, Info, BellRing, Clock, Mail,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import NuevaPQRSModal from "./NuevaPQRSModal";
@@ -20,7 +20,10 @@ import { formatFechaCO } from "@/core/datetime";
 import { usePqrsList, usePqrsStats, useInvalidatePqrs } from "@/core/api/hooks/usePqrs";
 import { formatApiError } from "@/core/api/errors";
 import { useAuthStore, canAccess, PERM } from "@/core/auth/store";
-
+import AICommandBar from "@/components/ai/AICommandBar";
+import AIAlertsBanner from "@/components/ai/AIAlertsBanner";
+import ConfidenceBadge from "@/components/ai/ConfidenceBadge";
+import { aiApi, type SLARisk } from "@/core/api/ai";
 const PAGE_SIZE = 15;
 
 function tiempoRestante(p: PQRS): { text: string; cls: string } {
@@ -45,6 +48,17 @@ function pageNumbers(totalPages: number, currentPage: number): (number | "...")[
 
 export default function PQRSPage() {
   const { user } = useAuthStore();
+  const [slaRisks, setSlaRisks] = useState<Record<number, SLARisk>>({});
+
+  useEffect(() => {
+    aiApi.pqrsCompliance()
+      .then((d) => {
+        const map: Record<number, SLARisk> = {};
+        d.sla_risks.forEach((r) => { map[r.pqrs_id] = r; });
+        setSlaRisks(map);
+      })
+      .catch(() => {});
+  }, []);
   const navigate = useNavigate();
   const location = useLocation();
   const invalidatePqrs = useInvalidatePqrs();
@@ -143,6 +157,12 @@ export default function PQRSPage() {
 
   return (
     <div className="space-y-6">
+      <AIAlertsBanner onAlertClick={(a) => a.object_id && navigate(`?id=${a.object_id}`)} />
+      <AICommandBar
+        placeholder="Búsqueda inteligente en PQRS..."
+        contentTypes={["pqrs_descripcion", "pqrs_respuesta"]}
+        onResultClick={(r) => navigate(`?id=${r.object_id}`)}
+      />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#3eafd4]/10 text-[#3eafd4]">
@@ -442,6 +462,9 @@ export default function PQRSPage() {
                         <span title="Correo con error de envío">
                           <Mail className="h-3.5 w-3.5 text-red-500" />
                         </span>
+                      )}
+                      {slaRisks[p.id] && slaRisks[p.id].risk_score >= 50 && (
+                        <ConfidenceBadge score={slaRisks[p.id].risk_score} size="sm" label={`Riesgo ${slaRisks[p.id].risk_score}`} />
                       )}
                     </span>
                   </td>

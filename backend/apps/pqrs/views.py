@@ -696,5 +696,63 @@ class PQRSViewSet(viewsets.ModelViewSet):
         except ValidationError as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
 
+        # Detección de duplicados/similares
+        similar = []
+        try:
+            from apps.ai.models import ContentEmbedding
+            from apps.ai.services.embeddings import find_similar, semantic_search
+            from apps.ai.tasks import index_pqrs_embedding
+
+            index_pqrs_embedding.delay(pqrs.id)
+            similar = find_similar(
+                entity.id,
+                ContentEmbedding.ContentType.PQRS_DESCRIPCION,
+                pqrs.id,
+                limit=3,
+                min_similarity=0.78,
+            )
+            if not similar and pqrs.descripcion:
+                similar = semantic_search(
+                    entity.id,
+                    pqrs.descripcion[:500],
+                    content_types=[ContentEmbedding.ContentType.PQRS_DESCRIPCION],
+                    limit=3,
+                    min_similarity=0.78,
+                )
+        except Exception:  # noqa: BLE001
+            logger.debug("Detección de duplicados omitida")
+
         ser = PQRSSerializer(pqrs, context={"request": request})
-        return Response(ser.data, status=status.HTTP_201_CREATED)
+        data = ser.data
+        if similar:
+            data["similar_pqrs"] = similar
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="draft-respuesta")
+    def draft_respuesta(self, request, pk=None):
+        """Genera borrador de respuesta con IA (Ley 1755)."""
+        pqrs = self.get_object()
+        user = request.user
+        roles = _roles(user)
+        if not ("admin" in roles or "secretario" in roles):
+            raise PermissionDenied("Sin permiso.")
+        if "secretario" in roles and "admin" not in roles:
+            if not usuario_asignado_a_pqrs(user, pqrs):
+                raise PermissionDenied("No tienes esta PQRS asignada.")
+        if pqrs.estado in (EstadoPQRS.RESPONDIDA, EstadoPQRS.CERRADA):
+            raise ValidationError({"detail": "PQRS ya respondida o cerrada."})
+
+        from apps.ai.services.pqrs_draft import generate_pqrs_draft
+
+        extra_context = (request.data.get("extra_context") or "").strip()
+        try:
+            result = generate_pqrs_draft(pqrs, user_id=user.id, extra_context=extra_context)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:  # noqa: BLE001
+            logger.exception("Error generando borrador PQRS")
+            return Response(
+                {"detail": "No se pudo generar el borrador. Intenta más tarde."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(result)

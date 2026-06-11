@@ -3,7 +3,7 @@ version: "3.8"
 services:
   # PostgreSQL database
   db:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     container_name: softone-db-dev
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-softone}

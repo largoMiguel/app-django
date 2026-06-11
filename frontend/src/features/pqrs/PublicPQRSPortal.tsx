@@ -21,7 +21,9 @@ import {
   Sparkles,
   XCircle,
 } from "lucide-react";
+import { aiApi, type PQRSStatusLookup } from "@/core/api/ai";
 import { publicPqrsApi, type EntityPublicInfo, type PQRSPublicResult } from "@/core/api/pqrsPublic";
+import { labelEstado } from "@/features/pqrs/labels";
 import { formatFechaCO } from "@/core/datetime";
 import { TIPO_SOLICITUD_LABEL } from "@/features/pqrs/labels";
 import { MAX_ARCHIVOS_PQRS, MAX_FILE_SIZE_MB } from "@/core/api/pqrs";
@@ -94,6 +96,10 @@ export default function PublicPQRSPortal() {
   const [manualErrors, setManualErrors] = useState<Record<string, string>>({});
   const [autoFileWarning, setAutoFileWarning] = useState<string | null>(null);
   const [manualFileWarning, setManualFileWarning] = useState<string | null>(null);
+  const [statusRadicado, setStatusRadicado] = useState("");
+  const [statusResult, setStatusResult] = useState<PQRSStatusLookup | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [showStatusLookup, setShowStatusLookup] = useState(false);
 
   const autoFileRef = useRef<HTMLInputElement>(null);
   const manualFileRef = useRef<HTMLInputElement>(null);
@@ -335,6 +341,67 @@ export default function PublicPQRSPortal() {
               <CalendarDays className="h-3.5 w-3.5" />
               Horario: {entity.horario_atencion}
             </p>
+          )}
+        </div>
+
+        {/* Consulta de estado por radicado */}
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+          <button
+            type="button"
+            onClick={() => setShowStatusLookup((v) => !v)}
+            className="flex w-full items-center justify-between text-sm font-medium text-slate-700"
+          >
+            <span className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-blue-500" />
+              Consultar estado de mi solicitud
+            </span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${showStatusLookup ? "rotate-180" : ""}`} />
+          </button>
+          {showStatusLookup && (
+            <div className="mt-3 space-y-3">
+              <input
+                type="text"
+                value={statusRadicado}
+                onChange={(e) => setStatusRadicado(e.target.value)}
+                placeholder="Número de radicado (ej. PQRS-1-20260610-001)"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+              />
+              <button
+                type="button"
+                disabled={!statusRadicado.trim() || statusLoading}
+                onClick={async () => {
+                  if (!slug) return;
+                  setStatusLoading(true);
+                  setStatusResult(null);
+                  try {
+                    const res = await aiApi.pqrsStatusLookup(slug, statusRadicado.trim());
+                    setStatusResult(res);
+                  } catch {
+                    setStatusResult({ found: false });
+                  } finally {
+                    setStatusLoading(false);
+                  }
+                }}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {statusLoading ? "Consultando..." : "Consultar"}
+              </button>
+              {statusResult && !statusResult.found && (
+                <p className="text-sm text-red-600">No se encontró una PQRS con ese radicado.</p>
+              )}
+              {statusResult?.found && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm space-y-1">
+                  <p><strong>Estado:</strong> {labelEstado(statusResult.estado ?? "")}</p>
+                  <p><strong>Asunto:</strong> {statusResult.asunto}</p>
+                  {statusResult.fecha_vencimiento && (
+                    <p><strong>Vence:</strong> {formatFechaCO(statusResult.fecha_vencimiento)}</p>
+                  )}
+                  {statusResult.tiene_respuesta && (
+                    <p className="text-emerald-700 font-medium">✓ Respuesta disponible</p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
