@@ -215,7 +215,7 @@ export default function PQRSPage() {
         </div>
       </div>
 
-      <PqrsAIInsights title="Insights IA PQRS" />
+      {modoAlerta && <PqrsAIInsights title="Insights IA PQRS" />}
 
       {showNuevaModal && (
         <NuevaPQRSModal

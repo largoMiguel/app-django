@@ -4,18 +4,15 @@ import { useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   BarChart3,
-  Bot,
   CheckCircle2,
   CloudUpload,
   FileSpreadsheet,
   Layers,
   Upload,
 } from "lucide-react";
-import CopilotPanel from "@/components/ai/CopilotPanel";
 import ModuleAIAlertsBanner from "@/components/ai/ModuleAIAlertsBanner";
 import PdmAIInsights from "@/components/ai/PdmAIInsights";
 import { useAuthStore } from "@/core/auth/store";
-import { getEntityCopilotModules } from "@/core/ai/copilot";
 import { bpinApi, type ProyectoBpin } from "@/core/api/bpin";
 import { pdmApi, type PdmProducto } from "@/core/api/pdm";
 import { secretariasApi } from "@/core/api/entities";
@@ -80,8 +77,7 @@ export default function PdmPage(): ReactElement {
   const entity = useAuthStore((s) => s.user?.entity);
   const slug = entity?.slug ?? "";
   const entityId = entity?.id;
-  const copilotModules = getEntityCopilotModules(entity);
-  const showPdmCopilot = copilotModules.includes("pdm");
+  const enablePdm = Boolean(entity?.enable_pdm);
   const roles = useAuthStore((s) => s.user?.roles ?? []);
   const isSuperuser = useAuthStore((s) => s.user?.is_superuser ?? false);
   const secretariaUsuarioId = useAuthStore((s) => s.user?.secretaria?.id);
@@ -161,8 +157,6 @@ export default function PdmPage(): ReactElement {
   const [errorBpin, setErrorBpin] = useState<string | null>(null);
   const [consultaUrlBpin, setConsultaUrlBpin] = useState<string | null>(null);
   const [portalUrlBpin, setPortalUrlBpin] = useState<string | null>(null);
-  const [showCopilot, setShowCopilot] = useState(false);
-
   const { data: status, isLoading: loadingStatus } = usePdmStatus(slug, Boolean(slug));
   const tieneDatos = Boolean(status?.tiene_datos);
 
@@ -628,13 +622,6 @@ export default function PdmPage(): ReactElement {
             ? "Consulta y filtrado de productos por año"
             : "Detalle, actividades y ejecución del producto";
 
-  const anioInsights =
-    vista === "analisis"
-      ? filtroAnioAnalisis === "all"
-        ? undefined
-        : filtroAnioAnalisis
-      : filtroAnio;
-
   return (
     <div className="space-y-6">
       <input
@@ -670,15 +657,6 @@ export default function PdmPage(): ReactElement {
               <BarChart3 className="h-4 w-4" /> Análisis
             </button>
           )}
-          {tieneDatos && showPdmCopilot && (
-            <button
-              type="button"
-              onClick={() => setShowCopilot((v) => !v)}
-              className={pdmBtnSecondary}
-            >
-              <Bot className="h-4 w-4" /> Copiloto IA
-            </button>
-          )}
           {tieneDatos && isAdmin && (
             <PdmAccionesMenu
               disabled={saving}
@@ -692,21 +670,15 @@ export default function PdmPage(): ReactElement {
         </div>
       </div>
 
-      {showPdmCopilot && tieneDatos && (vista === "dashboard" || vista === "analisis") && (
+      {enablePdm && tieneDatos && vista === "analisis" && (
         <ModuleAIAlertsBanner module="pdm" />
       )}
 
-      {tieneDatos && (vista === "dashboard" || vista === "analisis") && (
-        <PdmAIInsights slug={slug} anio={anioInsights} title="Insights IA del PDM" />
-      )}
-
-      {showCopilot && tieneDatos && showPdmCopilot && (
-        <CopilotPanel
-          mode="pdm"
-          modules={["pdm"]}
-          title="Copiloto PDM"
-          onClose={() => setShowCopilot(false)}
-          className="fixed bottom-4 right-4 z-50 w-[400px] max-h-[600px] shadow-2xl"
+      {enablePdm && tieneDatos && vista === "analisis" && (
+        <PdmAIInsights
+          slug={slug}
+          anio={filtroAnioAnalisis === "all" ? undefined : filtroAnioAnalisis}
+          title="Insights IA del PDM"
         />
       )}
 

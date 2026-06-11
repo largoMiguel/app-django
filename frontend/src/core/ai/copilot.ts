@@ -23,8 +23,7 @@ export function copilotModulesLabel(modules: CopilotModuleKey[]): string {
   return modules.map((m) => MODULE_LABELS[m]).join(" y ");
 }
 
-/** Rutas donde puede mostrarse el copiloto global (no PDM: tiene copiloto propio). */
-export function isGlobalCopilotRoute(pathname: string): boolean {
+function isPqrsCopilotRoute(pathname: string): boolean {
   return (
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/pqrs") ||
@@ -32,11 +31,25 @@ export function isGlobalCopilotRoute(pathname: string): boolean {
   );
 }
 
+function isPdmCopilotRoute(pathname: string): boolean {
+  return pathname.startsWith("/pdm");
+}
+
+/** Rutas donde puede mostrarse el copiloto global flotante. */
 export function shouldShowGlobalCopilot(
   pathname: string,
   entity: AuthEntity | null | undefined,
 ): boolean {
   const modules = getEntityCopilotModules(entity);
-  if (!modules.includes("pqrs") || !isGlobalCopilotRoute(pathname)) return false;
-  return modules.length > 0;
+  if (!modules.length) return false;
+
+  if (isPdmCopilotRoute(pathname)) {
+    return modules.includes("pdm");
+  }
+
+  if (isPqrsCopilotRoute(pathname)) {
+    return modules.includes("pqrs");
+  }
+
+  return false;
 }
