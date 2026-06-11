@@ -146,3 +146,24 @@ def totales_ejecucion_codigos(
         pto += data.get("pto_definitivo", 0.0)
         pagos += data.get("pagos", 0.0)
     return {"pto_definitivo": pto, "pagos": pagos}
+
+
+def attach_ejecucion_anio_a_productos(productos: list, entity_id: int, anio: int) -> None:
+    """Asigna pto_definitivo_anio, pagos_anio y avance_financiero_anio en cada producto."""
+    if not productos:
+        return
+    codigos = [p.codigo_producto for p in productos]
+    ejecucion_map = ejecucion_por_codigo(entity_id, codigos, anio)
+    for prod in productos:
+        ej = ejecucion_map.get(prod.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
+        pto_definitivo = ej["pto_definitivo"]
+        pagos = ej["pagos"]
+        prod.pto_definitivo_anio = pto_definitivo
+        prod.pagos_anio = pagos
+        prod.avance_financiero_anio = round((pagos / pto_definitivo) * 100, 1) if pto_definitivo else 0.0
+
+
+def ejecucion_totales_productos(entity_id: int, codigos: list[str], anio: int) -> dict[str, float]:
+    """Totales de ejecución para un conjunto de productos en un año."""
+    ejecucion_map = ejecucion_por_codigo(entity_id, codigos, anio)
+    return totales_ejecucion_codigos(ejecucion_map, codigos)

@@ -118,6 +118,10 @@ export interface PdmStatsResponse {
     total: number;
   };
   anio_seguimiento: number;
+  ejecucion_anio?: {
+    pto_definitivo: number;
+    pagos: number;
+  };
 }
 
 export interface PdmAnalisisResponse {

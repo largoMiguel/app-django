@@ -252,15 +252,26 @@ export default function PdmPage(): ReactElement {
   );
 
   const productoSeleccionado = useMemo(() => {
-    const base = productoDetailData ? mapProductoToResumen(productoDetailData) : productoListPreview;
-    if (!base || cargandoEvidenciaIds.size === 0) return base;
+    let base = productoDetailData ? mapProductoToResumen(productoDetailData) : productoListPreview;
+    if (!base) return null;
+    if (ejecucionPresupuestal?.totales) {
+      const pto = Number(ejecucionPresupuestal.totales.pto_definitivo || 0);
+      const pagos = Number(ejecucionPresupuestal.totales.pagos || 0);
+      base = {
+        ...base,
+        pto_definitivo_anio: pto,
+        pagos_anio: pagos,
+        avance_financiero_anio: pto > 0 ? Math.round((pagos / pto) * 1000) / 10 : 0,
+      };
+    }
+    if (cargandoEvidenciaIds.size === 0) return base;
     return {
       ...base,
       actividades: base.actividades.map((a) =>
         cargandoEvidenciaIds.has(a.id) ? { ...a, cargandoEvidencia: true } : a,
       ),
     };
-  }, [productoDetailData, productoListPreview, cargandoEvidenciaIds]);
+  }, [productoDetailData, productoListPreview, cargandoEvidenciaIds, ejecucionPresupuestal]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -766,6 +777,7 @@ export default function PdmPage(): ReactElement {
             totalPages={totalPages}
             isLoading={loadingProductos}
             statsEstado={statsEstado}
+            ejecucionAnio={statsData?.ejecucion_anio}
             filtroLinea={filtroLinea}
             filtroSector={filtroSector}
             filtroSecretaria={filtroSecretaria}

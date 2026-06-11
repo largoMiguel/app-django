@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Box, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock, Loader2, Search, X } from "lucide-react";
+import { Box, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock, DollarSign, Loader2, Search, X } from "lucide-react";
 import type { Secretaria } from "@/core/api/entities";
 import type { PdmMetaResponse } from "@/core/api/pdm";
 import {
@@ -32,6 +32,7 @@ interface PdmProductosViewProps {
   totalPages: number;
   isLoading: boolean;
   statsEstado: { pendiente: number; en_progreso: number; completado: number; por_ejecutar: number; total: number };
+  ejecucionAnio?: { pto_definitivo: number; pagos: number };
   filtroLinea: string;
   filtroSector: string;
   filtroSecretaria: string;
@@ -136,6 +137,7 @@ export default function PdmProductosView({
   totalPages,
   isLoading,
   statsEstado,
+  ejecucionAnio,
   filtroLinea,
   filtroSector,
   filtroSecretaria,
@@ -155,6 +157,11 @@ export default function PdmProductosView({
   onOpenDetalle,
   onAsignar,
 }: PdmProductosViewProps) {
+  const pctPagadoAnio =
+    ejecucionAnio && ejecucionAnio.pto_definitivo > 0
+      ? Math.round((ejecucionAnio.pagos / ejecucionAnio.pto_definitivo) * 1000) / 10
+      : 0;
+
   return (
     <div className="space-y-6">
       <PdmCard>
@@ -174,7 +181,7 @@ export default function PdmProductosView({
         </div>
       </PdmCard>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <PdmStatCard
           label="Pendientes"
           hint={`Sin avance en ${filtroAnio}`}
@@ -205,6 +212,13 @@ export default function PdmProductosView({
           value={statsEstado.por_ejecutar}
           icon={<Calendar size={24} className="text-slate-500" />}
           onClick={() => onFiltroEstado("POR_EJECUTAR")}
+        />
+        <PdmStatCard
+          label="Ejecución del Año"
+          hint={`Pto. definitivo ${filtroAnio} · ${pctPagadoAnio}% pagado`}
+          value={formatearMoneda(ejecucionAnio?.pto_definitivo ?? 0)}
+          icon={<DollarSign size={24} className="text-emerald-600" />}
+          accent="emerald"
         />
       </div>
 

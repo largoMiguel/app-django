@@ -200,17 +200,22 @@ def compute_pdm_analytics(
     productos = _productos_for_analytics(productos_qs)
     codigos = [p.codigo_producto for p in productos]
     aggs_map = actividad_aggs_for_productos(entity_id, codigos)
-    ejecucion_map = ejecucion_por_codigo(entity_id, codigos, anio)
-    ejecucion_anios = ejecucion_por_anio(entity_id, codigos)
-    presupuesto_totales = totales_ejecucion_codigos(ejecucion_map, codigos)
-    presupuesto_pto = presupuesto_totales["pto_definitivo"]
-    presupuesto_pagos = presupuesto_totales["pagos"]
 
     productos_relevantes: list[tuple[PdmProducto, dict]] = []
     for p in productos:
         aggs = aggs_map.get(p.codigo_producto, {})
         if _producto_cuenta_para_filtro(p, aggs, anio):
             productos_relevantes.append((p, aggs))
+
+    codigos_financieros = (
+        [p.codigo_producto for p, _ in productos_relevantes] if anio is not None else codigos
+    )
+    codigos_fin_set = set(codigos_financieros)
+    ejecucion_map = ejecucion_por_codigo(entity_id, codigos_financieros, anio)
+    ejecucion_anios = ejecucion_por_anio(entity_id, codigos_financieros)
+    presupuesto_totales = totales_ejecucion_codigos(ejecucion_map, codigos_financieros)
+    presupuesto_pto = presupuesto_totales["pto_definitivo"]
+    presupuesto_pagos = presupuesto_totales["pagos"]
 
     estado_distribucion = {"pendiente": 0, "en_progreso": 0, "completado": 0, "por_ejecutar": 0, "total": 0}
     avance_sum = 0.0
@@ -247,6 +252,8 @@ def compute_pdm_analytics(
     )
 
     for p in productos:
+        if p.codigo_producto not in codigos_fin_set:
+            continue
         ej = ejecucion_map.get(p.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
         sector = p.sector_mga or "Sin sector"
         sector_agg[sector]["pto_definitivo"] += ej["pto_definitivo"]
@@ -324,7 +331,7 @@ def compute_pdm_analytics(
 
     presupuestal_por_anio = []
     for y in ANIOS_PDM:
-        plan = sum(_plan_anio(p, y) for p in productos)
+        plan = sum(_plan_anio(p, y) for p in productos if p.codigo_producto in codigos_fin_set)
         ej_y = ejecucion_anios.get(y, {"pto_definitivo": 0.0, "pagos": 0.0})
         ejec = ej_y["pto_definitivo"]
         pagos = ej_y["pagos"]

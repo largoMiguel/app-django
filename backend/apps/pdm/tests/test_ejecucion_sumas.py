@@ -92,13 +92,36 @@ class PdmEjecucionSumasTests(TestCase):
         self.assertEqual(suma_sector_pto, analisis["presupuesto"]["pto_definitivo"])
         self.assertEqual(suma_sector_pagos, analisis["presupuesto"]["pagos"])
 
-    def test_analisis_anio_filtrado_suma_por_anio(self):
+    def test_analisis_anio_filtrado_solo_productos_con_meta(self):
         productos_qs = productos_queryset_for_user(self.admin, self.entity)
         analisis = compute_pdm_analytics(productos_qs, self.entity.id, anio=2024)
 
-        self.assertEqual(analisis["presupuesto"]["pto_definitivo"], 150.0)
-        self.assertEqual(analisis["presupuesto"]["pagos"], 50.0)
+        self.assertEqual(analisis["presupuesto"]["pto_definitivo"], 100.0)
+        self.assertEqual(analisis["presupuesto"]["pagos"], 40.0)
 
         fila_2024 = next(row for row in analisis["presupuestal_por_anio"] if row["anio"] == 2024)
-        self.assertEqual(fila_2024["ejecucion"], 150.0)
-        self.assertEqual(fila_2024["pagos"], 50.0)
+        self.assertEqual(fila_2024["ejecucion"], 100.0)
+        self.assertEqual(fila_2024["pagos"], 40.0)
+
+    def test_analisis_anio_filtrado_coincide_con_productos(self):
+        productos_qs = productos_queryset_for_user(self.admin, self.entity)
+        analisis = compute_pdm_analytics(productos_qs, self.entity.id, anio=2024)
+        from apps.pdm.ejecucion_resumen import ejecucion_totales_productos
+
+        codigos_meta = ["P001"]
+        totales_productos = ejecucion_totales_productos(self.entity.id, codigos_meta, 2024)
+
+        self.assertEqual(analisis["presupuesto"]["pto_definitivo"], totales_productos["pto_definitivo"])
+        self.assertEqual(analisis["presupuesto"]["pagos"], totales_productos["pagos"])
+
+    def test_listado_y_detalle_ejecucion_coinciden(self):
+        from apps.pdm.ejecucion_resumen import attach_ejecucion_anio_a_productos, ejecucion_por_codigo
+
+        producto = self.producto_con_meta
+        attach_ejecucion_anio_a_productos([producto], self.entity.id, 2024)
+        listado = ejecucion_por_codigo(self.entity.id, [producto.codigo_producto], 2024)[producto.codigo_producto]
+
+        self.assertEqual(producto.pto_definitivo_anio, listado["pto_definitivo"])
+        self.assertEqual(producto.pagos_anio, listado["pagos"])
+        self.assertEqual(producto.pto_definitivo_anio, 100.0)
+        self.assertEqual(producto.pagos_anio, 40.0)

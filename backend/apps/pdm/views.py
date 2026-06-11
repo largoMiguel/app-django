@@ -126,21 +126,16 @@ def _to_float(v):
 
 
 def _attach_list_metrics(productos: list, entity_id: int, anio: int) -> None:
+    from .ejecucion_resumen import attach_ejecucion_anio_a_productos
+
     codigos = [p.codigo_producto for p in productos]
     aggs_map = actividad_aggs_for_productos(entity_id, codigos)
-    ejecucion_map = ejecucion_for_productos(entity_id, codigos, anio)
     for prod in productos:
         aggs_anio = aggs_map.get(prod.codigo_producto, {})
         metrics = producto_list_metrics(prod, anio, aggs_anio)
         for key, value in metrics.items():
             setattr(prod, key, value)
-        ej = ejecucion_map.get(prod.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
-        pto_definitivo = ej["pto_definitivo"]
-        pagos = ej["pagos"]
-        setattr(prod, "pto_definitivo_anio", pto_definitivo)
-        setattr(prod, "pagos_anio", pagos)
-        avance_financiero = round((pagos / pto_definitivo) * 100, 1) if pto_definitivo else 0.0
-        setattr(prod, "avance_financiero_anio", avance_financiero)
+    attach_ejecucion_anio_a_productos(productos, entity_id, anio)
 
 
 _META_FIELD_BY_ANIO = {
@@ -232,6 +227,10 @@ class PdmStatsView(APIView):
         productos_estado = productos_for_stats(productos_qs)
         stats["estado_por_anio"] = compute_estado_stats(productos_estado, entity.id, anio)
         stats["anio_seguimiento"] = anio
+        codigos_meta = list(_filter_productos_con_meta_anio(productos_qs, anio).values_list("codigo_producto", flat=True))
+        from .ejecucion_resumen import ejecucion_totales_productos
+
+        stats["ejecucion_anio"] = ejecucion_totales_productos(entity.id, codigos_meta, anio)
         return Response(stats)
 
 
@@ -367,9 +366,7 @@ class PdmProductoDetailView(APIView):
 
         codigos = [producto.codigo_producto]
         aggs_map = actividad_aggs_for_productos(entity.id, codigos).get(producto.codigo_producto, {})
-        metrics = producto_list_metrics(producto, anio, aggs_map)
-        for key, value in metrics.items():
-            setattr(producto, key, value)
+        _attach_list_metrics([producto], entity.id, anio)
         setattr(
             producto,
             "resumen_por_anio",
