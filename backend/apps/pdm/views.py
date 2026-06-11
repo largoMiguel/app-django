@@ -32,11 +32,7 @@ from .access import (
     user_can_access_actividad,
     user_can_access_producto,
 )
-from .ejecucion_resumen import (
-    ejecucion_totales_anio_entidad,
-    normalizar_anio_pdm,
-    resumen_ejecucion_entidad,
-)
+from .ejecucion_resumen import resumen_ejecucion_entidad
 from .producto_codigo import resolver_codigo_producto_pdm
 from .contratos_parser import parse_contratos_rps
 from .ejecucion_parser import _looks_like_codigo_fuente, parse_ejecucion_excel, rows_from_ejecucion_dataframe
@@ -233,19 +229,9 @@ class PdmStatsView(APIView):
             anio = int(anio_param) if anio_param else datetime.now().year
         except (TypeError, ValueError):
             anio = datetime.now().year
-        anio = normalizar_anio_pdm(anio)
-        ejecucion_anio = ejecucion_totales_anio_entidad(request.user, entity, anio)
-        plan_anio = float(stats["presupuesto_por_anio"].get(str(anio), 0))
         productos_estado = productos_for_stats(productos_qs)
         stats["estado_por_anio"] = compute_estado_stats(productos_estado, entity.id, anio)
         stats["anio_seguimiento"] = anio
-        stats["ejecucion_anio"] = {
-            "anio": anio,
-            "pto_definitivo": ejecucion_anio["pto_definitivo"],
-            "pagos": ejecucion_anio["pagos"],
-            "pct_pagado": ejecucion_anio["pct_pagado"],
-            "plan_ppi": plan_anio,
-        }
         return Response(stats)
 
 
@@ -334,7 +320,6 @@ class PdmProductosListView(APIView):
             anio = int(anio_param) if anio_param else datetime.now().year
         except (TypeError, ValueError):
             anio = datetime.now().year
-        anio = normalizar_anio_pdm(anio)
         estado = (request.query_params.get("estado") or "").strip().upper()
 
         qs = _productos_list_queryset(request.user, entity)
@@ -367,7 +352,6 @@ class PdmProductoDetailView(APIView):
             anio = int(anio_param) if anio_param else datetime.now().year
         except (TypeError, ValueError):
             anio = datetime.now().year
-        anio = normalizar_anio_pdm(anio)
 
         producto = get_object_or_404(
             productos_queryset_for_user(request.user, entity),
@@ -381,8 +365,11 @@ class PdmProductoDetailView(APIView):
         )
         setattr(producto, "pdm_actividades_filtradas", list(actividades))
 
-        _attach_list_metrics([producto], entity.id, anio)
-        aggs_map = actividad_aggs_for_productos(entity.id, [producto.codigo_producto]).get(producto.codigo_producto, {})
+        codigos = [producto.codigo_producto]
+        aggs_map = actividad_aggs_for_productos(entity.id, codigos).get(producto.codigo_producto, {})
+        metrics = producto_list_metrics(producto, anio, aggs_map)
+        for key, value in metrics.items():
+            setattr(producto, key, value)
         setattr(
             producto,
             "resumen_por_anio",
@@ -697,12 +684,9 @@ class PdmEjecucionProductoView(APIView):
         if not user_can_access_producto(request.user, entity, codigo_producto):
             raise PermissionDenied("No tiene permisos para este producto.")
         qs = _ejecucion_qs_for_user(request.user).filter(codigo_producto=codigo_producto)
-        anio_param = request.query_params.get("anio")
-        try:
-            anio = normalizar_anio_pdm(int(anio_param) if anio_param else datetime.now().year)
-        except (TypeError, ValueError):
-            anio = normalizar_anio_pdm(datetime.now().year)
-        qs = qs.filter(anio=anio)
+        anio = request.query_params.get("anio")
+        if anio:
+            qs = qs.filter(anio=anio)
         if not qs.exists():
             return Response({"detail": f"No se encontró información de ejecución para {codigo_producto}"}, status=status.HTTP_404_NOT_FOUND)
         sum_fields = (

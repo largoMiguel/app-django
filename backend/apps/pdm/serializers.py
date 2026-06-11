@@ -153,9 +153,6 @@ class PdmProductoSerializer(serializers.ModelSerializer):
     estado_anio = serializers.CharField(read_only=True, required=False)
     meta_anio = serializers.FloatField(read_only=True, required=False)
     presupuesto_anio = serializers.FloatField(read_only=True, required=False)
-    pto_definitivo_anio = serializers.FloatField(read_only=True, required=False)
-    pagos_anio = serializers.FloatField(read_only=True, required=False)
-    avance_financiero_anio = serializers.FloatField(read_only=True, required=False)
     porcentaje_ejecucion = serializers.FloatField(read_only=True, required=False)
     resumen_por_anio = serializers.JSONField(read_only=True, required=False)
 
@@ -205,9 +202,6 @@ class PdmProductoSerializer(serializers.ModelSerializer):
             "estado_anio",
             "meta_anio",
             "presupuesto_anio",
-            "pto_definitivo_anio",
-            "pagos_anio",
-            "avance_financiero_anio",
             "porcentaje_ejecucion",
             "resumen_por_anio",
             "created_at",

@@ -62,7 +62,7 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
         />
       </div>
 
-      <PdmCard title="Plan Indicativo por Año (PPI)" icon={<Calendar size={16} />}>
+      <PdmCard title="Presupuesto por Año (Cuatrienio)" icon={<Calendar size={16} />}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {ANIOS_PDM.map((anio, idx) => {
             const total = estadisticas.presupuestoPorAnio[`anio${anio}` as keyof typeof estadisticas.presupuestoPorAnio];
@@ -71,7 +71,6 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
               <div key={anio} className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{anio}</p>
                 <p className="mt-1 text-lg font-bold text-slate-900">{formatearMoneda(total)}</p>
-                <p className="mt-1 text-xs text-slate-500">Plan indicativo (PPI)</p>
                 <PdmProgressBar value={pct} tone={yearColors[idx]} showLabel={false} />
               </div>
             );

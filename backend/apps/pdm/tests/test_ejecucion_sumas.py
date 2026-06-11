@@ -102,13 +102,3 @@ class PdmEjecucionSumasTests(TestCase):
         fila_2024 = next(row for row in analisis["presupuestal_por_anio"] if row["anio"] == 2024)
         self.assertEqual(fila_2024["ejecucion"], 150.0)
         self.assertEqual(fila_2024["pagos"], 50.0)
-
-    def test_stats_ejecucion_anio_coincide_con_analisis(self):
-        from apps.pdm.ejecucion_resumen import ejecucion_totales_anio_entidad
-
-        productos_qs = productos_queryset_for_user(self.admin, self.entity)
-        analisis = compute_pdm_analytics(productos_qs, self.entity.id, anio=2024)
-        stats_ej = ejecucion_totales_anio_entidad(self.admin, self.entity, 2024)
-
-        self.assertEqual(stats_ej["pto_definitivo"], analisis["presupuesto"]["pto_definitivo"])
-        self.assertEqual(stats_ej["pagos"], analisis["presupuesto"]["pagos"])

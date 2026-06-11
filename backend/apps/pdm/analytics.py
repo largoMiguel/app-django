@@ -6,11 +6,7 @@ from datetime import datetime
 
 from django.db.models import QuerySet
 
-from .ejecucion_resumen import (
-    ejecucion_map_productos_qs,
-    ejecucion_por_anio_productos_qs,
-    ejecucion_totales_productos_qs,
-)
+from .ejecucion_resumen import ejecucion_por_anio, ejecucion_por_codigo, totales_ejecucion_codigos
 from .metrics import (
     ANIOS_PDM,
     actividad_aggs_for_productos,
@@ -204,9 +200,9 @@ def compute_pdm_analytics(
     productos = _productos_for_analytics(productos_qs)
     codigos = [p.codigo_producto for p in productos]
     aggs_map = actividad_aggs_for_productos(entity_id, codigos)
-    ejecucion_map = ejecucion_map_productos_qs(entity_id, productos_qs, anio)
-    ejecucion_anios = ejecucion_por_anio_productos_qs(entity_id, productos_qs)
-    presupuesto_totales = ejecucion_totales_productos_qs(entity_id, productos_qs, anio)
+    ejecucion_map = ejecucion_por_codigo(entity_id, codigos, anio)
+    ejecucion_anios = ejecucion_por_anio(entity_id, codigos)
+    presupuesto_totales = totales_ejecucion_codigos(ejecucion_map, codigos)
     presupuesto_pto = presupuesto_totales["pto_definitivo"]
     presupuesto_pagos = presupuesto_totales["pagos"]
 
@@ -381,7 +377,6 @@ def compute_pdm_analytics(
                 "productos": data["productos"],
                 "avance_pct": round(data["avance_sum"] / data["productos"], 1) if data["productos"] else 0.0,
                 "presupuesto": data["presupuesto"],
-                "ejecucion": data["presupuesto"],
             }
             for ods_name, data in ods_agg.items()
             if ods_name != "Sin ODS" or data["productos"] > 0 or data["presupuesto"] > 0
