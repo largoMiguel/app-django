@@ -4,7 +4,9 @@ import {
   ANIOS_PDM,
   formatearMoneda,
   getEjecucionDefinitivoAnio,
+  getEjecucionPagosAnio,
   getEjecucionTotalDefinitivo,
+  getEjecucionTotalPagos,
   PDM_SIN_PRODUCTO_EN_PLAN,
   type EstadisticasPdm,
   type ResumenEjecucionAnual,
@@ -19,15 +21,16 @@ interface PdmDashboardProps {
 
 export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProductos }: PdmDashboardProps) {
   const yearColors = ["blue", "info", "warning", "success"] as const;
-  const ejecucionPorLinea = (resumenEjecucion?.ejecucion_por_linea ?? []).filter(
-    (item) => item.linea !== PDM_SIN_PRODUCTO_EN_PLAN,
-  );
-  const ejecucionPorSector = (resumenEjecucion?.ejecucion_por_sector ?? []).filter(
-    (item) => item.sector !== PDM_SIN_PRODUCTO_EN_PLAN,
-  );
+  const ejecucionPorLinea = resumenEjecucion?.ejecucion_por_linea ?? [];
+  const ejecucionPorSector = resumenEjecucion?.ejecucion_por_sector ?? [];
   const ejecucionSinProductoPlan = resumenEjecucion?.ejecucion_sin_producto_plan ?? [];
-  const ejecucionChartTotal = ejecucionPorLinea.reduce((sum, item) => sum + item.total, 0);
-  const ejecucionSectorChartTotal = ejecucionPorSector.reduce((sum, item) => sum + item.total, 0);
+  const lineasEnPlan = ejecucionPorLinea.filter((item) => item.linea !== PDM_SIN_PRODUCTO_EN_PLAN);
+  const sectoresEnPlan = ejecucionPorSector.filter((item) => item.sector !== PDM_SIN_PRODUCTO_EN_PLAN);
+  const ejecucionChartTotal = lineasEnPlan.reduce((sum, item) => sum + item.total, 0);
+  const ejecucionSectorChartTotal = sectoresEnPlan.reduce((sum, item) => sum + item.total, 0);
+  const totalPagos = getEjecucionTotalPagos(resumenEjecucion);
+  const totalDefinitivo = getEjecucionTotalDefinitivo(resumenEjecucion);
+  const pctPagadoGlobal = totalDefinitivo > 0 ? Math.round((totalPagos / totalDefinitivo) * 1000) / 10 : 0;
 
   return (
     <div className="space-y-6">
@@ -52,7 +55,8 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
         />
         <PdmStatCard
           label="Presupuesto Total (Ejecución)"
-          value={formatearMoneda(getEjecucionTotalDefinitivo(resumenEjecucion))}
+          value={formatearMoneda(totalDefinitivo)}
+          hint={`Pagado: ${formatearMoneda(totalPagos)} (${pctPagadoGlobal}%)`}
           icon={<DollarSign size={24} className="text-emerald-600" />}
           onClick={onVerProductos}
         />
@@ -78,13 +82,17 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {ANIOS_PDM.map((anio, idx) => {
             const definitivo = getEjecucionDefinitivoAnio(resumenEjecucion, anio);
-            const total = getEjecucionTotalDefinitivo(resumenEjecucion);
-            const pct = total ? (definitivo / total) * 100 : 0;
+            const pagos = getEjecucionPagosAnio(resumenEjecucion, anio);
+            const pctDefinitivo = totalDefinitivo ? (definitivo / totalDefinitivo) * 100 : 0;
+            const pctPagado = definitivo > 0 ? Math.round((pagos / definitivo) * 1000) / 10 : 0;
             return (
               <div key={anio} className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{anio}</p>
                 <p className="mt-1 text-lg font-bold text-slate-900">{formatearMoneda(definitivo)}</p>
-                <PdmProgressBar value={pct} tone={yearColors[idx]} showLabel={false} />
+                <p className="mt-1 text-xs text-slate-500">
+                  Pagado: {formatearMoneda(pagos)} ({pctPagado}%)
+                </p>
+                <PdmProgressBar value={pctDefinitivo} tone={yearColors[idx]} showLabel={false} />
               </div>
             );
           })}
@@ -135,10 +143,10 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
       <div className="grid gap-6 lg:grid-cols-2">
         <PdmCard title="Ejecución por Línea Estratégica (Cuatrienio)" icon={<PieChart size={16} />}>
           <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
-            {ejecucionPorLinea.length === 0 ? (
+            {lineasEnPlan.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500">Sin datos de ejecución por línea estratégica.</p>
             ) : (
-              ejecucionPorLinea.map((item) => (
+              lineasEnPlan.map((item) => (
                 <div key={item.linea}>
                   <div className="mb-1 flex justify-between gap-2 text-sm">
                     <span className="truncate text-slate-700" title={item.linea}>
@@ -158,10 +166,10 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
         </PdmCard>
         <PdmCard title="Ejecución por Sector (Cuatrienio)" icon={<BarChart3 size={16} />}>
           <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
-            {ejecucionPorSector.length === 0 ? (
+            {sectoresEnPlan.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500">Sin datos de ejecución por sector.</p>
             ) : (
-              ejecucionPorSector.map((item) => (
+              sectoresEnPlan.map((item) => (
                 <div key={item.sector}>
                   <div className="mb-1 flex justify-between gap-2 text-sm">
                     <span className="truncate text-slate-700" title={item.sector}>

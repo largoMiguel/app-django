@@ -374,14 +374,13 @@ export function getEjecucionTotalDefinitivo(resumen: ResumenEjecucionAnual | nul
   return Number(resumen?.totales?.pto_definitivo || 0);
 }
 
-/** @deprecated Use getEjecucionDefinitivoAnio */
 export function getEjecucionPagosAnio(resumen: ResumenEjecucionAnual | null, anio: number): number {
-  return getEjecucionDefinitivoAnio(resumen, anio);
+  const item = resumen?.anios.find((a) => a.anio === anio);
+  return Number(item?.pagos || 0);
 }
 
-/** @deprecated Use getEjecucionTotalDefinitivo */
 export function getEjecucionTotalPagos(resumen: ResumenEjecucionAnual | null): number {
-  return getEjecucionTotalDefinitivo(resumen);
+  return Number(resumen?.totales?.pagos || 0);
 }
 
 export function getAniosConMetas(producto: ResumenProducto): number {

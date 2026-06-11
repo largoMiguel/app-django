@@ -27,13 +27,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .access import (
     actividades_queryset_for_user,
     codigos_producto_for_user,
-    ejecucion_agrupada_por_campo_producto,
     ejecucion_queryset_for_user,
-    ejecucion_sin_producto_en_plan,
     productos_queryset_for_user,
     user_can_access_actividad,
     user_can_access_producto,
 )
+from .ejecucion_resumen import resumen_ejecucion_entidad
 from .producto_codigo import resolver_codigo_producto_pdm
 from .contratos_parser import parse_contratos_rps
 from .ejecucion_parser import _looks_like_codigo_fuente, parse_ejecucion_excel, rows_from_ejecucion_dataframe
@@ -667,50 +666,13 @@ def _ejecucion_qs_for_user(user):
     return ejecucion_queryset_for_user(user, entity)
 
 
-def _ejecucion_grouped_by_product_field(user, entity: Entity, field_name: str, default_label: str, label_key: str) -> list[dict]:
-    return ejecucion_agrupada_por_campo_producto(user, entity, field_name, default_label, label_key)
-
-
 class PdmEjecucionResumenAnualEntidadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         require_user_module(request.user, "pdm", message="El módulo PDM no está habilitado para tu usuario.")
         entity = get_object_or_404(Entity, id=request.user.entity_id)
-        qs = _ejecucion_qs_for_user(request.user)
-        grouped = {
-            int(row["anio"]): {
-                "pto_definitivo": _to_float(row["pto_definitivo"]),
-                "pagos": _to_float(row["pagos"]),
-            }
-            for row in qs.filter(anio__isnull=False)
-            .values("anio")
-            .annotate(pto_definitivo=Sum("pto_definitivo"), pagos=Sum("pagos"))
-        }
-        anios = [
-            {
-                "anio": y,
-                "pto_definitivo": grouped.get(y, {}).get("pto_definitivo", 0.0),
-                "pagos": grouped.get(y, {}).get("pagos", 0.0),
-            }
-            for y in (2024, 2025, 2026, 2027)
-        ]
-        return Response(
-            {
-                "anios": anios,
-                "totales": {
-                    "pto_definitivo": sum(x["pto_definitivo"] for x in anios),
-                    "pagos": sum(x["pagos"] for x in anios),
-                },
-                "ejecucion_por_linea": _ejecucion_grouped_by_product_field(
-                    request.user, entity, "linea_estrategica", "Sin línea", "linea"
-                ),
-                "ejecucion_por_sector": _ejecucion_grouped_by_product_field(
-                    request.user, entity, "sector_mga", "Sin sector", "sector"
-                ),
-                "ejecucion_sin_producto_plan": ejecucion_sin_producto_en_plan(request.user, entity),
-            }
-        )
+        return Response(resumen_ejecucion_entidad(request.user, entity))
 
 
 class PdmEjecucionProductoView(APIView):
