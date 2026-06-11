@@ -259,6 +259,9 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "noreply@softone360.com")
 
+# URL pública del frontend (enlaces en correos PQRS)
+APP_BASE_URL = (os.getenv("APP_BASE_URL", "") or "").strip()
+
 # ZeptoMail — correos PQRS (API HTTP, no SMTP)
 ZEPTOMAIL_API_URL = os.getenv("ZEPTOMAIL_API_URL", "https://api.zeptomail.com/v1.1/email")
 ZEPTOMAIL_TOKEN = os.getenv("ZEPTOMAIL_TOKEN", "")

@@ -101,12 +101,19 @@ def _entity_name(pqrs: PQRS) -> str:
     return pqrs.entity.name if pqrs.entity else "la entidad"
 
 
+def _cors_allowed_origins() -> list[str]:
+    """Normaliza CORS_ALLOWED_ORIGINS (lista en settings o string legacy)."""
+    raw = getattr(settings, "CORS_ALLOWED_ORIGINS", None) or []
+    if isinstance(raw, str):
+        return [part.strip() for part in raw.split(",") if part.strip()]
+    return [str(origin).strip() for origin in raw if str(origin).strip()]
+
+
 def _app_base_url() -> str:
     base = (getattr(settings, "APP_BASE_URL", "") or "").strip()
     if base:
         return base.rstrip("/")
-    for origin in (getattr(settings, "CORS_ALLOWED_ORIGINS", "") or "").split(","):
-        origin = origin.strip()
+    for origin in _cors_allowed_origins():
         if origin.startswith("https://"):
             return origin.rstrip("/")
     return "https://app.softone360.com"

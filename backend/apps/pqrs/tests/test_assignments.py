@@ -19,6 +19,7 @@ from apps.pqrs.models import (
     TipoCorreoPQRS,
 )
 from apps.pqrs.services.creation import sincronizar_asignaciones
+from apps.pqrs.services.email import _app_base_url, _build_asignacion_bodies
 from apps.pqrs.services.inbound import _extract_attachments
 
 User = get_user_model()
@@ -91,6 +92,20 @@ class PQRSAssignmentTests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(user=self.admin)
+
+    def test_app_base_url_con_cors_lista(self):
+        with self.settings(CORS_ALLOWED_ORIGINS=["https://app.softone360.com"], APP_BASE_URL=""):
+            self.assertEqual(_app_base_url(), "https://app.softone360.com")
+
+    @patch("apps.pqrs.services.email._post_zeptomail", return_value=(True, "req-asig", None))
+    def test_build_asignacion_incluye_enlace_pqrs(self, _mock_mail):
+        _, text_body, html_body = _build_asignacion_bodies(
+            self.pqrs,
+            self.secretaria_a,
+            justificacion="Prueba",
+        )
+        self.assertIn(f"/pqrs?id={self.pqrs.id}", text_body)
+        self.assertIn(f"/pqrs?id={self.pqrs.id}", html_body)
 
     def test_asignar_multiples_secretarias(self):
         response = self.client.post(
