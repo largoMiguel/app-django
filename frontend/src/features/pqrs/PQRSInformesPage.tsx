@@ -8,6 +8,7 @@ import {
 import { Link } from "react-router-dom";
 import { pqrsApi, type PQRSReportPreview } from "@/core/api/pqrs";
 import { secretariasApi, type Secretaria } from "@/core/api/entities";
+import { formatFechaCO, formatFechaHoraCO } from "@/core/datetime";
 import { usersApi, type AppUser } from "@/core/api/users";
 import { useAuthStore, canAccess, PERM, type AuthUser } from "@/core/auth/store";
 import { formatApiError } from "@/core/api/errors";
@@ -77,7 +78,7 @@ function saveReports(key: string, r: StoredReport[]) { localStorage.setItem(key,
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-CO", { timeZone: "UTC" });
+  return formatFechaCO(iso);
 }
 
 function generateHtml(report: StoredReport): string {
@@ -128,7 +129,7 @@ function generateHtml(report: StoredReport): string {
   <h1>Informe de PQRS</h1><h2>${escapeHtml(entityName)}</h2>
   <div class="meta">
     <div>Período: <strong>${escapeHtml(fmtDate(config.fechaInicio))}</strong> al <strong>${escapeHtml(fmtDate(config.fechaFin))}</strong></div>
-    <div>Generado: ${escapeHtml(new Date(createdAt).toLocaleString("es-CO"))}</div>
+    <div>Generado: ${escapeHtml(formatFechaHoraCO(createdAt))}</div>
     <div>Filtros: ${escapeHtml(filterDesc)}</div>
   </div>
 </div>
@@ -536,7 +537,7 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
                       </span>
                     </div>
                     <div className="mt-0.5 sm:mt-1 flex flex-wrap gap-1 sm:gap-2 text-[0.6rem] sm:text-[0.7rem] text-slate-500 truncate">
-                      <span className="truncate">Generado: {new Date(r.createdAt).toLocaleString("es-CO")}</span>
+                      <span className="truncate">Generado: {formatFechaHoraCO(r.createdAt)}</span>
                       {filterParts.length > 0 && <span className="text-slate-400 truncate">· {filterParts.slice(0, 1).join(" · ")}</span>}
                     </div>
                     <div className="mt-1 sm:mt-2 flex flex-wrap gap-1.5 sm:gap-3 text-[0.6rem] sm:text-[0.7rem]">

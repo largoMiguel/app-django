@@ -30,6 +30,7 @@ import { openAuthenticatedFile, downloadAuthenticatedFile } from "@/core/api/cli
 import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import { formatApiError } from "@/core/api/errors";
 import { useAuthStore, primaryRole, canAccess, PERM } from "@/core/auth/store";
+import { formatFechaHoraCO } from "@/core/datetime";
 import EditPQRSModal from "./EditPQRSModal";
 import PQRSAssignmentPanel from "./PQRSAssignmentPanel";
 
@@ -298,7 +299,7 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                   <div className="mt-2 text-sm">
                     <Info
                       label="Fecha de solicitud"
-                      value={data.fecha_solicitud ? new Date(data.fecha_solicitud).toLocaleString("es-CO") : null}
+                      value={formatFechaHoraCO(data.fecha_solicitud, "") || null}
                     />
                   </div>
                   {data.archivos && data.archivos.length > 0 && (
@@ -759,9 +760,7 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                           {a.accion === "edicion" && "Edición de datos"}
                         </span>
                         <span className="text-xs text-slate-500">
-                          {a.fecha_asignacion
-                            ? new Date(a.fecha_asignacion).toLocaleString("es-CO")
-                            : ""}
+                          {formatFechaHoraCO(a.fecha_asignacion, "")}
                         </span>
                       </div>
                       {(a.secretaria_anterior_nombre || a.secretaria_nueva_nombre) && (
@@ -1166,7 +1165,7 @@ function CorreoEstadoCard({
           )}
         </div>
         <span className="text-xs text-slate-500">
-          {new Date(correo.created_at).toLocaleString("es-CO")}
+          {formatFechaHoraCO(correo.created_at)}
         </span>
       </div>
       <p className="mt-1 text-xs text-slate-600 truncate" title={correo.asunto}>

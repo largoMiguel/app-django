@@ -22,6 +22,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { publicPqrsApi, type EntityPublicInfo, type PQRSPublicResult } from "@/core/api/pqrsPublic";
+import { formatFechaCO } from "@/core/datetime";
 import { TIPO_SOLICITUD_LABEL } from "@/features/pqrs/labels";
 import { MAX_ARCHIVOS_PQRS, MAX_FILE_SIZE_MB } from "@/core/api/pqrs";
 
@@ -283,7 +284,7 @@ export default function PublicPQRSPortal() {
               <div>
                 <p className="text-xs text-slate-400 mb-0.5">Fecha de radicado</p>
                 <p className="font-medium text-slate-700">
-                  {new Date(result.fecha_solicitud).toLocaleDateString("es-CO")}
+                  {formatFechaCO(result.fecha_solicitud)}
                 </p>
               </div>
             )}
@@ -291,7 +292,7 @@ export default function PublicPQRSPortal() {
               <div>
                 <p className="text-xs text-slate-400 mb-0.5">Fecha límite de respuesta</p>
                 <p className="font-medium text-slate-700">
-                  {new Date(result.fecha_vencimiento).toLocaleDateString("es-CO")}
+                  {formatFechaCO(result.fecha_vencimiento)}
                 </p>
               </div>
             )}

@@ -23,6 +23,7 @@ from apps.pqrs.models import (
     TipoCorreoPQRS,
     TipoSolicitud,
 )
+from apps.common.datetime_fmt import format_fecha_co, format_fecha_hora_co, format_now_fecha_hora_co
 from apps.common.roles import user_roles
 from apps.pqrs.services.correo_alerta import (
     failed_recipients_from_correo,
@@ -328,15 +329,11 @@ def _build_radicacion_bodies(pqrs: PQRS) -> tuple[str, str, str]:
     tipo_label = _tipo_label(pqrs)
     subject = f"PQRS Radicada - {pqrs.numero_radicado}"
     fecha_sol = (
-        pqrs.fecha_solicitud.strftime("%d/%m/%Y %H:%M")
+        format_fecha_hora_co(pqrs.fecha_solicitud)
         if pqrs.fecha_solicitud
-        else timezone.now().strftime("%d/%m/%Y %H:%M")
+        else format_now_fecha_hora_co()
     )
-    fecha_venc = (
-        pqrs.fecha_vencimiento.strftime("%d/%m/%Y")
-        if pqrs.fecha_vencimiento
-        else "—"
-    )
+    fecha_venc = format_fecha_co(pqrs.fecha_vencimiento)
     nombre = pqrs.nombre_ciudadano or "Ciudadano/a"
 
     text_body = (
@@ -380,9 +377,9 @@ def _build_respuesta_bodies(pqrs: PQRS, texto_respuesta: str) -> tuple[str, str,
     tipo_label = _tipo_label(pqrs)
     subject = f"Respuesta a su {tipo_label} No. {pqrs.numero_radicado}"
     fecha_str = (
-        pqrs.fecha_respuesta.strftime("%d/%m/%Y %H:%M")
+        format_fecha_hora_co(pqrs.fecha_respuesta)
         if pqrs.fecha_respuesta
-        else timezone.now().strftime("%d/%m/%Y %H:%M")
+        else format_now_fecha_hora_co()
     )
     safe_texto = html.escape(texto_respuesta)
 
@@ -503,15 +500,11 @@ def _build_asignacion_bodies(
     tipo_label = _tipo_label(pqrs)
     subject = f"PQRS asignada — {pqrs.numero_radicado}"
     fecha_sol = (
-        pqrs.fecha_solicitud.strftime("%d/%m/%Y %H:%M")
+        format_fecha_hora_co(pqrs.fecha_solicitud)
         if pqrs.fecha_solicitud
-        else timezone.now().strftime("%d/%m/%Y %H:%M")
+        else format_now_fecha_hora_co()
     )
-    fecha_venc = (
-        pqrs.fecha_vencimiento.strftime("%d/%m/%Y")
-        if pqrs.fecha_vencimiento
-        else "—"
-    )
+    fecha_venc = format_fecha_co(pqrs.fecha_vencimiento)
     asignador = ""
     if asignado_por is not None:
         asignador = getattr(asignado_por, "full_name", None) or getattr(asignado_por, "email", "") or ""

@@ -33,6 +33,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useState, useRef, useEffect } from "react";
 import { formatApiError } from "@/core/api/errors";
+import { dateInputValueToIsoCO, todayDateInputValueCO, toDateInputValueCO } from "@/core/datetime";
 import { TIPO_SOLICITUD_LABEL } from "@/features/pqrs/labels";
 import {
   pqrsApi,
@@ -165,8 +166,8 @@ export default function EditPQRSModal({ pqrs, onClose, onSaved }: Props) {
       descripcion: pqrs.descripcion,
       canalRespuesta: pqrs.medio_respuesta || "email",
       fechaSolicitud: pqrs.fecha_solicitud
-        ? new Date(pqrs.fecha_solicitud).toISOString().slice(0, 10)
-        : new Date().toISOString().slice(0, 10),
+        ? toDateInputValueCO(pqrs.fecha_solicitud)
+        : todayDateInputValueCO(),
     },
   });
 
@@ -251,7 +252,7 @@ export default function EditPQRSModal({ pqrs, onClose, onSaved }: Props) {
         payload.direccion_ciudadano = "";
       }
       if (data.fechaSolicitud) {
-        payload.fecha_solicitud = new Date(data.fechaSolicitud).toISOString();
+        payload.fecha_solicitud = dateInputValueToIsoCO(data.fechaSolicitud);
       }
       const updated = archivos.length > 0
         ? await pqrsApi.updateWithFiles(pqrs.id, payload, archivos)
@@ -491,7 +492,7 @@ export default function EditPQRSModal({ pqrs, onClose, onSaved }: Props) {
               <input
                 type="date"
                 {...form.register("fechaSolicitud")}
-                max={new Date().toISOString().slice(0, 10)}
+                max={todayDateInputValueCO()}
                 className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
               />
             </div>

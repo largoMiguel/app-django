@@ -34,6 +34,7 @@ import { useForm } from "react-hook-form";import { zodResolver } from "@hookform
 import { z } from "zod";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { formatApiError } from "@/core/api/errors";
+import { dateInputValueToIsoCO, todayDateInputValueCO } from "@/core/datetime";
 import { useAuthStore } from "@/core/auth/store";
 import { isModuleEnabled, isUserModuleEnabled } from "@/core/auth/modules";
 import { TIPO_SOLICITUD_LABEL } from "@/features/pqrs/labels";
@@ -201,7 +202,7 @@ export default function NuevaPQRSModal({ onClose, onCreated }: Props) {
       asunto: "",
       descripcion: "",
       canalRespuesta: "email",
-      fechaSolicitud: new Date().toISOString().slice(0, 10),
+      fechaSolicitud: todayDateInputValueCO(),
       habeasData: undefined as unknown as true,
     },
   });
@@ -312,7 +313,7 @@ export default function NuevaPQRSModal({ onClose, onCreated }: Props) {
       payload.direccion_ciudadano = data.direccion;
     }
     if (data.fechaSolicitud) {
-      payload.fecha_solicitud = new Date(data.fechaSolicitud).toISOString();
+      payload.fecha_solicitud = dateInputValueToIsoCO(data.fechaSolicitud);
     }
     submitPQRS(payload, archivosManual);
   }
@@ -714,7 +715,7 @@ export default function NuevaPQRSModal({ onClose, onCreated }: Props) {
                   <input
                     type="date"
                     {...manualForm.register("fechaSolicitud")}
-                    max={new Date().toISOString().slice(0, 10)}
+                    max={todayDateInputValueCO()}
                     className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
                   />
                 </div>

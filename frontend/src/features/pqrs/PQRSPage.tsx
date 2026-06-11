@@ -16,6 +16,7 @@ import {
   ESTADO_LABEL,
 } from "@/core/api/pqrs";
 import { secretariasApi } from "@/core/api/entities";
+import { formatFechaCO } from "@/core/datetime";
 import { usePqrsList, usePqrsStats, useInvalidatePqrs } from "@/core/api/hooks/usePqrs";
 import { formatApiError } from "@/core/api/errors";
 import { useAuthStore, canAccess, PERM } from "@/core/auth/store";
@@ -473,7 +474,7 @@ export default function PQRSPage() {
                   </td>
                   <td className="px-4 py-3 text-[0.78rem] text-slate-600">
                     {p.fecha_solicitud
-                      ? new Date(p.fecha_solicitud).toLocaleDateString("es-CO", { timeZone: "UTC" })
+                      ? formatFechaCO(p.fecha_solicitud)
                       : "—"}
                   </td>
                   <td className="px-4 py-3 text-[0.78rem]">

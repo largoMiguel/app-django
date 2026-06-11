@@ -1,4 +1,5 @@
 import type { PdmActividad, PdmProducto, ResumenAnioBackend } from "@/core/api/pdm";
+import { formatFechaCO, formatFechaHoraCO } from "@/core/datetime";
 
 export type VistaPdm = "dashboard" | "productos" | "detalle" | "analisis" | "proyectos";
 
@@ -478,29 +479,11 @@ export function statsFromApi(stats: {
 }
 
 export function formatFechaCorta(value?: string | null): string {
-  if (!value) return "N/D";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("es-CO", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "America/Bogota",
-  }).format(date);
+  return formatFechaCO(value, "N/D");
 }
 
 export function formatFechaHora(value?: string | null): string {
-  if (!value) return "N/D";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("es-CO", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Bogota",
-  }).format(date);
+  return formatFechaHoraCO(value, "N/D");
 }
 
 export function esCodigoFuentePresupuestal(value?: string | null): boolean {
