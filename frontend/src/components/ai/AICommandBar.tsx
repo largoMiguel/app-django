@@ -1,13 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { Search, Sparkles, X } from "lucide-react";
-import { aiApi, type SemanticSearchResult } from "@/core/api/ai";
+import type { SemanticSearchResult } from "@/core/api/ai/types";
 import { formatApiError } from "@/core/api/errors";
+
+interface SearchResponse {
+  results: SemanticSearchResult[];
+  indexed_count?: number;
+  search_mode?: "semantic" | "keyword" | "none";
+  hint?: string | null;
+}
 
 interface Props {
   placeholder?: string;
   contentTypes?: string[];
   onResultClick?: (result: SemanticSearchResult) => void;
   className?: string;
+  searchFn?: (query: string, contentTypes?: string[], limit?: number) => Promise<SearchResponse>;
 }
 
 export default function AICommandBar({
@@ -15,6 +23,7 @@ export default function AICommandBar({
   contentTypes,
   onResultClick,
   className = "",
+  searchFn,
 }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SemanticSearchResult[]>([]);
@@ -39,7 +48,11 @@ export default function AICommandBar({
       setLoading(true);
       setError(null);
       try {
-        const data = await aiApi.semanticSearch(query, contentTypes, 8);
+        const data = searchFn
+          ? await searchFn(query, contentTypes, 8)
+          : await import("@/core/api/ai/pqrs").then((m) =>
+              m.pqrsAiApi.search(query, contentTypes, 8),
+            );
         setResults(data.results);
         setHint(data.hint ?? null);
         setSearchMode(data.search_mode ?? null);
@@ -55,7 +68,7 @@ export default function AICommandBar({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, contentTypes]);
+  }, [query, contentTypes, searchFn]);
 
   const showDropdown = open && query.length >= 3 && !loading;
 

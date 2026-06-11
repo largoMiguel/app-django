@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Sparkles, Send, X, Bot } from "lucide-react";
-import { aiApi } from "@/core/api/ai";
+import { pdmAiApi } from "@/core/api/ai/pdm";
+import { pqrsAiApi } from "@/core/api/ai/pqrs";
 import { formatApiError } from "@/core/api/errors";
 import {
   type CopilotModuleKey,
@@ -69,7 +70,7 @@ export default function CopilotPanel({
     setLoading(true);
 
     try {
-      const fn = mode === "pdm" ? aiApi.pdmCopilot : aiApi.globalCopilot;
+      const fn = mode === "pdm" ? pdmAiApi.copilot : pqrsAiApi.globalCopilot;
       const res = await fn(text, conversationId);
       setConversationId(res.conversation_id);
       setMessages((prev) => [

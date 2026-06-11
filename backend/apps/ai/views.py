@@ -68,6 +68,17 @@ class AIAlertViewSet(ReadOnlyModelViewSet):
         qs = AIAlert.objects.filter(entity_id=user.entity_id, is_dismissed=False)
         if self.request.query_params.get("unread"):
             qs = qs.filter(is_read=False)
+        module = self.request.query_params.get("module")
+        if module == "pqrs":
+            qs = qs.filter(alert_type__in=[
+                AIAlert.AlertType.PQRS_SLA_RISK,
+                AIAlert.AlertType.PQRS_DUPLICATE,
+            ])
+        elif module == "pdm":
+            qs = qs.filter(alert_type__in=[
+                AIAlert.AlertType.PDM_ANOMALY,
+                AIAlert.AlertType.PDM_FORECAST,
+            ])
         return qs.order_by("-created_at")[:100]
 
     @action(detail=True, methods=["post"])
@@ -233,6 +244,7 @@ class SemanticSearchView(APIView):
     def post(self, request):
         user = request.user
         _ensure_entity_user(user)
+        require_user_module(user, "pqrs")
         ser = SemanticSearchSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         from apps.ai.models import ContentEmbedding

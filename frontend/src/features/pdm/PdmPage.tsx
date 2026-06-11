@@ -12,6 +12,8 @@ import {
   Upload,
 } from "lucide-react";
 import CopilotPanel from "@/components/ai/CopilotPanel";
+import ModuleAIAlertsBanner from "@/components/ai/ModuleAIAlertsBanner";
+import PdmAIInsights from "@/components/ai/PdmAIInsights";
 import { useAuthStore } from "@/core/auth/store";
 import { getEntityCopilotModules } from "@/core/ai/copilot";
 import { bpinApi, type ProyectoBpin } from "@/core/api/bpin";
@@ -626,6 +628,13 @@ export default function PdmPage(): ReactElement {
             ? "Consulta y filtrado de productos por año"
             : "Detalle, actividades y ejecución del producto";
 
+  const anioInsights =
+    vista === "analisis"
+      ? filtroAnioAnalisis === "all"
+        ? undefined
+        : filtroAnioAnalisis
+      : filtroAnio;
+
   return (
     <div className="space-y-6">
       <input
@@ -682,6 +691,14 @@ export default function PdmPage(): ReactElement {
           )}
         </div>
       </div>
+
+      {showPdmCopilot && tieneDatos && (vista === "dashboard" || vista === "analisis") && (
+        <ModuleAIAlertsBanner module="pdm" />
+      )}
+
+      {tieneDatos && (vista === "dashboard" || vista === "analisis") && (
+        <PdmAIInsights slug={slug} anio={anioInsights} title="Insights IA del PDM" />
+      )}
 
       {showCopilot && tieneDatos && showPdmCopilot && (
         <CopilotPanel

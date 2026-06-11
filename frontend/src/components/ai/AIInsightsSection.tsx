@@ -6,12 +6,14 @@ interface Props {
   insights: AIInsight[];
   title?: string;
   loading?: boolean;
+  className?: string;
 }
 
 export default function AIInsightsSection({
   insights,
   title = "Insights IA",
   loading = false,
+  className = "",
 }: Props) {
   if (loading) {
     return (
@@ -27,7 +29,7 @@ export default function AIInsightsSection({
   if (!insights.length) return null;
 
   return (
-    <div className="space-y-3">
+    <div className={`space-y-3 ${className}`}>
       <div className="flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-blue-500" />
         <h3 className="font-medium text-slate-800 text-sm">{title}</h3>

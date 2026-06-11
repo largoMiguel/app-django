@@ -1,6 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { aiApi, type AIInsight } from "@/core/api/ai";
-import AIInsightsSection from "@/components/ai/AIInsightsSection";
+import { useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -558,19 +556,6 @@ export default function PdmAnalisis({
   secretarias,
   isAdmin,
 }: PdmAnalisisProps) {
-  const [insights, setInsights] = useState<AIInsight[]>([]);
-  const [insightsLoading, setInsightsLoading] = useState(false);
-
-  useEffect(() => {
-    if (!slug) return;
-    setInsightsLoading(true);
-    const anio = filtroAnio === "all" ? undefined : filtroAnio;
-    aiApi.pdmInsights(slug, anio)
-      .then((d) => setInsights(d.insights))
-      .catch(() => {})
-      .finally(() => setInsightsLoading(false));
-  }, [slug, filtroAnio]);
-
   const secretariaId = filtroSecretaria ? Number(filtroSecretaria) : undefined;
   const { data, isLoading, isError, error } = usePdmAnalisis(
     slug,
@@ -583,7 +568,6 @@ export default function PdmAnalisis({
 
   return (
     <div className="space-y-6">
-      <AIInsightsSection insights={insights} loading={insightsLoading} title="Insights IA del PDM" />
       <PdmCard>
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="min-w-[160px] flex-1 sm:max-w-xs">

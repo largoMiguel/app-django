@@ -19,7 +19,7 @@ import {
   XCircle,
   Sparkles,
 } from "lucide-react";
-import { aiApi } from "@/core/api/ai";
+import { pqrsAiApi } from "@/core/api/ai/pqrs";
 import AIDraftPanel from "@/components/ai/AIDraftPanel";
 import {
   pqrsApi,
@@ -88,7 +88,7 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
     setDraftLoading(true);
     setErr(null);
     try {
-      const result = await aiApi.pqrsDraft(data.id);
+      const result = await pqrsAiApi.draft(data.id);
       setDraftText(result.draft);
       setDraftNormativa(result.normativa);
       setShowDraft(true);

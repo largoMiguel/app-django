@@ -21,7 +21,8 @@ import {
   Sparkles,
   XCircle,
 } from "lucide-react";
-import { aiApi, type PQRSStatusLookup } from "@/core/api/ai";
+import { pqrsAiApi } from "@/core/api/ai/pqrs";
+import type { PQRSStatusLookup } from "@/core/api/ai/types";
 import { publicPqrsApi, type EntityPublicInfo, type PQRSPublicResult } from "@/core/api/pqrsPublic";
 import { labelEstado } from "@/features/pqrs/labels";
 import { formatFechaCO } from "@/core/datetime";
@@ -374,7 +375,7 @@ export default function PublicPQRSPortal() {
                   setStatusLoading(true);
                   setStatusResult(null);
                   try {
-                    const res = await aiApi.pqrsStatusLookup(slug, statusRadicado.trim());
+                    const res = await pqrsAiApi.statusLookup(slug, statusRadicado.trim());
                     setStatusResult(res);
                   } catch {
                     setStatusResult({ found: false });
