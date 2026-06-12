@@ -187,7 +187,6 @@ export default function PQRSDashboard() {
         module="pqrs"
         onAlertClick={(a) => a.object_id && navigate(`/pqrs?id=${a.object_id}`)}
       />
-      <PqrsAICommandBar />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -221,6 +220,7 @@ export default function PQRSDashboard() {
           </Link>
         </div>
       </div>
+      <PqrsAICommandBar />
       <PqrsAIInsights
         title="Insights IA PQRS"
         onInsightClick={(insight) => {

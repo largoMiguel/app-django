@@ -21,7 +21,7 @@ export default function AppLayout() {
       <Sidebar />
 
       <main className="ml-16 min-w-0 flex-1 overflow-x-clip overflow-y-auto bg-[#f0f2f5]">
-        <div className="p-6">
+        <div className={`p-6 ${showCopilot ? "pb-28" : ""}`}>
           <Outlet />
         </div>
       </main>

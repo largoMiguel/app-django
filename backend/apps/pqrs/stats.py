@@ -8,10 +8,13 @@ from django.utils import timezone
 from apps.common.roles import user_roles
 
 from .models import EstadoPQRS
+from .sla import pqrs_abiertas_q, pqrs_sla_alerta_q
 
 
 def compute_pqrs_stats(queryset, user) -> dict:
     """Calcula estadísticas sobre un queryset ya filtrado por acceso."""
+    # ORDER BY en el queryset rompe values().annotate() (agrupa por fila, no por campo).
+    queryset = queryset.order_by()
     roles = user_roles(user)
     now = timezone.now()
     month = now.month
@@ -47,7 +50,11 @@ def compute_pqrs_stats(queryset, user) -> dict:
         .filter(_asig_count=0)
         .count()
     )
-    alerta_count = queryset.filter(correo_alerta=True).count()
+    alerta_count = queryset.filter(pqrs_sla_alerta_q()).count()
+    correo_alerta_count = queryset.filter(correo_alerta=True).count()
+    vencidas_count = queryset.filter(
+        pqrs_abiertas_q(), fecha_vencimiento__lt=now, fecha_vencimiento__isnull=False
+    ).count()
 
     by_secretaria = []
     if "admin" in roles:
@@ -62,7 +69,8 @@ def compute_pqrs_stats(queryset, user) -> dict:
                 pendientes=Count("id", filter=~Q(estado__in=closed_states), distinct=True),
                 vencidas=Count(
                     "id",
-                    filter=~Q(estado__in=closed_states) & Q(fecha_vencimiento__lt=now),
+                    filter=pqrs_abiertas_q()
+                    & Q(fecha_vencimiento__lt=now, fecha_vencimiento__isnull=False),
                     distinct=True,
                 ),
             )
@@ -80,6 +88,8 @@ def compute_pqrs_stats(queryset, user) -> dict:
         "pendientes": pendientes,
         "sin_asignar": sin_asignar,
         "alerta_count": alerta_count,
+        "correo_alerta_count": correo_alerta_count,
+        "vencidas_count": vencidas_count,
         "by_estado": by_estado,
         "by_tipo": by_tipo,
         "by_canal": by_canal,

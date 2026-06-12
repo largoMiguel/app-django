@@ -129,7 +129,7 @@ export default function PQRSPage() {
   const rechazadas = rechazadasData?.results ?? [];
 
   const { data: correoAlertaData } = usePqrsList(
-    { alerta: true, page: 1, page_size: 5 },
+    { correo_alerta: true, page: 1, page_size: 5 },
     { enabled: canVerCorreoAlerta },
   );
   const correoAlertas = correoAlertaData?.results ?? [];
@@ -160,7 +160,6 @@ export default function PQRSPage() {
         module="pqrs"
         onAlertClick={(a) => a.object_id && navigate(`?id=${a.object_id}`)}
       />
-      <PqrsAICommandBar onResultClick={(r) => navigate(`?id=${r.object_id}`)} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#3eafd4]/10 text-[#3eafd4]">
@@ -217,6 +216,8 @@ export default function PQRSPage() {
           )}
         </div>
       </div>
+
+      <PqrsAICommandBar onResultClick={(r) => navigate(`?id=${r.object_id}`)} />
 
       {modoAlerta && (
         <PqrsAIInsights
@@ -420,7 +421,7 @@ export default function PQRSPage() {
         <div className="flex items-center gap-1.5 border-t border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-500">
           <Info className="h-3.5 w-3.5" />
           {filterPendientes && "Filtro: pendientes · "}
-          {modoAlerta && "Filtro: correos con error de envío · "}
+          {modoAlerta && "Filtro: vencidas o por vencer (≤5 días) · "}
           Mostrando {items.length} de {totalCount} PQRS
         </div>
       </div>

@@ -37,10 +37,11 @@ def compute_compliance_stats(
         fecha_respuesta__lte=F("fecha_vencimiento"),
     ).count()
 
-  # Vencidas abiertas
+    # Vencidas abiertas
     abiertas = qs.exclude(estado__in=[EstadoPQRS.RESPONDIDA, EstadoPQRS.CERRADA])
     vencidas_abiertas = abiertas.filter(
         fecha_vencimiento__lt=timezone.now(),
+        fecha_vencimiento__isnull=False,
     ).count()
 
     # Días promedio de respuesta
@@ -125,7 +126,7 @@ def compute_sla_risk_scores(entity_id: int, qs=None) -> list[dict[str, Any]]:
     base = qs if qs is not None else PQRS.objects.filter(entity_id=entity_id)
     abiertas = base.exclude(
         estado__in=[EstadoPQRS.RESPONDIDA, EstadoPQRS.CERRADA],
-    ).select_related("assigned_to")
+    ).select_related("assigned_to").prefetch_related("assigned_secretarias")
 
     results: list[dict[str, Any]] = []
     for pqrs in abiertas:
@@ -155,7 +156,7 @@ def compute_sla_risk_scores(entity_id: int, qs=None) -> list[dict[str, Any]]:
             score += 10
             factors.append(f"Abierta {dias_abierta} días")
 
-        if not pqrs.assigned_to_id:
+        if not pqrs.assigned_secretarias.exists():
             score += 15
             factors.append("Sin asignar")
 

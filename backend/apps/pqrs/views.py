@@ -164,6 +164,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
             "archivo_remove": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "stats": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario"))],
             "auto_create": [IsAuthenticated, HasPermOrRole(perms=("pqrs.add_pqrs",), roles=("admin", "secretario", "ciudadano"))],
+            "draft_respuesta": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
             "reports_preview": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin",))],
         }
         classes = perm_map.get(self.action, [IsAuthenticated])
@@ -207,8 +208,10 @@ class PQRSViewSet(viewsets.ModelViewSet):
         """Agregados para dashboard (sin traer todas las PQRS)."""
         from django.core.cache import cache
 
+        from .cache_utils import pqrs_stats_cache_key
+
         user = request.user
-        cache_key = f"pqrs:stats:{user.id}:{user.entity_id or 0}"
+        cache_key = pqrs_stats_cache_key(user)
         cached = cache.get(cache_key)
         if cached is not None:
             return Response(cached)

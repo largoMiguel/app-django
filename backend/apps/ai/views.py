@@ -197,7 +197,9 @@ class PQRSComplianceView(APIView):
         user = request.user
         _ensure_entity_user(user)
         require_user_module(user, "pqrs")
-        cache_key = f"pqrs:compliance:{user.id}:{user.entity_id}"
+        from apps.pqrs.cache_utils import pqrs_compliance_cache_key
+
+        cache_key = pqrs_compliance_cache_key(user)
         cached = cache.get(cache_key)
         if cached is not None:
             return Response(cached)
@@ -219,7 +221,9 @@ class PQRSInsightsView(APIView):
         user = request.user
         _ensure_entity_user(user)
         require_user_module(user, "pqrs")
-        cache_key = f"pqrs:insights:{user.id}:{user.entity_id}"
+        from apps.pqrs.cache_utils import pqrs_insights_cache_key
+
+        cache_key = pqrs_insights_cache_key(user)
         cached = cache.get(cache_key)
         if cached is not None:
             return Response(cached)

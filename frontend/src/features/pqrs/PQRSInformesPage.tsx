@@ -395,7 +395,6 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
   }
 
   function handleGenerate(config: ReportConfig, preview: PQRSReportPreview) {
-    const now = Date.now();
     const rows: ReportRow[] = preview.rows.map((p) => ({
       radicado: p.numero_radicado,
       tipo: labelTipo(p.tipo_solicitud),
@@ -416,12 +415,7 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
         respondidas: preview.stats.respondidas,
         cerradas: preview.stats.cerradas,
         pendientes: preview.stats.pendientes,
-        vencidas: preview.rows.filter(
-          (p) =>
-            !["respondida", "cerrada"].includes(p.estado) &&
-            p.fecha_vencimiento &&
-            new Date(p.fecha_vencimiento).getTime() < now,
-        ).length,
+        vencidas: preview.stats.vencidas_count ?? 0,
       },
       rows,
       entityName: entity?.name || "Entidad",

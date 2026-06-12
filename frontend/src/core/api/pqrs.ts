@@ -176,6 +176,8 @@ export interface PQRSStats {
   pendientes: number;
   sin_asignar: number;
   alerta_count: number;
+  correo_alerta_count?: number;
+  vencidas_count?: number;
   by_estado: Partial<Record<EstadoPQRS, number>>;
   by_tipo: Partial<Record<TipoSolicitud, number>>;
   by_canal: Record<string, number>;
