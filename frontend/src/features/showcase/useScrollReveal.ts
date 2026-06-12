@@ -1,9 +1,5 @@
 import { useEffect } from "react";
 
-function prefersReducedMotion(): boolean {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 function animateCounter(el: HTMLElement, duration = 1600): void {
   const text = el.textContent?.trim() || "";
   const match = text.match(/^([\d.]+)(.*)/);
@@ -22,60 +18,47 @@ function animateCounter(el: HTMLElement, duration = 1600): void {
   requestAnimationFrame(step);
 }
 
-function revealElement(el: Element, reduced: boolean): void {
-  el.classList.add("animate-in");
-  if (reduced) return;
-  el.querySelectorAll(".pdm-stat-value, .sc-metric-value").forEach((statEl) => {
-    animateCounter(statEl as HTMLElement);
-  });
-}
-
-function staggerChildren(root: ParentNode, selector: string): void {
-  root.querySelectorAll(selector).forEach((el, i) => {
-    (el as HTMLElement).style.setProperty("--si", String(i));
-  });
-}
-
 export function useScrollReveal(rootSelector = ".showcase-main"): void {
   useEffect(() => {
     const root = document.querySelector(rootSelector);
     if (!root) return;
 
-    const reduced = prefersReducedMotion();
-
-    if (reduced) {
-      root.querySelectorAll(".animate").forEach((el) => el.classList.add("animate-in"));
-      return;
-    }
-
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            revealElement(entry.target, reduced);
+            entry.target.classList.add("animate-in");
+            entry.target.querySelectorAll(".pdm-stat-value").forEach((el) => {
+              animateCounter(el as HTMLElement);
+            });
             observer.unobserve(entry.target);
           }
         });
       },
-      { threshold: 0.06, rootMargin: "0px 0px -40px 0px" },
+      { threshold: 0.08, rootMargin: "0px 0px -50px 0px" },
     );
 
-    staggerChildren(root, ".sc-bento-pdm .animate");
-    staggerChildren(root, ".sc-bento-features .animate");
-    staggerChildren(root, ".benefits-section .showcase-grid .animate");
-    staggerChildren(root, ".use-cases-section .showcase-grid .animate");
-    staggerChildren(root, ".nos-objectives .showcase-grid .animate");
-    staggerChildren(root, ".nos-intel .showcase-grid .animate");
+    const gridSelectors = [
+      ".features-section .showcase-grid",
+      ".benefits-section .showcase-grid",
+      ".use-cases-section .showcase-grid",
+      ".pdm-hero-section .showcase-grid",
+    ];
+    gridSelectors.forEach((sel) => {
+      root.querySelector(sel)?.querySelectorAll(".animate").forEach((el, i) => {
+        (el as HTMLElement).style.setProperty("--si", String(i));
+      });
+    });
 
-    root.querySelectorAll(".pdm-stats-row .animate, .sc-metrics .animate").forEach((el, i) => {
+    root.querySelectorAll(".pdm-stats-row .animate").forEach((el, i) => {
       (el as HTMLElement).style.setProperty("--si", String(i));
     });
 
-    root.querySelectorAll(".tech-stack .animate, .sc-tech-grid .animate").forEach((el, i) => {
+    root.querySelectorAll(".tech-stack .animate").forEach((el, i) => {
       (el as HTMLElement).style.setProperty("--si", String(i % 4));
     });
 
-    root.querySelectorAll(".module-v2-block.animate, .sc-module.animate").forEach((el, i) => {
+    root.querySelectorAll(".module-v2-block.animate").forEach((el, i) => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.setProperty("--si", String(i % 2));
       htmlEl.classList.add(i % 2 === 1 ? "from-right" : "from-left");
@@ -84,10 +67,10 @@ export function useScrollReveal(rootSelector = ".showcase-main"): void {
     root.querySelectorAll(".animate").forEach((el) => observer.observe(el));
 
     const heroStatsTimer = window.setTimeout(() => {
-      root.querySelectorAll(".hero-content .sc-stat-value, .sc-hero .sc-stat-value").forEach((el) => {
+      root.querySelectorAll(".hero-stats .stat-value").forEach((el) => {
         animateCounter(el as HTMLElement, 1400);
       });
-    }, 700);
+    }, 500);
 
     return () => {
       window.clearTimeout(heroStatsTimer);

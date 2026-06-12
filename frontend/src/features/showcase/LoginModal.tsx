@@ -1,64 +1,27 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { SignIn } from "@clerk/react";
-import { ShieldCheck, X } from "lucide-react";
-import ShowcaseLogo from "./ShowcaseLogo";
+import { LogIn, ShieldCheck, Sparkles, X } from "lucide-react";
 
 interface LoginModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-const EXIT_MS = 200;
-
-function usePrefersReducedMotion(): boolean {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
+const HIGHLIGHTS = [
+  { icon: Sparkles, text: "PDM, PQRS y contratación en una sola plataforma" },
+  { icon: ShieldCheck, text: "Acceso seguro con roles por entidad y secretaría" },
+];
 
 export default function LoginModal({ open, onClose }: LoginModalProps) {
-  const [mounted, setMounted] = useState(open);
-  const [visible, setVisible] = useState(false);
-  const reducedMotion = usePrefersReducedMotion();
-
   useEffect(() => {
-    if (open) {
-      setMounted(true);
-      if (reducedMotion) {
-        setVisible(true);
-        return;
-      }
-      const id = window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => setVisible(true));
-      });
-      return () => window.cancelAnimationFrame(id);
-    }
-    setVisible(false);
-  }, [open, reducedMotion]);
-
-  useEffect(() => {
-    if (visible || !mounted) return undefined;
-    const timer = window.setTimeout(() => setMounted(false), EXIT_MS);
-    return () => window.clearTimeout(timer);
-  }, [visible, mounted]);
-
-  const requestClose = useCallback(() => {
-    if (reducedMotion) {
-      setMounted(false);
-      onClose();
-      return;
-    }
-    setVisible(false);
-    window.setTimeout(onClose, EXIT_MS);
-  }, [onClose, reducedMotion]);
-
-  useEffect(() => {
-    if (!mounted) return;
+    if (!open) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") requestClose();
+      if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKeyDown);
 
@@ -66,69 +29,69 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [mounted, requestClose]);
+  }, [open, onClose]);
 
-  if (!mounted) return null;
+  if (!open) return null;
 
   return createPortal(
-    <div
-      className="login-shell"
-      data-visible={visible}
-      onClick={requestClose}
-      role="presentation"
-    >
+    <div className="login-shell" onClick={onClose} role="presentation">
       <div
         className="login-dialog"
-        data-visible={visible}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="login-dialog-title"
       >
-        <aside className="login-dialog-brand" data-visible={visible}>
-          <div className="login-dialog-brand-grid" aria-hidden="true" />
+        <aside className="login-dialog-brand">
           <button
             type="button"
             className="login-dialog-close login-dialog-close-mobile"
-            onClick={requestClose}
+            onClick={onClose}
             aria-label="Cerrar"
           >
             <X size={20} />
           </button>
           <div className="login-dialog-brand-content">
-            <ShowcaseLogo size={88} className="login-dialog-logo" />
-            <div className="login-dialog-brand-copy">
-              <p className="login-dialog-eyebrow">Acceso institucional</p>
-              <h2 id="login-dialog-title" className="login-dialog-heading">
-                Gestión pública con visión total
-              </h2>
-              <p className="login-dialog-lead">
-                PDM, PQRS e informes en una plataforma segura, diseñada para entidades
-                territoriales en Colombia.
-              </p>
-            </div>
-            <p className="login-dialog-trust">
-              <ShieldCheck size={14} aria-hidden="true" />
-              Conexión cifrada · Solo usuarios autorizados
+            <p className="login-dialog-eyebrow">SoftOne360</p>
+            <h2 id="login-dialog-title" className="login-dialog-heading">
+              Tu entidad, un solo lugar para gestionar
+            </h2>
+            <p className="login-dialog-lead">
+              Ingresa con tu cuenta institucional para acceder al PDM, PQRS, informes y módulos
+              habilitados para tu organización.
             </p>
+            <ul className="login-dialog-highlights">
+              {HIGHLIGHTS.map(({ icon: Icon, text }) => (
+                <li key={text}>
+                  <span className="login-dialog-highlight-icon">
+                    <Icon size={18} />
+                  </span>
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </aside>
 
         <section className="login-dialog-form">
           <div className="login-dialog-mobile-brand">
-            <ShowcaseLogo size={40} />
             <div>
               <strong>SoftOne360</strong>
-              <span>Acceso institucional</span>
+              <span>Acceso institucional seguro</span>
             </div>
           </div>
 
           <div className="login-dialog-form-header">
-            <div>
-              <h3 className="login-dialog-form-title">Ingresar</h3>
-              <p className="login-dialog-form-sub">Correo institucional autorizado</p>
+            <div className="login-dialog-form-title-wrap">
+              <span className="login-dialog-form-icon">
+                <LogIn size={20} />
+              </span>
+              <div>
+                <h3 className="login-dialog-form-title">Ingresar al sistema</h3>
+                <p className="login-dialog-form-sub">Use su correo institucional autorizado</p>
+              </div>
             </div>
-            <button type="button" className="login-dialog-close" onClick={requestClose} aria-label="Cerrar">
+            <button type="button" className="login-dialog-close" onClick={onClose} aria-label="Cerrar">
               <X size={20} />
             </button>
           </div>
@@ -146,12 +109,15 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
                   header: "hidden",
                   headerTitle: "hidden",
                   headerSubtitle: "hidden",
-                  socialButtonsBlockButton: "login-clerk-social",
+                  socialButtonsBlockButton:
+                    "border-slate-200 hover:bg-slate-50 transition-colors rounded-xl h-11",
                   dividerLine: "bg-slate-200",
                   dividerText: "text-slate-400 text-xs",
                   formFieldLabel: "text-slate-700 font-medium text-sm",
-                  formFieldInput: "login-clerk-input",
-                  formButtonPrimary: "login-clerk-submit",
+                  formFieldInput:
+                    "rounded-xl border-slate-200 focus:border-[#216ba8] focus:ring-[#216ba8]/20 h-11",
+                  formButtonPrimary:
+                    "rounded-xl bg-[#216ba8] hover:bg-[#1a5a8f] text-sm font-semibold h-11 shadow-sm",
                   footer: "hidden",
                   footerAction: { display: "none" },
                   identityPreview: "rounded-xl border border-slate-200",
@@ -163,6 +129,11 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
               }}
             />
           </div>
+
+          <p className="login-dialog-footnote">
+            <ShieldCheck size={14} />
+            Conexión protegida · Solo usuarios autorizados por su entidad
+          </p>
         </section>
       </div>
     </div>,
