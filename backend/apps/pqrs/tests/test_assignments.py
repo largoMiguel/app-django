@@ -249,6 +249,62 @@ class PQRSAssignmentTests(TestCase):
         self.assertEqual(ids, {self.secretaria_a.id})
         self.assertEqual(pqrs.assigned_to_id, self.secretaria_a.id)
 
+    @patch("apps.pqrs.services.email._post_zeptomail", return_value=(True, "req-asig", None))
+    def test_secretario_remitente_no_recibe_auto_notificacion(self, mock_mail):
+        from apps.pqrs.services.creation import crear_pqrs_desde_ia
+
+        extraido = {
+            "tipo_solicitud": "peticion",
+            "asunto": "Desde correo",
+            "descripcion": "Texto",
+            "medio_respuesta": "email",
+        }
+        pqrs = crear_pqrs_desde_ia(
+            self.entity,
+            extraido,
+            created_by=self.secretario_a,
+            canal_llegada=CanalLlegada.EMAIL,
+            secretaria_fallback=self.secretaria_a,
+            generar_pdf_texto=False,
+        )
+        mock_mail.assert_called_once()
+        correo = PQRSCorreo.objects.filter(
+            pqrs=pqrs,
+            tipo=TipoCorreoPQRS.ASIGNACION,
+            estado=EstadoCorreoPQRS.ENVIADO,
+        ).first()
+        self.assertIsNotNone(correo)
+        destinos = {d["email"].lower() for d in correo.destinatarios}
+        self.assertNotIn("seca@test.com", destinos)
+        self.assertIn("funcionario@test.com", destinos)
+
+    @patch("apps.pqrs.services.email._post_zeptomail", return_value=(True, "req-asig", None))
+    def test_secretario_solo_en_dependencia_no_dispara_correo(self, mock_mail):
+        from apps.pqrs.services.creation import crear_pqrs_desde_ia
+
+        User.objects.filter(pk=self.funcionario_a.pk).delete()
+        extraido = {
+            "tipo_solicitud": "peticion",
+            "asunto": "Desde correo",
+            "descripcion": "Texto",
+            "medio_respuesta": "email",
+        }
+        pqrs = crear_pqrs_desde_ia(
+            self.entity,
+            extraido,
+            created_by=self.secretario_a,
+            canal_llegada=CanalLlegada.EMAIL,
+            secretaria_fallback=self.secretaria_a,
+            generar_pdf_texto=False,
+        )
+        mock_mail.assert_not_called()
+        self.assertFalse(
+            PQRSCorreo.objects.filter(
+                pqrs=pqrs,
+                tipo=TipoCorreoPQRS.ASIGNACION,
+            ).exists()
+        )
+
 
 class PQRSInboundAttachmentsTests(TestCase):
     def test_extract_attachments_sin_tope_de_cuatro(self):

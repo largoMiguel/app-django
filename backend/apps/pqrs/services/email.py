@@ -631,6 +631,21 @@ def _build_asignacion_bodies(
     return subject, text_body, html_body
 
 
+def _filtrar_destinatarios_asignacion(
+    secretaria,
+    *,
+    asignado_por=None,
+) -> list[str]:
+    """Destinatarios de asignación, excluyendo a quien realizó la asignación."""
+    recipients = _destinatarios_secretaria(secretaria)
+    if asignado_por is None:
+        return recipients
+    excluir = (getattr(asignado_por, "email", "") or "").strip().lower()
+    if not excluir:
+        return recipients
+    return [addr for addr in recipients if addr.lower() != excluir]
+
+
 def enviar_notificacion_asignacion(
     pqrs: PQRS,
     secretaria,
@@ -639,7 +654,10 @@ def enviar_notificacion_asignacion(
     justificacion: str = "",
 ) -> PQRSCorreo | None:
     """Notifica por correo a los secretarios de la dependencia asignada."""
-    recipients = _destinatarios_secretaria(secretaria)
+    recipients = _filtrar_destinatarios_asignacion(
+        secretaria,
+        asignado_por=asignado_por,
+    )
     subject, text_body, html_body = _build_asignacion_bodies(
         pqrs,
         secretaria,
@@ -648,6 +666,13 @@ def enviar_notificacion_asignacion(
     )
 
     if not recipients:
+        if _destinatarios_secretaria(secretaria):
+            logger.info(
+                "PQRS %s — omitida notificación a %s (remitente es el único destinatario).",
+                pqrs.numero_radicado,
+                secretaria.nombre,
+            )
+            return None
         sin_dest_msg = (
             f"Sin usuarios secretario/admin activos con email "
             f"en {secretaria.nombre}."
