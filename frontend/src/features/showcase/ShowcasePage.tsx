@@ -6,6 +6,7 @@ import {
   benefits,
   CONTACT_EMAIL,
   CONTACT_PHONE,
+  contactWhatsApp,
   features,
   heroPanelItems,
   modules,
@@ -64,7 +65,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
             <div className="col-lg-7 hero-content">
               <p className="sc-eyebrow sc-hero-eyebrow">
                 <Si icon="fas fa-star" size={14} />
-                Plataforma líder en gestión pública — Colombia
+                Plataforma líder en gestión pública, Colombia
               </p>
               <h1 className="sc-hero-title">
                 <span className="sc-hero-line">
@@ -130,16 +131,21 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
             </p>
           </div>
 
-          <div className="sc-bento row g-4 mb-5 showcase-grid">
-            {pdmCapabilities.map((cap) => (
-              <div key={cap.title} className="col-md-6 col-lg-4 animate">
-                <article className="sc-glass-card pdm-cap-card">
-                  <div className="sc-card-icon pdm-cap-icon">
-                    <Si icon={cap.icon} size={22} />
-                  </div>
-                  <h3 className="sc-card-title">{cap.title}</h3>
-                  <p className="sc-card-text">{cap.text}</p>
-                </article>
+          <div className="sc-bento-pdm mb-5">
+            {pdmCapabilities.map((cap, i) => (
+              <div
+                key={cap.title}
+                className={`sc-bento-cell animate${i === 0 ? " sc-bento-featured" : ""}`}
+              >
+                <div className="sc-bezel sc-bezel-dark">
+                  <article className="sc-bezel-core sc-glass-card pdm-cap-card">
+                    <div className="sc-card-icon pdm-cap-icon">
+                      <Si icon={cap.icon} size={i === 0 ? 28 : 22} />
+                    </div>
+                    <h3 className="sc-card-title">{cap.title}</h3>
+                    <p className="sc-card-text">{cap.text}</p>
+                  </article>
+                </div>
               </div>
             ))}
           </div>
@@ -174,7 +180,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                 </h3>
                 <p className="sc-panel-lead">
                   Desde la carga del Plan de Desarrollo Municipal en Excel hasta el informe de
-                  rendición de cuentas — <strong>SoftOne360</strong> cubre el ciclo completo.
+                  rendición de cuentas. <strong>SoftOne360</strong> cubre el ciclo completo.
                 </p>
                 <ul className="sc-check-list pdm-features-grid">
                   {pdmFeatures.map((feat) => (
@@ -203,26 +209,32 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
       <section className="sc-section features-section" id="features">
         <div className="container">
           <div className="section-header sc-section-head text-center animate">
-            <span className="sc-chip">Capacidades</span>
             <h2 className="sc-section-title section-title">Tecnología al servicio del sector público</h2>
             <p className="sc-section-lead section-subtitle">
               Herramientas reales para alcaldías, gobernaciones y entidades descentralizadas.
             </p>
           </div>
-          <div className="row g-4 showcase-grid">
+          <div className="sc-bento-features">
             {features.map((feature, i) => (
-              <div key={feature.title} className="col-md-6 col-lg-4 animate">
-                <article
-                  className="feature-card sc-feature-card"
-                  style={{ ["--feature-accent" as string]: feature.color }}
-                >
-                  <div className="feature-icon sc-feature-icon">
-                    <Si icon={feature.icon} size={24} />
-                  </div>
-                  <h3 className="feature-title sc-feature-title">{feature.title}</h3>
-                  <p className="feature-description sc-feature-text">{feature.description}</p>
-                  <span className="sc-feature-index">{String(i + 1).padStart(2, "0")}</span>
-                </article>
+              <div
+                key={feature.title}
+                className={`sc-bento-cell animate${i === 0 ? " sc-bento-featured" : ""}`}
+              >
+                <div className="sc-bezel">
+                  <article
+                    className="sc-bezel-core feature-card sc-feature-card"
+                    style={{ ["--feature-accent" as string]: feature.color }}
+                  >
+                    <div className="feature-icon sc-feature-icon">
+                      <Si icon={feature.icon} size={i === 0 ? 28 : 24} />
+                    </div>
+                    <div>
+                      <h3 className="feature-title sc-feature-title">{feature.title}</h3>
+                      <p className="feature-description sc-feature-text">{feature.description}</p>
+                    </div>
+                    <span className="sc-feature-index">{String(i + 1).padStart(2, "0")}</span>
+                  </article>
+                </div>
               </div>
             ))}
           </div>
@@ -232,13 +244,9 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
       <section className="sc-section sc-section-alt modules-v2-section" id="modules">
         <div className="container">
           <div className="modules-v2-header sc-section-head text-center animate">
-            <span className="sc-chip">
-              <Si icon="fas fa-cubes" size={14} />
-              6 módulos integrados
-            </span>
-            <h2 className="sc-section-title section-title mt-3">Sistema completo de gestión pública</h2>
+            <h2 className="sc-section-title section-title">Sistema completo de gestión pública</h2>
             <p className="sc-section-lead section-subtitle">
-              Cada módulo responde a necesidades reales del sector público colombiano.
+              Seis módulos integrados que responden a necesidades reales del sector público colombiano.
             </p>
           </div>
 
@@ -246,7 +254,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
             {modules.map((mod, i) => (
               <article
                 key={mod.name}
-                className="module-v2-block sc-module animate"
+                className="module-v2-block sc-module sc-bezel-module animate"
                 style={{ ["--module-color" as string]: mod.color }}
               >
                 <header className="module-v2-header sc-module-head">
@@ -298,7 +306,6 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
       <section className="sc-section benefits-section">
         <div className="container">
           <div className="section-header sc-section-head text-center animate">
-            <span className="sc-chip">Ventajas</span>
             <h2 className="sc-section-title section-title">¿Por qué SoftOne360?</h2>
             <p className="sc-section-lead section-subtitle">
               Infraestructura, seguridad y tecnología de nivel empresarial.
@@ -307,13 +314,15 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
           <div className="row g-4 showcase-grid">
             {benefits.map((benefit) => (
               <div key={benefit.title} className="col-md-6 col-lg-4 animate">
-                <article className="benefit-card sc-benefit">
-                  <div className="benefit-icon sc-benefit-icon">
-                    <Si icon={benefit.icon} size={24} />
-                  </div>
-                  <h3 className="benefit-title sc-benefit-title">{benefit.title}</h3>
-                  <p className="benefit-description sc-benefit-text">{benefit.description}</p>
-                </article>
+                <div className="sc-bezel">
+                  <article className="sc-bezel-core benefit-card sc-benefit">
+                    <div className="benefit-icon sc-benefit-icon">
+                      <Si icon={benefit.icon} size={24} />
+                    </div>
+                    <h3 className="benefit-title sc-benefit-title">{benefit.title}</h3>
+                    <p className="benefit-description sc-benefit-text">{benefit.description}</p>
+                  </article>
+                </div>
               </div>
             ))}
           </div>
@@ -322,14 +331,10 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
 
       <Link className="about-spotlight sc-about-band" to="/nosotros">
         <div className="container sc-about-inner">
-          <span className="sc-chip sc-chip-light">
-            <Si icon="fas fa-building" size={14} />
-            Nuestra empresa
-          </span>
           <h2 className="sc-about-title">
             Arquitectos de <em>soluciones digitales</em> para el sector público
           </h2>
-          <p className="sc-about-sub">Misión · Visión · Objetivos · Inteligencia estratégica</p>
+          <p className="sc-about-sub">Misión, visión, objetivos e inteligencia estratégica</p>
           <span className="sc-about-cta">
             Conocer nuestra historia
             <Si icon="fas fa-arrow-right" size={16} />
@@ -340,7 +345,6 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
       <section className="sc-section sc-section-alt use-cases-section">
         <div className="container">
           <div className="section-header sc-section-head text-center animate">
-            <span className="sc-chip">Entidades</span>
             <h2 className="sc-section-title section-title">Diseñado para la institucionalidad territorial</h2>
             <p className="sc-section-lead section-subtitle">
               Alcaldías, gobernaciones y entidades descentralizadas en Colombia.
@@ -349,21 +353,23 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
           <div className="row g-4 showcase-grid">
             {useCases.map((useCase) => (
               <div key={useCase.title} className="col-lg-4 animate">
-                <article className="use-case-card sc-use-case">
-                  <div className="use-case-icon sc-use-icon">
-                    <Si icon={useCase.icon} size={28} />
-                  </div>
-                  <h3 className="use-case-title sc-use-title">{useCase.title}</h3>
-                  <p className="use-case-description sc-use-text">{useCase.description}</p>
-                  <ul className="use-case-metrics sc-use-metrics">
-                    {useCase.metrics.map((metric) => (
-                      <li key={metric} className="metric">
-                        <Si icon="fas fa-check-circle" size={14} />
-                        {metric}
-                      </li>
-                    ))}
-                  </ul>
-                </article>
+                <div className="sc-bezel">
+                  <article className="sc-bezel-core use-case-card sc-use-case">
+                    <div className="use-case-icon sc-use-icon">
+                      <Si icon={useCase.icon} size={28} />
+                    </div>
+                    <h3 className="use-case-title sc-use-title">{useCase.title}</h3>
+                    <p className="use-case-description sc-use-text">{useCase.description}</p>
+                    <ul className="use-case-metrics sc-use-metrics">
+                      {useCase.metrics.map((metric) => (
+                        <li key={metric} className="metric">
+                          <Si icon="fas fa-check-circle" size={14} />
+                          {metric}
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                </div>
               </div>
             ))}
           </div>
@@ -373,7 +379,6 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
       <section className="sc-section sc-section-dark tech-section">
         <div className="container">
           <div className="section-header sc-section-head text-center animate">
-            <span className="sc-chip sc-chip-light">Stack</span>
             <h2 className="sc-section-title sc-section-title-light section-title">Tecnología de producción</h2>
             <p className="sc-section-lead sc-section-lead-light section-subtitle">
               El stack real que impulsa app.softone360.com
@@ -394,11 +399,36 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
         <div className="container">
           <div className="cta-box sc-cta animate">
             <div className="sc-cta-content">
+              <span className="sc-chip sc-chip-light">Contacto</span>
               <h2 className="cta-title sc-cta-title">¿Listo para digitalizar su entidad?</h2>
               <p className="cta-text sc-cta-text">
                 Centralice el PDM, PQRS y la gestión institucional de su entidad territorial en una
                 sola plataforma segura.
               </p>
+              <div className="sc-cta-actions">
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-light sc-btn-pill sc-btn-inset"
+                  onClick={onLoginClick}
+                >
+                  Ingresar a la plataforma
+                  <span className="sc-btn-icon-wrap">
+                    <Si icon="fas fa-arrow-right" size={16} />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-ghost-light sc-btn-pill"
+                  onClick={() =>
+                    contactWhatsApp(
+                      "Hola, me interesa conocer SoftOne360 para digitalizar la gestión de nuestra entidad territorial.",
+                    )
+                  }
+                >
+                  <Si icon="fab fa-whatsapp" size={18} />
+                  Escríbanos por WhatsApp
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -457,7 +487,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                 </li>
                 <li>
                   <Si icon="fas fa-map-marker-alt" size={16} />
-                  <span>Tunja, Boyacá — Colombia</span>
+                  <span>Tunja, Boyacá, Colombia</span>
                 </li>
               </ul>
             </div>

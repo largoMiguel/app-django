@@ -30,6 +30,12 @@ function revealElement(el: Element, reduced: boolean): void {
   });
 }
 
+function staggerChildren(root: ParentNode, selector: string): void {
+  root.querySelectorAll(selector).forEach((el, i) => {
+    (el as HTMLElement).style.setProperty("--si", String(i));
+  });
+}
+
 export function useScrollReveal(rootSelector = ".showcase-main"): void {
   useEffect(() => {
     const root = document.querySelector(rootSelector);
@@ -54,19 +60,12 @@ export function useScrollReveal(rootSelector = ".showcase-main"): void {
       { threshold: 0.06, rootMargin: "0px 0px -40px 0px" },
     );
 
-    const gridSelectors = [
-      ".features-section .showcase-grid",
-      ".benefits-section .showcase-grid",
-      ".use-cases-section .showcase-grid",
-      ".pdm-hero-section .showcase-grid",
-      ".nos-objectives .showcase-grid",
-      ".nos-intel .showcase-grid",
-    ];
-    gridSelectors.forEach((sel) => {
-      root.querySelector(sel)?.querySelectorAll(".animate").forEach((el, i) => {
-        (el as HTMLElement).style.setProperty("--si", String(i));
-      });
-    });
+    staggerChildren(root, ".sc-bento-pdm .animate");
+    staggerChildren(root, ".sc-bento-features .animate");
+    staggerChildren(root, ".benefits-section .showcase-grid .animate");
+    staggerChildren(root, ".use-cases-section .showcase-grid .animate");
+    staggerChildren(root, ".nos-objectives .showcase-grid .animate");
+    staggerChildren(root, ".nos-intel .showcase-grid .animate");
 
     root.querySelectorAll(".pdm-stats-row .animate, .sc-metrics .animate").forEach((el, i) => {
       (el as HTMLElement).style.setProperty("--si", String(i));
@@ -82,7 +81,6 @@ export function useScrollReveal(rootSelector = ".showcase-main"): void {
       htmlEl.classList.add(i % 2 === 1 ? "from-right" : "from-left");
     });
 
-    // Scroll sections only — hero entrance is pure CSS in showcase.scss
     root.querySelectorAll(".animate").forEach((el) => observer.observe(el));
 
     const heroStatsTimer = window.setTimeout(() => {
