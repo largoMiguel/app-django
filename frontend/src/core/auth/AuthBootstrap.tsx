@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import { authApi } from "@/core/auth/api";
+import { isClerkConfigured } from "@/core/auth/clerkConfig";
 import { useAuthStore } from "@/core/auth/store";
 import {
   forceClerkSignOut,
@@ -10,7 +11,7 @@ import {
 import { isPublicAppPath } from "@/core/auth/publicPaths";
 import { clearClientSession } from "@/core/auth/session";
 
-export default function AuthBootstrap({ children }: { children: React.ReactNode }) {
+function AuthBootstrapWithClerk({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const isPublic = isPublicAppPath(pathname);
   const { isLoaded, isSignedIn } = useAuth();
@@ -82,4 +83,12 @@ export default function AuthBootstrap({ children }: { children: React.ReactNode 
   }
 
   return <>{children}</>;
+}
+
+export default function AuthBootstrap({ children }: { children: React.ReactNode }) {
+  if (!isClerkConfigured()) {
+    return <>{children}</>;
+  }
+
+  return <AuthBootstrapWithClerk>{children}</AuthBootstrapWithClerk>;
 }

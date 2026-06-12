@@ -1,8 +1,11 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import ShowcaseIcon from "../showcase/ShowcaseIcon";
-import { contactWhatsApp } from "@/features/showcase/showcaseData";
-import { useNosotrosReveal } from "./useNosotrosReveal";
+import ShowcaseNav from "../showcase/ShowcaseNav";
+import ShowcaseLogo from "../showcase/ShowcaseLogo";
+import { contactWhatsApp, CONTACT_EMAIL, CONTACT_PHONE } from "@/features/showcase/showcaseData";
+import { useScrollReveal } from "../showcase/useScrollReveal";
+import "../showcase/showcase.scss";
 import "./nosotros.scss";
 
 function Si({ icon, className, size = 20 }: { icon: string; className?: string; size?: number }) {
@@ -19,31 +22,31 @@ const pills = [
 const objectives = [
   {
     icon: "fas fa-lightbulb",
-    gradient: "linear-gradient(135deg,#216ba8,#36b9cc)",
+    color: "#1a5f8c",
     title: "Innovación Continua",
     text: "Desarrollar y desplegar soluciones de software con las últimas tendencias tecnológicas para resolver necesidades emergentes del mercado.",
   },
   {
     icon: "fas fa-network-wired",
-    gradient: "linear-gradient(135deg,#1cc28e,#059669)",
+    color: "#15803d",
     title: "Excelencia en Infraestructura",
     text: "Garantizar la continuidad del negocio de nuestros aliados mediante el diseño y mantenimiento de redes y sistemas de alta disponibilidad.",
   },
   {
     icon: "fas fa-shield-alt",
-    gradient: "linear-gradient(135deg,#e74a3b,#dc2626)",
+    color: "#b45309",
     title: "Seguridad y Cumplimiento",
     text: "Implementar protocolos de ciberseguridad y estándares técnicos que aseguren la integridad de la información y el cumplimiento normativo (MIPG, Gobierno Digital).",
   },
   {
     icon: "fas fa-handshake",
-    gradient: "linear-gradient(135deg,#7c3aed,#a855f7)",
+    color: "#0f766e",
     title: "Fidelización Estratégica",
     text: "Establecer relaciones de confianza a largo plazo basadas en soporte técnico especializado, transferencia de conocimiento y optimización de la inversión tecnológica.",
   },
   {
     icon: "fas fa-chart-line",
-    gradient: "linear-gradient(135deg,#ff9900,#f59e0b)",
+    color: "#1d4ed8",
     title: "Sostenibilidad Operativa",
     text: "Mantener un crecimiento constante mediante la eficiencia en la ejecución de proyectos y la capacitación continua de nuestro talento humano.",
   },
@@ -83,7 +86,7 @@ const intelItems = [
 ];
 
 export default function NosotrosPage() {
-  useNosotrosReveal();
+  useScrollReveal(".nos-page");
 
   useEffect(() => {
     document.body.classList.add("showcase-active");
@@ -94,226 +97,275 @@ export default function NosotrosPage() {
 
   return (
     <div className="nos-page">
-      <header className="nos-hero">
-        <div className="nos-hero-bg-text" aria-hidden="true">
-          360°
-        </div>
-        <div className="nos-hero-glow nos-hero-glow-cyan" />
-        <div className="nos-hero-glow nos-hero-glow-violet" />
-        <div className="container nos-hero-inner">
-          <Link to="/" className="nos-back-btn">
-            <Si icon="fas fa-arrow-left" className="showcase-icon-inline" size={16} />
+      <ShowcaseNav
+        items={[
+          { type: "link", to: "/", label: "Inicio" },
+          { type: "current", label: "Nosotros" },
+        ]}
+        cta={
+          <Link to="/" className="sc-btn sc-btn-primary sc-nav-cta">
+            <Si icon="fas fa-home" size={16} />
             Volver al inicio
           </Link>
-          <div className="nos-hero-tag nos-animate">
-            <Si icon="fas fa-building" className="showcase-icon-inline" size={16} />
-            Nuestra Empresa
-          </div>
-          <h1 className="nos-hero-title nos-animate">
-            Arquitectos de
-            <br />
-            <span className="nos-hero-accent">Soluciones Digitales</span>
-          </h1>
-          <p className="nos-hero-sub nos-animate">
-            Transformamos organizaciones con tecnología de vanguardia, estrategia y propósito.
-          </p>
-          <div className="nos-hero-pills nos-animate">
-            {pills.map((pill) => (
-              <span key={pill.label} className="nos-pill">
-                <Si icon={pill.icon} className="showcase-icon-inline" size={16} />
-                {pill.label}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="nos-hero-wave">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z" fill="#fff" />
-          </svg>
-        </div>
-      </header>
+        }
+      />
 
-      <section className="nos-intro">
+      <section className="sc-hero nos-hero">
+        <div className="sc-hero-grid" aria-hidden="true" />
         <div className="container">
-          <div className="nos-section-header text-center nos-animate">
-            <div className="nos-chip">
-              <Si icon="fas fa-compass" className="showcase-icon-inline" size={16} />
-              QUIÉNES SOMOS
+          <div className="nos-hero-content">
+            <p className="sc-eyebrow">
+              <Si icon="fas fa-building" size={14} />
+              Nuestra empresa
+            </p>
+            <h1 className="sc-hero-title nos-hero-title">
+              Arquitectos de{" "}
+              <span className="sc-hero-highlight">soluciones digitales</span>
+            </h1>
+            <p className="sc-hero-lead">
+              Transformamos organizaciones con tecnología de vanguardia, estrategia y propósito
+              orientado al sector público colombiano.
+            </p>
+            <div className="nos-pill-row">
+              {pills.map((pill) => (
+                <span key={pill.label} className="nos-pill">
+                  <Si icon={pill.icon} size={14} />
+                  {pill.label}
+                </span>
+              ))}
             </div>
-            <h2 className="nos-section-title">Conoce Softone360</h2>
-            <p className="nos-section-sub">
+          </div>
+        </div>
+      </section>
+
+      <section className="sc-section nos-intro">
+        <div className="container">
+          <div className="sc-section-head text-center animate">
+            <span className="sc-chip">
+              <Si icon="fas fa-compass" size={14} />
+              Quiénes somos
+            </span>
+            <h2 className="sc-section-title">Conoce SoftOne360</h2>
+            <p className="sc-section-lead">
               Una empresa creada para llevar la transformación digital al corazón de las
-              organizaciones
+              organizaciones.
             </p>
           </div>
-          <div className="row align-items-start g-5 mt-1">
-            <div className="col-lg-6 nos-animate">
+          <div className="row align-items-start g-5">
+            <div className="col-lg-6 animate">
               <p className="nos-body">
-                En <strong>Softone360</strong>, somos arquitectos de soluciones digitales
+                En <strong>SoftOne360</strong>, somos arquitectos de soluciones digitales
                 dedicados a potenciar la eficiencia organizacional mediante la integración
                 estratégica de tecnología de última generación. Nuestra razón de ser es cerrar la
                 brecha entre los desafíos operativos y las posibilidades tecnológicas,
-                consolidándonos como el aliado estratégico de quienes no solo buscan
-                digitalizarse, sino liderar una verdadera{" "}
+                consolidándonos como el aliado estratégico de quienes buscan una{" "}
                 <strong>transformación cultural y funcional</strong>.
               </p>
               <p className="nos-body">
                 Nuestro equipo multidisciplinario, experto en ingeniería de sistemas,
                 infraestructura de redes y consultoría administrativa, nos permite ofrecer una
-                perspectiva integral <strong>360°</strong>. Más allá de implementar software o
-                hardware, diseñamos ecosistemas robustos y escalables que armonizan con las
-                dinámicas del mercado y las rigurosas exigencias normativas del Estado.
+                perspectiva integral <strong>360°</strong> alineada con las exigencias normativas
+                del Estado.
               </p>
-              <div className="nos-badges">
+              <div className="nos-badge-row">
                 {pills.map((pill) => (
                   <span key={pill.label} className="nos-badge">
-                    <Si icon={pill.icon} className="showcase-icon-inline" size={16} />
+                    <Si icon={pill.icon} size={14} />
                     {pill.label}
                   </span>
                 ))}
               </div>
             </div>
-            <div className="col-lg-6 nos-animate">
-              <div className="nos-mv-card nos-mv-mission">
+            <div className="col-lg-6 animate">
+              <article className="nos-mv-card nos-mv-mission">
                 <div className="nos-mv-icon">
-                  <Si icon="fas fa-rocket" className="" size={16} />
+                  <Si icon="fas fa-rocket" size={20} />
                 </div>
                 <div>
-                  <div className="nos-mv-label">Misión</div>
+                  <p className="nos-mv-label">Misión</p>
                   <p className="nos-mv-text">
                     Impulsar la evolución digital de las organizaciones a través de soluciones
-                    tecnológicas integrales y personalizadas. Transformamos procesos complejos en
-                    experiencias ágiles mediante desarrollo de software de vanguardia,
-                    infraestructura robusta y asesoría estratégica, garantizando seguridad,
-                    escalabilidad y competitividad.
+                    tecnológicas integrales y personalizadas, garantizando seguridad, escalabilidad
+                    y competitividad.
                   </p>
                 </div>
-              </div>
-              <div className="nos-mv-card nos-mv-vision">
+              </article>
+              <article className="nos-mv-card nos-mv-vision">
                 <div className="nos-mv-icon">
-                  <Si icon="fas fa-eye" className="" size={16} />
+                  <Si icon="fas fa-eye" size={20} />
                 </div>
                 <div>
-                  <div className="nos-mv-label">Visión 2030</div>
+                  <p className="nos-mv-label">Visión 2030</p>
                   <p className="nos-mv-text">
                     Consolidarnos como el aliado tecnológico referente en el sector público y
-                    privado, reconocidos por nuestra innovación y excelencia. Aspiramos a liderar la
-                    transición hacia modelos de <strong>Gestión Digital Inteligente</strong>,
-                    expandiendo nuestro impacto mediante soluciones que definan el futuro de la
-                    productividad organizacional.
+                    privado, liderando la transición hacia modelos de{" "}
+                    <strong>Gestión Digital Inteligente</strong>.
                   </p>
                 </div>
-              </div>
+              </article>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="nos-objectives">
+      <section className="sc-section sc-section-alt nos-objectives">
         <div className="container">
-          <div className="nos-section-header text-center nos-animate">
-            <h2 className="nos-section-title">Objetivos Corporativos</h2>
-            <p className="nos-section-sub">
-              Los cinco pilares que guían cada decisión y proyecto en Softone360
+          <div className="sc-section-head text-center animate">
+            <span className="sc-chip">Objetivos</span>
+            <h2 className="sc-section-title">Objetivos corporativos</h2>
+            <p className="sc-section-lead">
+              Los cinco pilares que guían cada decisión y proyecto en SoftOne360.
             </p>
           </div>
-          <div className="row g-4 mt-2">
-            {objectives.map((obj) => (
+          <div className="row g-4 showcase-grid">
+            {objectives.map((obj, i) => (
               <div
                 key={obj.title}
-                className={`nos-animate ${objectives.indexOf(obj) >= 3 ? "col-md-6 col-lg-6" : "col-md-6 col-lg-4"}`}
+                className={`animate ${i >= 3 ? "col-md-6" : "col-md-6 col-lg-4"}`}
               >
-                <div className="nos-obj-card">
-                  <div className="nos-obj-icon" style={{ background: obj.gradient }}>
-                    <Si icon={obj.icon} size={24} />
+                <article className="sc-benefit nos-obj-card" style={{ ["--module-color" as string]: obj.color }}>
+                  <div className="nos-obj-icon">
+                    <Si icon={obj.icon} size={22} />
                   </div>
-                  <h5 className="nos-obj-title">{obj.title}</h5>
-                  <p className="nos-obj-text">{obj.text}</p>
-                </div>
+                  <h3 className="sc-benefit-title">{obj.title}</h3>
+                  <p className="sc-benefit-text">{obj.text}</p>
+                </article>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="nos-intel">
+      <section className="sc-section sc-section-dark nos-intel">
         <div className="container">
-          <div className="nos-section-header text-center nos-animate">
-            <div className="nos-chip nos-chip-light">
-              <Si icon="fas fa-brain" className="showcase-icon-inline" size={16} />
-              ENFOQUE SECTOR PÚBLICO
-            </div>
-            <h2 className="nos-section-title text-white">
-              Inteligencia Estratégica para la Gestión Pública
+          <div className="sc-section-head text-center animate">
+            <span className="sc-chip sc-chip-light">
+              <Si icon="fas fa-brain" size={14} />
+              Sector público
+            </span>
+            <h2 className="sc-section-title sc-section-title-light">
+              Inteligencia estratégica para la gestión pública
             </h2>
-            <p className="nos-section-sub text-white-50">
-              Entendemos que el futuro de la administración radica en la capacidad de respuesta.
-              Nuestras soluciones están diseñadas para revolucionar la gestión pública.
+            <p className="sc-section-lead sc-section-lead-light">
+              Soluciones diseñadas para revolucionar la gestión pública con datos, transparencia y
+              agilidad institucional.
             </p>
           </div>
-          <div className="row g-4 mt-2">
+          <div className="row g-4 showcase-grid">
             {intelItems.map((item) => (
-              <div key={item.title} className="col-md-6 nos-animate">
-                <div className="nos-intel-item">
+              <div key={item.title} className="col-md-6 animate">
+                <article className="nos-intel-item">
                   <div className="nos-intel-icon">
-                    <Si icon={item.icon} size={20} />
+                    <Si icon={item.icon} size={18} />
                   </div>
                   <div>
-                    <h5 className="nos-intel-title">{item.title}</h5>
+                    <h3 className="nos-intel-title">{item.title}</h3>
                     <p className="nos-intel-text">{item.text}</p>
                   </div>
-                </div>
+                </article>
               </div>
             ))}
           </div>
-          <p className="nos-intel-closing nos-animate">
-            En Softone360, no solo construimos sistemas; entregamos la claridad técnica necesaria
-            para gobernar con precisión y proyectar a las organizaciones hacia un futuro de éxito
-            sostenible.
-          </p>
+          <blockquote className="nos-intel-quote animate">
+            En SoftOne360, no solo construimos sistemas; entregamos la claridad técnica necesaria
+            para gobernar con precisión y proyectar a las organizaciones hacia un futuro sostenible.
+          </blockquote>
         </div>
       </section>
 
-      <section className="nos-cta">
+      <section className="sc-section nos-cta-wrap">
         <div className="container">
-          <div className="nos-cta-box nos-animate">
-            <div className="row align-items-center">
-              <div className="col-lg-7">
-                <h2 className="nos-cta-title">¿Listo para transformar tu organización?</h2>
-                <p className="nos-cta-text">
-                  Hablemos sobre cómo SoftOne360 puede impulsar tu entidad hacia la gestión digital
-                  inteligente.
-                </p>
-              </div>
-              <div className="col-lg-5 text-lg-end mt-4 mt-lg-0 d-flex flex-wrap gap-3 justify-content-lg-end">
-                <button
-                  type="button"
-                  className="nos-cta-btn nos-cta-btn-primary"
-                  onClick={() => contactWhatsApp("Hola, quiero agendar una demo de SoftOne360.")}
-                >
-                  <Si icon="fab fa-whatsapp" className="showcase-icon-inline" size={16} />
-                  Solicitar Demo
-                </button>
-                <Link to="/" className="nos-cta-btn nos-cta-btn-outline">
-                  <Si icon="fas fa-home" className="showcase-icon-inline" size={16} />
-                  Volver al inicio
-                </Link>
-              </div>
+          <div className="sc-cta animate">
+            <div className="sc-cta-content">
+              <h2 className="sc-cta-title">¿Listo para transformar su organización?</h2>
+              <p className="sc-cta-text">
+                Hablemos sobre cómo SoftOne360 puede impulsar su entidad hacia la gestión digital
+                inteligente.
+              </p>
+            </div>
+            <div className="nos-cta-actions">
+              <button
+                type="button"
+                className="sc-btn sc-btn-light sc-btn-lg"
+                onClick={() => contactWhatsApp("Hola, quiero agendar una demo de SoftOne360.")}
+              >
+                <Si icon="fab fa-whatsapp" size={18} />
+                Solicitar demo
+              </button>
+              <Link to="/" className="sc-btn sc-btn-ghost sc-btn-lg nos-cta-outline">
+                <Si icon="fas fa-home" size={16} />
+                Volver al inicio
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      <footer className="nos-footer">
-        <div className="container d-flex flex-column flex-md-row align-items-center justify-content-between gap-3">
-          <div className="d-flex align-items-center gap-3">
-            <span className="nos-brand-mark">S1</span>
-            <div>
-              <div className="nos-footer-brand">SoftOne360</div>
-              <div className="nos-footer-tagline">Gestión Estratégica, Visión Total</div>
+      <footer className="sc-footer">
+        <div className="container">
+          <div className="sc-footer-main animate">
+            <div className="sc-footer-col sc-footer-col-brand">
+              <div className="sc-footer-brand">
+                <ShowcaseLogo size={44} className="sc-footer-logo" />
+                <div>
+                  <strong>SoftOne360</strong>
+                  <span>Gestión estratégica, visión total</span>
+                </div>
+              </div>
+              <p className="sc-footer-about">
+                Plataforma integral de gestión pública con IA generativa, analytics avanzado y
+                cumplimiento normativo.
+              </p>
+            </div>
+
+            <div className="sc-footer-col sc-footer-col-links">
+              <h6 className="sc-footer-heading">Enlaces</h6>
+              <nav className="sc-footer-nav" aria-label="Enlaces del sitio">
+                <Link to="/#pdm-destacado" className="sc-footer-link">
+                  PDM 360°
+                </Link>
+                <Link to="/#features" className="sc-footer-link">
+                  Capacidades
+                </Link>
+                <Link to="/#modules" className="sc-footer-link">
+                  Módulos
+                </Link>
+                <Link to="/#contact" className="sc-footer-link">
+                  Contacto
+                </Link>
+                <Link to="/nosotros" className="sc-footer-link">
+                  Nosotros
+                </Link>
+              </nav>
+            </div>
+
+            <div className="sc-footer-col sc-footer-col-contact">
+              <h6 className="sc-footer-heading">Contacto</h6>
+              <ul className="sc-footer-contact">
+                <li>
+                  <Si icon="fas fa-envelope" size={16} />
+                  <a href={`mailto:${CONTACT_EMAIL}`} className="sc-footer-contact-link">
+                    {CONTACT_EMAIL}
+                  </a>
+                </li>
+                <li>
+                  <Si icon="fas fa-phone" size={16} />
+                  <a href={`tel:${CONTACT_PHONE.replace(/\s/g, "")}`} className="sc-footer-contact-link">
+                    {CONTACT_PHONE}
+                  </a>
+                </li>
+                <li>
+                  <Si icon="fas fa-map-marker-alt" size={16} />
+                  <span>Tunja, Boyacá — Colombia</span>
+                </li>
+              </ul>
             </div>
           </div>
-          <p className="nos-footer-copy mb-0">© 2026 SoftOne360 · Tunja, Boyacá, Colombia</p>
+
+          <div className="sc-footer-bottom">
+            <p>© 2026 SoftOne360 · PDM 360° · React + Django + PostgreSQL</p>
+            <p>Desarrollado en Tunja, Boyacá</p>
+          </div>
         </div>
       </footer>
     </div>

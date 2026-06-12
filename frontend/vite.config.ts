@@ -4,6 +4,8 @@ import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
+  // Clerk y API comparten el .env de la raíz del repo (no frontend/.env).
+  envDir: fileURLToPath(new URL("..", import.meta.url)),
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
