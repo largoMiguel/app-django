@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ReactElement } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import ScrollToTop from "@/core/routing/ScrollToTop";
 import LoginPage from "@/features/auth/LoginPage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
@@ -28,7 +29,9 @@ function AppHomeRedirect() {
 
 export default function App(): ReactElement {
   return (
-    <Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
       <Route
         path="/"
         element={
@@ -91,5 +94,6 @@ export default function App(): ReactElement {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

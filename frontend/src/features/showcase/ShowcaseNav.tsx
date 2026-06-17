@@ -42,7 +42,7 @@ export default function ShowcaseNav({ items, cta, navLabel = "Navegación princi
           <ShowcaseLogo size={36} className="sc-brand-logo" />
           <span className="sc-brand-text">
             <strong>SoftOne360</strong>
-            <small>Gestión pública territorial</small>
+            <small>Gestión estratégica, visión total</small>
           </span>
         </Link>
 

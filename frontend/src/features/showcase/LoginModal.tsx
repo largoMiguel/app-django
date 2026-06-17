@@ -1,16 +1,19 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { SignIn } from "@clerk/react";
-import { LogIn, ShieldCheck, Sparkles, X } from "lucide-react";
+import { MapPinned, ShieldCheck, X } from "lucide-react";
+import ShowcaseLogo from "./ShowcaseLogo";
 
 interface LoginModalProps {
   open: boolean;
   onClose: () => void;
 }
 
+const MODULES = ["PDM 360°", "PQRS", "Contratación", "Informes PDF"];
+
 const HIGHLIGHTS = [
-  { icon: Sparkles, text: "PDM, PQRS y contratación en una sola plataforma" },
-  { icon: ShieldCheck, text: "Acceso seguro con roles por entidad y secretaría" },
+  { icon: MapPinned, text: "Seguimiento del PDM cuatrienal con informes y dashboards" },
+  { icon: ShieldCheck, text: "Roles y permisos por entidad, secretaría y módulo" },
 ];
 
 export default function LoginModal({ open, onClose }: LoginModalProps) {
@@ -33,6 +36,8 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
 
   if (!open) return null;
 
+  const isDevClerk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.startsWith("pk_test_");
+
   return createPortal(
     <div className="login-shell" onClick={onClose} role="presentation">
       <div
@@ -51,15 +56,27 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
           >
             <X size={20} />
           </button>
+
+          <div className="login-dialog-brand-grid" aria-hidden="true" />
+
           <div className="login-dialog-brand-content">
-            <p className="login-dialog-eyebrow">SoftOne360</p>
             <h2 id="login-dialog-title" className="login-dialog-heading">
-              Tu entidad, un solo lugar para gestionar
+              Gestión Pública <span className="login-dialog-accent">360°</span> con
+              Inteligencia Artificial
             </h2>
             <p className="login-dialog-lead">
-              Ingresa con tu cuenta institucional para acceder al PDM, PQRS, informes y módulos
-              habilitados para tu organización.
+              PDM, PQRS, contratación e informes ejecutivos en una sola plataforma para su
+              entidad.
             </p>
+
+            <div className="login-dialog-modules">
+              {MODULES.map((mod) => (
+                <span key={mod} className="login-dialog-module-chip">
+                  {mod}
+                </span>
+              ))}
+            </div>
+
             <ul className="login-dialog-highlights">
               {HIGHLIGHTS.map(({ icon: Icon, text }) => (
                 <li key={text}>
@@ -71,63 +88,69 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
               ))}
             </ul>
           </div>
+
+          <div className="login-dialog-brand-watermark" aria-hidden="true">
+            360°
+          </div>
         </aside>
 
         <section className="login-dialog-form">
           <div className="login-dialog-mobile-brand">
-            <div>
-              <strong>SoftOne360</strong>
-              <span>Acceso institucional seguro</span>
-            </div>
+            <ShowcaseLogo size={32} />
+            <strong>SoftOne360</strong>
           </div>
 
           <div className="login-dialog-form-header">
-            <div className="login-dialog-form-title-wrap">
-              <span className="login-dialog-form-icon">
-                <LogIn size={20} />
-              </span>
-              <div>
-                <h3 className="login-dialog-form-title">Ingresar al sistema</h3>
-                <p className="login-dialog-form-sub">Use su correo institucional autorizado</p>
-              </div>
+            <div>
+              <h3 className="login-dialog-form-title">Ingresar al sistema</h3>
+              <p className="login-dialog-form-sub">Correo autorizado por su entidad</p>
             </div>
             <button type="button" className="login-dialog-close" onClick={onClose} aria-label="Cerrar">
               <X size={20} />
             </button>
           </div>
 
-          <div className="login-dialog-clerk">
-            <SignIn
-              forceRedirectUrl="/"
-              appearance={{
-                elements: {
-                  rootBox: "login-clerk-root",
-                  cardBox: "login-clerk-card-box",
-                  card: "login-clerk-card",
-                  logoBox: "hidden",
-                  logoImage: "hidden",
-                  header: "hidden",
-                  headerTitle: "hidden",
-                  headerSubtitle: "hidden",
-                  socialButtonsBlockButton:
-                    "border-slate-200 hover:bg-slate-50 transition-colors rounded-xl h-11",
-                  dividerLine: "bg-slate-200",
-                  dividerText: "text-slate-400 text-xs",
-                  formFieldLabel: "text-slate-700 font-medium text-sm",
-                  formFieldInput:
-                    "rounded-xl border-slate-200 focus:border-[#216ba8] focus:ring-[#216ba8]/20 h-11",
-                  formButtonPrimary:
-                    "rounded-xl bg-[#216ba8] hover:bg-[#1a5a8f] text-sm font-semibold h-11 shadow-sm",
-                  footer: "hidden",
-                  footerAction: { display: "none" },
-                  identityPreview: "rounded-xl border border-slate-200",
-                },
-                layout: {
-                  socialButtonsPlacement: "top",
-                  showOptionalFields: false,
-                },
-              }}
-            />
+          <div className="login-dialog-clerk-wrap">
+            <div className="login-dialog-form-logo">
+              <ShowcaseLogo size={56} />
+              <strong>SoftOne360</strong>
+            </div>
+
+            <div className="login-dialog-clerk">
+              <SignIn
+                forceRedirectUrl="/"
+                appearance={{
+                  elements: {
+                    rootBox: "login-clerk-root",
+                    cardBox: "login-clerk-card-box",
+                    card: "login-clerk-card",
+                    logoBox: { display: "none" },
+                    logoImage: { display: "none" },
+                    header: "hidden",
+                    headerTitle: "hidden",
+                    headerSubtitle: "hidden",
+                    socialButtonsBlockButton:
+                      "border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 rounded-xl h-11 shadow-sm",
+                    dividerLine: "bg-slate-200",
+                    dividerText: "text-slate-400 text-xs",
+                    formFieldLabel: "text-slate-700 font-semibold text-sm",
+                    formFieldInput:
+                      "rounded-xl border-slate-200 focus:border-[#1a5f8c] focus:ring-2 focus:ring-[#1a5f8c]/15 h-11 transition-all duration-200",
+                    formButtonPrimary:
+                      "rounded-xl bg-[#1a5f8c] hover:bg-[#134466] text-sm font-semibold h-11 shadow-md hover:shadow-lg transition-all duration-200",
+                    footer: "hidden",
+                    footerAction: { display: "none" },
+                    identityPreview: "rounded-xl border border-slate-200",
+                    formFieldInputShowPasswordButton: "text-slate-400 hover:text-slate-600",
+                  },
+                }}
+              />
+            </div>
+            {isDevClerk && (
+              <p className="login-clerk-dev-badge" role="status">
+                Entorno de desarrollo Clerk (pk_test)
+              </p>
+            )}
           </div>
 
           <p className="login-dialog-footnote">

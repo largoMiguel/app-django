@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import ShowcaseIcon from "../showcase/ShowcaseIcon";
-import ShowcaseNav from "../showcase/ShowcaseNav";
 import ShowcaseLogo from "../showcase/ShowcaseLogo";
 import { contactWhatsApp, CONTACT_EMAIL, CONTACT_PHONE } from "@/features/showcase/showcaseData";
+import { reveal, revealCycle, revealUseCase } from "../showcase/revealVariants";
 import { useScrollReveal } from "../showcase/useScrollReveal";
 import "../showcase/showcase.scss";
 import "./nosotros.scss";
@@ -12,9 +12,9 @@ function Si({ icon, className, size = 20 }: { icon: string; className?: string; 
   return <ShowcaseIcon icon={icon} className={className} size={size} />;
 }
 
-const pills = [
-  { icon: "fas fa-code", label: "Ingeniería de Software" },
-  { icon: "fas fa-network-wired", label: "Infraestructura de Redes" },
+const expertise = [
+  { icon: "fas fa-code", label: "Ingeniería de software" },
+  { icon: "fas fa-network-wired", label: "Infraestructura" },
   { icon: "fas fa-user-tie", label: "Consultoría TI" },
   { icon: "fas fa-cloud", label: "Cloud & DevOps" },
 ];
@@ -23,65 +23,44 @@ const objectives = [
   {
     icon: "fas fa-lightbulb",
     color: "#1a5f8c",
-    title: "Innovación Continua",
-    text: "Desarrollar y desplegar soluciones de software con las últimas tendencias tecnológicas para resolver necesidades emergentes del mercado.",
-  },
-  {
-    icon: "fas fa-network-wired",
-    color: "#15803d",
-    title: "Excelencia en Infraestructura",
-    text: "Garantizar la continuidad del negocio de nuestros aliados mediante el diseño y mantenimiento de redes y sistemas de alta disponibilidad.",
+    title: "Innovación",
+    text: "Soluciones actuales para necesidades reales del sector público.",
   },
   {
     icon: "fas fa-shield-alt",
     color: "#b45309",
-    title: "Seguridad y Cumplimiento",
-    text: "Implementar protocolos de ciberseguridad y estándares técnicos que aseguren la integridad de la información y el cumplimiento normativo (MIPG, Gobierno Digital).",
+    title: "Seguridad",
+    text: "Ciberseguridad y cumplimiento normativo (MIPG, Gobierno Digital).",
   },
   {
     icon: "fas fa-handshake",
     color: "#0f766e",
-    title: "Fidelización Estratégica",
-    text: "Establecer relaciones de confianza a largo plazo basadas en soporte técnico especializado, transferencia de conocimiento y optimización de la inversión tecnológica.",
+    title: "Acompañamiento",
+    text: "Soporte técnico y transferencia de conocimiento a largo plazo.",
   },
   {
     icon: "fas fa-chart-line",
     color: "#1d4ed8",
-    title: "Sostenibilidad Operativa",
-    text: "Mantener un crecimiento constante mediante la eficiencia en la ejecución de proyectos y la capacitación continua de nuestro talento humano.",
+    title: "Sostenibilidad",
+    text: "Eficiencia en proyectos y capacitación continua del equipo.",
   },
 ];
 
-const intelItems = [
+const values = [
   {
     icon: "fas fa-database",
-    title: "Decisiones Basadas en Evidencia",
-    text: "Empoderamos a las instituciones con herramientas que capturan, procesan y analizan datos reales en tiempo real, garantizando que cada decisión estratégica esté respaldada por información precisa.",
+    title: "Decisiones con datos",
+    text: "Herramientas que capturan y analizan información en tiempo real.",
   },
   {
     icon: "fas fa-balance-scale",
-    title: "Transparencia, Eficiencia y Progreso",
-    text: "Optimizamos los procesos institucionales con enfoque en el bienestar del ciudadano, facilitando el cumplimiento de Gobierno Digital y el modelo MIPG.",
+    title: "Transparencia",
+    text: "Procesos claros alineados con Gobierno Digital y MIPG.",
   },
   {
     icon: "fas fa-map-marked-alt",
-    title: "Seguimiento al Plan de Desarrollo",
-    text: "Herramientas que monitorean el avance de metas y programas de gobierno, transformando la planeación administrativa en progreso visible para las comunidades.",
-  },
-  {
-    icon: "fas fa-tachometer-alt",
-    title: "Visibilidad de Indicadores en Tiempo Real",
-    text: "Tableros de control que exponen indicadores de cumplimiento de cara al ciudadano, fortaleciendo la transparencia y permitiendo una rendición de cuentas dinámica.",
-  },
-  {
-    icon: "fas fa-users",
-    title: "Administración Cercana y Ágil",
-    text: "Al automatizar la medición del impacto social, logramos que la administración pública sea más eficiente, reduciendo brechas y garantizando que los recursos tecnológicos se traduzcan en mejor calidad de vida.",
-  },
-  {
-    icon: "fas fa-seedling",
-    title: "Impacto Social Sostenible",
-    text: "Convertimos la infraestructura técnica en progreso tangible. Al mejorar la calidad de datos y velocidad de procesos, maximizamos el impacto positivo de las políticas públicas.",
+    title: "Seguimiento al plan",
+    text: "Monitoreo del avance del PDM y metas institucionales.",
   },
 ];
 
@@ -97,86 +76,50 @@ export default function NosotrosPage() {
 
   return (
     <div className="nos-page">
-      <ShowcaseNav
-        items={[
-          { type: "link", to: "/", label: "Inicio" },
-          { type: "current", label: "Nosotros" },
-        ]}
-        cta={
-          <Link to="/" className="sc-btn sc-btn-primary sc-nav-cta">
-            <Si icon="fas fa-home" size={16} />
-            Volver al inicio
-          </Link>
-        }
-      />
-
       <section className="sc-hero nos-hero">
+        <div className="sc-hero-glow sc-hero-glow--primary" aria-hidden="true" />
+        <div className="sc-hero-glow sc-hero-glow--accent" aria-hidden="true" />
         <div className="sc-hero-grid" aria-hidden="true" />
         <div className="container">
-          <div className="nos-hero-content">
-            <p className="sc-eyebrow">
-              <Si icon="fas fa-building" size={14} />
-              Nuestra empresa
-            </p>
-            <h1 className="sc-hero-title nos-hero-title">
-              Arquitectos de{" "}
-              <span className="sc-hero-highlight">soluciones digitales</span>
-            </h1>
-            <p className="sc-hero-lead">
-              Transformamos organizaciones con tecnología de vanguardia, estrategia y propósito
-              orientado al sector público colombiano.
-            </p>
-            <div className="nos-pill-row">
-              {pills.map((pill) => (
-                <span key={pill.label} className="nos-pill">
-                  <Si icon={pill.icon} size={14} />
-                  {pill.label}
-                </span>
-              ))}
-            </div>
+          <div className="sc-hero-header">
+            <Link to="/" className="sc-hero-back">
+              <Si icon="fas fa-arrow-left" size={14} />
+              Inicio
+            </Link>
+            <Link to="/" className="sc-hero-brand" aria-label="SoftOne360 inicio">
+              <ShowcaseLogo size={48} className="sc-hero-brand-logo" />
+              <span className="sc-hero-brand-text">
+                <strong>SoftOne360</strong>
+                <small>Gestión estratégica, visión total</small>
+              </span>
+            </Link>
           </div>
-        </div>
-      </section>
 
-      <section className="sc-section nos-intro">
-        <div className="container">
-          <div className="sc-section-head text-center animate">
-            <span className="sc-chip">
-              <Si icon="fas fa-compass" size={14} />
-              Quiénes somos
-            </span>
-            <h2 className="sc-section-title">Conoce SoftOne360</h2>
-            <p className="sc-section-lead">
-              Una empresa creada para llevar la transformación digital al corazón de las
-              organizaciones.
-            </p>
-          </div>
-          <div className="row align-items-start g-5">
-            <div className="col-lg-6 animate">
-              <p className="nos-body">
-                En <strong>SoftOne360</strong>, somos arquitectos de soluciones digitales
-                dedicados a potenciar la eficiencia organizacional mediante la integración
-                estratégica de tecnología de última generación. Nuestra razón de ser es cerrar la
-                brecha entre los desafíos operativos y las posibilidades tecnológicas,
-                consolidándonos como el aliado estratégico de quienes buscan una{" "}
-                <strong>transformación cultural y funcional</strong>.
+          <div className="nos-hero-inner">
+            <div className={`nos-hero-main ${reveal.left}`}>
+              <p className="sc-eyebrow">
+                <Si icon="fas fa-building" size={14} />
+                Nuestra empresa
               </p>
-              <p className="nos-body">
-                Nuestro equipo multidisciplinario, experto en ingeniería de sistemas,
-                infraestructura de redes y consultoría administrativa, nos permite ofrecer una
-                perspectiva integral <strong>360°</strong> alineada con las exigencias normativas
-                del Estado.
+              <h1 className="sc-hero-title nos-hero-title">
+                Arquitectos de{" "}
+                <span className="sc-hero-highlight">soluciones digitales</span>
+              </h1>
+              <p className="sc-hero-lead">
+                Tecnología de vanguardia para organizaciones del sector público colombiano —
+                con enfoque 360° en eficiencia, datos y cumplimiento.
               </p>
-              <div className="nos-badge-row">
-                {pills.map((pill) => (
-                  <span key={pill.label} className="nos-badge">
-                    <Si icon={pill.icon} size={14} />
-                    {pill.label}
+              <div className="nos-pill-row">
+                {expertise.map((item) => (
+                  <span key={item.label} className="nos-pill">
+                    <Si icon={item.icon} size={14} />
+                    {item.label}
                   </span>
                 ))}
               </div>
             </div>
-            <div className="col-lg-6 animate">
+
+            <div className={`nos-hero-aside ${reveal.right}`}>
               <article className="nos-mv-card nos-mv-mission">
                 <div className="nos-mv-icon">
                   <Si icon="fas fa-rocket" size={20} />
@@ -184,9 +127,7 @@ export default function NosotrosPage() {
                 <div>
                   <p className="nos-mv-label">Misión</p>
                   <p className="nos-mv-text">
-                    Impulsar la evolución digital de las organizaciones a través de soluciones
-                    tecnológicas integrales y personalizadas, garantizando seguridad, escalabilidad
-                    y competitividad.
+                    Impulsar la evolución digital con soluciones integrales, seguras y escalables.
                   </p>
                 </div>
               </article>
@@ -197,9 +138,8 @@ export default function NosotrosPage() {
                 <div>
                   <p className="nos-mv-label">Visión 2030</p>
                   <p className="nos-mv-text">
-                    Consolidarnos como el aliado tecnológico referente en el sector público y
-                    privado, liderando la transición hacia modelos de{" "}
-                    <strong>Gestión Digital Inteligente</strong>.
+                    Ser el aliado tecnológico referente en gestión digital inteligente del sector
+                    público y privado.
                   </p>
                 </div>
               </article>
@@ -208,29 +148,42 @@ export default function NosotrosPage() {
         </div>
       </section>
 
-      <section className="sc-section sc-section-alt nos-objectives">
+      <section className="sc-section nos-intro">
         <div className="container">
-          <div className="sc-section-head text-center animate">
-            <span className="sc-chip">Objetivos</span>
-            <h2 className="sc-section-title">Objetivos corporativos</h2>
+          <div className={`sc-section-head text-center ${reveal.clip}`}>
+            <h2 className="sc-section-title">Quiénes somos</h2>
             <p className="sc-section-lead">
-              Los cinco pilares que guían cada decisión y proyecto en SoftOne360.
+              Cerramos la brecha entre los desafíos operativos y las posibilidades tecnológicas.
             </p>
           </div>
-          <div className="row g-4 showcase-grid">
+          <p className={`nos-body nos-body-centered ${reveal.fade}`}>
+            En <strong>SoftOne360</strong> integramos ingeniería de sistemas, infraestructura y
+            consultoría para ofrecer una visión <strong>360°</strong> alineada con las exigencias
+            del Estado colombiano. No solo construimos software: entregamos claridad para gobernar
+            con precisión.
+          </p>
+        </div>
+      </section>
+
+      <section className="sc-section sc-section-alt">
+        <div className="container">
+          <div className={`sc-section-head text-center ${reveal.down}`}>
+            <h2 className="sc-section-title">Objetivos corporativos</h2>
+            <p className="sc-section-lead">Los pilares que guían cada proyecto.</p>
+          </div>
+          <div className="sc-cards-grid sc-cards-grid--benefits">
             {objectives.map((obj, i) => (
-              <div
+              <article
                 key={obj.title}
-                className={`animate ${i >= 3 ? "col-md-6" : "col-md-6 col-lg-4"}`}
+                className={`sc-benefit nos-obj-card ${revealCycle(i)}`}
+                style={{ ["--module-color" as string]: obj.color }}
               >
-                <article className="sc-benefit nos-obj-card" style={{ ["--module-color" as string]: obj.color }}>
-                  <div className="nos-obj-icon">
-                    <Si icon={obj.icon} size={22} />
-                  </div>
-                  <h3 className="sc-benefit-title">{obj.title}</h3>
-                  <p className="sc-benefit-text">{obj.text}</p>
-                </article>
-              </div>
+                <div className="nos-obj-icon">
+                  <Si icon={obj.icon} size={22} />
+                </div>
+                <h3 className="sc-benefit-title">{obj.title}</h3>
+                <p className="sc-benefit-text">{obj.text}</p>
+              </article>
             ))}
           </div>
         </div>
@@ -238,23 +191,17 @@ export default function NosotrosPage() {
 
       <section className="sc-section sc-section-dark nos-intel">
         <div className="container">
-          <div className="sc-section-head text-center animate">
-            <span className="sc-chip sc-chip-light">
-              <Si icon="fas fa-brain" size={14} />
-              Sector público
-            </span>
+          <div className={`sc-section-head text-center ${reveal.fade}`}>
             <h2 className="sc-section-title sc-section-title-light">
-              Inteligencia estratégica para la gestión pública
+              Gestión pública con datos
             </h2>
             <p className="sc-section-lead sc-section-lead-light">
-              Soluciones diseñadas para revolucionar la gestión pública con datos, transparencia y
-              agilidad institucional.
+              Cómo transformamos la tecnología en progreso visible para las comunidades.
             </p>
           </div>
-          <div className="row g-4 showcase-grid">
-            {intelItems.map((item) => (
-              <div key={item.title} className="col-md-6 animate">
-                <article className="nos-intel-item">
+          <div className="sc-cards-grid sc-cards-grid--cases">
+            {values.map((item, i) => (
+              <article key={item.title} className={`nos-intel-item ${revealUseCase(i)}`}>
                   <div className="nos-intel-icon">
                     <Si icon={item.icon} size={18} />
                   </div>
@@ -262,25 +209,19 @@ export default function NosotrosPage() {
                     <h3 className="nos-intel-title">{item.title}</h3>
                     <p className="nos-intel-text">{item.text}</p>
                   </div>
-                </article>
-              </div>
+              </article>
             ))}
           </div>
-          <blockquote className="nos-intel-quote animate">
-            En SoftOne360, no solo construimos sistemas; entregamos la claridad técnica necesaria
-            para gobernar con precisión y proyectar a las organizaciones hacia un futuro sostenible.
-          </blockquote>
         </div>
       </section>
 
       <section className="sc-section nos-cta-wrap">
         <div className="container">
-          <div className="sc-cta animate">
+          <div className={`sc-cta ${reveal.clip}`}>
             <div className="sc-cta-content">
-              <h2 className="sc-cta-title">¿Listo para transformar su organización?</h2>
+              <h2 className="sc-cta-title">¿Hablamos de su entidad?</h2>
               <p className="sc-cta-text">
-                Hablemos sobre cómo SoftOne360 puede impulsar su entidad hacia la gestión digital
-                inteligente.
+                Agende una demo o escríbanos por WhatsApp.
               </p>
             </div>
             <div className="nos-cta-actions">
@@ -303,7 +244,7 @@ export default function NosotrosPage() {
 
       <footer className="sc-footer">
         <div className="container">
-          <div className="sc-footer-main animate">
+          <div className={`sc-footer-main ${reveal.fade}`}>
             <div className="sc-footer-col sc-footer-col-brand">
               <div className="sc-footer-brand">
                 <ShowcaseLogo size={44} className="sc-footer-logo" />
@@ -313,8 +254,7 @@ export default function NosotrosPage() {
                 </div>
               </div>
               <p className="sc-footer-about">
-                Plataforma integral de gestión pública con IA generativa, analytics avanzado y
-                cumplimiento normativo.
+                Gestión pública territorial con IA, informes y módulos integrados.
               </p>
             </div>
 

@@ -13,6 +13,7 @@
   "dependencies": {
     "@clerk/localizations": "^4.7.1",
     "@clerk/react": "^6.7.3",
+    "@clerk/ui": "^1.16.1",
     "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.62.7",
     "@types/xlsx": "^0.0.35",

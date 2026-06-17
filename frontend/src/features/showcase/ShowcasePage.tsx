@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import ShowcaseIcon from "./ShowcaseIcon";
+import ShowcaseLogo from "./ShowcaseLogo";
 import {
   benefits,
   contactWhatsApp,
@@ -8,13 +9,13 @@ import {
   features,
   heroPanelItems,
   modules,
-  pdmCapabilities,
-  pdmFeatures,
-  pdmStats,
   stats,
   techStack,
   useCases,
 } from "./showcaseData";
+import HeroAiAccent from "./HeroAiAccent";
+import PdmShowcaseSection from "./PdmShowcaseSection";
+import { reveal, revealAlternate, revealCycle, revealUseCase } from "./revealVariants";
 import { useScrollReveal } from "./useScrollReveal";
 import "./showcase.scss";
 
@@ -29,501 +30,336 @@ interface ShowcasePageProps {
 export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
   useScrollReveal();
 
-  const scrollToSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
   return (
     <div className="showcase-main">
-      <section className="hero-section">
-        <div className="hero-overlay" />
+      <section className="sc-hero">
+        <div className="sc-hero-glow sc-hero-glow--primary" aria-hidden="true" />
+        <div className="sc-hero-glow sc-hero-glow--accent" aria-hidden="true" />
+        <div className="sc-hero-grid" aria-hidden="true" />
         <div className="container">
-          <div className="row align-items-center">
-            <div className="col-lg-7 hero-content animate">
-              <div className="badge-pill mb-3">
-                <Si icon="fas fa-star" className="showcase-icon-inline" size={16} />
-                Sistema Líder en Gestión Pública — Colombia
-              </div>
-              <h1 className="hero-title mb-4">
-                Gestión Pública <span className="text-gradient">360°</span> con{" "}
-                <span className="tw-line">
-                  <span className="typewriter-text">
-                    <span className="tw-accent">Inteligencia Artificial</span>
-                  </span>
-                </span>
-              </h1>
-              <p className="hero-subtitle mb-4">
-                Plataforma integral que centraliza el <strong>PDM</strong>, PQRS, Contratación
-                Pública y Planes Institucionales. IA generativa con OpenAI, informes automáticos
-                en PDF, dashboards en tiempo real y acceso seguro multi-entidad.
+          <div className="sc-hero-header">
+            <div className="sc-hero-header-spacer" aria-hidden="true" />
+            <Link to="/" className="sc-hero-brand" aria-label="SoftOne360 inicio">
+              <ShowcaseLogo size={48} className="sc-hero-brand-logo" />
+              <span className="sc-hero-brand-text">
+                <strong>SoftOne360</strong>
+                <small>Gestión estratégica, visión total</small>
+              </span>
+            </Link>
+          </div>
+
+          <div className="sc-hero-inner">
+            <div className={`sc-hero-content ${reveal.left}`} style={{ ["--hi" as string]: 0 }}>
+              <p className="sc-eyebrow">
+                <Si icon="fas fa-building" size={14} />
+                Sector público colombiano
               </p>
-              <div className="hero-actions">
-                <button type="button" className="hero-btn hero-btn-ingresar" onClick={onLoginClick}>
-                  <Si icon="fas fa-sign-in-alt" className="showcase-icon-inline" size={16} />
-                  Ingresar
+              <h1 className="sc-hero-title">
+                Gestión Pública <span className="sc-hero-highlight">360°</span> con
+                <HeroAiAccent />
+              </h1>
+              <p className="sc-hero-lead">
+                PDM, PQRS, contratación y planes institucionales en una plataforma
+                multi-entidad con informes, dashboards e IA integrada.
+              </p>
+              <div className="sc-hero-actions">
+                <button type="button" className="sc-btn sc-btn-primary sc-btn-lg" onClick={onLoginClick}>
+                  <Si icon="fas fa-sign-in-alt" size={18} />
+                  Ingresar al sistema
                 </button>
+                <Link to="/nosotros" className="sc-btn sc-btn-secondary sc-btn-lg">
+                  Conocer la empresa
+                </Link>
               </div>
-              <div className="hero-stats mt-5">
+              <div className="sc-hero-stats">
                 {stats.map((stat) => (
-                  <div key={stat.label} className="stat-item">
-                    <Si icon={stat.icon} className="stat-icon" size={24} />
-                    <div>
-                      <div className="stat-value">{stat.value}</div>
-                      <div className="stat-label">{stat.label}</div>
-                    </div>
+                  <div key={stat.label} className="sc-stat">
+                    <span className="sc-stat-value">{stat.value}</span>
+                    <span className="sc-stat-label">{stat.label}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="col-lg-5 d-none d-md-flex align-items-center justify-content-center animate">
-              <div className="hero-panel">
-                {heroPanelItems.map((item, pi) => (
-                  <div key={item.title} className="hero-panel-item" style={{ ["--pi" as string]: pi }}>
-                    <div className="hero-panel-icon" style={{ background: item.gradient }}>
-                      <Si icon={item.icon} size={20} />
-                    </div>
-                    <div>
-                      <div className="hero-panel-title">{item.title}</div>
-                      <div className="hero-panel-sub">{item.sub}</div>
-                    </div>
+
+            <div className={`sc-hero-panel ${reveal.right}`} style={{ ["--hi" as string]: 1 }}>
+              {heroPanelItems.map((item, pi) => (
+                <div
+                  key={item.title}
+                  className="sc-hero-panel-item"
+                  style={{ ["--pi" as string]: pi }}
+                >
+                  <div className="sc-hero-panel-icon">
+                    <Si icon={item.icon} size={18} />
                   </div>
-                ))}
-              </div>
+                  <div>
+                    <div className="sc-hero-panel-title">{item.title}</div>
+                    <div className="sc-hero-panel-sub">{item.sub}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      <button type="button" className="portales-fab" onClick={onLoginClick} title="Ingresar al Sistema">
-        <Si icon="fas fa-sign-in-alt" className="" size={16} />
-        <span className="fab-label">Ingresar</span>
+      <button type="button" className="sc-fab" onClick={onLoginClick} title="Ingresar al sistema">
+        <Si icon="fas fa-sign-in-alt" size={16} />
+        Ingresar
       </button>
 
-      <section className="pdm-hero-section" id="pdm-destacado">
-        <div className="pdm-hero-bg" />
-        <div className="container position-relative">
-          <div className="pdm-section-header text-center animate">
-            <div className="pdm-badge">
-              <Si icon="fas fa-star" className="showcase-icon-inline" size={16} />
-              MÓDULO ESTRELLA
-            </div>
-            <h2 className="pdm-main-title">
-              Plan de Desarrollo Municipal
-              <span className="pdm-title-accent">PDM 360°</span>
-            </h2>
-            <p className="pdm-main-subtitle">
-              La solución más completa para el seguimiento, ejecución y rendición de cuentas del
-              Plan de Desarrollo Municipal de su entidad territorial.
-            </p>
-          </div>
+      <PdmShowcaseSection />
 
-          <div className="row g-4 mb-5 showcase-grid">
-            {pdmCapabilities.map((cap) => (
-              <div key={cap.title} className="col-md-6 col-lg-4 animate">
-                <div className="pdm-cap-card">
-                  <div className="pdm-cap-icon" style={{ background: cap.gradient }}>
-                    <Si icon={cap.icon} size={24} />
-                  </div>
-                  <h4>{cap.title}</h4>
-                  <p>{cap.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="pdm-detail-box animate">
-            <div className="row align-items-center">
-              <div className="col-lg-5">
-                <div className="pdm-visual-block">
-                  <div className="pdm-flow-diagram">
-                    <div className="pdm-flow-item pdm-flow-root">
-                      <Si icon="fas fa-flag" className="" size={16} />
-                      <span>Línea Estratégica</span>
-                    </div>
-                    <div className="pdm-flow-connector" />
-                    <div className="pdm-flow-item pdm-flow-sector">
-                      <Si icon="fas fa-industry" className="" size={16} />
-                      <span>Sector / Programa</span>
-                    </div>
-                    <div className="pdm-flow-connector" />
-                    <div className="pdm-flow-item pdm-flow-product">
-                      <Si icon="fas fa-box" className="" size={16} />
-                      <span>Producto + Indicador</span>
-                    </div>
-                    <div className="pdm-flow-connector" />
-                    <div className="pdm-flow-item pdm-flow-activity">
-                      <Si icon="fas fa-tasks" className="" size={16} />
-                      <span>Actividad + Evidencia</span>
-                    </div>
-                    <div className="pdm-flow-connector" />
-                    <div className="pdm-flow-item pdm-flow-budget">
-                      <Si icon="fas fa-dollar-sign" className="" size={16} />
-                      <span>Ejecución Presupuestal</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="col-lg-7">
-                <h3 className="pdm-detail-title">
-                  <Si icon="fas fa-map-marked-alt me-3" className="" size={16} />
-                  Todo el PDM en una sola plataforma
-                </h3>
-                <p className="pdm-detail-text">
-                  Desde la carga del Plan de Desarrollo Municipal en Excel hasta la generación del
-                  informe de rendición de cuentas — <strong>SoftOne360</strong> cubre el ciclo
-                  completo con tecnología de punta.
-                </p>
-                <div className="pdm-features-grid">
-                  {pdmFeatures.map((feat) => (
-                    <div key={feat} className="pdm-feat-item">
-                      <Si icon="fas fa-check-circle" className="" size={16} />
-                      <span>{feat}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pdm-stats-row">
-            {pdmStats.map((stat) => (
-              <div key={stat.label} className="pdm-stat-box animate">
-                <div className="pdm-stat-icon">
-                  <Si icon={stat.icon} size={22} />
-                </div>
-                <div className="pdm-stat-value">{stat.value}</div>
-                <div className="pdm-stat-label">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="features-section py-5" id="features">
+      <section className="sc-section" id="features">
         <div className="container">
-          <div className="section-header text-center mb-5 animate">
-            <h2 className="section-title">Capacidades del Sistema</h2>
-            <p className="section-subtitle">
-              Tecnología de vanguardia al servicio real del sector público colombiano
+          <div className={`sc-section-head text-center ${reveal.clip}`}>
+            <h2 className="sc-section-title">Capacidades del sistema</h2>
+            <p className="sc-section-lead">
+              Lo esencial de la plataforma, sin entrar al detalle de cada módulo.
             </p>
           </div>
-          <div className="row g-4 showcase-grid">
-            {features.map((feature) => (
-              <div key={feature.title} className="col-md-6 col-lg-4 animate">
-                <div className="feature-card">
-                  <div
-                    className="feature-icon"
-                    style={{
-                      background: `linear-gradient(135deg, ${feature.color}, ${feature.color}dd)`,
-                    }}
-                  >
-                    <Si icon={feature.icon} size={28} />
-                  </div>
-                  <h3 className="feature-title">{feature.title}</h3>
-                  <p className="feature-description">{feature.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="modules-v2-section" id="modules">
-        <div className="container">
-          <div className="modules-v2-header text-center animate">
-            <div className="section-chip">
-              <Si icon="fas fa-cubes" className="showcase-icon-inline" size={16} />
-              6 MÓDULOS INTEGRADOS
-            </div>
-            <h2 className="section-title mt-3">Sistema Completo de Gestión Pública</h2>
-            <p className="section-subtitle">
-              Cada módulo diseñado con precisión para las necesidades reales del sector público
-              colombiano — todo en una sola plataforma
-            </p>
-          </div>
-
-          {modules.map((mod, i) => (
-            <div key={mod.name} className="module-v2-block animate">
-              <div
-                className="module-v2-header"
-                style={{
-                  background: `linear-gradient(135deg,${mod.color} 0%,${mod.color}99 100%)`,
-                }}
+          <div className="sc-cards-grid">
+            {features.map((feature, i) => (
+              <article
+                key={feature.title}
+                className={`sc-feature-card ${revealCycle(i)}`}
+                style={{ ["--feature-color" as string]: feature.color }}
               >
-                <span className="module-v2-num">{String(i + 1).padStart(2, "0")}</span>
-                <div className="module-v2-icon">
-                  <Si icon={mod.icon} size={24} />
+                <div className="sc-feature-icon">
+                  <Si icon={feature.icon} size={20} />
                 </div>
-                <div className="module-v2-title-area">
-                  <span className="module-v2-chip">MÓDULO</span>
-                  <h3 className="module-v2-name">{mod.name}</h3>
-                  <p className="module-v2-desc">{mod.description}</p>
-                </div>
-              </div>
-              <div className="module-v2-body">
-                {mod.capabilities && (
-                  <div className="module-v2-caps">
-                    {mod.capabilities.map((cap) => (
-                      <div key={cap.title} className="module-v2-cap">
-                        <div className="cap-icon-wrap" style={{ background: cap.gradient }}>
-                          <Si icon={cap.icon} size={24} />
-                        </div>
-                        <div className="cap-text">
-                          <h6 className="cap-title">{cap.title}</h6>
-                          <p className="cap-desc">{cap.desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="module-v2-features-header">
-                  <i className="fas fa-check-square me-2" style={{ color: mod.color }} />
-                  Funcionalidades incluidas
-                </div>
-                <div className="module-v2-feats">
-                  {mod.features.map((feat) => (
-                    <div key={feat} className="module-v2-feat">
-                      <i className="fas fa-check-circle" style={{ color: mod.color }} />
-                      <span>{feat}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="benefits-section py-5">
-        <div className="container">
-          <div className="section-header text-center mb-5 animate">
-            <h2 className="section-title">¿Por Qué Elegir SoftOne360?</h2>
-            <p className="section-subtitle">
-              Infraestructura, seguridad y tecnología al nivel de las mejores soluciones
-              empresariales
-            </p>
-          </div>
-          <div className="row g-4 showcase-grid">
-            {benefits.map((benefit) => (
-              <div key={benefit.title} className="col-md-6 col-lg-4 animate">
-                <div className="benefit-card">
-                  <div className="benefit-icon">
-                    <Si icon={benefit.icon} size={28} />
-                  </div>
-                  <h4 className="benefit-title">{benefit.title}</h4>
-                  <p className="benefit-description">{benefit.description}</p>
-                </div>
-              </div>
+                <h3 className="sc-feature-title">{feature.title}</h3>
+                <p className="sc-feature-text">{feature.description}</p>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      <Link className="about-spotlight" to="/nosotros">
-        <div className="about-spotlight-inner">
-          <div className="about-spotlight-tag">
-            <Si icon="fas fa-building" className="showcase-icon-inline" size={16} />
-            Nuestra Empresa
+      <section className="sc-section sc-section-alt" id="modules">
+        <div className="container">
+          <div className={`sc-section-head text-center ${reveal.down}`}>
+            <h2 className="sc-section-title">Seis módulos integrados</h2>
+            <p className="sc-section-lead">
+              Seis áreas de gestión, integradas y con roles por secretaría.
+            </p>
           </div>
-          <h2 className="about-spotlight-title">
-            Arquitectos de <span className="about-spotlight-accent">Soluciones Digitales</span>
-          </h2>
-          <p className="about-spotlight-sub">
-            Misión &bull; Visión &bull; Objetivos &bull; Inteligencia Estratégica
-          </p>
-          <div className="about-spotlight-cta">
-            <span>Conocé nuestra historia</span>
-            <Si icon="fas fa-arrow-right" className="ms-3" size={16} />
+
+          <div className="sc-modules-grid">
+          {modules.map((mod, i) => (
+            <article
+              key={mod.name}
+              className={`sc-module ${revealAlternate(i)}`}
+              style={{ ["--module-color" as string]: mod.color }}
+            >
+              <div className="sc-module-head">
+                <div className="sc-module-head-row">
+                  <span className="sc-module-num">{String(i + 1).padStart(2, "0")}</span>
+                  <div className="sc-module-icon">
+                    <Si icon={mod.icon} size={20} />
+                  </div>
+                  <h3 className="sc-module-name">{mod.name}</h3>
+                </div>
+                <p className="sc-module-desc">{mod.description}</p>
+              </div>
+              <div className="sc-module-body">
+                <div className="sc-module-feats">
+                  {mod.features.map((feat) => (
+                    <div key={feat} className="sc-module-feat">
+                      <Si icon="fas fa-check-circle" size={14} />
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+          ))}
           </div>
         </div>
-        <div className="about-spotlight-bg-text" aria-hidden="true">
-          360°
+      </section>
+
+      <section className="sc-section" id="benefits">
+        <div className="container">
+          <div className={`sc-section-head text-center ${reveal.fade}`}>
+            <h2 className="sc-section-title">¿Por qué SoftOne360?</h2>
+            <p className="sc-section-lead">
+              Por qué conviene centralizar la gestión en un solo sistema.
+            </p>
+          </div>
+          <div className="sc-cards-grid sc-cards-grid--benefits">
+            {benefits.map((benefit) => (
+              <article key={benefit.title} className={`sc-benefit ${reveal.scale}`}>
+                <div className="sc-benefit-icon">
+                  <Si icon={benefit.icon} size={20} />
+                </div>
+                <h3 className="sc-benefit-title">{benefit.title}</h3>
+                <p className="sc-benefit-text">{benefit.description}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <Link className="sc-about-banner" to="/nosotros">
+        <div className={`container sc-about-inner ${reveal.up}`}>
+          <div>
+            <span className="sc-chip sc-chip-light" style={{ marginBottom: "0.65rem" }}>
+              <Si icon="fas fa-building" size={14} />
+              Nuestra empresa
+            </span>
+            <h2 className="sc-about-title">Arquitectos de soluciones digitales</h2>
+            <p className="sc-about-sub">Misión · Visión · Objetivos · Inteligencia estratégica</p>
+          </div>
+          <span className="sc-about-cta">
+            Conocer nuestra historia
+            <Si icon="fas fa-arrow-right" size={16} />
+          </span>
         </div>
       </Link>
 
-      <section className="use-cases-section py-5 bg-light">
+      <section className="sc-section sc-section-alt" id="use-cases">
         <div className="container">
-          <div className="section-header text-center mb-5 animate">
-            <h2 className="section-title">Entidades que Usan SoftOne360</h2>
-            <p className="section-subtitle">
-              Diseñado para toda la institucionalidad territorial colombiana
+          <div className={`sc-section-head text-center ${reveal.clip}`}>
+            <h2 className="sc-section-title">Entidades que usan SoftOne360</h2>
+            <p className="sc-section-lead">
+              Diseñado para la institucionalidad territorial colombiana.
             </p>
           </div>
-          <div className="row g-4 showcase-grid">
-            {useCases.map((useCase) => (
-              <div key={useCase.title} className="col-lg-4 animate">
-                <div className="use-case-card">
-                  <div className="use-case-icon">
-                    <Si icon={useCase.icon} size={32} />
-                  </div>
-                  <h3 className="use-case-title">{useCase.title}</h3>
-                  <p className="use-case-description">{useCase.description}</p>
-                  <div className="use-case-metrics">
-                    {useCase.metrics.map((metric) => (
-                      <div key={metric} className="metric">
-                        <Si icon="fas fa-check-circle" className="showcase-icon-inline" size={16} />
-                        {metric}
-                      </div>
-                    ))}
-                  </div>
+          <div className="sc-cards-grid sc-cards-grid--cases">
+            {useCases.map((useCase, i) => (
+              <article key={useCase.title} className={`sc-use-case ${revealUseCase(i)}`}>
+                <div className="sc-use-case-icon">
+                  <Si icon={useCase.icon} size={20} />
                 </div>
-              </div>
+                <h3 className="sc-use-case-title">{useCase.title}</h3>
+                <p className="sc-use-case-text">{useCase.description}</p>
+                <div className="sc-use-case-metrics">
+                  {useCase.metrics.map((metric) => (
+                    <span key={metric}>
+                      <Si icon="fas fa-check-circle" size={14} />
+                      {metric}
+                    </span>
+                  ))}
+                </div>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="tech-section py-5 bg-dark text-white">
+      <section className="sc-section sc-section-dark">
         <div className="container">
-          <div className="section-header text-center mb-5 animate">
-            <h2 className="section-title text-white">Stack Tecnológico Real</h2>
-            <p className="section-subtitle text-white-50">
-              Las tecnologías que realmente potencian SoftOne360 en app.softone360.com
+          <div className={`sc-section-head text-center ${reveal.fade}`}>
+            <h2 className="sc-section-title sc-section-title-light">Stack tecnológico</h2>
+            <p className="sc-section-lead sc-section-lead-light">
+              Stack en producción en app.softone360.com.
             </p>
           </div>
-          <div className="tech-stack">
+          <div className="sc-tech-grid">
             {techStack.map((tech) => (
-              <div key={tech.name} className="tech-item animate">
-                <div className="tech-icon" style={{ color: tech.color }}>
-                  <Si icon={tech.icon} size={36} />
+              <div
+                key={tech.name}
+                className={`sc-tech-item ${reveal.scale}`}
+                style={{ ["--tech-color" as string]: tech.color }}
+              >
+                <div className="sc-tech-icon">
+                  <Si icon={tech.icon} size={28} />
                 </div>
-                <div className="tech-name">{tech.name}</div>
+                <div className="sc-tech-name">{tech.name}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="cta-section py-5" id="contact">
+      <section className="sc-section" id="contact">
         <div className="container">
-          <div className="cta-box animate">
-            <div className="row align-items-center">
-              <div className="col-lg-8">
-                <h2 className="cta-title mb-3">¿Listo para digitalizar su entidad con PDM 360°?</h2>
-                <p className="cta-text mb-0">
-                  Conozca la plataforma que centraliza el Plan de Desarrollo Municipal, PQRS y la
-                  gestión institucional de su entidad territorial.
-                </p>
-              </div>
-              <div className="col-lg-4 text-lg-end mt-4 mt-lg-0">
-                <button type="button" className="btn btn-light btn-lg" onClick={onLoginClick}>
-                  <Si icon="fas fa-sign-in-alt" className="showcase-icon-inline" size={16} />
-                  Ingresar al Sistema
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <footer className="showcase-footer py-5 bg-dark text-white">
-        <div className="container">
-          <div className="row mb-4">
-            <div className="col-md-4 mb-4 mb-md-0">
-              <div className="d-flex align-items-center mb-3">
-                <span className="showcase-brand-mark me-2">S1</span>
-                <div>
-                  <h5 className="mb-0 fw-bold">SoftOne360</h5>
-                  <small className="text-white-50">Gestión Estratégica, Visión Total</small>
-                </div>
-              </div>
-              <p className="text-white-50 small">
-                Plataforma integral de gestión pública con IA generativa, analytics avanzado y
-                cumplimiento normativo garantizado.
+          <div className={`sc-cta ${reveal.clip}`}>
+            <div className="sc-cta-content">
+              <h2 className="sc-cta-title">¿Listo para digitalizar su entidad?</h2>
+              <p className="sc-cta-text">
+                Solicite acceso y conozca el sistema en funcionamiento.
               </p>
             </div>
-            <div className="col-md-4 mb-4 mb-md-0">
-              <h6 className="fw-bold mb-3">Enlaces Rápidos</h6>
-              <ul className="list-unstyled">
-                <li className="mb-2">
-                  <button
-                    type="button"
-                    className="btn btn-link text-white-50 text-decoration-none p-0 border-0"
-                    onClick={() => scrollToSection("pdm-destacado")}
-                  >
-                    <Si icon="fas fa-chevron-right" className="showcase-icon-inline" size={16} />
-                    PDM 360°
-                  </button>
+            <button type="button" className="sc-btn sc-btn-light sc-btn-lg" onClick={onLoginClick}>
+              <Si icon="fas fa-sign-in-alt" size={18} />
+              Ingresar al sistema
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <footer className="sc-footer">
+        <div className="container">
+          <div className={`sc-footer-main ${reveal.fade}`}>
+            <div className="sc-footer-col sc-footer-col-brand">
+              <div className="sc-footer-brand">
+                <ShowcaseLogo size={44} className="sc-footer-logo" />
+                <div>
+                  <strong>SoftOne360</strong>
+                  <span>Gestión estratégica, visión total</span>
+                </div>
+              </div>
+              <p className="sc-footer-about">
+                Gestión pública territorial con IA, informes y módulos integrados.
+              </p>
+            </div>
+
+            <div className="sc-footer-col sc-footer-col-links">
+              <h6 className="sc-footer-heading">Enlaces</h6>
+              <nav className="sc-footer-nav" aria-label="Enlaces del sitio">
+                <a href="#pdm-destacado" className="sc-footer-link">
+                  PDM 360°
+                </a>
+                <a href="#features" className="sc-footer-link">
+                  Capacidades
+                </a>
+                <a href="#modules" className="sc-footer-link">
+                  Módulos
+                </a>
+                <a href="#contact" className="sc-footer-link">
+                  Contacto
+                </a>
+                <Link to="/nosotros" className="sc-footer-link">
+                  Nosotros
+                </Link>
+              </nav>
+            </div>
+
+            <div className="sc-footer-col sc-footer-col-contact">
+              <h6 className="sc-footer-heading">Contacto</h6>
+              <ul className="sc-footer-contact">
+                <li>
+                  <Si icon="fas fa-envelope" size={16} />
+                  <a href={`mailto:${CONTACT_EMAIL}`} className="sc-footer-contact-link">
+                    {CONTACT_EMAIL}
+                  </a>
                 </li>
-                <li className="mb-2">
-                  <button
-                    type="button"
-                    className="btn btn-link text-white-50 text-decoration-none p-0 border-0"
-                    onClick={() => scrollToSection("features")}
-                  >
-                    <Si icon="fas fa-chevron-right" className="showcase-icon-inline" size={16} />
-                    Capacidades
-                  </button>
+                <li>
+                  <Si icon="fas fa-phone" size={16} />
+                  <a href={`tel:${CONTACT_PHONE.replace(/\s/g, "")}`} className="sc-footer-contact-link">
+                    {CONTACT_PHONE}
+                  </a>
                 </li>
-                <li className="mb-2">
-                  <Link className="text-white-50 text-decoration-none" to="/nosotros">
-                    <Si icon="fas fa-chevron-right" className="showcase-icon-inline" size={16} />
-                    Nosotros
-                  </Link>
-                </li>
-                <li className="mb-2">
-                  <button
-                    type="button"
-                    className="btn btn-link text-white-50 text-decoration-none p-0 border-0"
-                    onClick={() => scrollToSection("modules")}
-                  >
-                    <Si icon="fas fa-chevron-right" className="showcase-icon-inline" size={16} />
-                    Módulos
-                  </button>
-                </li>
-                <li className="mb-2">
-                  <button
-                    type="button"
-                    className="btn btn-link text-white-50 text-decoration-none p-0 border-0"
-                    onClick={() => scrollToSection("contact")}
-                  >
-                    <Si icon="fas fa-chevron-right" className="showcase-icon-inline" size={16} />
-                    Contacto
-                  </button>
+                <li>
+                  <Si icon="fas fa-map-marker-alt" size={16} />
+                  <span>Tunja, Boyacá — Colombia</span>
                 </li>
               </ul>
-            </div>
-            <div className="col-md-4">
-              <h6 className="fw-bold mb-3">Contacto</h6>
-              <p className="text-white-50 small mb-2">
-                <Si icon="fas fa-envelope" className="showcase-icon-inline" size={16} />
-                {CONTACT_EMAIL}
-              </p>
-              <p className="text-white-50 small mb-2">
-                <Si icon="fas fa-phone" className="showcase-icon-inline" size={16} />
-                {CONTACT_PHONE}
-              </p>
-              <p className="text-white-50 small mb-3">
-                <Si icon="fas fa-map-marker-alt" className="showcase-icon-inline" size={16} />
-                Tunja - Boyacá, Colombia
-              </p>
               <button
                 type="button"
-                className="btn btn-success btn-sm"
-                onClick={() =>
-                  contactWhatsApp("Hola, quiero más información sobre SoftOne360.")
-                }
+                className="sc-btn sc-btn-secondary sc-btn-lg"
+                style={{ marginTop: "0.85rem", background: "rgba(255,255,255,0.08)", color: "#fff", borderColor: "rgba(255,255,255,0.2)" }}
+                onClick={() => contactWhatsApp("Hola, quiero más información sobre SoftOne360.")}
               >
-                <Si icon="fab fa-whatsapp" className="showcase-icon-inline" size={16} />
-                Escríbenos por WhatsApp
+                <Si icon="fab fa-whatsapp" size={16} />
+                WhatsApp
               </button>
             </div>
           </div>
-          <hr className="border-secondary my-4" />
-          <div className="row align-items-center">
-            <div className="col-md-6 text-center text-md-start mb-3 mb-md-0">
-              <p className="mb-0 small">
-                <Si icon="fas fa-code" className="showcase-icon-inline" size={16} />
-                Desarrollado con <Si icon="fas fa-heart mx-1" className="text-danger mx-1" size={14} /> por SoftOne360 —
-                Tunja, Boyacá, Colombia
-              </p>
-            </div>
-            <div className="col-md-6 text-center text-md-end">
-              <p className="mb-0 small">
-                © 2026 SoftOne360 · PDM 360° · React + Django + PostgreSQL · Todos los derechos
-                reservados.
-              </p>
-            </div>
+
+          <div className="sc-footer-bottom">
+            <p>© 2026 SoftOne360 · PDM 360° · React + Django + PostgreSQL</p>
+            <p>Desarrollado en Tunja, Boyacá, Colombia</p>
           </div>
         </div>
       </footer>

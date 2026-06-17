@@ -5,20 +5,12 @@ export interface Feature {
   color: string;
 }
 
-export interface Capability {
-  icon: string;
-  title: string;
-  desc: string;
-  gradient: string;
-}
-
 export interface Module {
   name: string;
   icon: string;
   description: string;
   features: string[];
   color: string;
-  capabilities?: Capability[];
 }
 
 export interface Stat {
@@ -47,10 +39,10 @@ export interface TechItem {
 }
 
 export const stats: Stat[] = [
-  { value: "6+", label: "Módulos Integrados", icon: "fas fa-cubes" },
-  { value: "360°", label: "Gestión Pública Total", icon: "fas fa-sync-alt" },
-  { value: "Multi", label: "Entidad y Roles", icon: "fas fa-building" },
-  { value: "IA", label: "OpenAI Integrado", icon: "fas fa-brain" },
+  { value: "6", label: "Módulos", icon: "fas fa-cubes" },
+  { value: "360°", label: "Gestión pública", icon: "fas fa-sync-alt" },
+  { value: "Multi", label: "Entidad y roles", icon: "fas fa-building" },
+  { value: "IA", label: "OpenAI", icon: "fas fa-brain" },
 ];
 
 export const heroPanelItems = [
@@ -63,389 +55,197 @@ export const heroPanelItems = [
   {
     icon: "fas fa-brain",
     title: "IA Generativa",
-    sub: "OpenAI integrado en informes",
+    sub: "Informes y asistencia",
     gradient: "linear-gradient(135deg,#7c3aed,#a855f7)",
   },
   {
     icon: "fas fa-file-pdf",
     title: "Informes PDF",
-    sub: "Generación automática async",
+    sub: "Generación automática",
     gradient: "linear-gradient(135deg,#e74a3b,#f97316)",
-  },
-  {
-    icon: "fas fa-shield-alt",
-    title: "Acceso Seguro",
-    sub: "Clerk + roles y permisos",
-    gradient: "linear-gradient(135deg,#ff9900,#f59e0b)",
   },
   {
     icon: "fas fa-users",
     title: "Multi-Entidad",
-    sub: "Módulos por organización",
+    sub: "Datos aislados por organización",
     gradient: "linear-gradient(135deg,#1cc28e,#059669)",
   },
 ];
 
+/** Capacidades transversales — sin repetir el detalle de cada módulo. */
 export const features: Feature[] = [
   {
     icon: "fas fa-map-marked-alt",
-    title: "PDM 360° Inteligente",
+    title: "PDM de punta a punta",
     description:
-      "Seguimiento completo del Plan de Desarrollo Municipal: líneas estratégicas, productos, actividades, indicadores y ejecución presupuestal en un solo lugar.",
+      "Líneas estratégicas, productos, actividades, indicadores y ejecución presupuestal en una sola vista.",
     color: "#216ba8",
   },
   {
     icon: "fas fa-brain",
-    title: "IA Generativa con OpenAI",
+    title: "IA en la gestión",
     description:
-      "Informes ejecutivos con análisis narrativo, chat público del PDM y asistencia inteligente para la toma de decisiones institucionales.",
+      "Informes narrativos, chat del PDM y clasificación inteligente de trámites.",
     color: "#7c3aed",
   },
   {
     icon: "fas fa-chart-line",
-    title: "Analytics en Tiempo Real",
+    title: "Dashboards en vivo",
     description:
-      "Dashboards interactivos con Recharts, KPIs personalizables, comparativas presupuestales multi-año y visualizaciones para rendición de cuentas.",
+      "KPIs y gráficas interactivas para juntas, concejos y equipos de gestión.",
     color: "#1cc28e",
   },
   {
     icon: "fas fa-shield-alt",
-    title: "Seguridad Empresarial",
+    title: "Acceso seguro",
     description:
-      "Autenticación Clerk, RBAC granular en Django, control por entidad y secretaría, auditoría de accesos y cumplimiento normativo.",
+      "Clerk, roles por secretaría y entidad, con auditoría de accesos.",
     color: "#e74a3b",
   },
   {
-    icon: "fas fa-cloud-upload-alt",
-    title: "Almacenamiento en la Nube",
-    description:
-      "Evidencias fotográficas, documentos y archivos Excel en almacenamiento object storage con acceso controlado por entidad.",
-    color: "#ff9900",
-  },
-  {
     icon: "fas fa-comments",
-    title: "Portal Ciudadano PQRS",
+    title: "Portal ciudadano",
     description:
-      "Ventanilla única pública por entidad. Radicación con o sin cuenta, seguimiento de trámites y notificaciones al ciudadano.",
+      "PQRS con radicación con o sin cuenta y seguimiento del trámite.",
     color: "#36b9cc",
   },
   {
     icon: "fas fa-file-pdf",
-    title: "Informes PDF Automáticos",
+    title: "Reportes al instante",
     description:
-      "Generación de informes ejecutivos y reportes de gestión en PDF con filtros por secretaría, año, estado y ODS.",
-    color: "#e74a3b",
-  },
-  {
-    icon: "fas fa-database",
-    title: "Caché Redis y Rendimiento",
-    description:
-      "Redis para consultas frecuentes, paginación eficiente y APIs optimizadas con Django REST Framework.",
-    color: "#dc143c",
-  },
-  {
-    icon: "fas fa-users-cog",
-    title: "Gestión Multiusuario",
-    description:
-      "Roles diferenciados: Superadmin, Admin, Secretario y Ciudadano. Control de acceso por secretaría, entidad y módulo.",
-    color: "#858ae3",
+      "PDF ejecutivos con filtros por secretaría, año, estado y ODS.",
+    color: "#ff9900",
   },
 ];
 
 export const modules: Module[] = [
   {
-    name: "Plan de Desarrollo Municipal (PDM)",
+    name: "Plan de Desarrollo Municipal",
     icon: "fas fa-map-marked-alt",
     description:
-      "Gestión integral del PDM con Líneas Estratégicas → Sectores → Programas → Productos → Actividades. Ejecución presupuestal, contratos RPS, integración BPIN, evidencias e informes con IA.",
+      "Estructura jerárquica del PDM, ejecución presupuestal, evidencias e informes con IA.",
     features: [
-      "Líneas estratégicas, sectores y programas",
-      "Productos e indicadores por año (2024–2027)",
-      "Actividades con responsable por secretaría",
-      "Ejecución presupuestal desde Excel (.xlsx)",
-      "Contratos RPS cargados desde archivo",
-      "Integración BPIN – datos.gov.co",
-      "Evidencias fotográficas en la nube",
-      "Informes PDF ejecutivos con IA generativa",
-      "Dashboard interactivo con Recharts",
-      "Chat IA público del PDM por entidad",
+      "5 niveles: línea → sector → programa → producto → actividad",
+      "Carga Excel de ejecución y contratos RPS",
+      "Integración BPIN (datos.gov.co)",
+      "Dashboard e informes PDF con IA",
+      "Chat público del PDM por entidad",
     ],
     color: "#216ba8",
-    capabilities: [
-      {
-        icon: "fas fa-sitemap",
-        title: "Estructura Jerárquica",
-        desc: "5 niveles: Líneas → Sectores → Programas → Productos → Actividades con indicadores.",
-        gradient: "linear-gradient(135deg,#216ba8,#36b9cc)",
-      },
-      {
-        icon: "fas fa-brain",
-        title: "IA Generativa OpenAI",
-        desc: "Informes ejecutivos con narrativa automática, análisis de brechas y logros.",
-        gradient: "linear-gradient(135deg,#7c3aed,#a855f7)",
-      },
-      {
-        icon: "fas fa-file-pdf",
-        title: "Informes PDF Asíncronos",
-        desc: "Reportes filtrables por secretaría, año, estado y ODS incluidos.",
-        gradient: "linear-gradient(135deg,#e74a3b,#dc2626)",
-      },
-    ],
   },
   {
-    name: "PQRS y Peticiones Ciudadanas",
+    name: "PQRS",
     icon: "fas fa-comments",
     description:
-      "Sistema completo de Peticiones, Quejas, Reclamos y Sugerencias con portal ciudadano. Radicación personal y anónima, asignación a funcionarios y seguimiento en tiempo real.",
+      "Ventanilla ciudadana con radicación personal o anónima y seguimiento del trámite.",
     features: [
-      "Radicación personal y anónima",
-      "Portal Ventanilla Única Ciudadana",
+      "Portal público por entidad",
       "Numeración automática de radicado",
       "Asignación a secretarías y funcionarios",
-      "Seguimiento en tiempo real del trámite",
       "Clasificación asistida con IA",
-      "Reportes estadísticos por tipo y estado",
-      "Auditoría completa de asignaciones",
+      "Estadísticas por tipo y estado",
     ],
     color: "#1cc28e",
-    capabilities: [
-      {
-        icon: "fas fa-inbox",
-        title: "Radicación Inteligente",
-        desc: "Personal y anónima con numeración única automática por entidad y período.",
-        gradient: "linear-gradient(135deg,#1cc28e,#059669)",
-      },
-      {
-        icon: "fas fa-robot",
-        title: "Clasificación con IA",
-        desc: "Extracción y categorización automática desde texto o documentos adjuntos.",
-        gradient: "linear-gradient(135deg,#36b9cc,#0891b2)",
-      },
-      {
-        icon: "fas fa-chart-pie",
-        title: "Dashboard Estadístico",
-        desc: "Análisis en tiempo real por tipo, estado, funcionario y período de gestión.",
-        gradient: "linear-gradient(135deg,#f6c23e,#d97706)",
-      },
-    ],
   },
   {
     name: "Planes Institucionales",
     icon: "fas fa-sitemap",
     description:
-      "Gestión de planes institucionales con componentes, procesos y actividades. Control de ejecución por secretaría y cumplimiento de metas.",
+      "Componentes, procesos y actividades con control de avance por secretaría.",
     features: [
-      "Planes con componentes y procesos",
-      "Actividades con responsable por secretaría",
-      "Ejecución y seguimiento de avances",
-      "Estados: pendiente / en progreso / completado",
-      "Reportes de cumplimiento institucional",
-      "Control granular por secretaría",
+      "Plan → componente → proceso → actividad",
+      "Estados y responsables por dependencia",
+      "Seguimiento de cumplimiento",
+      "Reportes por período y secretaría",
     ],
     color: "#f6c23e",
-    capabilities: [
-      {
-        icon: "fas fa-layer-group",
-        title: "Estructura Modular",
-        desc: "Plan → Componente → Proceso → Actividad con estados, fechas y responsables.",
-        gradient: "linear-gradient(135deg,#f6c23e,#d97706)",
-      },
-      {
-        icon: "fas fa-user-tie",
-        title: "Control por Secretaría",
-        desc: "Cada secretaría gestiona sus actividades con permisos granulares.",
-        gradient: "linear-gradient(135deg,#216ba8,#2563eb)",
-      },
-      {
-        icon: "fas fa-chart-bar",
-        title: "Reportes de Cumplimiento",
-        desc: "Avance por componente, período y secretaría para rendición de cuentas.",
-        gradient: "linear-gradient(135deg,#1cc28e,#059669)",
-      },
-    ],
   },
   {
     name: "Contratación Pública",
     icon: "fas fa-file-contract",
     description:
-      "Consulta y análisis de contratación pública con integración a datos.gov.co. SECOP I y SECOP II con análisis asistido por IA.",
+      "Consulta SECOP I y II con análisis asistido por IA.",
     features: [
-      "Integración SECOP I – datos.gov.co",
-      "Integración SECOP II – datos.gov.co",
-      "Consulta de procesos y contratos",
-      "Análisis con IA OpenAI",
-      "Caché Redis para consultas rápidas",
+      "Integración datos.gov.co (SECOP I y II)",
       "Búsqueda por entidad, contratista y valor",
+      "Análisis de contratos con OpenAI",
+      "Caché Redis para consultas frecuentes",
     ],
     color: "#e74a3b",
-    capabilities: [
-      {
-        icon: "fas fa-database",
-        title: "SECOP I & II en Vivo",
-        desc: "Integración directa con datos.gov.co. Contratos y procesos actualizados.",
-        gradient: "linear-gradient(135deg,#e74a3b,#dc2626)",
-      },
-      {
-        icon: "fas fa-brain",
-        title: "Análisis IA OpenAI",
-        desc: "Revisión inteligente de contratos, cuantías, contratistas y objetos contractuales.",
-        gradient: "linear-gradient(135deg,#7c3aed,#a855f7)",
-      },
-      {
-        icon: "fas fa-tachometer-alt",
-        title: "Caché Redis",
-        desc: "Consultas rápidas con caché inteligente y rate limiting por usuario.",
-        gradient: "linear-gradient(135deg,#dc143c,#b91c1c)",
-      },
-    ],
   },
   {
     name: "Correspondencia Oficial",
     icon: "fas fa-mail-bulk",
     description:
-      "Gestión documental para correspondencia oficial. Radicación física o electrónica, numeración automática y control de tiempos de respuesta.",
+      "Radicación física o electrónica con control de plazos y trazabilidad.",
     features: [
-      "Radicación física y electrónica",
-      "Numeración automática de radicado",
-      "Seguimiento de estado del trámite",
+      "Numeración automática por entidad",
       "Asignación a dependencias",
       "Control de tiempos de respuesta",
-      "Historial completo por entidad",
+      "Historial completo del trámite",
     ],
     color: "#858ae3",
-    capabilities: [
-      {
-        icon: "fas fa-barcode",
-        title: "Radicado Automático",
-        desc: "Numeración única generada automáticamente por entidad.",
-        gradient: "linear-gradient(135deg,#858ae3,#6366f1)",
-      },
-      {
-        icon: "fas fa-clock",
-        title: "Control de Tiempos",
-        desc: "Seguimiento de plazos con alertas por vencimiento de términos.",
-        gradient: "linear-gradient(135deg,#f6c23e,#d97706)",
-      },
-      {
-        icon: "fas fa-history",
-        title: "Historial Trazable",
-        desc: "Auditoría completa de estados, asignaciones y responsables.",
-        gradient: "linear-gradient(135deg,#36b9cc,#0891b2)",
-      },
-    ],
   },
   {
     name: "Control de Asistencia",
     icon: "fas fa-user-clock",
     description:
-      "Control de asistencia del talento humano con registro fotográfico. Captura de imagen, almacenamiento seguro y estadísticas por funcionario.",
+      "Registro de entrada y salida con evidencia fotográfica.",
     features: [
-      "Registro con foto en tiempo real",
-      "Almacenamiento seguro de evidencias",
-      "Registro de entrada y salida",
+      "Captura de foto al registrar",
+      "Evidencias en la nube",
       "Estadísticas diarias y mensuales",
-      "Validación por equipo de registro",
-      "Panel de administración de funcionarios",
+      "Panel de administración",
     ],
     color: "#36b9cc",
-    capabilities: [
-      {
-        icon: "fas fa-camera",
-        title: "Foto en Tiempo Real",
-        desc: "Captura fotográfica al momento del registro de entrada o salida.",
-        gradient: "linear-gradient(135deg,#36b9cc,#0891b2)",
-      },
-      {
-        icon: "fas fa-cloud",
-        title: "Evidencias en la Nube",
-        desc: "Fotos indexadas por fecha con acceso controlado por entidad.",
-        gradient: "linear-gradient(135deg,#216ba8,#2563eb)",
-      },
-      {
-        icon: "fas fa-chart-bar",
-        title: "Estadísticas y Reportes",
-        desc: "Reportes de asistencia diaria, mensual y por funcionario.",
-        gradient: "linear-gradient(135deg,#1cc28e,#059669)",
-      },
-    ],
   },
 ];
 
 export const benefits: Benefit[] = [
   {
     icon: "fas fa-rocket",
-    title: "Despliegue Productivo",
+    title: "Listo para producción",
     description:
-      "Stack Docker con Nginx, PostgreSQL, Redis y publicación segura vía Cloudflare Tunnel. Alta disponibilidad y mantenimiento simplificado.",
+      "Docker, PostgreSQL, Redis y despliegue seguro con Cloudflare Tunnel.",
   },
   {
     icon: "fas fa-brain",
-    title: "IA en cada Módulo",
+    title: "IA donde importa",
     description:
-      "Integración nativa con OpenAI para informes narrativos, clasificación de PQRS, chat del PDM y asistencia en gestión institucional.",
+      "OpenAI en informes, PQRS y asistencia institucional — no como adorno.",
   },
   {
     icon: "fas fa-shield-alt",
-    title: "Seguridad de Nivel Empresarial",
+    title: "Seguridad real",
     description:
-      "Autenticación Clerk, RBAC Django, rate limiting, auditoría de accesos y almacenamiento cifrado para el sector público.",
-  },
-  {
-    icon: "fas fa-chart-bar",
-    title: "Reportes Ejecutivos Automáticos",
-    description:
-      "Generación de informes PDF con visualizaciones de cumplimiento, comparativas presupuestales multi-año y filtros avanzados.",
+      "Clerk + RBAC en Django, datos aislados por entidad y auditoría.",
   },
   {
     icon: "fas fa-building",
-    title: "Multi-Entidad y Multi-Rol",
+    title: "Una plataforma, varias entidades",
     description:
-      "Una plataforma para múltiples entidades. Datos aislados, roles diferenciados y personalización por organización.",
-  },
-  {
-    icon: "fas fa-bolt",
-    title: "Alto Rendimiento",
-    description:
-      "Caché Redis, APIs optimizadas con DRF, paginación eficiente y carga diferida para grandes volúmenes de datos.",
+      "Roles diferenciados y configuración por organización sin mezclar datos.",
   },
 ];
 
 export const useCases: UseCase[] = [
   {
     icon: "fas fa-city",
-    title: "Alcaldías Municipales",
-    description:
-      "Gestión del PDM cuatrienal, PQRS ciudadanas, contratación pública y correspondencia oficial en una sola plataforma municipal.",
-    metrics: [
-      "PDM con seguimiento 2024–2027",
-      "PQRS con portal ciudadano",
-      "Contratación SECOP I y II",
-      "Informes para rendición de cuentas",
-    ],
+    title: "Alcaldías",
+    description: "PDM, PQRS y contratación en el día a día municipal.",
+    metrics: ["PDM 2024–2027", "Portal ciudadano", "Informes de rendición"],
   },
   {
     icon: "fas fa-landmark",
-    title: "Gobernaciones y Departamentos",
-    description:
-      "Control multi-secretaría, planes de desarrollo departamental, correspondencia masiva y reportes consolidados.",
-    metrics: [
-      "Gestión multi-secretaría",
-      "Planes institucionales por dependencia",
-      "Correspondencia oficial centralizada",
-      "Control de asistencia del talento humano",
-    ],
+    title: "Gobernaciones",
+    description: "Gestión multi-secretaría con reportes consolidados.",
+    metrics: ["Planes por dependencia", "Correspondencia centralizada", "Control de asistencia"],
   },
   {
     icon: "fas fa-hospital",
-    title: "Entidades Descentralizadas",
-    description:
-      "ESEs, UMATAS, Personerías y entidades descentralizadas con PQRS, correspondencia y planes institucionales.",
-    metrics: [
-      "Portal ciudadano propio",
-      "Planes institucionales específicos",
-      "Seguimiento en tiempo real",
-      "Dashboard de gestión integrado",
-    ],
+    title: "Entidades descentralizadas",
+    description: "ESEs, UMATAS y personerías con módulos a la medida.",
+    metrics: ["PQRS propio", "Planes institucionales", "Dashboard integrado"],
   },
 ];
 
@@ -470,60 +270,43 @@ export const pdmCapabilities = [
   {
     icon: "fas fa-sitemap",
     gradient: "linear-gradient(135deg, #216ba8, #36b9cc)",
-    title: "Estructura Jerárquica",
-    text: "Líneas estratégicas → Sectores → Programas → Productos → Actividades. Toda la cadena del valor del PDM en un solo lugar.",
+    title: "Estructura completa",
+    text: "Línea → sector → programa → producto → actividad, con indicadores por año.",
   },
   {
     icon: "fas fa-brain",
     gradient: "linear-gradient(135deg, #7c3aed, #a855f7)",
-    title: "IA Generativa OpenAI",
-    text: "Genera informes ejecutivos narrativos con análisis inteligente del avance, logros y brechas del PDM.",
+    title: "Informes con IA",
+    text: "Narrativa automática del avance, logros y brechas del plan.",
   },
   {
     icon: "fas fa-chart-line",
     gradient: "linear-gradient(135deg, #1cc28e, #059669)",
-    title: "Dashboard Interactivo",
-    text: "Gráficas en tiempo real con Recharts: barras, dona, radial y comparativas para juntas y concejos.",
+    title: "Dashboard en vivo",
+    text: "Gráficas para juntas y concejos con datos actualizados.",
   },
   {
     icon: "fas fa-file-excel",
     gradient: "linear-gradient(135deg, #ff9900, #f59e0b)",
-    title: "Carga Excel Presupuestal",
-    text: "Importa la ejecución presupuestal y contratos RPS directamente desde archivos .xlsx.",
-  },
-  {
-    icon: "fas fa-file-pdf",
-    gradient: "linear-gradient(135deg, #e74a3b, #dc2626)",
-    title: "Informes PDF Automáticos",
-    text: "Generación asíncrona de informes. Filtra por secretaría, estado, año y ODS.",
-  },
-  {
-    icon: "fas fa-camera",
-    gradient: "linear-gradient(135deg, #36b9cc, #0891b2)",
-    title: "Evidencias Fotográficas",
-    text: "Registro fotográfico de actividades ejecutadas almacenado en la nube con acceso controlado.",
+    title: "Carga desde Excel",
+    text: "Ejecución presupuestal y contratos RPS en un solo archivo.",
   },
 ];
 
 export const pdmFeatures = [
-  "Carga Excel del PDM cuatrienal (2024–2027)",
-  "Indicadores de resultado por producto y año",
-  "Actividades con responsable por secretaría",
-  "Ejecución presupuestal: PDM vs Ppto Definitivo vs Pagos",
-  "Contratos RPS: carga desde archivo Excel",
-  "Integración BPIN desde datos.gov.co en tiempo real",
-  "Iniciativas SGR con estado de gestión",
-  "Filtros: línea / sector / ODS / secretaría / año",
-  "Análisis de producto con avance por año",
-  "Informes PDF con filtros avanzados y IA narrativa",
+  "Carga del PDM cuatrienal (2024–2027)",
+  "Indicadores y avance por producto",
+  "Ejecución: plan vs presupuesto vs pagos",
+  "Integración BPIN en tiempo real",
+  "Filtros por línea, ODS, secretaría y año",
+  "PDF con IA y filtros avanzados",
 ];
 
 export const pdmStats = [
-  { icon: "fas fa-map-marked-alt", value: "PDM", label: "Módulo Estrella" },
-  { icon: "fas fa-layer-group", value: "5 Niveles", label: "Estructura Jerárquica" },
-  { icon: "fas fa-calendar-alt", value: "4 Años", label: "Seguimiento 2024–2027" },
-  { icon: "fas fa-robot", value: "OpenAI", label: "Informes con IA" },
-  { icon: "fas fa-cloud", value: "Nube", label: "Evidencias seguras" },
+  { icon: "fas fa-layer-group", value: "5 Niveles", label: "Jerarquía PDM" },
+  { icon: "fas fa-calendar-alt", value: "4 Años", label: "2024–2027" },
+  { icon: "fas fa-robot", value: "OpenAI", label: "Informes IA" },
+  { icon: "fas fa-cloud", value: "Nube", label: "Evidencias" },
 ];
 
 export const WHATSAPP_NUMBER = "573162987496";

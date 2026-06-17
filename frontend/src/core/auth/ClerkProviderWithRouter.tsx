@@ -1,5 +1,6 @@
 import { ClerkProvider } from "@clerk/react";
 import { esES } from "@clerk/localizations";
+import { ui } from "@clerk/ui";
 import { useNavigate } from "react-router-dom";
 import { getClerkDomain, isClerkConfigured } from "@/core/auth/clerkConfig";
 
@@ -28,6 +29,7 @@ export default function ClerkProviderWithRouter({
   return (
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
+      ui={ui}
       domain={getClerkDomain()}
       localization={esES}
       routerPush={(to) => navigate(to)}
