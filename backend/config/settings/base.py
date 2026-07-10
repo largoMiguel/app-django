@@ -237,6 +237,9 @@ AI_EMBEDDING_MODEL = os.getenv("AI_EMBEDDING_MODEL", "text-embedding-3-small")
 # Chat PDM público — API key separada (PQRS sigue usando OPENAI_API_KEY)
 PDM_CHAT_OPENAI_API_KEY = os.getenv("PDM_CHAT_OPENAI_API_KEY", "")
 PDM_CHAT_MODEL = os.getenv("PDM_CHAT_MODEL", "") or OPENAI_MODEL
+# Informes PQRS PDF — API key dedicada (narrativa IA del reporte institucional)
+PQRS_REPORTS_OPENAI_API_KEY = os.getenv("PQRS_REPORTS_OPENAI_API_KEY", "")
+PQRS_REPORTS_OPENAI_MODEL = os.getenv("PQRS_REPORTS_OPENAI_MODEL", "") or OPENAI_MODEL
 
 # Celery (broker Redis)
 CELERY_BROKER_URL = _redis_url or "redis://localhost:6379/1"

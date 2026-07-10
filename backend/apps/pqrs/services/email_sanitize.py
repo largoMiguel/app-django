@@ -88,7 +88,6 @@ def build_entity_email_context(entity: Entity, user: User | None = None) -> Enti
         entity_phone=(entity.phone or "").strip(),
         entity_address=(entity.address or "").strip(),
         entity_nit=(entity.nit or "").strip(),
-        entity_footer=(entity.footer_text or "").strip(),
         remitente_email=(user.email or "").strip().lower() if user else "",
         remitente_name=(user.full_name or "").strip() if user else "",
         secretaria_names=list(

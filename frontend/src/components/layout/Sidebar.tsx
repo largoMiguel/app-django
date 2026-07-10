@@ -1,8 +1,9 @@
-import { FileText, Building2, Users, BarChart3, type LucideIcon } from "lucide-react";
-import { UserButton } from "@clerk/react";
+import { FileText, Building2, Users, BarChart3, LogOut, type LucideIcon } from "lucide-react";
+import { useClerk } from "@clerk/react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { accessibleNavRoutes, primaryRole, useAuthStore } from "@/core/auth/store";
+import { clearClientSession } from "@/core/auth/session";
 
 const NAV_ICONS: Record<string, LucideIcon> = {
   superadmin: Building2,
@@ -30,13 +31,13 @@ export default function Sidebar() {
 
   const entityLogoUrl = entity?.logo_url ?? null;
   const primaryRoleLabel = role || user?.roles[0] || "Usuario";
+  const userInitial = (user?.full_name || user?.email || "U").charAt(0).toUpperCase();
+  const clerk = useClerk();
 
-  const userButtonAppearance = {
-    elements: {
-      avatarBox: "h-8 w-8 flex-shrink-0",
-      userButtonPopoverCard: "shadow-xl",
-    },
-  };
+  async function handleSignOut() {
+    clearClientSession();
+    await clerk.signOut({ redirectUrl: "/login" });
+  }
 
   function renderNavItem(item: (typeof navRoutes)[number]) {
     const Icon = NAV_ICONS[item.moduleKey] ?? FileText;
@@ -112,23 +113,40 @@ export default function Sidebar() {
       </div>
 
       <div className="flex-shrink-0 border-t border-[rgba(255,255,255,0.07)] p-2">
-        {!isExpanded ? (
-          <div className="flex justify-center py-1">
-            <UserButton appearance={userButtonAppearance} />
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 min-w-0 px-1 py-1">
-            <UserButton appearance={userButtonAppearance} />
-            <div className="min-w-0 flex-1">
-              <div className="text-[0.7rem] font-semibold text-white truncate">
-                {user?.full_name || "Usuario"}
-              </div>
-              <div className="text-[0.65rem] text-[rgba(255,255,255,0.6)] truncate capitalize">
-                {primaryRoleLabel}
-              </div>
+        <div
+          className={`flex w-full items-center rounded-[0.3rem] transition-colors hover:bg-[rgba(255,255,255,0.07)] ${
+            isExpanded ? "gap-1 min-w-0 px-1 py-1" : "justify-center gap-1 py-1"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={handleSignOut}
+            title="Cerrar sesión"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[0.3rem] text-[rgba(255,255,255,0.55)] transition-colors hover:bg-[rgba(255,255,255,0.1)] hover:text-white"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => clerk.openUserProfile()}
+            title={user?.full_name || "Mi cuenta"}
+            className={`flex min-w-0 flex-1 items-center ${isExpanded ? "gap-2" : ""}`}
+          >
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3eafd4] text-sm font-bold text-white">
+              {userInitial}
             </div>
-          </div>
-        )}
+            {isExpanded && (
+              <div className="min-w-0 flex-1 text-left">
+                <div className="text-[0.7rem] font-semibold text-white truncate">
+                  {user?.full_name || "Usuario"}
+                </div>
+                <div className="text-[0.65rem] text-[rgba(255,255,255,0.6)] truncate capitalize">
+                  {primaryRoleLabel}
+                </div>
+              </div>
+            )}
+          </button>
+        </div>
       </div>
     </aside>
   );

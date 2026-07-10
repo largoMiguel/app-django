@@ -1,4 +1,4 @@
-import { api } from "@/core/api/client";
+import { api, downloadAuthenticatedFile } from "@/core/api/client";
 
 export type EstadoPQRS =
   | "recibida"
@@ -205,6 +205,31 @@ export interface PQRSReportPreview {
   }>;
 }
 
+export interface InformePQRS {
+  id: number;
+  filename: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  total_pqrs: number;
+  tasa_resolucion: number;
+  used_ai: boolean;
+  file_size: number;
+  created_at: string;
+  expires_at: string;
+  expires_in_days: number;
+  created_by_nombre: string;
+}
+
+export interface GenerarInformePayload {
+  fecha_inicio: string;
+  fecha_fin: string;
+  estado?: string;
+  tipo_solicitud?: string;
+  assigned_to?: number;
+  usar_ia?: boolean;
+  usuario_firmante_id?: number;
+}
+
 const MAX_REPORT_PAGES = 200;
 
 async function fetchAllPaginated(
@@ -357,6 +382,17 @@ export const pqrsApi = {
       .then((r) => r.data),
   descartarAlertaCorreo: (id: number) =>
     api.post<PQRS>(`/pqrs/${id}/descartar-alerta-correo/`).then((r) => r.data),
+};
+
+export const informesApi = {
+  list: () => api.get<InformePQRS[]>("/pqrs/informes/").then((r) => r.data),
+  generate: (payload: GenerarInformePayload) =>
+    api
+      .post<InformePQRS>("/pqrs/informes/", payload, { timeout: 300_000 })
+      .then((r) => r.data),
+  download: (id: number, filename: string) =>
+    downloadAuthenticatedFile(`/api/v1/pqrs/informes/${id}/download/`, filename),
+  remove: (id: number) => api.delete(`/pqrs/informes/${id}/`),
 };
 
 export {

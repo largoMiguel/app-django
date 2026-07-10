@@ -489,3 +489,61 @@ class CorreoEntrantePQRS(models.Model):
     def __str__(self) -> str:
         return f"{self.remitente} — {self.estado}"
 
+
+class InformePQRS(models.Model):
+    """Informe PDF institucional de PQRS (historial con expiración automática)."""
+
+    entity = models.ForeignKey(
+        "entities.Entity",
+        on_delete=models.CASCADE,
+        related_name="informes_pqrs",
+        db_column="entity_id",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="informes_pqrs_creados",
+        db_column="created_by_id",
+    )
+    filename = models.CharField(max_length=255)
+    b2_key = models.CharField(max_length=500)
+    file_size = models.PositiveIntegerField(default=0)
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField()
+    total_pqrs = models.PositiveIntegerField(default=0)
+    tasa_resolucion = models.DecimalField(max_digits=5, decimal_places=1, default=0)
+    used_ai = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        db_table = "pqrs_informes"
+        verbose_name = "Informe PQRS"
+        verbose_name_plural = "Informes PQRS"
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["entity", "-created_at"]),
+            models.Index(fields=["entity", "expires_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.filename} ({self.entity_id})"
+
+    @classmethod
+    def purge_expired(cls, entity_id: int | None = None) -> int:
+        """Elimina informes expirados y sus archivos en B2."""
+        from apps.common.storage_cleanup import delete_pqrs_storage_key
+
+        now = timezone.now()
+        qs = cls.objects.filter(expires_at__lte=now)
+        if entity_id is not None:
+            qs = qs.filter(entity_id=entity_id)
+        deleted = 0
+        for informe in qs.iterator():
+            delete_pqrs_storage_key(informe.b2_key)
+            informe.delete()
+            deleted += 1
+        return deleted
+

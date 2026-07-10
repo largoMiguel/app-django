@@ -3,7 +3,7 @@ from rest_framework import serializers
 from apps.common.file_delivery import signed_pdm_url, signed_pqrs_url
 from apps.entities.models import Secretaria
 
-from .models import PQRS, AsignacionAuditoria, PQRSArchivo, PQRSCorreo
+from .models import PQRS, AsignacionAuditoria, InformePQRS, PQRSArchivo, PQRSCorreo
 from .services.email import parse_email_list
 
 
@@ -338,3 +338,47 @@ class ReenviarCorreoSerializer(serializers.Serializer):
         except Exception as exc:
             raise serializers.ValidationError(str(exc)) from exc
         return ", ".join(emails)
+
+
+class GenerarInformeSerializer(serializers.Serializer):
+    fecha_inicio = serializers.DateField()
+    fecha_fin = serializers.DateField()
+    estado = serializers.CharField(required=False, allow_blank=True)
+    tipo_solicitud = serializers.CharField(required=False, allow_blank=True)
+    assigned_to = serializers.IntegerField(required=False, allow_null=True)
+    usar_ia = serializers.BooleanField(required=False, default=True)
+    usuario_firmante_id = serializers.IntegerField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        if attrs["fecha_inicio"] > attrs["fecha_fin"]:
+            raise serializers.ValidationError({"fecha_fin": "Debe ser posterior o igual a fecha_inicio."})
+        return attrs
+
+
+class InformePQRSSerializer(serializers.ModelSerializer):
+    created_by_nombre = serializers.CharField(source="created_by.full_name", read_only=True, default="")
+    expires_in_days = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InformePQRS
+        fields = (
+            "id",
+            "filename",
+            "fecha_inicio",
+            "fecha_fin",
+            "total_pqrs",
+            "tasa_resolucion",
+            "used_ai",
+            "file_size",
+            "created_at",
+            "expires_at",
+            "expires_in_days",
+            "created_by_nombre",
+        )
+        read_only_fields = fields
+
+    def get_expires_in_days(self, obj) -> int:
+        from django.utils import timezone
+
+        delta = obj.expires_at - timezone.now()
+        return max(0, delta.days)

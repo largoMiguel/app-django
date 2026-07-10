@@ -17,6 +17,8 @@ import {
   MessageCircle,
   BarChart3,
   ExternalLink,
+  Upload,
+  FileText,
 } from "lucide-react";
 import { pdmApi } from "@/core/api/pdm";
 import type { PdmChatAnalytics } from "@/core/api/pdmChatPublic";
@@ -309,6 +311,10 @@ function InfoTab({
         </label>
       </section>
 
+      {form.enable_reports_pdf && (
+        <ReportTemplateSection entity={entity} form={form} set={set} onSaved={onSaved} />
+      )}
+
       <section>
         <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-600 border-b border-slate-200 pb-1.5">
           Módulos habilitados
@@ -365,6 +371,116 @@ function InfoTab({
 
     <DeleteEntitySection entity={entity} onDeleted={onDeleted} />
     </>
+  );
+}
+
+function ReportTemplateSection({
+  entity,
+  form,
+  set,
+  onSaved,
+}: {
+  entity: Entity;
+  form: Partial<Entity>;
+  set: <K extends keyof Entity>(key: K, value: Entity[K]) => void;
+  onSaved: () => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [templateMsg, setTemplateMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  async function handleUpload(ev: React.ChangeEvent<HTMLInputElement>) {
+    const file = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setTemplateMsg({ kind: "err", text: "Solo se aceptan archivos PDF." });
+      return;
+    }
+    setUploading(true);
+    setTemplateMsg(null);
+    try {
+      const result = await entitiesApi.uploadPdfTemplate(entity.id, file);
+      set("pdf_template_url", result.pdf_template_url);
+      setTemplateMsg({ kind: "ok", text: `Membrete cargado: ${result.filename}` });
+      onSaved();
+    } catch (err) {
+      setTemplateMsg({ kind: "err", text: formatApiError(err, "Error al subir el membrete PDF.") });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDeleteTemplate() {
+    setUploading(true);
+    setTemplateMsg(null);
+    try {
+      await entitiesApi.deletePdfTemplate(entity.id);
+      set("pdf_template_url", null);
+      setTemplateMsg({ kind: "ok", text: "Membrete eliminado." });
+      onSaved();
+    } catch (err) {
+      setTemplateMsg({ kind: "err", text: formatApiError(err, "Error al eliminar el membrete.") });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <section>
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-600 border-b border-slate-200 pb-1.5">
+        Plantilla de informes PQRS
+      </h3>
+      <p className="mb-3 text-xs text-slate-500">
+        Sube el membrete institucional PDF que se usará como fondo al generar informes PQRS.
+      </p>
+
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-slate-700">
+            <FileText className="h-4 w-4 text-[#3eafd4]" />
+            <span>
+              Membrete PDF:{" "}
+              <strong>{form.pdf_template_url ? "Configurado" : "Sin membrete"}</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100">
+              <Upload className="h-3.5 w-3.5" />
+              {uploading ? "Subiendo…" : form.pdf_template_url ? "Reemplazar" : "Subir PDF"}
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                disabled={uploading}
+                onChange={handleUpload}
+              />
+            </label>
+            {form.pdf_template_url && (
+              <button
+                type="button"
+                onClick={handleDeleteTemplate}
+                disabled={uploading}
+                className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+              >
+                Eliminar
+              </button>
+            )}
+          </div>
+        </div>
+        {form.pdf_template_url && (
+          <p className="mt-2 truncate text-[0.68rem] text-slate-500">{form.pdf_template_url}</p>
+        )}
+        {templateMsg && (
+          <p
+            className={`mt-2 text-xs ${
+              templateMsg.kind === "ok" ? "text-emerald-700" : "text-red-700"
+            }`}
+          >
+            {templateMsg.text}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 
