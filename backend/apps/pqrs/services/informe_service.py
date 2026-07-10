@@ -169,7 +169,13 @@ def generate_informe_pqrs(
 def delete_informe(informe: InformePQRS) -> None:
     from apps.common.storage_cleanup import delete_pqrs_storage_key
 
-    delete_pqrs_storage_key(informe.b2_key)
+    key = (informe.b2_key or "").lstrip("/")
+    if key:
+        delete_pqrs_storage_key(key)
+        if not settings.USE_B2_STORAGE:
+            storage = pqrs_storage_for_paths()
+            if storage.exists(key):
+                storage.delete(key)
     informe.delete()
 
 

@@ -26,6 +26,9 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 import tempfile
 import os
+import re
+
+import fitz  # PyMuPDF
 
 # Configurar matplotlib para uso en servidor
 import matplotlib
@@ -497,6 +500,86 @@ class PQRSReportGenerator:
         print(f"📐 Márgenes detectados → top: {top_in}in  bottom: {bottom_in}in")
         return top_in, bottom_in
 
+    @staticmethod
+    def _find_page_number_word_indices(words: list) -> tuple[int, int, int, int] | None:
+        """Ubica índices de [Página, num_actual, de, num_total] en la lista de palabras."""
+        for idx in range(len(words) - 3):
+            label = str(words[idx][4]).strip().lower()
+            num_a = str(words[idx + 1][4]).strip()
+            linker = str(words[idx + 2][4]).strip().lower()
+            num_b = str(words[idx + 3][4]).strip()
+            if not re.match(r"p[aá]gina", label, re.IGNORECASE):
+                continue
+            if linker != "de" or not num_a.isdigit() or not num_b.isdigit():
+                continue
+            return idx, idx + 1, idx + 2, idx + 3
+        return None
+
+    @staticmethod
+    def _word_rect(word) -> fitz.Rect:
+        return fitz.Rect(word[0], word[1], word[2], word[3])
+
+    @staticmethod
+    def _redact_tight(page, rect: fitz.Rect) -> None:
+        pad = 0.5
+        tight = fitz.Rect(
+            rect.x0 - pad,
+            rect.y0 - pad,
+            rect.x1 + pad,
+            rect.y1 + pad,
+        )
+        page.add_redact_annot(tight)
+        page.apply_redactions()
+
+    @staticmethod
+    def _insert_at_word(page, word, text: str) -> None:
+        rect = PQRSReportGenerator._word_rect(word)
+        fontsize = max(7, min(14, rect.height * 0.9))
+        page.insert_text(
+            (rect.x0, rect.y1 - 1),
+            str(text),
+            fontsize=fontsize,
+            color=(0, 0, 0),
+            fontname="helv",
+        )
+
+    @staticmethod
+    def _replace_page_number(page, page_index: int, total_pages: int) -> None:
+        """
+        Actualiza solo los dígitos de 'Página X de Y' en el membrete.
+        No toca el resto del template ni pinta cajas blancas grandes.
+        """
+        words = page.get_text("words")
+        indices = PQRSReportGenerator._find_page_number_word_indices(words)
+        if indices:
+            _, num_a_idx, _, num_b_idx = indices
+            num_word_a = words[num_a_idx]
+            num_word_b = words[num_b_idx]
+            PQRSReportGenerator._redact_tight(page, PQRSReportGenerator._word_rect(num_word_a))
+            PQRSReportGenerator._redact_tight(page, PQRSReportGenerator._word_rect(num_word_b))
+            PQRSReportGenerator._insert_at_word(page, num_word_a, page_index + 1)
+            PQRSReportGenerator._insert_at_word(page, num_word_b, total_pages)
+            return
+
+        page_num_re = re.compile(r"P[aá]gina\s+\d+\s+de\s+\d+", re.IGNORECASE)
+        for block in page.get_text("blocks"):
+            if len(block) < 5:
+                continue
+            text = str(block[4]).strip()
+            if not page_num_re.search(text):
+                continue
+            rect = fitz.Rect(block[:4])
+            PQRSReportGenerator._redact_tight(page, rect)
+            fontsize = max(7, min(14, rect.height * 0.9))
+            page.insert_text(
+                (rect.x0, rect.y1 - 1),
+                f"Página {page_index + 1} de {total_pages}",
+                fontsize=fontsize,
+                color=(0, 0, 0),
+                fontname="helv",
+            )
+            return
+
     def _create_content_pdf(self, top_margin: float = 1.6, bottom_margin: float = 1.0) -> BytesIO:
         """
         Crea el PDF con el contenido del informe (sin template, solo contenido).
@@ -569,7 +652,7 @@ class PQRSReportGenerator:
         mes_generacion = f"{_meses_es_portada[_hoy.month]} {_hoy.year}"
         
         # Espaciado inicial
-        self.story.append(Spacer(1, 0.8*inch))
+        self.story.append(Spacer(1, 0.5*inch))
         
         # Encabezado verde oscuro con título principal
         header_data = [[Paragraph("<b>Informe de Seguimiento</b><br/>Proceso de Peticiones, Quejas, Reclamos, Solicitudes,<br/>Denuncias y Felicitaciones (PQRSDF)", 
@@ -612,7 +695,7 @@ class PQRSReportGenerator:
             ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
         ]))
         self.story.append(entity_table)
-        self.story.append(Spacer(1, 0.8*inch))
+        self.story.append(Spacer(1, 0.5*inch))
         
         # Periodo trimestral en caja verde claro
         periodo_text = f"<b>{trimestre_info['texto_periodo']}<br/>{trimestre_info['año']}</b>"
@@ -635,7 +718,7 @@ class PQRSReportGenerator:
             ('RIGHTPADDING', (0, 0), (-1, -1), 30),
         ]))
         self.story.append(periodo_table)
-        self.story.append(Spacer(1, 1.0*inch))
+        self.story.append(Spacer(1, 0.5*inch))
         
         # Mes de generación (alineado a la derecha)
         mes_style = ParagraphStyle(
@@ -651,9 +734,14 @@ class PQRSReportGenerator:
         # ---- Datos dinámicos de la entidad ----
         entity_name      = self.entity.name        # Ej: "Alcaldía Municipal de Sora"
         entity_email     = self.entity.email or "contactenos@entidad.gov.co"
-        entity_slug      = self.entity.slug or ""  # Ej: "sora-boyaca"
+        entity_slug      = self.entity.slug or ""
         entity_website   = f"https://www.{entity_slug}.gov.co" if entity_slug else "el sitio web institucional"
         pqrs_url         = f"{entity_website}/peticiones-quejas-reclamos"
+        from django.conf import settings as dj_settings
+        app_base = (getattr(dj_settings, "APP_BASE_URL", "") or "").strip().rstrip("/")
+        if not app_base:
+            app_base = "https://app.softone360.com"
+        portal_pqrs_url = f"{app_base}/portal/{entity_slug}" if entity_slug else app_base
 
         # Número de trimestre en palabras
         _trimestre_palabras = {1: "primer", 2: "segundo", 3: "tercer", 4: "cuarto"}
@@ -765,9 +853,10 @@ class PQRSReportGenerator:
             (
                 "Canal Virtual",
                 f"El {entity_name} ha dispuesto de un link en su página web "
-                f"<u>{pqrs_url}</u> para la radicación, a través del cual se pueden formular las "
-                f"PQRSD, al igual que el ciudadano las puede radicar a través del correo electrónico "
-                f"institucional <u>{entity_email}</u>."
+                f"<u>{pqrs_url}</u> para la radicación, así como el portal público de PQRS "
+                f"en <u>{portal_pqrs_url}</u>, a través del cual se pueden formular las "
+                f"PQRSD, al igual que el ciudadano las puede radicar a través del correo "
+                f"electrónico institucional <u>{entity_email}</u>."
             ),
             (
                 "Canal Escrito",
@@ -805,10 +894,9 @@ class PQRSReportGenerator:
             "A continuación, se relacionan los canales de atención con su especificación del "
             "servicio a prestar:", normal_style
         ))
-        self.story.append(Spacer(1, 0.15*inch))
+        self.story.append(Spacer(1, 0.1*inch))
 
         # ***** CANALES DE SERVICIO *****
-        self.story.append(PageBreak())
         self.story.append(Paragraph("1. CANALES DE SERVICIO", section_style))
         canales_intro = (
             f"Los canales de atención que ofrece el {entity_name} son: Presencial, virtual y telefónico:"
@@ -1025,7 +1113,6 @@ class PQRSReportGenerator:
         self.story.append(Spacer(1, 0.1*inch))
         
         # ***** DETALLE DE PQRS *****
-        self.story.append(PageBreak())
         self.story.append(Paragraph("DETALLE DE PQRS RECIENTES", heading_style))
         
         pqrs_recientes = self.pqrs_list[:20]  # Primeras 20
@@ -1053,10 +1140,9 @@ class PQRSReportGenerator:
         ]))
         
         self.story.append(pqrs_table)
-        self.story.append(Spacer(1, 0.2*inch))
+        self.story.append(Spacer(1, 0.15*inch))
         
         # ***** CONCLUSIONES *****
-        self.story.append(PageBreak())
         self.story.append(Paragraph("CONCLUSIONES", heading_style))
         self._render_text_block(self.ai_analysis['conclusiones'], normal_style)
         self.story.append(Spacer(1, 0.1*inch))
@@ -1206,49 +1292,23 @@ class PQRSReportGenerator:
             return content_buffer
 
         try:
-            # Abrir template PDF como documento vectorial (sin rasterizar)
-            template_doc = fitz.open(stream=template_pdf_bytes, filetype="pdf")
-            print(f"✅ Template abierto: {len(template_doc)} página(s)")
-
-            # Post-procesar: insertar template como Form XObject vectorial debajo del contenido
             content_buffer.seek(0)
             content_doc = fitz.open(stream=content_buffer.read(), filetype="pdf")
-
-            for i, page in enumerate(content_doc):
-                # show_pdf_page inserta la página como Form XObject (vectorial, no imagen)
-                # overlay=False → va DETRÁS del contenido existente
-                page.show_pdf_page(page.rect, template_doc, 0, overlay=False)
-                print(f"   ✅ Página {i+1}: membrete vectorial insertado como fondo")
-
-            template_doc.close()
             total_pages = len(content_doc)
 
-            # Actualizar numeración de página en cada página
             for i, page in enumerate(content_doc):
-                nuevo_texto = f"Página {i+1} de {total_pages}"
-                # Buscar cualquier variante de "Página X de Y" en el template
-                for patron in ["Página 1 de 1", "Pagina 1 de 1", "página 1 de 1"]:
-                    rects = page.search_for(patron)
-                    for rect in rects:
-                        # Expandir rect para cubrir el texto original + espacio para números más largos
-                        expanded = fitz.Rect(rect.x0 - 2, rect.y0 - 2, rect.x1 + 60, rect.y1 + 2)
-                        page.add_redact_annot(expanded)
-                        page.apply_redactions()
-                        # Escribir el nuevo número de página en la misma posición
-                        page.insert_text(
-                            (rect.x0, rect.y1 - 1),
-                            nuevo_texto,
-                            fontsize=rect.height * 0.85,
-                            color=(0, 0, 0)
-                        )
-                        print(f"   ✅ Página {i+1}: numeración actualizada → {nuevo_texto}")
+                tpl_doc = fitz.open(stream=template_pdf_bytes, filetype="pdf")
+                tpl_page = tpl_doc[0]
+                self._replace_page_number(tpl_page, i, total_pages)
+                page.show_pdf_page(page.rect, tpl_doc, 0, overlay=False)
+                tpl_doc.close()
 
             final_buffer = BytesIO()
             content_doc.save(final_buffer)
             content_doc.close()
             final_buffer.seek(0)
 
-            print(f"✅ PDF con membrete institucional generado")
+            print(f"✅ PDF con membrete institucional generado ({total_pages} páginas)")
             return final_buffer
 
         except Exception as e:

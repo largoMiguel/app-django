@@ -100,8 +100,10 @@ export default function PQRSDashboard() {
     permissions: [PERM.PQRS_VIEW],
   });
 
-  const isAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_CHANGE] });
-  const canSeeInformes = isAdmin && Boolean(user?.entity?.enable_reports_pdf);
+  const isAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_VIEW] });
+  const canSeeInformes =
+    canAccess(user, { roles: ["admin", "secretario"], permissions: [PERM.PQRS_VIEW] }) &&
+    Boolean(user?.entity?.enable_reports_pdf);
 
   const {
     data: stats,

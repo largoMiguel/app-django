@@ -13,6 +13,8 @@ import {
   FileText,
   Sparkles,
   Clock,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { informesApi, type GenerarInformePayload, type InformePQRS } from "@/core/api/pqrs";
@@ -36,13 +38,14 @@ function formatFileSize(bytes: number): string {
 
 interface ModalProps {
   onClose: () => void;
-  onGenerated: (informe: InformePQRS) => void;
+  onSubmit: (payload: GenerarInformePayload) => void;
   users: AppUser[];
   secretarias: Secretaria[];
   enableAi: boolean;
+  submitting: boolean;
 }
 
-function ReportModal({ onClose, onGenerated, users, secretarias, enableAi }: ModalProps) {
+function ReportModal({ onClose, onSubmit, users, secretarias, enableAi, submitting }: ModalProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
@@ -54,33 +57,21 @@ function ReportModal({ onClose, onGenerated, users, secretarias, enableAi }: Mod
   const [firmanteId, setFirmanteId] = useState("");
   const [usarIa, setUsarIa] = useState(enableAi);
   const [tried, setTried] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  async function handleGenerate() {
+  function handleGenerate() {
     setTried(true);
     if (!firmanteId) return;
 
-    setGenerating(true);
-    setFetchError(null);
-    try {
-      const payload: GenerarInformePayload = {
-        fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin,
-        usar_ia: usarIa,
-        usuario_firmante_id: Number(firmanteId),
-      };
-      if (secretariaId) payload.assigned_to = Number(secretariaId);
-      if (estado) payload.estado = estado;
-      if (tipo) payload.tipo_solicitud = tipo;
-
-      const informe = await informesApi.generate(payload);
-      onGenerated(informe);
-    } catch (err) {
-      setFetchError(formatApiError(err, "No se pudo generar el informe PDF."));
-    } finally {
-      setGenerating(false);
-    }
+    const payload: GenerarInformePayload = {
+      fecha_inicio: fechaInicio,
+      fecha_fin: fechaFin,
+      usar_ia: usarIa,
+      usuario_firmante_id: Number(firmanteId),
+    };
+    if (secretariaId) payload.assigned_to = Number(secretariaId);
+    if (estado) payload.estado = estado;
+    if (tipo) payload.tipo_solicitud = tipo;
+    onSubmit(payload);
   }
 
   return (
@@ -102,12 +93,6 @@ function ReportModal({ onClose, onGenerated, users, secretarias, enableAi }: Mod
         </div>
 
         <div className="p-6 space-y-5">
-          {fetchError && (
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {fetchError}
-            </p>
-          )}
-
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="flex items-center gap-1 text-sm font-semibold text-slate-700 mb-1.5">
@@ -248,10 +233,18 @@ function ReportModal({ onClose, onGenerated, users, secretarias, enableAi }: Mod
           </button>
           <button
             onClick={handleGenerate}
-            disabled={generating}
+            disabled={submitting}
             className="flex items-center gap-2 rounded-md bg-[#1d4ed8] px-5 py-2 text-sm font-semibold text-white hover:bg-[#1a44c0] transition-colors disabled:opacity-60"
           >
-            <FileText className="h-4 w-4" /> {generating ? "Generando PDF…" : "Generar Informe"}
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Iniciando…
+              </>
+            ) : (
+              <>
+                <FileText className="h-4 w-4" /> Generar Informe
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -266,8 +259,17 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
   const [showModal, setShowModal] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [genState, setGenState] = useState<"idle" | "generating" | "done">("idle");
+  const [readyInformeId, setReadyInformeId] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const canAccessPage =
+  const canViewPage =
+    canAccess(user, { roles: ["admin", "secretario"], permissions: [PERM.PQRS_VIEW] }) &&
+    Boolean(entity?.enable_pqrs) &&
+    Boolean(entity?.enable_reports_pdf) &&
+    Boolean(user?.capabilities?.reports_pdf ?? true);
+
+  const canGenerate =
     canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_VIEW] }) &&
     Boolean(entity?.enable_pqrs) &&
     Boolean(entity?.enable_reports_pdf) &&
@@ -281,30 +283,30 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
   } = useQuery({
     queryKey: ["pqrs-informes", user?.entity?.id],
     queryFn: () => informesApi.list(),
-    enabled: canAccessPage,
+    enabled: canViewPage,
   });
 
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ["users", "informes", user?.entity?.id],
     queryFn: () => usersApi.list({ entity: user!.entity!.id }),
-    enabled: canAccessPage && Boolean(user?.entity?.id),
+    enabled: canGenerate && Boolean(user?.entity?.id),
   });
 
   const { data: secretarias = [], isLoading: secretariasLoading } = useQuery({
     queryKey: ["secretarias", user?.entity?.id],
     queryFn: () => secretariasApi.list(user?.entity?.id),
-    enabled: canAccessPage && Boolean(user?.entity?.id),
+    enabled: canGenerate && Boolean(user?.entity?.id),
   });
 
-  const loading = informesLoading || usersLoading || secretariasLoading;
+  const loading = informesLoading || (canGenerate && (usersLoading || secretariasLoading));
   const loadError = informesError
     ? formatApiError(informesErr, "No se pudieron cargar los informes.")
     : null;
 
-  if (!canAccessPage) {
+  if (!canViewPage) {
     return (
       <div className="flex h-64 items-center justify-center text-slate-500 text-sm">
-        No tienes permiso para generar informes.
+        No tienes permiso para ver informes.
       </div>
     );
   }
@@ -331,10 +333,23 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
     }
   }
 
-  function handleGenerated(informe: InformePQRS) {
+  async function handleGenerate(payload: GenerarInformePayload) {
+    setActionError(null);
+    setSubmitting(true);
     setShowModal(false);
-    queryClient.invalidateQueries({ queryKey: ["pqrs-informes"] });
-    void handleDownload(informe);
+    setGenState("generating");
+    setReadyInformeId(null);
+    try {
+      const informe = await informesApi.generate(payload);
+      await queryClient.invalidateQueries({ queryKey: ["pqrs-informes"] });
+      setReadyInformeId(informe.id);
+      setGenState("done");
+    } catch (err) {
+      setGenState("idle");
+      setActionError(formatApiError(err, "No se pudo generar el informe PDF."));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (loading) {
@@ -380,12 +395,31 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
               ← Panel
             </Link>
           )}
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 rounded-[0.3rem] bg-[#1d4ed8] px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-[#1a44c0] transition-colors shadow-sm whitespace-nowrap"
-          >
-            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Crear Informe
-          </button>
+          {canGenerate && (
+            <button
+              onClick={() => setShowModal(true)}
+              disabled={genState === "generating"}
+              className={`flex items-center gap-2 rounded-[0.3rem] px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition-colors shadow-sm whitespace-nowrap disabled:opacity-70 ${
+                genState === "done"
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-[#1d4ed8] hover:bg-[#1a44c0]"
+              }`}
+            >
+              {genState === "generating" ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> Generando…
+                </>
+              ) : genState === "done" ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> ¡Informe listo!
+                </>
+              ) : (
+                <>
+                  <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Crear Informe
+                </>
+              )}
+            </button>
+          )}
           {onClose && (
             <button
               onClick={onClose}
@@ -398,6 +432,25 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
         </div>
       </div>
 
+      {genState === "generating" && (
+        <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <Loader2 className="h-5 w-5 flex-shrink-0 animate-spin text-blue-600" />
+          <div>
+            <p className="font-semibold">Generando informe PDF…</p>
+            <p className="text-xs text-blue-700">
+              Puedes seguir usando el panel. Te avisaremos cuando esté listo (puede tardar 1-2 minutos).
+            </p>
+          </div>
+        </div>
+      )}
+
+      {genState === "done" && (
+        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-emerald-600" />
+          <p className="font-semibold">El informe ya está disponible para descargar.</p>
+        </div>
+      )}
+
       {actionError && (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {actionError}
@@ -409,7 +462,9 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
           <FileBarChart2 className="mb-2 sm:mb-3 h-10 sm:h-12 w-10 sm:w-12 text-slate-300" />
           <p className="font-medium text-slate-600 text-sm sm:text-base">No hay informes generados</p>
           <p className="mt-1 text-xs sm:text-sm text-slate-500">
-            Crea tu primer informe institucional en PDF con el botón &quot;Crear Informe&quot;
+            {canGenerate
+              ? 'Crea tu primer informe institucional en PDF con el botón "Crear Informe"'
+              : "Aún no hay informes generados para esta entidad."}
           </p>
         </div>
       ) : (
@@ -417,7 +472,11 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
           {informes.map((informe) => (
             <div
               key={informe.id}
-              className="flex flex-col gap-2 sm:gap-3 rounded-lg border border-slate-100 bg-white px-3 sm:px-5 py-3 sm:py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+              className={`flex flex-col gap-2 sm:gap-3 rounded-lg border bg-white px-3 sm:px-5 py-3 sm:py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between ${
+                readyInformeId === informe.id
+                  ? "border-emerald-300 ring-2 ring-emerald-200"
+                  : "border-slate-100"
+              }`}
             >
               <div className="flex min-w-0 items-start gap-3 sm:gap-4">
                 <div className="flex h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-lg sm:rounded-xl bg-indigo-100 text-indigo-600">
@@ -465,26 +524,29 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
                   <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                   {downloadingId === informe.id ? "Descargando…" : "Descargar"}
                 </button>
-                <button
-                  onClick={() => handleDelete(informe.id)}
-                  className="rounded-md border border-slate-200 p-1 sm:p-2 text-slate-400 hover:border-red-300 hover:text-red-500 transition-colors flex-shrink-0"
-                  title="Eliminar informe"
-                >
-                  <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </button>
+                {canGenerate && (
+                  <button
+                    onClick={() => handleDelete(informe.id)}
+                    className="rounded-md border border-slate-200 p-1 sm:p-2 text-slate-400 hover:border-red-300 hover:text-red-500 transition-colors flex-shrink-0"
+                    title="Eliminar informe"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </button>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {showModal && (
+      {showModal && canGenerate && (
         <ReportModal
           onClose={() => setShowModal(false)}
-          onGenerated={handleGenerated}
+          onSubmit={handleGenerate}
           users={users}
           secretarias={secretarias}
           enableAi={Boolean(entity?.enable_ai_reports)}
+          submitting={submitting}
         />
       )}
     </div>

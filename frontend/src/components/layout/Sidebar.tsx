@@ -114,23 +114,15 @@ export default function Sidebar() {
 
       <div className="flex-shrink-0 border-t border-[rgba(255,255,255,0.07)] p-2">
         <div
-          className={`flex w-full items-center rounded-[0.3rem] transition-colors hover:bg-[rgba(255,255,255,0.07)] ${
-            isExpanded ? "gap-1 min-w-0 px-1 py-1" : "justify-center gap-1 py-1"
+          className={`flex w-full min-w-0 items-center rounded-[0.3rem] px-1 py-1 transition-colors hover:bg-[rgba(255,255,255,0.07)] ${
+            isExpanded ? "gap-1" : "justify-center"
           }`}
         >
           <button
             type="button"
-            onClick={handleSignOut}
-            title="Cerrar sesión"
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[0.3rem] text-[rgba(255,255,255,0.55)] transition-colors hover:bg-[rgba(255,255,255,0.1)] hover:text-white"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
             onClick={() => clerk.openUserProfile()}
             title={user?.full_name || "Mi cuenta"}
-            className={`flex min-w-0 flex-1 items-center ${isExpanded ? "gap-2" : ""}`}
+            className={`flex min-w-0 items-center ${isExpanded ? "min-w-0 flex-1 gap-2" : ""}`}
           >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3eafd4] text-sm font-bold text-white">
               {userInitial}
@@ -146,6 +138,16 @@ export default function Sidebar() {
               </div>
             )}
           </button>
+          {isExpanded && (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              title="Cerrar sesión"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[0.3rem] text-[rgba(255,255,255,0.55)] transition-colors hover:bg-[rgba(255,255,255,0.1)] hover:text-white"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
     </aside>

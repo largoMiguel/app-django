@@ -23,6 +23,15 @@ from .services.informe_service import delete_informe, generate_informe_pqrs, get
 logger = logging.getLogger(__name__)
 
 
+def _can_view_informes(user) -> bool:
+    from apps.common.roles import is_platform_superadmin, user_roles
+
+    if is_platform_superadmin(user):
+        return False
+    roles = user_roles(user)
+    return "admin" in roles or "secretario" in roles
+
+
 def _can_manage_informes(user) -> bool:
     from apps.common.roles import is_platform_superadmin, user_roles
 
@@ -35,7 +44,7 @@ class InformePQRSViewSet(viewsets.GenericViewSet):
     serializer_class = InformePQRSSerializer
     permission_classes = (
         IsAuthenticated,
-        HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin",)),
+        HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario")),
     )
 
     def get_queryset(self):
@@ -49,14 +58,19 @@ class InformePQRSViewSet(viewsets.GenericViewSet):
             .order_by("-created_at", "-id")
         )
 
-    def _authorize(self, user) -> None:
+    def _authorize_view(self, user) -> None:
         require_user_module(
             user,
             "reports_pdf",
             message="El módulo de reportes no está habilitado para tu usuario.",
         )
+        if not _can_view_informes(user):
+            raise PermissionDenied("No tienes permiso para ver informes PQRS.")
+
+    def _authorize_manage(self, user) -> None:
+        self._authorize_view(user)
         if not _can_manage_informes(user):
-            raise PermissionDenied("Solo admin puede gestionar informes PQRS.")
+            raise PermissionDenied("Solo el administrador de la entidad puede gestionar informes PQRS.")
 
     def _get_informe_or_404(self, pk: int) -> InformePQRS:
         informe = self.get_queryset().filter(pk=pk).first()
@@ -65,13 +79,13 @@ class InformePQRSViewSet(viewsets.GenericViewSet):
         return informe
 
     def list(self, request):
-        self._authorize(request.user)
+        self._authorize_view(request.user)
         InformePQRS.purge_expired(entity_id=request.user.entity_id)
         serializer = self.get_serializer(self.get_queryset(), many=True)
         return Response(serializer.data)
 
     def create(self, request):
-        self._authorize(request.user)
+        self._authorize_manage(request.user)
 
         ser = GenerarInformeSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -114,13 +128,13 @@ class InformePQRSViewSet(viewsets.GenericViewSet):
         return Response(self.get_serializer(informe).data, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, pk=None):
-        self._authorize(request.user)
+        self._authorize_manage(request.user)
         delete_informe(self._get_informe_or_404(pk))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["get"], url_path="download")
     def download(self, request, pk=None):
-        self._authorize(request.user)
+        self._authorize_view(request.user)
         informe = self._get_informe_or_404(pk)
         content = get_informe_file_bytes(informe)
         response = HttpResponse(content, content_type="application/pdf")
