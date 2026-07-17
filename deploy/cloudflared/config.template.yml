@@ -19,8 +19,17 @@ originRequest:
   noTLSVerify: true
 
 ingress:
+  - hostname: softone360.com
+    service: http://nginx:80
+  - hostname: www.softone360.com
+    service: http://nginx:80
   - hostname: app.softone360.com
     service: http://nginx:80
+  - hostname: files.softone360.com
+    service: http://nginx:80
+  # TEMPORAL — Lavonia showcase
+  - hostname: lavonia.softone360.com
+    service: http://lavonia:80
   - hostname: ssh.softone360.com
     service: ssh://host.docker.internal:22
   - service: http_status:404

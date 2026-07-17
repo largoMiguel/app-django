@@ -1,6 +1,7 @@
-import { lazy, Suspense, type ReactElement } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, useEffect, type ReactElement } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ScrollToTop from "@/core/routing/ScrollToTop";
+import { isMarketingHost, redirectToApp } from "@/core/host";
 import LoginPage from "@/features/auth/LoginPage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
@@ -22,78 +23,114 @@ const HomePage = lazy(() => import("@/features/showcase/HomePage"));
 const NosotrosPage = lazy(() => import("@/features/nosotros/NosotrosPage"));
 const PdmPage = lazy(() => import("@/features/pdm/PdmPage"));
 
+const suspenseFallback = (
+  <div className="flex min-h-screen items-center justify-center text-slate-500">Cargando…</div>
+);
+
 function AppHomeRedirect() {
   const user = useAuthStore((s) => s.user);
   return <Navigate to={firstAccessibleRoute(user)} replace />;
 }
 
+/** En softone360.com cualquier ruta de app se manda a app.softone360.com. */
+function RedirectToAppHost() {
+  const location = useLocation();
+  useEffect(() => {
+    redirectToApp(`${location.pathname}${location.search}${location.hash}`);
+  }, [location.pathname, location.search, location.hash]);
+  return suspenseFallback;
+}
+
+/** En app.* no hay showcase: / → login (o dashboard si ya hay sesión). */
+function AppRootEntry() {
+  const user = useAuthStore((s) => s.user);
+  if (user) return <Navigate to={firstAccessibleRoute(user)} replace />;
+  return <Navigate to="/login" replace />;
+}
+
+/** Páginas de marketing solo viven en softone360.com. */
+function RedirectToMarketingHost() {
+  const location = useLocation();
+  useEffect(() => {
+    window.location.replace(`https://softone360.com${location.pathname}${location.search}${location.hash}`);
+  }, [location.pathname, location.search, location.hash]);
+  return suspenseFallback;
+}
+
 export default function App(): ReactElement {
+  const marketing = isMarketingHost();
+
   return (
     <>
       <ScrollToTop />
-      <Routes>
-      <Route
-        path="/"
-        element={
-          <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-slate-500">Cargando…</div>}>
-            <HomePage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="/nosotros"
-        element={
-          <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-slate-500">Cargando…</div>}>
-            <NosotrosPage />
-          </Suspense>
-        }
-      />
-      <Route path="/login/*" element={<LoginPage />} />
+      {marketing ? (
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <Suspense fallback={suspenseFallback}>
+                <HomePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/nosotros"
+            element={
+              <Suspense fallback={suspenseFallback}>
+                <NosotrosPage />
+              </Suspense>
+            }
+          />
+          <Route path="*" element={<RedirectToAppHost />} />
+        </Routes>
+      ) : (
+        <Routes>
+          <Route path="/" element={<AppRootEntry />} />
+          <Route path="/nosotros" element={<RedirectToMarketingHost />} />
+          <Route path="/login/*" element={<LoginPage />} />
 
-      {/* Portal ciudadano — público, sin auth */}
-      <Route path="/portal/:slug" element={<PublicPQRSPortal />} />
+          <Route path="/portal/:slug" element={<PublicPQRSPortal />} />
+          <Route path="/chat/:slug" element={<PublicPdmChatPage />} />
 
-      {/* Chat IA del PDM — público, sin auth */}
-      <Route path="/chat/:slug" element={<PublicPdmChatPage />} />
+          <Route element={<RequireAuth />}>
+            <Route element={<AppLayout />}>
+              <Route path="/app" element={<AppHomeRedirect />} />
+              <Route path="/sin-acceso" element={<SinAccesoPage />} />
 
-      <Route element={<RequireAuth />}>
-        <Route element={<AppLayout />}>
-          <Route path="/app" element={<AppHomeRedirect />} />
-          <Route path="/sin-acceso" element={<SinAccesoPage />} />
+              <Route element={<ModuleRouteGuard moduleKey="pqrs" />}>
+                <Route path="/dashboard" element={<PQRSDashboard />} />
+                <Route path="/pqrs" element={<PQRSPage />} />
+              </Route>
 
-          <Route element={<ModuleRouteGuard moduleKey="pqrs" />}>
-            <Route path="/dashboard" element={<PQRSDashboard />} />
-            <Route path="/pqrs" element={<PQRSPage />} />
+              <Route element={<ModuleRouteGuard moduleKey="pdm" />}>
+                <Route
+                  path="/pdm"
+                  element={
+                    <Suspense fallback={<PdmLoadingOverlay message="Cargando PDM..." />}>
+                      <PdmPage />
+                    </Suspense>
+                  }
+                />
+              </Route>
+
+              <Route element={<ModuleRouteGuard moduleKey="reports_pdf" />}>
+                <Route path="/informes" element={<PQRSInformesPage />} />
+              </Route>
+
+              <Route element={<ModuleRouteGuard moduleKey="users_admin" />}>
+                <Route path="/users" element={<UsersPage />} />
+              </Route>
+
+              <Route element={<RequireSuperadmin />}>
+                <Route path="/superadmin/entities" element={<SuperAdminEntitiesPage />} />
+                <Route path="/superadmin/entities/:id" element={<EntityDetailPage />} />
+              </Route>
+            </Route>
           </Route>
 
-          <Route element={<ModuleRouteGuard moduleKey="pdm" />}>
-            <Route
-              path="/pdm"
-              element={
-                <Suspense fallback={<PdmLoadingOverlay message="Cargando PDM..." />}>
-                  <PdmPage />
-                </Suspense>
-              }
-            />
-          </Route>
-
-          <Route element={<ModuleRouteGuard moduleKey="reports_pdf" />}>
-            <Route path="/informes" element={<PQRSInformesPage />} />
-          </Route>
-
-          <Route element={<ModuleRouteGuard moduleKey="users_admin" />}>
-            <Route path="/users" element={<UsersPage />} />
-          </Route>
-
-          <Route element={<RequireSuperadmin />}>
-            <Route path="/superadmin/entities" element={<SuperAdminEntitiesPage />} />
-            <Route path="/superadmin/entities/:id" element={<EntityDetailPage />} />
-          </Route>
-        </Route>
-      </Route>
-
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      )}
     </>
   );
 }

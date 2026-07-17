@@ -282,12 +282,32 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # TEMPORAL — showcase Lavonia (quitar servicio + DNS + ingress cuando toque)
+  lavonia:
+    image: nginx:1.27-alpine
+    container_name: softone-lavonia
+    restart: unless-stopped
+    volumes:
+      - ./sites/lavonia/www:/usr/share/nginx/html:ro
+      - ./sites/lavonia/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: softone-cloudflared
     restart: unless-stopped
     depends_on:
       nginx:
+        condition: service_healthy
+      lavonia:
         condition: service_healthy
     command: tunnel --config /etc/cloudflared/config.yml --no-autoupdate --metrics 0.0.0.0:2000 run
     volumes:
