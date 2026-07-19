@@ -18,6 +18,7 @@ rsync -az --delete \
     --exclude '.DS_Store' \
     --exclude '.env' \
     --exclude 'deploy/cloudflared/*.json' \
+    --exclude 'deploy/sites/lavonia/www' \
     ./ "$REMOTE:$REMOTE_PATH/"
 
 echo "OK. Sincronizado a $REMOTE:$REMOTE_PATH"
