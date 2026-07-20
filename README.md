@@ -428,8 +428,8 @@ Repositorio: **git@github.com:largoMiguel/app-django.git** · Servidor: `/opt/so
 
 | Rama / evento | GitHub Actions |
 |---------------|----------------|
-| Push a `development` | CI: tests backend (Postgres + pgvector) + build frontend |
-| PR hacia `main` | CI: tests backend + build frontend |
+| Push a `development` | CI: tests backend (Postgres + pgvector + Redis) + build frontend |
+| PR hacia `main` | CI: tests backend (Postgres + pgvector + Redis) + build frontend |
 | Push a `main` | Tests obligatorios → deploy automático → smoke en https://app.softone360.com |
 
 ```

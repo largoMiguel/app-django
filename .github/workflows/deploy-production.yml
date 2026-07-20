@@ -28,6 +28,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +63,7 @@ jobs:
           POSTGRES_PASSWORD: ci-test-password
           POSTGRES_HOST: localhost
           POSTGRES_PORT: "5432"
+          REDIS_URL: redis://localhost:6379/0
         run: |
           pip install -r requirements.txt
           python manage.py migrate --noinput
