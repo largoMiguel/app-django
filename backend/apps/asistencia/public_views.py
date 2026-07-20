@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from .device_auth import DeviceTokenAuthenticationRequired, get_equipo_from_request
 from .serializers import KioskPairRequestSerializer, KioskRegistroRequestSerializer, RegistroAsistenciaSerializer
-from .services import label_for_tipo, pair_equipo, register_punch, secuencia_for_entity
+from .services import label_for_tipo, pair_equipo, punch_progress, register_punch, secuencia_for_entity
 
 
 class KioskPairThrottle(AnonRateThrottle):
@@ -98,12 +98,20 @@ class KioskRegistroView(APIView):
             idempotency_key=data["idempotency_key"],
             client_ts=data.get("client_ts"),
         )
+        progress = punch_progress(equipo.entity, registro.funcionario, last_tipo=registro.tipo)
+        tipo_label = label_for_tipo(registro.tipo)
+        if progress["jornada_completa"]:
+            hint = "Jornada completa por hoy. Gracias."
+        else:
+            hint = f"Próxima marcación: {progress['siguiente_tipo_label']}."
         payload = {
             "registro": RegistroAsistenciaSerializer(registro).data,
-            "mensaje": f"{registro.funcionario.nombre_completo} — {label_for_tipo(registro.tipo)} registrada.",
-            "tipo_label": label_for_tipo(registro.tipo),
+            "mensaje": f"{registro.funcionario.nombre_completo} — {tipo_label} registrada.",
+            "tipo_label": tipo_label,
             "funcionario_nombre": registro.funcionario.nombre_completo,
             "hora": registro.fecha_hora.isoformat(),
+            "hint": hint,
+            **progress,
         }
         if new_token:
             payload["device_token"] = new_token

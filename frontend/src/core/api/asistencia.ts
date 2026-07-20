@@ -133,6 +133,12 @@ export interface KioskPunchResult {
   tipo_label: string;
   funcionario_nombre: string;
   hora: string;
+  hint?: string;
+  marcaciones_hoy?: number;
+  marcaciones_totales?: number;
+  jornada_completa?: boolean;
+  siguiente_tipo?: string | null;
+  siguiente_tipo_label?: string | null;
   device_token?: string;
 }
 

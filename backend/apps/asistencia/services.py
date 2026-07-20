@@ -50,9 +50,9 @@ def label_for_tipo(tipo: str) -> str:
     return labels.get(tipo, tipo.replace("_", " ").title())
 
 
-def infer_next_tipo(entity, funcionario: Funcionario) -> str:
+def registros_tipos_hoy(funcionario: Funcionario) -> list[str]:
     start, end = _today_bounds()
-    registros_hoy = list(
+    return list(
         RegistroAsistencia.objects.filter(
             funcionario=funcionario,
             fecha_hora__gte=start,
@@ -61,10 +61,32 @@ def infer_next_tipo(entity, funcionario: Funcionario) -> str:
         .order_by("fecha_hora")
         .values_list("tipo", flat=True)
     )
+
+
+def infer_next_tipo(entity, funcionario: Funcionario) -> str:
+    registros_hoy = registros_tipos_hoy(funcionario)
     secuencia = secuencia_for_entity(entity)
     if len(registros_hoy) >= len(secuencia):
         raise ValidationError({"detail": "Jornada completa para hoy."})
     return secuencia[len(registros_hoy)]
+
+
+def punch_progress(entity, funcionario: Funcionario, last_tipo: str | None = None) -> dict:
+    """Estado de jornada tras un registro (o actual)."""
+    tipos = registros_tipos_hoy(funcionario)
+    secuencia = secuencia_for_entity(entity)
+    count = len(tipos)
+    completa = count >= len(secuencia)
+    siguiente = None if completa else secuencia[count]
+    return {
+        "marcaciones_hoy": count,
+        "marcaciones_totales": len(secuencia),
+        "jornada_completa": completa,
+        "ultimo_tipo": last_tipo or (tipos[-1] if tipos else None),
+        "ultimo_tipo_label": label_for_tipo(last_tipo or tipos[-1]) if (last_tipo or tipos) else None,
+        "siguiente_tipo": siguiente,
+        "siguiente_tipo_label": label_for_tipo(siguiente) if siguiente else None,
+    }
 
 
 def issue_pairing_code(equipo: EquipoRegistro) -> str:
