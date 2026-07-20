@@ -34,6 +34,10 @@ class Entity(models.Model):
     pdm_chat_intro = models.TextField(blank=True, null=True)
     pdm_chat_sugerencias = models.JSONField(blank=True, null=True)
     enable_asistencia = models.BooleanField(default=True)
+    asistencias_por_dia = models.PositiveSmallIntegerField(
+        default=2,
+        choices=((2, "2 (entrada y salida)"), (4, "4 (doble jornada)")),
+    )
     enable_correspondencia = models.BooleanField(default=True)
     enable_presupuesto = models.BooleanField(default=True)
 

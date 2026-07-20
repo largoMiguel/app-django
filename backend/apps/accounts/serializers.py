@@ -84,6 +84,7 @@ class UserMeSerializer(serializers.ModelSerializer):
             "enable_pdm": e.enable_pdm,
             "enable_pdm_chat": e.enable_pdm_chat,
             "enable_asistencia": e.enable_asistencia,
+            "asistencias_por_dia": e.asistencias_por_dia,
             "enable_correspondencia": e.enable_correspondencia,
             "enable_presupuesto": e.enable_presupuesto,
             "enabled_modules": e.enabled_modules,

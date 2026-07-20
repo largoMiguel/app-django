@@ -31,6 +31,7 @@ export interface AuthEntity {
   enable_pdm: boolean;
   enable_pdm_chat: boolean;
   enable_asistencia: boolean;
+  asistencias_por_dia?: number;
   enable_correspondencia: boolean;
   enable_presupuesto: boolean;
   enabled_modules: string[];

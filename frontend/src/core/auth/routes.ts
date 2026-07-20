@@ -9,7 +9,7 @@ import {
 import { canAccess, PERM, type AccessOptions } from "./permissions";
 import type { AuthUser } from "./store";
 
-export type AppModuleKey = "pqrs" | "pdm" | "users_admin" | "reports_pdf";
+export type AppModuleKey = "pqrs" | "pdm" | "users_admin" | "reports_pdf" | "asistencia";
 
 export interface AppModuleRoute {
   moduleKey: AppModuleKey;
@@ -44,6 +44,16 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     path: "/pdm",
     label: "PDM",
     module: "enable_pdm",
+    access: { roles: ["admin", "secretario"] },
+    showInNav: true,
+    navSection: "main",
+  },
+  {
+    moduleKey: "asistencia",
+    path: "/asistencia",
+    paths: ["/asistencia"],
+    label: "Asistencia",
+    module: "enable_asistencia",
     access: { roles: ["admin", "secretario"] },
     showInNav: true,
     navSection: "main",

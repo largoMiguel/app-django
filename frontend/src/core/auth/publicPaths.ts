@@ -4,5 +4,6 @@ export function isPublicAppPath(pathname: string): boolean {
   if (pathname.startsWith("/login")) return true;
   if (pathname.startsWith("/portal/")) return true;
   if (pathname.startsWith("/chat/")) return true;
+  if (pathname.startsWith("/kiosk")) return true;
   return false;
 }

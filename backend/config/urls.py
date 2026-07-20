@@ -20,9 +20,10 @@ urlpatterns = [
     path("api/health", healthcheck),
     path("api/v1/public/", include("apps.pqrs.public_urls")),
     path("api/v1/public/", include("apps.pdm.public_chat_urls")),
+    path("api/v1/public/", include("apps.asistencia.public_urls")),
     path("api/v1/", include("config.api_v1")),
     re_path(
-        r"^(?P<bucket>softone-pqrs|softone-pdm)/(?P<path>.+)$",
+        r"^(?P<bucket>softone-pqrs|softone-pdm|softone-th)/(?P<path>.+)$",
         SignedFileDeliveryView.as_view(),
         name="signed-file-delivery",
     ),

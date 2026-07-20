@@ -26,8 +26,13 @@ class B2PdmStorage(_B2Storage):
     bucket_name = settings.B2_BUCKET_PDM
 
 
+class B2AsistenciaStorage(_B2Storage):
+    bucket_name = settings.B2_BUCKET_ASISTENCIA
+
+
 b2_pqrs_storage = B2PqrsStorage()
 b2_pdm_storage = B2PdmStorage()
+b2_asistencia_storage = B2AsistenciaStorage()
 
 
 def pqrs_file_storage():
@@ -39,6 +44,12 @@ def pqrs_file_storage():
 def pdm_file_storage():
     if settings.USE_B2_STORAGE:
         return b2_pdm_storage
+    return default_storage
+
+
+def asistencia_file_storage():
+    if settings.USE_B2_STORAGE:
+        return b2_asistencia_storage
     return default_storage
 
 

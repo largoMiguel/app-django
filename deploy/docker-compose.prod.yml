@@ -206,6 +206,7 @@ services:
       B2_APP_KEY: ${B2_APP_KEY:-}
       B2_BUCKET_PQRS: ${B2_BUCKET_PQRS:-softone-pqrs}
       B2_BUCKET_PDM: ${B2_BUCKET_PDM:-softone-pdm}
+      B2_BUCKET_ASISTENCIA: ${B2_BUCKET_ASISTENCIA:-softone-th}
       B2_BUCKET_DB: ${B2_BUCKET_DB:-softone-db}
       FILE_DELIVERY_BASE_URL: ${FILE_DELIVERY_BASE_URL:-https://files.softone360.com}
       FILE_DELIVERY_SIGNING_KEY: ${FILE_DELIVERY_SIGNING_KEY:-}

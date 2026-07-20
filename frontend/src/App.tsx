@@ -16,6 +16,12 @@ import RequireSuperadmin from "@/core/auth/RequireSuperadmin";
 import AppLayout from "@/components/layout/AppLayout";
 import PublicPQRSPortal from "@/features/pqrs/PublicPQRSPortal";
 import PublicPdmChatPage from "@/features/pdmchat/PublicPdmChatPage";
+import KioskPage from "@/features/kiosk/KioskPage";
+import AsistenciaLayout from "@/features/asistencia/AsistenciaLayout";
+import AsistenciaDashboard from "@/features/asistencia/AsistenciaDashboard";
+import FuncionariosPage from "@/features/asistencia/FuncionariosPage";
+import EquiposPage from "@/features/asistencia/EquiposPage";
+import RegistrosPage from "@/features/asistencia/RegistrosPage";
 import { PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
 import { firstAccessibleRoute, useAuthStore } from "@/core/auth/store";
 
@@ -91,6 +97,7 @@ export default function App(): ReactElement {
 
           <Route path="/portal/:slug" element={<PublicPQRSPortal />} />
           <Route path="/chat/:slug" element={<PublicPdmChatPage />} />
+          <Route path="/kiosk" element={<KioskPage />} />
 
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
@@ -115,6 +122,15 @@ export default function App(): ReactElement {
 
               <Route element={<ModuleRouteGuard moduleKey="reports_pdf" />}>
                 <Route path="/informes" element={<PQRSInformesPage />} />
+              </Route>
+
+              <Route element={<ModuleRouteGuard moduleKey="asistencia" />}>
+                <Route path="/asistencia" element={<AsistenciaLayout />}>
+                  <Route index element={<AsistenciaDashboard />} />
+                  <Route path="funcionarios" element={<FuncionariosPage />} />
+                  <Route path="equipos" element={<EquiposPage />} />
+                  <Route path="registros" element={<RegistrosPage />} />
+                </Route>
               </Route>
 
               <Route element={<ModuleRouteGuard moduleKey="users_admin" />}>

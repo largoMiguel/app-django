@@ -37,6 +37,7 @@ class EntitySerializer(serializers.ModelSerializer):
             "pdm_chat_intro",
             "pdm_chat_sugerencias",
             "enable_asistencia",
+            "asistencias_por_dia",
             "enable_correspondencia",
             "enable_presupuesto",
             "enabled_modules",

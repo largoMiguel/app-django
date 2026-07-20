@@ -25,6 +25,7 @@ export interface Entity {
   pdm_chat_intro: string | null;
   pdm_chat_sugerencias: string[] | null;
   enable_asistencia: boolean;
+  asistencias_por_dia?: number;
   enable_correspondencia: boolean;
   enable_presupuesto: boolean;
   enabled_modules: string[];

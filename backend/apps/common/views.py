@@ -23,7 +23,11 @@ class SignedFileDeliveryView(APIView):
     authentication_classes = ()
 
     def get(self, request, bucket: str, path: str):
-        allowed = {settings.B2_BUCKET_PQRS, settings.B2_BUCKET_PDM}
+        allowed = {
+            settings.B2_BUCKET_PQRS,
+            settings.B2_BUCKET_PDM,
+            settings.B2_BUCKET_ASISTENCIA,
+        }
         if bucket not in allowed:
             return HttpResponseForbidden("Forbidden")
 

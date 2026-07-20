@@ -1,4 +1,4 @@
-import { FileText, Building2, Users, BarChart3, LogOut, type LucideIcon } from "lucide-react";
+import { FileText, Building2, Users, BarChart3, LogOut, Clock, type LucideIcon } from "lucide-react";
 import { useClerk } from "@clerk/react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
@@ -9,6 +9,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   superadmin: Building2,
   pqrs: FileText,
   pdm: BarChart3,
+  asistencia: Clock,
   users_admin: Users,
 };
 

@@ -340,6 +340,24 @@ function InfoTab({
             El chat requiere que el módulo PDM también esté activo.
           </p>
         )}
+        {form.enable_asistencia && (
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
+            <label className="block text-sm font-medium text-slate-700">
+              Marcaciones por día (asistencia)
+            </label>
+            <p className="mt-1 text-xs text-slate-500">
+              2 = entrada y salida · 4 = doble jornada con almuerzo
+            </p>
+            <select
+              value={form.asistencias_por_dia ?? 2}
+              onChange={(e) => set("asistencias_por_dia", Number(e.target.value) as Entity["asistencias_por_dia"])}
+              className="mt-2 w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value={2}>2 — Entrada y salida</option>
+              <option value={4}>4 — Entrada, salida almuerzo, retorno y salida</option>
+            </select>
+          </div>
+        )}
       </section>
 
       {form.enable_pdm_chat && (

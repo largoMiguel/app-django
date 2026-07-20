@@ -63,3 +63,7 @@ def signed_pqrs_url(key: str, *, filename: str | None = None) -> str:
 
 def signed_pdm_url(key: str, *, filename: str | None = None) -> str:
     return signed_file_url(settings.B2_BUCKET_PDM, key, filename=filename)
+
+
+def signed_asistencia_url(key: str, *, filename: str | None = None) -> str:
+    return signed_file_url(settings.B2_BUCKET_ASISTENCIA, key, filename=filename)

@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "apps.entities",
     "apps.pqrs",
     "apps.pdm",
+    "apps.asistencia",
     "apps.ai",
 ]
 
@@ -138,6 +139,7 @@ B2_KEY_ID = os.getenv("B2_KEY_ID", "")
 B2_APP_KEY = os.getenv("B2_APP_KEY", "")
 B2_BUCKET_PQRS = os.getenv("B2_BUCKET_PQRS", "softone-pqrs")
 B2_BUCKET_PDM = os.getenv("B2_BUCKET_PDM", "softone-pdm")
+B2_BUCKET_ASISTENCIA = os.getenv("B2_BUCKET_ASISTENCIA", "softone-th")
 B2_BUCKET_DB = os.getenv("B2_BUCKET_DB", "softone-db")
 USE_B2_STORAGE = env_bool("USE_B2_STORAGE", bool(B2_KEY_ID and B2_APP_KEY))
 
@@ -193,6 +195,8 @@ REST_FRAMEWORK = {
         "pqrs_public": "30/hour",
         "pqrs_ai_auto": "20/hour",
         "pdm_chat_public": "60/hour",
+        "asistencia_kiosk_pair": "5/hour",
+        "asistencia_kiosk_punch": "30/min",
     },
 }
 

@@ -12,6 +12,7 @@ urlpatterns = [
     path("", include("apps.entities.urls")),
     path("", include("apps.pqrs.urls")),
     path("", include("apps.pdm.urls")),
+    path("", include("apps.asistencia.urls")),
     path("", include("apps.ai.urls")),
     path("users/", include("apps.accounts.user_urls")),
 ]
