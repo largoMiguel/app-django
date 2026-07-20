@@ -426,19 +426,37 @@ Repositorio: **git@github.com:largoMiguel/app-django.git** · Servidor: `/opt/so
 
 ### Desplegar con GitHub (recomendado, desde cualquier lugar)
 
-| Rama | Qué pasa en GitHub Actions |
-|------|---------------------------|
-| `development` | Sin workflows automáticos (trabajo local / push manual) |
-| `main` | Push: deploy automático a https://app.softone360.com (sin CI previo) |
-| PR hacia `main` | CI (tests backend + build frontend) antes del merge |
+| Rama / evento | GitHub Actions |
+|---------------|----------------|
+| Push a `development` | CI: tests backend (Postgres + pgvector) + build frontend |
+| PR hacia `main` | CI: tests backend + build frontend |
+| Push a `main` | Tests obligatorios → deploy automático → smoke en https://app.softone360.com |
 
 ```
-development (trabajo diario) → PR → main → deploy automático
+development (push → CI) → PR → main (tests + deploy automático)
 ```
 
-1. Haz commits y push hacia `development` (no dispara Actions).
+1. Haz commits y push hacia `development` (dispara CI de validación).
 2. Abre PR `development` → `main` (corre CI en el PR).
-3. Al hacer merge a `main`, GitHub Actions despliega al servidor con `deploy/scripts/deploy.sh`.
+3. Al hacer merge a `main`, GitHub Actions ejecuta tests y, si pasan, despliega con `deploy/scripts/deploy.sh`.
+
+**Sincronizar ramas tras merge:**
+
+```bash
+git push origin development
+git checkout main && git pull origin main && git merge development && git push origin main
+git checkout development && git merge main && git push origin development
+```
+
+### Cloudflare Worker (archivos firmados)
+
+Los anexos PQRS/PDM/Asistencia/Correspondencia se sirven vía `https://files.softone360.com`. Tras cambiar buckets o el worker, redeploy desde tu máquina (requiere Node.js):
+
+```bash
+bash deploy/scripts/deploy-cloudflare-worker-from-prod.sh
+```
+
+Alternativa con `.env` local completo: `bash deploy/scripts/deploy-cloudflare-worker.sh`
 
 ### Acceso SSH al servidor
 
@@ -611,8 +629,8 @@ Es **destructivo** y pide confirmación (`SI`) antes de borrar nada.
 - Clerk verifica tokens de sesión (JWKS / `CLERK_JWT_KEY` opcional); Django mapea `clerk_id` → usuario local con RBAC.
 - Redis en producción: caché compartida y rate-limit DRF entre workers Gunicorn.
 - Archivos estáticos servidos por Nginx (`/static/`); media protegida sigue en Django con token Clerk.
-- Headers de seguridad: CSP (incluye `clerk.softone360.com`), X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy.
-- CORS restringido a `https://app.softone360.com`.
+- Headers de seguridad: CSP (incluye `clerk.softone360.com`, `files.softone360.com`, Cloudflare Insights), X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy.
+- CORS restringido a orígenes en `CORS_ALLOWED_ORIGINS` (prod: `https://app.softone360.com`, `https://softone360.com`).
 - Contraseñas y MFA se gestionan en Clerk; Django usa `set_unusable_password()` para usuarios de app.
 
 ### CSP en uso (Nginx)
@@ -624,7 +642,7 @@ style-src 'self' 'unsafe-inline';
 script-src 'self' https://clerk.softone360.com https://challenges.cloudflare.com;
 script-src-attr 'unsafe-inline';
 font-src 'self' data:;
-connect-src 'self' https://clerk.softone360.com;
+connect-src 'self' https://clerk.softone360.com https://files.softone360.com;
 worker-src 'self' blob:;
 frame-src https://challenges.cloudflare.com;
 frame-ancestors 'none';
@@ -636,15 +654,17 @@ form-action 'self';
 
 ## Variables de entorno (.env)
 
+Referencia completa en `.env.example`. Resumen de producción:
+
 ```
 ENV=prod
 DEBUG=false
 SECRET_KEY=<openssl rand -hex 64>   # obligatoria en prod (sin fallback inseguro)
-ALLOW_API_DOCS=false                  # true solo si quieres /api/docs/ en producción
-ENABLE_DJANGO_ADMIN=false             # /admin/ deshabilitado por defecto en prod
+ALLOW_API_DOCS=false
+ENABLE_DJANGO_ADMIN=false
 
-ALLOWED_HOSTS=app.softone360.com
-CORS_ALLOWED_ORIGINS=https://app.softone360.com
+ALLOWED_HOSTS=app.softone360.com,softone360.com,files.softone360.com
+CORS_ALLOWED_ORIGINS=https://app.softone360.com,https://softone360.com
 
 POSTGRES_DB=softone
 POSTGRES_USER=softone
@@ -654,41 +674,57 @@ INITIAL_ADMIN_EMAIL=admin@softone360.com
 INITIAL_ADMIN_PASSWORD=<password fuerte>
 INITIAL_ADMIN_NAME=Admin SoftOne
 
-# Clerk — autenticación
+# Clerk
 VITE_CLERK_PUBLISHABLE_KEY=pk_live_...
 CLERK_PUBLISHABLE_KEY=pk_live_...
 CLERK_SECRET_KEY=sk_live_...
 CLERK_AUTHORIZED_PARTIES=https://app.softone360.com
 CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
 
-# OpenAI — IA para creación automática de PQRS
+# OpenAI (PQRS, informes PDF, chat PDM)
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini
+PDM_CHAT_OPENAI_API_KEY=
+PQRS_REPORTS_OPENAI_API_KEY=
 
-# Email — notificaciones al responder PQRS (opcional)
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USE_TLS=true
-EMAIL_HOST_USER=
-EMAIL_HOST_PASSWORD=
-DEFAULT_FROM_EMAIL=noreply@softone360.com
+# ZeptoMail — correos PQRS (radicación + respuesta)
+PQRS_EMAIL_ENABLED=true
+ZEPTOMAIL_TOKEN=Zoho-enczapikey ...
+ZEPTOMAIL_FROM_EMAIL=noreply@softone360.com
+ZEPTOMAIL_WEBHOOK_SECRET=
 
-# Redis (inyectado por docker-compose en prod)
+# PQRS ingreso IMAP (opcional)
+PQRS_INBOUND_ENABLED=false
+
+# Backblaze B2 — archivos por módulo
+USE_B2_STORAGE=true
+B2_KEY_ID=
+B2_APP_KEY=
+B2_BUCKET_PQRS=softone-pqrs
+B2_BUCKET_PDM=softone-pdm
+B2_BUCKET_ASISTENCIA=softone-th
+B2_BUCKET_CORRESPONDENCIA=softone-correspondence
+B2_BUCKET_DB=softone-db
+
+# Entrega firmada vía Cloudflare Worker
+FILE_DELIVERY_BASE_URL=https://files.softone360.com
+FILE_DELIVERY_SIGNING_KEY=<openssl rand -hex 32>
+FILE_DELIVERY_TTL=600
+
+# Cloudflare API (solo deploy del Worker files)
+# CLOUDFLARE_API_TOKEN=
+
+# Redis / Celery (inyectado por docker-compose en prod)
 # REDIS_URL=redis://redis:6379/0
 
-# LAN — acceso directo sin Cloudflare (opcional)
-# LAN_HTTP_PORT=8080
-
-# Gunicorn (opcional; default en prod: min(cores+1, 6) workers × 4 threads)
-# En servidor de 4 cores se recomienda GUNICORN_WORKERS=5
+# Gunicorn (opcional)
 # GUNICORN_WORKERS=5
 # GUNICORN_THREADS=4
-
-# Cloudflare Tunnel — credenciales JSON en el servidor (modo config-file)
-# CLOUDFLARED_CREDS_DIR=/home/softone/.cloudflared
 ```
 
-`INITIAL_ADMIN_*` sólo crean el superadmin si no existe un usuario con ese email. `bootstrap_app` se ejecuta en cada arranque del contenedor backend.
+`INITIAL_ADMIN_*` sólo crean el superadmin si no existe un usuario con ese email. Migraciones y `bootstrap_app` se ejecutan en el contenedor **backend** (Celery omite migraciones).
+
+**Base de datos:** producción y CI usan PostgreSQL con extensión **pgvector** (`pgvector/pgvector:pg17`) para el módulo IA (embeddings).
 
 ---
 
