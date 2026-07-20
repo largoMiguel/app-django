@@ -21,7 +21,8 @@ from .access import (
     user_can_delete_equipo,
     user_can_delete_funcionario,
 )
-from .export import build_registros_workbook
+from .diario import build_diario_rows
+from .export import build_diario_workbook, build_registros_workbook
 from .filters import RegistroAsistenciaFilterSet
 from .models import EquipoRegistro, Funcionario
 from .serializers import (
@@ -196,6 +197,22 @@ class RegistroListView(APIView):
         return paginator.get_paginated_response(ser.data)
 
 
+class RegistroDiarioListView(APIView):
+    """Lista agrupada por funcionario + día (una fila con todas las marcaciones)."""
+
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request):
+        entity = _entity_for_user(request.user)
+        _ensure_manage(request.user, entity)
+        qs = registros_queryset(request.user, entity)
+        filt = RegistroAsistenciaFilterSet(request.query_params, queryset=qs)
+        rows = build_diario_rows(entity, filt.qs)
+        paginator = StandardPageNumberPagination()
+        page = paginator.paginate_queryset(rows, request)
+        return paginator.get_paginated_response(page)
+
+
 class RegistroExportView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
@@ -204,13 +221,19 @@ class RegistroExportView(APIView):
         _ensure_manage(request.user, entity)
         qs = registros_queryset(request.user, entity)
         filt = RegistroAsistenciaFilterSet(request.query_params, queryset=qs)
-        qs = filt.qs[:5000]
-        data = build_registros_workbook(qs)
+        diario = (request.query_params.get("diario") or "1").lower() in {"1", "true", "yes"}
+        if diario:
+            rows = build_diario_rows(entity, filt.qs)[:5000]
+            data = build_diario_workbook(rows, punches_per_day=entity.asistencias_por_dia or 2)
+            filename = "asistencia_diaria.xlsx"
+        else:
+            data = build_registros_workbook(filt.qs[:5000])
+            filename = "asistencia.xlsx"
         response = HttpResponse(
             data,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        response["Content-Disposition"] = 'attachment; filename="asistencia.xlsx"'
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
 
 

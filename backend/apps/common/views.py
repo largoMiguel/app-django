@@ -27,6 +27,7 @@ class SignedFileDeliveryView(APIView):
             settings.B2_BUCKET_PQRS,
             settings.B2_BUCKET_PDM,
             settings.B2_BUCKET_ASISTENCIA,
+            settings.B2_BUCKET_CORRESPONDENCIA,
         }
         if bucket not in allowed:
             return HttpResponseForbidden("Forbidden")

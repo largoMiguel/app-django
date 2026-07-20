@@ -6,7 +6,7 @@ account_id = "6031fdec2d3f25ad748f6c5519281536"
 [vars]
 B2_ENDPOINT = "s3.us-east-005.backblazeb2.com"
 B2_REGION = "us-east-005"
-ALLOWED_BUCKETS = "softone-pqrs,softone-pdm,softone-th"
+ALLOWED_BUCKETS = "softone-pqrs,softone-pdm,softone-th,softone-correspondence"
 
 [[routes]]
 pattern = "files.softone360.com/*"

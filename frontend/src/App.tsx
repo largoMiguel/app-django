@@ -22,6 +22,11 @@ import AsistenciaDashboard from "@/features/asistencia/AsistenciaDashboard";
 import FuncionariosPage from "@/features/asistencia/FuncionariosPage";
 import EquiposPage from "@/features/asistencia/EquiposPage";
 import RegistrosPage from "@/features/asistencia/RegistrosPage";
+import CorrespondenciaLayout from "@/features/correspondencia/CorrespondenciaLayout";
+import CorrespondenciaDashboard from "@/features/correspondencia/CorrespondenciaDashboard";
+import CorrespondenciaListPage from "@/features/correspondencia/CorrespondenciaListPage";
+import CorrespondenciaDetailPage from "@/features/correspondencia/CorrespondenciaDetailPage";
+import CorrespondenciaInformesPage from "@/features/correspondencia/CorrespondenciaInformesPage";
 import { PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
 import { firstAccessibleRoute, useAuthStore } from "@/core/auth/store";
 
@@ -130,6 +135,17 @@ export default function App(): ReactElement {
                   <Route path="funcionarios" element={<FuncionariosPage />} />
                   <Route path="equipos" element={<EquiposPage />} />
                   <Route path="registros" element={<RegistrosPage />} />
+                </Route>
+              </Route>
+
+              <Route element={<ModuleRouteGuard moduleKey="correspondencia" />}>
+                <Route path="/correspondencia" element={<CorrespondenciaLayout />}>
+                  <Route index element={<CorrespondenciaDashboard />} />
+                  <Route path="entrada" element={<CorrespondenciaListPage sentido="entrada" />} />
+                  <Route path="salida" element={<CorrespondenciaListPage sentido="salida" />} />
+                  <Route path="todas" element={<CorrespondenciaListPage />} />
+                  <Route path="informes" element={<CorrespondenciaInformesPage />} />
+                  <Route path=":id" element={<CorrespondenciaDetailPage />} />
                 </Route>
               </Route>
 

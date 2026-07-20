@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "apps.pqrs",
     "apps.pdm",
     "apps.asistencia",
+    "apps.correspondencia",
     "apps.ai",
 ]
 
@@ -140,6 +141,7 @@ B2_APP_KEY = os.getenv("B2_APP_KEY", "")
 B2_BUCKET_PQRS = os.getenv("B2_BUCKET_PQRS", "softone-pqrs")
 B2_BUCKET_PDM = os.getenv("B2_BUCKET_PDM", "softone-pdm")
 B2_BUCKET_ASISTENCIA = os.getenv("B2_BUCKET_ASISTENCIA", "softone-th")
+B2_BUCKET_CORRESPONDENCIA = os.getenv("B2_BUCKET_CORRESPONDENCIA", "softone-correspondence")
 B2_BUCKET_DB = os.getenv("B2_BUCKET_DB", "softone-db")
 USE_B2_STORAGE = env_bool("USE_B2_STORAGE", bool(B2_KEY_ID and B2_APP_KEY))
 

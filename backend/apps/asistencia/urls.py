@@ -8,6 +8,7 @@ from .views import (
     EquipoRevokeView,
     FuncionarioDetailView,
     FuncionarioListCreateView,
+    RegistroDiarioListView,
     RegistroExportView,
     RegistroListView,
 )
@@ -19,7 +20,8 @@ urlpatterns = [
     path("asistencia/equipos/<int:pk>", EquipoDetailView.as_view()),
     path("asistencia/equipos/<int:pk>/pairing", EquipoPairingView.as_view()),
     path("asistencia/equipos/<int:pk>/revoke", EquipoRevokeView.as_view()),
-    path("asistencia/registros", RegistroListView.as_view()),
+    path("asistencia/registros/diario", RegistroDiarioListView.as_view()),
     path("asistencia/registros/export", RegistroExportView.as_view()),
+    path("asistencia/registros", RegistroListView.as_view()),
     path("asistencia/stats", AsistenciaStatsView.as_view()),
 ]

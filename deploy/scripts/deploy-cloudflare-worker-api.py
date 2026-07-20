@@ -44,7 +44,7 @@ def upload_worker(token: str, script_path: Path):
                 {
                     "type": "plain_text",
                     "name": "ALLOWED_BUCKETS",
-                    "text": "softone-pqrs,softone-pdm",
+                    "text": "softone-pqrs,softone-pdm,softone-th,softone-correspondence",
                 },
             ],
         }

@@ -23,7 +23,7 @@ urlpatterns = [
     path("api/v1/public/", include("apps.asistencia.public_urls")),
     path("api/v1/", include("config.api_v1")),
     re_path(
-        r"^(?P<bucket>softone-pqrs|softone-pdm|softone-th)/(?P<path>.+)$",
+        r"^(?P<bucket>softone-pqrs|softone-pdm|softone-th|softone-correspondence)/(?P<path>.+)$",
         SignedFileDeliveryView.as_view(),
         name="signed-file-delivery",
     ),

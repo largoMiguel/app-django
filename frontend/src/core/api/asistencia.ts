@@ -46,6 +46,32 @@ export interface RegistroAsistencia {
   created_at: string;
 }
 
+export interface PunchSlot {
+  id: number;
+  hora: string;
+  fecha_hora: string;
+  foto_url: string | null;
+  equipo_id: number | null;
+  equipo_nombre: string | null;
+}
+
+export interface RegistroDiario {
+  fecha: string;
+  funcionario_id: number;
+  funcionario_nombre: string;
+  funcionario_cedula: string;
+  asistencias_por_dia: number;
+  entrada: PunchSlot | null;
+  salida_almuerzo: PunchSlot | null;
+  retorno_almuerzo: PunchSlot | null;
+  salida: PunchSlot | null;
+  equipo_nombre: string;
+  marcaciones: number;
+  marcaciones_esperadas: number;
+  estado: string;
+  estado_label: string;
+}
+
 export interface AsistenciaStats {
   total_funcionarios: number;
   total_registros: number;
@@ -100,6 +126,12 @@ export const asistenciaApi = {
     list: (params?: Record<string, string | number>) =>
       api
         .get<RegistroAsistencia[] | PaginatedResponse<RegistroAsistencia>>("/asistencia/registros", {
+          params,
+        })
+        .then((r) => parsePaginated(r.data)),
+    diario: (params?: Record<string, string | number>) =>
+      api
+        .get<RegistroDiario[] | PaginatedResponse<RegistroDiario>>("/asistencia/registros/diario", {
           params,
         })
         .then((r) => parsePaginated(r.data)),
