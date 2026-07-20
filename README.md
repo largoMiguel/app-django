@@ -726,6 +726,8 @@ FILE_DELIVERY_TTL=600
 
 **Base de datos:** producción y CI usan PostgreSQL con extensión **pgvector** (`pgvector/pgvector:pg17`) para el módulo IA (embeddings).
 
+**CI backend:** además de Postgres, los workflows levantan **Redis** (`redis:7-alpine`) porque Celery encola indexación de embeddings al crear PQRS en tests.
+
 ---
 
 ## Túnel Cloudflare
