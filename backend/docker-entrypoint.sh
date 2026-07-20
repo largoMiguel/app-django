@@ -17,6 +17,14 @@ else:
     raise SystemExit("DB no respondió tras 60s")
 PY
 
+# Celery worker/beat: no migrar ni collectstatic (evita carreras entre contenedores).
+case "${1:-}" in
+  celery)
+    echo ">> Celery — omitiendo migraciones"
+    exec gosu appuser "$@"
+    ;;
+esac
+
 # Volúmenes Docker (static/media) se crean como root; appuser debe poder escribir.
 mkdir -p /app/staticfiles /app/media
 chown -R appuser:appuser /app/staticfiles /app/media

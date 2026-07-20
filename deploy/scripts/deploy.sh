@@ -28,13 +28,19 @@ echo "==> Estado:"
 docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" ps
 
 echo "==> Esperando salud de servicios…"
+healthy=0
 for _ in $(seq 1 24); do
   if docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T backend \
       curl -fsS http://localhost:8000/api/health >/dev/null 2>&1; then
+    healthy=1
     break
   fi
   sleep 5
 done
+if [[ "$healthy" -ne 1 ]]; then
+  echo "ERROR: backend no respondió healthy tras 120s" >&2
+  exit 1
+fi
 
 echo "==> Smoke test interno…"
 docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T nginx wget -qO- http://127.0.0.1/healthz | grep -q ok

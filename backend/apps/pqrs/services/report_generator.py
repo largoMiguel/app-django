@@ -1097,7 +1097,6 @@ class PQRSReportGenerator:
         
         # Renderizar recomendaciones (lista o texto)
         recs = self.ai_analysis.get('recomendaciones', [])
-        print(f"🔍 DEBUG recomendaciones type={type(recs).__name__} len={len(recs) if isinstance(recs, (list,str)) else '?'} preview={str(recs)[:300]}", flush=True)
         # Saltar la primera recomendación (index 0)
         if isinstance(recs, list) and len(recs) > 1:
             for rec in recs[1:]:

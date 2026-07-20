@@ -3,6 +3,8 @@ name: CI Pull Request
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [development]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -73,4 +75,6 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: pk_test_ci_placeholder
         run: npm run build

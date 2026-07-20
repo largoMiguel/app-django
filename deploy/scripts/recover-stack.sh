@@ -15,7 +15,7 @@ cd "$ROOT_DIR"
 export COMPOSE="docker compose -f deploy/docker-compose.prod.yml --env-file .env"
 
 echo "==> Eliminando contenedores huérfanos de softone (sin down)…"
-for name in softone-frontend softone-backend softone-nginx softone-db softone-cloudflared; do
+for name in softone-frontend softone-backend softone-nginx softone-db softone-redis softone-celery-worker softone-celery-beat softone-cloudflared; do
   docker rm -f "$name" 2>/dev/null || true
 done
 
