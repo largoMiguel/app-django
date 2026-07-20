@@ -4,15 +4,19 @@ from __future__ import annotations
 import base64
 import binascii
 import io
+import logging
 import uuid
 from datetime import datetime, time, timedelta
 
+from botocore.exceptions import ClientError
+from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 from PIL import Image
 from rest_framework.exceptions import ValidationError
 
+from apps.common.b2_client import get_b2_client
 from apps.common.file_delivery import signed_asistencia_url
 from apps.common.storages import asistencia_file_storage
 
@@ -25,6 +29,8 @@ from .models import (
     RegistroAsistencia,
     TipoRegistro,
 )
+
+logger = logging.getLogger(__name__)
 
 PAIRING_TTL_MINUTES = 15
 MAX_PHOTO_BYTES = 1_572_864  # 1.5 MB
@@ -275,3 +281,42 @@ def compute_stats(entity) -> dict:
         "promedio_asistencia_semanal": round(week_count / 7, 1),
         "asistencias_por_dia": entity.asistencias_por_dia,
     }
+
+
+def purge_old_photos(*, keep_days: int = 15) -> dict[str, int]:
+    """Borra del storage las fotos de registros más antiguos que keep_days y limpia foto_key."""
+    cutoff = timezone.now() - timedelta(days=keep_days)
+    qs = RegistroAsistencia.objects.filter(fecha_hora__lt=cutoff).exclude(foto_key="")
+
+    deleted_files = 0
+    cleared_records = 0
+    storage = asistencia_file_storage()
+    use_b2 = bool(settings.USE_B2_STORAGE)
+    client = get_b2_client() if use_b2 else None
+    bucket = settings.B2_BUCKET_ASISTENCIA
+
+    batch_ids: list[int] = []
+    for registro in qs.iterator(chunk_size=200):
+        key = (registro.foto_key or "").lstrip("/")
+        if key:
+            try:
+                if use_b2 and client is not None:
+                    client.delete_object(Bucket=bucket, Key=key)
+                else:
+                    storage.delete(key)
+                deleted_files += 1
+            except ClientError as exc:
+                logger.warning("No se pudo borrar foto asistencia %s: %s", key, exc)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("No se pudo borrar foto asistencia %s: %s", key, exc)
+        batch_ids.append(registro.id)
+        if len(batch_ids) >= 200:
+            RegistroAsistencia.objects.filter(id__in=batch_ids).update(foto_key="")
+            cleared_records += len(batch_ids)
+            batch_ids = []
+
+    if batch_ids:
+        RegistroAsistencia.objects.filter(id__in=batch_ids).update(foto_key="")
+        cleared_records += len(batch_ids)
+
+    return {"deleted_files": deleted_files, "cleared_records": cleared_records}

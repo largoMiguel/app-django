@@ -87,7 +87,7 @@ export default function EquiposPage() {
       <div className="flex justify-end">
         <button
           onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#0d6e8a] px-4 py-2 text-sm font-medium text-white hover:bg-[#0a5870]"
+          className="inline-flex items-center gap-2 rounded-[0.3rem] bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2]"
         >
           <Plus className="h-4 w-4" /> Nuevo equipo
         </button>

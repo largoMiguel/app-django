@@ -100,15 +100,15 @@ export default function RegistrosPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3">Fecha / hora</th>
-              <th className="px-4 py-3">Funcionario</th>
-              <th className="px-4 py-3">Tipo</th>
-              <th className="px-4 py-3">Equipo</th>
-              <th className="px-4 py-3">Foto</th>
+              <th className="whitespace-nowrap px-4 py-3">Fecha / hora</th>
+              <th className="whitespace-nowrap px-4 py-3">Funcionario</th>
+              <th className="whitespace-nowrap px-4 py-3">Tipo</th>
+              <th className="whitespace-nowrap px-4 py-3">Equipo</th>
+              <th className="whitespace-nowrap px-4 py-3">Foto</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -127,31 +127,31 @@ export default function RegistrosPage() {
             ) : (
               items.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-50/80">
-                  <td className="px-4 py-3 whitespace-nowrap text-slate-800">
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-800">
                     {new Date(r.fecha_hora).toLocaleString()}
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-slate-800">{r.funcionario_nombre}</div>
-                    <div className="text-xs text-slate-500">{r.funcionario_cedula}</div>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <span className="font-medium text-slate-800">{r.funcionario_nombre}</span>
+                    <span className="ml-2 text-xs text-slate-500">{r.funcionario_cedula}</span>
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full bg-[#e8f6fa] px-2 py-0.5 text-xs font-medium text-[#0d6e8a]">
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <span className="inline-flex rounded-full bg-[#e8f6fa] px-2.5 py-0.5 text-xs font-medium text-[#0d6e8a]">
                       {r.tipo_label}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{r.equipo_nombre}</td>
-                  <td className="px-4 py-3">
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-600">{r.equipo_nombre}</td>
+                  <td className="whitespace-nowrap px-4 py-3">
                     {r.foto_url ? (
                       <a
                         href={r.foto_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-[#0d6e8a] hover:underline"
+                        className="text-xs font-medium text-[#3eafd4] hover:underline focus:outline-none focus-visible:underline"
                       >
                         Ver
                       </a>
                     ) : (
-                      "—"
+                      <span className="text-xs text-slate-400">—</span>
                     )}
                   </td>
                 </tr>

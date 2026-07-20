@@ -23,4 +23,8 @@ app.conf.beat_schedule = {
         "task": "apps.ai.tasks.reindex_all_embeddings",
         "schedule": crontab(hour=2, minute=0, day_of_week=0),
     },
+    "purge-old-asistencia-photos": {
+        "task": "apps.asistencia.tasks.purge_old_asistencia_photos",
+        "schedule": crontab(hour=3, minute=15),
+    },
 }
