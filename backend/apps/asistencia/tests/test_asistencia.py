@@ -5,6 +5,7 @@ import base64
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from PIL import Image
 from rest_framework.test import APIClient
@@ -103,6 +104,7 @@ class AsistenciaModuleTests(TestCase):
             password="testpass1234",
             entity=self.entity_a,
             role="secretario",
+            secretaria=self.secretaria_a,
             enabled_modules=[],
         )
         self.client.force_authenticate(user=user)
@@ -136,6 +138,7 @@ class AsistenciaModuleTests(TestCase):
         self.assertEqual(r1.status_code, 201)
         self.assertEqual(r1.data["registro"]["tipo"], TipoRegistro.ENTRADA)
         token = r1.data.get("device_token", token)
+        cache.clear()
 
         headers = {"HTTP_AUTHORIZATION": f"Bearer {token}"}
         r2 = self.client.post(
@@ -150,7 +153,10 @@ class AsistenciaModuleTests(TestCase):
         )
         self.assertEqual(r2.status_code, 201)
         self.assertEqual(r2.data["registro"]["tipo"], TipoRegistro.SALIDA)
+        token = r2.data.get("device_token", token)
+        cache.clear()
 
+        headers = {"HTTP_AUTHORIZATION": f"Bearer {token}"}
         r3 = self.client.post(
             "/api/v1/public/asistencia/kiosk/registros",
             {
@@ -180,13 +186,15 @@ class AsistenciaModuleTests(TestCase):
             format="json",
             **headers,
         )
+        self.assertEqual(r1.status_code, 201)
+        token = r1.data.get("device_token", token)
+        headers = {"HTTP_AUTHORIZATION": f"Bearer {token}"}
         r2 = self.client.post(
             "/api/v1/public/asistencia/kiosk/registros",
             payload,
             format="json",
             **headers,
         )
-        self.assertEqual(r1.status_code, 201)
         self.assertEqual(r2.status_code, 201)
         self.assertEqual(r1.data["registro"]["id"], r2.data["registro"]["id"])
         self.assertEqual(RegistroAsistencia.objects.filter(funcionario=self.func_a).count(), 1)
@@ -234,6 +242,7 @@ class AsistenciaModuleTests(TestCase):
             self.assertEqual(res.data["registro"]["tipo"], tipo)
             if res.data.get("device_token"):
                 token = res.data["device_token"]
+            cache.clear()
 
     def test_revoke_invalidates_token(self):
         raw = "test-device-token"
