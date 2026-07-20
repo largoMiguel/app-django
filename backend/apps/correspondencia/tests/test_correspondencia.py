@@ -83,12 +83,12 @@ class CorrespondenciaModuleTests(TestCase):
         return data
 
     def test_sla_dias_habiles(self):
-        # Viernes → +1 hábil = lunes (si no festivo)
-        viernes = timezone.make_aware(datetime(2026, 7, 17, 10, 0, 0))
-        venc = sumar_dias_habiles(viernes, 1)
-        self.assertEqual(venc.weekday(), 0)  # lunes
-        venc5 = compute_fecha_vencimiento(viernes, 5)
-        self.assertGreater(venc5, viernes)
+        # Jueves 16 jul 2026 → +1 hábil = viernes 17 (sin festivo en medio)
+        jueves = timezone.make_aware(datetime(2026, 7, 16, 10, 0, 0))
+        venc = sumar_dias_habiles(jueves, 1)
+        self.assertEqual(venc.date().isoformat(), "2026-07-17")
+        venc5 = compute_fecha_vencimiento(jueves, 5)
+        self.assertGreater(venc5, jueves)
 
     def test_radicado_sequence(self):
         n1 = next_numero_radicado(self.entity_a.id)

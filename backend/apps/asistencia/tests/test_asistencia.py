@@ -12,7 +12,7 @@ from rest_framework.test import APIClient
 from apps.asistencia.device_auth import hash_token
 from apps.asistencia.models import EquipoRegistro, Funcionario, RegistroAsistencia, TipoRegistro
 from apps.asistencia.services import issue_pairing_code, pair_equipo
-from apps.entities.models import Entity
+from apps.entities.models import Entity, Secretaria
 
 User = get_user_model()
 
@@ -51,12 +51,17 @@ class AsistenciaModuleTests(TestCase):
             entity=self.entity_a,
             role="admin",
         )
+        self.secretaria_a = Secretaria.objects.create(
+            entity=self.entity_a,
+            nombre="Talento Humano A",
+        )
         self.secretario_a = User.objects.create_user(
             email="sec-a@test.com",
             password="testpass1234",
             full_name="Sec A",
             entity=self.entity_a,
             role="secretario",
+            secretaria=self.secretaria_a,
             enabled_modules=["asistencia"],
         )
         self.admin_b = User.objects.create_user(
