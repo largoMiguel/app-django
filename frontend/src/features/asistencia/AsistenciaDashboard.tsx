@@ -148,7 +148,9 @@ export default function AsistenciaDashboard() {
         <p className="mt-1 text-sm text-slate-600">
           En el equipo Windows abra{" "}
           <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">/kiosk</code> en Chrome o
-          Edge (modo pantalla completa). Empareje con el código generado desde Equipos.
+          Edge (modo pantalla completa). Empareje con el código generado desde Equipos. El fichaje es
+          automático por reconocimiento facial (enrole el rostro de cada funcionario una vez desde
+          esta sección).
         </p>
         <a
           href="/kiosk"

@@ -13,6 +13,8 @@ export interface Funcionario {
   telefono: string;
   cargo: string;
   is_active: boolean;
+  face_enrolled: boolean;
+  face_samples: number;
   created_at: string;
   updated_at: string;
 }
@@ -83,6 +85,18 @@ export interface AsistenciaStats {
   asistencias_por_dia: number;
 }
 
+export interface FaceEnrollResult {
+  detail: string;
+  template_id: number;
+  face_samples: number;
+  face_enrolled: boolean;
+}
+
+export interface FaceRemoveResult {
+  detail: string;
+  deleted: number;
+}
+
 export interface PairingResponse {
   pairing_code: string;
   expires_in_seconds: number;
@@ -108,6 +122,15 @@ export const asistenciaApi = {
     update: (id: number, payload: Partial<Funcionario>) =>
       api.put<Funcionario>(`/asistencia/funcionarios/${id}`, payload).then((r) => r.data),
     remove: (id: number) => api.delete(`/asistencia/funcionarios/${id}`),
+    enrollFace: (
+      id: number,
+      payload: { descriptor: number[]; foto_base64: string },
+    ) =>
+      api
+        .post<FaceEnrollResult>(`/asistencia/funcionarios/${id}/rostro`, payload)
+        .then((r) => r.data),
+    removeFace: (id: number) =>
+      api.delete<FaceRemoveResult>(`/asistencia/funcionarios/${id}/rostro`).then((r) => r.data),
   },
 
   equipos: {
@@ -172,6 +195,7 @@ export interface KioskPunchResult {
   siguiente_tipo?: string | null;
   siguiente_tipo_label?: string | null;
   device_token?: string;
+  match_distance?: number;
 }
 
 const kioskClient = axios.create({
@@ -205,6 +229,21 @@ export const kioskApi = {
   ) =>
     kioskClient
       .post<KioskPunchResult>("/asistencia/kiosk/registros", payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((r) => r.data),
+
+  punchFacial: (
+    token: string,
+    payload: {
+      descriptor: number[];
+      foto_base64: string;
+      idempotency_key: string;
+      liveness_passed: boolean;
+    },
+  ) =>
+    kioskClient
+      .post<KioskPunchResult>("/asistencia/kiosk/registros-facial", payload, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((r) => r.data),

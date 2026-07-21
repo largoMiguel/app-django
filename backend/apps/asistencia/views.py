@@ -28,10 +28,18 @@ from .models import EquipoRegistro, Funcionario
 from .serializers import (
     EquipoPairingCodeSerializer,
     EquipoRegistroSerializer,
+    FaceEnrollRequestSerializer,
     FuncionarioSerializer,
     RegistroAsistenciaSerializer,
 )
-from .services import PAIRING_TTL_MINUTES, compute_stats, issue_pairing_code, revoke_device_token
+from .services import (
+    PAIRING_TTL_MINUTES,
+    compute_stats,
+    enroll_face_template,
+    issue_pairing_code,
+    remove_face_templates,
+    revoke_device_token,
+)
 
 
 def _entity_for_user(user) -> Entity:
@@ -104,8 +112,42 @@ class FuncionarioDetailView(APIView):
         obj = self._get_obj(request, pk)
         if not user_can_delete_funcionario(request.user):
             raise PermissionDenied("Solo administradores pueden eliminar funcionarios.")
+        remove_face_templates(obj)
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FuncionarioFaceEnrollView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def _get_obj(self, request, pk: int) -> Funcionario:
+        entity = _entity_for_user(request.user)
+        _ensure_manage(request.user, entity)
+        return get_object_or_404(Funcionario, pk=pk, entity=entity)
+
+    def post(self, request, pk: int):
+        obj = self._get_obj(request, pk)
+        ser = FaceEnrollRequestSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        tpl = enroll_face_template(
+            funcionario=obj,
+            descriptor=ser.validated_data["descriptor"],
+            foto_base64=ser.validated_data["foto_base64"],
+        )
+        return Response(
+            {
+                "detail": "Rostro enrolado.",
+                "template_id": tpl.id,
+                "face_samples": obj.face_templates.count(),
+                "face_enrolled": True,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    def delete(self, request, pk: int):
+        obj = self._get_obj(request, pk)
+        deleted = remove_face_templates(obj)
+        return Response({"detail": "Plantillas faciales eliminadas.", "deleted": deleted})
 
 
 class EquipoListCreateView(APIView):

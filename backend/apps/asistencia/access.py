@@ -1,7 +1,7 @@
 """Control de acceso — módulo Asistencia."""
 from __future__ import annotations
 
-from django.db.models import QuerySet
+from django.db.models import Count, QuerySet
 from rest_framework.exceptions import PermissionDenied
 
 from apps.common.modules import require_user_module
@@ -24,7 +24,11 @@ def ensure_asistencia_access(user, entity: Entity) -> None:
 
 
 def funcionarios_queryset(user, entity: Entity) -> QuerySet[Funcionario]:
-    return Funcionario.objects.filter(entity=entity).order_by("apellidos", "nombres")
+    return (
+        Funcionario.objects.filter(entity=entity)
+        .annotate(face_templates_count=Count("face_templates"))
+        .order_by("apellidos", "nombres")
+    )
 
 
 def equipos_queryset(user, entity: Entity) -> QuerySet[EquipoRegistro]:

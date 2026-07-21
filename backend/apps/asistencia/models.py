@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from django.db import models
+from pgvector.django import HnswIndex, VectorField
 
 
 class TipoRegistro(models.TextChoices):
@@ -59,6 +60,39 @@ class Funcionario(models.Model):
     @property
     def nombre_completo(self) -> str:
         return f"{self.nombres} {self.apellidos}".strip()
+
+
+class FuncionarioFaceTemplate(models.Model):
+    """Plantilla facial (descriptor 128d) para reconocimiento en kiosco."""
+
+    funcionario = models.ForeignKey(
+        Funcionario,
+        on_delete=models.CASCADE,
+        related_name="face_templates",
+        db_column="funcionario_id",
+    )
+    descriptor = VectorField(dimensions=128)
+    foto_key = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "asistencia_face_templates"
+        verbose_name = "Plantilla facial"
+        verbose_name_plural = "Plantillas faciales"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["funcionario", "-created_at"]),
+            HnswIndex(
+                name="asist_face_hnsw_idx",
+                fields=["descriptor"],
+                m=16,
+                ef_construction=64,
+                opclasses=["vector_l2_ops"],
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"FaceTemplate {self.funcionario_id} @ {self.created_at:%Y-%m-%d}"
 
 
 class EquipoRegistro(models.Model):

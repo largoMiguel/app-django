@@ -13,8 +13,9 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
+from pgvector.django import L2Distance
 from PIL import Image
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.common.b2_client import get_b2_client
 from apps.common.file_delivery import signed_asistencia_url
@@ -26,6 +27,7 @@ from .models import (
     SECUENCIA_4,
     EquipoRegistro,
     Funcionario,
+    FuncionarioFaceTemplate,
     RegistroAsistencia,
     TipoRegistro,
 )
@@ -34,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 PAIRING_TTL_MINUTES = 15
 MAX_PHOTO_BYTES = 1_572_864  # 1.5 MB
+MAX_FACE_SAMPLES = 3
+FACE_DESCRIPTOR_DIM = 128
 PUNCH_COOLDOWN_SECONDS = 30
 BOGOTA_TZ = timezone.get_default_timezone()
 
@@ -185,6 +189,93 @@ def upload_foto(entity_id: int, funcionario_id: int, foto_base64: str) -> str:
     return key
 
 
+def upload_enroll_foto(entity_id: int, funcionario_id: int, foto_base64: str) -> str:
+    """Foto de referencia permanente (prefijo enroll/)."""
+    data = _decode_photo(foto_base64)
+    key = f"enroll/{entity_id}/{funcionario_id}/{uuid.uuid4()}.jpg"
+    storage = asistencia_file_storage()
+    storage.save(key, io.BytesIO(data))
+    return key
+
+
+def _validate_descriptor(descriptor: list[float]) -> list[float]:
+    if not isinstance(descriptor, (list, tuple)):
+        raise ValidationError({"descriptor": "Descriptor inválido."})
+    if len(descriptor) != FACE_DESCRIPTOR_DIM:
+        raise ValidationError(
+            {"descriptor": f"Se esperan {FACE_DESCRIPTOR_DIM} dimensiones."}
+        )
+    try:
+        values = [float(v) for v in descriptor]
+    except (TypeError, ValueError) as exc:
+        raise ValidationError({"descriptor": "Descriptor inválido."}) from exc
+    return values
+
+
+def enroll_face_template(
+    *,
+    funcionario: Funcionario,
+    descriptor: list[float],
+    foto_base64: str,
+) -> FuncionarioFaceTemplate:
+    values = _validate_descriptor(descriptor)
+    if funcionario.face_templates.count() >= MAX_FACE_SAMPLES:
+        raise ValidationError(
+            {"detail": f"Máximo {MAX_FACE_SAMPLES} muestras faciales por funcionario."}
+        )
+    foto_key = upload_enroll_foto(funcionario.entity_id, funcionario.id, foto_base64)
+    return FuncionarioFaceTemplate.objects.create(
+        funcionario=funcionario,
+        descriptor=values,
+        foto_key=foto_key,
+    )
+
+
+def remove_face_templates(funcionario: Funcionario) -> int:
+    """Elimina plantillas faciales y fotos de enrolamiento."""
+    templates = list(funcionario.face_templates.all())
+    if not templates:
+        return 0
+    storage = asistencia_file_storage()
+    use_b2 = bool(settings.USE_B2_STORAGE)
+    client = get_b2_client() if use_b2 else None
+    bucket = settings.B2_BUCKET_ASISTENCIA
+    for tpl in templates:
+        key = (tpl.foto_key or "").lstrip("/")
+        if not key:
+            continue
+        try:
+            if use_b2 and client is not None:
+                client.delete_object(Bucket=bucket, Key=key)
+            else:
+                storage.delete(key)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("No se pudo borrar foto enrolamiento %s: %s", key, exc)
+    deleted, _ = FuncionarioFaceTemplate.objects.filter(funcionario=funcionario).delete()
+    return deleted
+
+
+def match_funcionario_by_descriptor(
+    entity,
+    descriptor: list[float],
+) -> tuple[Funcionario, float] | None:
+    """Busca el funcionario más cercano por distancia L2 (face-api)."""
+    values = _validate_descriptor(descriptor)
+    threshold = float(settings.ASISTENCIA_FACE_MATCH_THRESHOLD)
+    qs = (
+        FuncionarioFaceTemplate.objects.filter(
+            funcionario__entity=entity,
+            funcionario__is_active=True,
+        )
+        .annotate(distance=L2Distance("descriptor", values))
+        .order_by("distance")
+    )
+    best = qs.first()
+    if best is None or best.distance is None or best.distance >= threshold:
+        return None
+    return best.funcionario, float(best.distance)
+
+
 def _punch_lock_key(funcionario_id: int) -> str:
     return f"asistencia:punch:{funcionario_id}"
 
@@ -192,14 +283,12 @@ def _punch_lock_key(funcionario_id: int) -> str:
 def register_punch(
     *,
     equipo: EquipoRegistro,
-    cedula: str,
     foto_base64: str,
     idempotency_key: str,
     client_ts=None,
+    cedula: str | None = None,
+    funcionario: Funcionario | None = None,
 ) -> tuple[RegistroAsistencia, str | None]:
-    cedula = (cedula or "").strip()
-    if not cedula:
-        raise ValidationError({"cedula": "Cédula requerida."})
     idempotency_key = (idempotency_key or "").strip()
     if not idempotency_key or len(idempotency_key) > 64:
         raise ValidationError({"idempotency_key": "Clave de idempotencia inválida."})
@@ -211,11 +300,17 @@ def register_punch(
         return existing, None
 
     entity = equipo.entity
-    funcionario = Funcionario.objects.filter(
-        entity=entity, cedula=cedula, is_active=True
-    ).first()
     if funcionario is None:
-        raise ValidationError({"cedula": "Funcionario no encontrado o inactivo."})
+        cedula = (cedula or "").strip()
+        if not cedula:
+            raise ValidationError({"cedula": "Cédula requerida."})
+        funcionario = Funcionario.objects.filter(
+            entity=entity, cedula=cedula, is_active=True
+        ).first()
+        if funcionario is None:
+            raise ValidationError({"cedula": "Funcionario no encontrado o inactivo."})
+    elif funcionario.entity_id != entity.id or not funcionario.is_active:
+        raise ValidationError({"detail": "Funcionario no válido para esta entidad."})
 
     lock_key = _punch_lock_key(funcionario.id)
     if not cache.add(lock_key, "1", timeout=PUNCH_COOLDOWN_SECONDS):
@@ -247,6 +342,31 @@ def register_punch(
     equipo.last_seen_at = timezone.now()
     equipo.save(update_fields=["device_token_hash", "last_seen_at", "updated_at"])
     return registro, new_token
+
+
+def register_punch_facial(
+    *,
+    equipo: EquipoRegistro,
+    descriptor: list[float],
+    foto_base64: str,
+    idempotency_key: str,
+    liveness_passed: bool,
+    client_ts=None,
+) -> tuple[RegistroAsistencia, str | None, float | None]:
+    if not liveness_passed:
+        raise ValidationError({"liveness_passed": "Verificación de presencia requerida."})
+    match = match_funcionario_by_descriptor(equipo.entity, descriptor)
+    if match is None:
+        raise NotFound("Rostro no reconocido. Acérquese al kiosco o contacte a Talento Humano.")
+    funcionario, distance = match
+    registro, new_token = register_punch(
+        equipo=equipo,
+        funcionario=funcionario,
+        foto_base64=foto_base64,
+        idempotency_key=idempotency_key,
+        client_ts=client_ts,
+    )
+    return registro, new_token, distance
 
 
 def foto_url_for_registro(registro: RegistroAsistencia) -> str | None:

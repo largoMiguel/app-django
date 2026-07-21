@@ -9,6 +9,8 @@ from .services import foto_url_for_registro, label_for_tipo
 
 class FuncionarioSerializer(serializers.ModelSerializer):
     nombre_completo = serializers.CharField(read_only=True)
+    face_enrolled = serializers.SerializerMethodField()
+    face_samples = serializers.SerializerMethodField()
 
     class Meta:
         model = Funcionario
@@ -23,10 +25,29 @@ class FuncionarioSerializer(serializers.ModelSerializer):
             "telefono",
             "cargo",
             "is_active",
+            "face_enrolled",
+            "face_samples",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("entity", "nombre_completo", "created_at", "updated_at")
+        read_only_fields = (
+            "entity",
+            "nombre_completo",
+            "face_enrolled",
+            "face_samples",
+            "created_at",
+            "updated_at",
+        )
+
+    def get_face_enrolled(self, obj) -> bool:
+        if hasattr(obj, "face_templates_count"):
+            return obj.face_templates_count > 0
+        return obj.face_templates.exists()
+
+    def get_face_samples(self, obj) -> int:
+        if hasattr(obj, "face_templates_count"):
+            return obj.face_templates_count
+        return obj.face_templates.count()
 
 
 class EquipoRegistroSerializer(serializers.ModelSerializer):
@@ -107,4 +128,25 @@ class KioskRegistroRequestSerializer(serializers.Serializer):
     cedula = serializers.CharField(max_length=20)
     foto_base64 = serializers.CharField()
     idempotency_key = serializers.CharField(max_length=64)
+    client_ts = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class FaceEnrollRequestSerializer(serializers.Serializer):
+    descriptor = serializers.ListField(
+        child=serializers.FloatField(),
+        min_length=128,
+        max_length=128,
+    )
+    foto_base64 = serializers.CharField()
+
+
+class KioskFacialRegistroRequestSerializer(serializers.Serializer):
+    descriptor = serializers.ListField(
+        child=serializers.FloatField(),
+        min_length=128,
+        max_length=128,
+    )
+    foto_base64 = serializers.CharField()
+    idempotency_key = serializers.CharField(max_length=64)
+    liveness_passed = serializers.BooleanField()
     client_ts = serializers.DateTimeField(required=False, allow_null=True)

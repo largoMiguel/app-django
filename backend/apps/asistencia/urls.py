@@ -7,6 +7,7 @@ from .views import (
     EquipoPairingView,
     EquipoRevokeView,
     FuncionarioDetailView,
+    FuncionarioFaceEnrollView,
     FuncionarioListCreateView,
     RegistroDiarioListView,
     RegistroExportView,
@@ -16,6 +17,7 @@ from .views import (
 urlpatterns = [
     path("asistencia/funcionarios", FuncionarioListCreateView.as_view()),
     path("asistencia/funcionarios/<int:pk>", FuncionarioDetailView.as_view()),
+    path("asistencia/funcionarios/<int:pk>/rostro", FuncionarioFaceEnrollView.as_view()),
     path("asistencia/equipos", EquipoListCreateView.as_view()),
     path("asistencia/equipos/<int:pk>", EquipoDetailView.as_view()),
     path("asistencia/equipos/<int:pk>/pairing", EquipoPairingView.as_view()),

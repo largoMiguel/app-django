@@ -202,6 +202,11 @@ REST_FRAMEWORK = {
     },
 }
 
+# Reconocimiento facial — distancia L2 máxima (face-api.js, típico ~0.6)
+ASISTENCIA_FACE_MATCH_THRESHOLD = float(
+    os.getenv("ASISTENCIA_FACE_MATCH_THRESHOLD", "0.6")
+)
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "SoftOne API",
     "DESCRIPTION": "Backend REST API para SoftOne",

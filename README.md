@@ -703,6 +703,8 @@ B2_APP_KEY=
 B2_BUCKET_PQRS=softone-pqrs
 B2_BUCKET_PDM=softone-pdm
 B2_BUCKET_ASISTENCIA=softone-th
+# Reconocimiento facial asistencia (distancia L2 face-api.js; default 0.6)
+# ASISTENCIA_FACE_MATCH_THRESHOLD=0.6
 B2_BUCKET_CORRESPONDENCIA=softone-correspondence
 B2_BUCKET_DB=softone-db
 
@@ -724,7 +726,7 @@ FILE_DELIVERY_TTL=600
 
 `INITIAL_ADMIN_*` sólo crean el superadmin si no existe un usuario con ese email. Migraciones y `bootstrap_app` se ejecutan en el contenedor **backend** (Celery omite migraciones).
 
-**Base de datos:** producción y CI usan PostgreSQL con extensión **pgvector** (`pgvector/pgvector:pg17`) para el módulo IA (embeddings).
+**Base de datos:** producción y CI usan PostgreSQL con extensión **pgvector** (`pgvector/pgvector:pg17`) para embeddings (módulo IA) y plantillas faciales de asistencia (HNSW + distancia L2).
 
 **CI backend:** además de Postgres, los workflows levantan **Redis** (`redis:7-alpine`) porque Celery encola indexación de embeddings al crear PQRS en tests.
 

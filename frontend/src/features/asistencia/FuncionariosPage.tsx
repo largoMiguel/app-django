@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Plus, Search, Pencil, Trash2, X, Save } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, X, Save, ScanFace, UserCheck } from "lucide-react";
 import { asistenciaApi, type Funcionario } from "@/core/api/asistencia";
 import { formatApiError } from "@/core/api/errors";
 import { primaryRole, useAuthStore } from "@/core/auth/store";
+import FaceEnrollModal from "@/components/asistencia/FaceEnrollModal";
 
 const emptyForm = {
   cedula: "",
@@ -25,6 +26,7 @@ export default function FuncionariosPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [enrollTarget, setEnrollTarget] = useState<Funcionario | null>(null);
 
   async function load() {
     setLoading(true);
@@ -101,6 +103,16 @@ export default function FuncionariosPage() {
     }
   }
 
+  async function removeFace(id: number) {
+    if (!confirm("¿Eliminar el rostro enrolado de este funcionario?")) return;
+    try {
+      await asistenciaApi.funcionarios.removeFace(id);
+      await load();
+    } catch (err) {
+      setError(formatApiError(err));
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -127,13 +139,14 @@ export default function FuncionariosPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
             <tr>
               <th className="px-4 py-3">Cédula</th>
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Cargo</th>
+              <th className="px-4 py-3">Rostro</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
@@ -141,13 +154,13 @@ export default function FuncionariosPage() {
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                   Cargando…
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                   No hay funcionarios registrados.
                 </td>
               </tr>
@@ -157,6 +170,16 @@ export default function FuncionariosPage() {
                   <td className="px-4 py-3 font-mono text-slate-800">{f.cedula}</td>
                   <td className="px-4 py-3 text-slate-800">{f.nombre_completo}</td>
                   <td className="px-4 py-3 text-slate-600">{f.cargo || "—"}</td>
+                  <td className="px-4 py-3">
+                    {f.face_enrolled ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        <UserCheck className="h-3 w-3" />
+                        {f.face_samples}/{3}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-amber-600">Sin enrolar</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -168,7 +191,23 @@ export default function FuncionariosPage() {
                       {f.is_active ? "Activo" : "Inactivo"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => setEnrollTarget(f)}
+                      className="mr-2 rounded p-1.5 text-slate-500 hover:bg-[#e8f6fa] hover:text-[#0d6e8a]"
+                      title="Enrolar rostro"
+                    >
+                      <ScanFace className="h-4 w-4" />
+                    </button>
+                    {f.face_enrolled && (
+                      <button
+                        onClick={() => void removeFace(f.id)}
+                        className="mr-2 rounded p-1.5 text-slate-500 hover:bg-amber-50 hover:text-amber-700"
+                        title="Quitar rostro"
+                      >
+                        <UserCheck className="h-4 w-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => openEdit(f)}
                       className="mr-2 rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-[#0d6e8a]"
@@ -192,6 +231,16 @@ export default function FuncionariosPage() {
           </tbody>
         </table>
       </div>
+
+      {enrollTarget && (
+        <FaceEnrollModal
+          funcionario={enrollTarget}
+          onClose={() => setEnrollTarget(null)}
+          onEnrolled={() => {
+            void load();
+          }}
+        />
+      )}
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
