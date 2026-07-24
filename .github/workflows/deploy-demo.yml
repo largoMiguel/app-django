@@ -132,8 +132,6 @@ jobs:
 
           ssh softone-prod 'cd /opt/softone-demo && deploy/scripts/deploy-demo.sh'
 
-          ssh softone-prod 'cd /opt/softone-app/deploy && docker compose -f docker-compose.prod.yml --env-file ../.env restart cloudflared'
-
       - name: Smoke test demo
         run: |
           curl -fsS https://demo.softone360.com/api/health

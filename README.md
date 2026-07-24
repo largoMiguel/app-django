@@ -438,6 +438,10 @@ Archivos firmados:
 
 Demo y prod comparten el **mismo servidor** (`192.168.1.2`) y el **mismo par B2** (`B2_KEY_ID` / `B2_APP_KEY`); solo cambian bucket y signing key. Merge `development` → `main` no migra archivos entre buckets.
 
+**Importante:** `deploy/cloudflared/config.yml` y el regex de buckets en `deploy/nginx/conf.d/app.conf` los monta el stack de **producción**. Deben ser **idénticos en `main` y `development`**; si un deploy de `main` los sobrescribe sin las entradas demo, `demo.softone360.com` deja de responder.
+
+Clerk demo: usar `pk_test_` / `sk_test_` de la instancia development. `CLERK_JWT_KEY` debe ser el PEM del JWKS de esa instancia (`*.clerk.accounts.dev`), **no** el de producción. El webhook (`CLERK_WEBHOOK_SIGNING_SECRET`) es opcional en demo: el login funciona sin él; los usuarios se crean vía `POST /api/v1/users/`.
+
 ### GitHub Actions
 
 | Rama / evento | GitHub Actions |
@@ -456,11 +460,11 @@ development (push → deploy demo) → PR → main (tests + deploy prod)
 sudo mkdir -p /opt/softone-demo
 # Copiar .env.demo.example → /opt/softone-demo/.env
 # Completar: SECRET_KEY, POSTGRES_PASSWORD, B2_KEY_ID, B2_APP_KEY (mismos que prod),
-# FILE_DELIVERY_SIGNING_KEY (distinto a prod), CLERK_WEBHOOK_SIGNING_SECRET
+# FILE_DELIVERY_SIGNING_KEY (distinto a prod), CLERK_* (instancia development)
 cd /opt/softone-demo && bash deploy/scripts/deploy-demo.sh
 ```
 
-Clerk demo (`pk_test_` / `sk_test_`): en el dashboard development, allowed origins `http://localhost:5173` y `https://demo.softone360.com`; webhook `https://demo.softone360.com/api/v1/webhooks/clerk`. Sin `VITE_CLERK_DOMAIN` (usa FAPI hosted de Clerk).
+`deploy-demo.sh` verifica el ingress demo en cloudflared prod y solo reinicia el túnel si falta.
 
 ### Cloudflare (demo)
 
@@ -477,7 +481,7 @@ Worker demo (`storage-demo`):
 bash deploy/scripts/deploy-cloudflare-worker-demo.sh /opt/softone-demo/.env
 ```
 
-Tras actualizar `deploy/cloudflared/config.yml` (ingress `demo` / `files-demo` → `softone-demo-nginx`):
+Tras actualizar `deploy/cloudflared/config.yml` (ingress `demo` / `files-demo` → `softone-demo-nginx`), `deploy-demo.sh` lo sincroniza a prod si hace falta. Manual:
 
 ```bash
 cd /opt/softone-app/deploy
@@ -487,7 +491,7 @@ docker compose -f docker-compose.prod.yml --env-file ../.env restart cloudflared
 ### Desplegar manualmente demo (LAN)
 
 ```bash
-deploy/scripts/sync.sh softone@192.168.1.2   # destino /opt/softone-demo si adaptas sync
+deploy/scripts/sync-demo.sh softone@192.168.1.2
 ssh softone@192.168.1.2 'cd /opt/softone-demo && deploy/scripts/deploy-demo.sh'
 # LAN: http://192.168.1.2:8081
 ```

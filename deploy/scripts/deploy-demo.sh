@@ -53,9 +53,33 @@ echo "==> Smoke test interno…"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T nginx wget -qO- http://127.0.0.1/healthz | grep -q ok
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T backend curl -fsS http://localhost:8000/api/health | grep -q ok
 
+ensure_prod_tunnel_ingress() {
+    local prod_app="/opt/softone-app"
+    local prod_cfg="$prod_app/deploy/cloudflared/config.yml"
+    local repo_cfg="$DEPLOY_DIR/cloudflared/config.yml"
+
+    if [[ ! -d "$prod_app" ]] || [[ ! -f "$prod_cfg" ]] || [[ ! -f "$repo_cfg" ]]; then
+        echo "==> Aviso: no se pudo verificar ingress del túnel prod (rutas ausentes)." >&2
+        return 0
+    fi
+
+    if grep -q "demo.softone360.com" "$prod_cfg" \
+        && grep -q "files-demo.softone360.com" "$prod_cfg"; then
+        echo "==> Ingress demo ya presente en cloudflared prod; sin reinicio."
+        return 0
+    fi
+
+    echo "==> Sincronizando ingress demo en cloudflared prod…"
+    cp "$repo_cfg" "$prod_cfg"
+    (
+        cd "$prod_app/deploy"
+        docker compose -f docker-compose.prod.yml --env-file ../.env restart cloudflared
+    )
+    echo "==> cloudflared prod reiniciado con ingress demo."
+}
+
+ensure_prod_tunnel_ingress
+
 echo
 echo "OK. Demo LAN: http://192.168.1.2:\${LAN_HTTP_PORT:-8081}"
 echo "    Demo pública: https://demo.softone360.com"
-echo
-echo "Si actualizaste deploy/cloudflared/config.yml, reinicia cloudflared en prod:"
-echo "  cd /opt/softone-app/deploy && docker compose -f docker-compose.prod.yml --env-file ../.env restart cloudflared"
