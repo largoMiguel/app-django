@@ -134,5 +134,14 @@ jobs:
 
       - name: Smoke test demo
         run: |
-          curl -fsS https://demo.softone360.com/api/health
-          curl -fsS -o /dev/null -w "%{http_code}" https://demo.softone360.com/login | grep -q 200
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS https://demo.softone360.com/healthz | grep -q ok \
+              && curl -fsS -o /dev/null -w "%{http_code}" https://demo.softone360.com/login | grep -q 200; then
+              echo "Demo smoke OK"
+              exit 0
+            fi
+            echo "Esperando demo… intento $i"
+            sleep 10
+          done
+          echo "ERROR: demo no respondió tras 60s" >&2
+          exit 1
