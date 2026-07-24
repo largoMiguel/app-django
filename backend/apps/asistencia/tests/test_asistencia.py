@@ -215,7 +215,7 @@ class AsistenciaModuleTests(TestCase):
         )
         self.assertEqual(res.status_code, 400)
 
-    @override_settings(USE_B2_STORAGE=False)
+    @override_settings(USE_B2_STORAGE=False, ASISTENCIA_PUNCH_COOLDOWN_SECONDS=0)
     def test_sequence_4_jornada(self):
         equipo = EquipoRegistro.objects.create(entity=self.entity_b, nombre="Kiosk B")
         code = issue_pairing_code(equipo)
