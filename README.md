@@ -440,18 +440,17 @@ Demo y prod comparten el **mismo servidor** (`192.168.1.2`) y el **mismo par B2*
 
 **Importante:** `deploy/cloudflared/config.yml` y el regex de buckets en `deploy/nginx/conf.d/app.conf` los monta el stack de **producción**. Deben ser **idénticos en `main` y `development`**; si un deploy de `main` los sobrescribe sin las entradas demo, `demo.softone360.com` deja de responder.
 
-Clerk demo: usar `pk_test_` / `sk_test_` de la instancia development. `CLERK_JWT_KEY` debe ser el PEM del JWKS de esa instancia (`*.clerk.accounts.dev`), **no** el de producción. El webhook (`CLERK_WEBHOOK_SIGNING_SECRET`) es opcional en demo: el login funciona sin él; los usuarios se crean vía `POST /api/v1/users/`.
+Clerk demo: usar `pk_test_` / `sk_test_` de la instancia development. `CLERK_JWT_KEY` debe ser el PEM del JWKS de esa instancia (`*.clerk.accounts.dev`), **no** el de producción. Webhook opcional: endpoint `https://demo.softone360.com/api/v1/webhooks/clerk` + `CLERK_WEBHOOK_SIGNING_SECRET` en `/opt/softone-demo/.env`.
 
 ### GitHub Actions
 
 | Rama / evento | GitHub Actions |
 |---------------|----------------|
-| Push a `development` | CI + deploy automático demo → https://demo.softone360.com |
-| PR hacia `main` | CI: tests backend + build frontend |
-| Push a `main` | Tests → deploy prod → smoke https://app.softone360.com |
+| Push a `development` | Deploy automático demo → https://demo.softone360.com |
+| Push a `main` | Deploy automático prod → https://app.softone360.com |
 
 ```
-development (push → deploy demo) → PR → main (tests + deploy prod)
+development (push → deploy demo) → merge → main (deploy prod)
 ```
 
 ### Bootstrap demo (una vez en el servidor)
@@ -790,9 +789,7 @@ FILE_DELIVERY_TTL=600
 
 `INITIAL_ADMIN_*` sólo crean el superadmin si no existe un usuario con ese email. Migraciones y `bootstrap_app` se ejecutan en el contenedor **backend** (Celery omite migraciones).
 
-**Base de datos:** producción y CI usan PostgreSQL con extensión **pgvector** (`pgvector/pgvector:pg17`) para embeddings (módulo IA) y plantillas faciales de asistencia (HNSW + distancia L2).
-
-**CI backend:** además de Postgres, los workflows levantan **Redis** (`redis:7-alpine`) porque Celery encola indexación de embeddings al crear PQRS en tests.
+**Base de datos:** producción usa PostgreSQL con extensión **pgvector** (`pgvector/pgvector:pg17`) para embeddings (módulo IA) y plantillas faciales de asistencia (HNSW + distancia L2).
 
 ---
 
