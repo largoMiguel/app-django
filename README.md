@@ -420,25 +420,83 @@ Para invitaciones, nombres y acceso restringido:
 
 ---
 
-## Despliegue de cambios (producción)
+## Despliegue: producción + demo en paralelo
 
-Repositorio: **git@github.com:largoMiguel/app-django.git** · Servidor: `/opt/softone-app`
+Repositorio: **git@github.com:largoMiguel/app-django.git**
 
-### Desplegar con GitHub (recomendado, desde cualquier lugar)
+| Entorno | Rama | URL | Ruta servidor | LAN |
+|---|---|---|---|---|
+| **Producción** | `main` | https://app.softone360.com | `/opt/softone-app` | `:8080` |
+| **Demo** | `development` | https://demo.softone360.com | `/opt/softone-demo` | `:8081` |
+
+Archivos firmados:
+
+| Entorno | Worker | Bucket(s) B2 |
+|---|---|---|
+| Prod | https://files.softone360.com | `softone-pqrs`, `softone-pdm`, `softone-th`, `softone-correspondence` |
+| Demo | https://files-demo.softone360.com | `storage-demo` (todos los módulos) |
+
+Demo y prod comparten el **mismo servidor** (`192.168.1.2`) y el **mismo par B2** (`B2_KEY_ID` / `B2_APP_KEY`); solo cambian bucket y signing key. Merge `development` → `main` no migra archivos entre buckets.
+
+### GitHub Actions
 
 | Rama / evento | GitHub Actions |
 |---------------|----------------|
-| Push a `development` | CI: tests backend (Postgres + pgvector + Redis) + build frontend |
-| PR hacia `main` | CI: tests backend (Postgres + pgvector + Redis) + build frontend |
-| Push a `main` | Tests obligatorios → deploy automático → smoke en https://app.softone360.com |
+| Push a `development` | CI + deploy automático demo → https://demo.softone360.com |
+| PR hacia `main` | CI: tests backend + build frontend |
+| Push a `main` | Tests → deploy prod → smoke https://app.softone360.com |
 
 ```
-development (push → CI) → PR → main (tests + deploy automático)
+development (push → deploy demo) → PR → main (tests + deploy prod)
 ```
 
-1. Haz commits y push hacia `development` (dispara CI de validación).
-2. Abre PR `development` → `main` (corre CI en el PR).
-3. Al hacer merge a `main`, GitHub Actions ejecuta tests y, si pasan, despliega con `deploy/scripts/deploy.sh`.
+### Bootstrap demo (una vez en el servidor)
+
+```bash
+sudo mkdir -p /opt/softone-demo
+# Copiar .env.demo.example → /opt/softone-demo/.env
+# Completar: SECRET_KEY, POSTGRES_PASSWORD, B2_KEY_ID, B2_APP_KEY (mismos que prod),
+# FILE_DELIVERY_SIGNING_KEY (distinto a prod), CLERK_WEBHOOK_SIGNING_SECRET
+cd /opt/softone-demo && bash deploy/scripts/deploy-demo.sh
+```
+
+Clerk demo (`pk_test_` / `sk_test_`): en el dashboard development, allowed origins `http://localhost:5173` y `https://demo.softone360.com`; webhook `https://demo.softone360.com/api/v1/webhooks/clerk`. Sin `VITE_CLERK_DOMAIN` (usa FAPI hosted de Clerk).
+
+### Cloudflare (demo)
+
+DNS + túnel (desde máquina con `CLOUDFLARE_API_TOKEN`):
+
+```bash
+export CLOUDFLARE_API_TOKEN=...
+bash deploy/scripts/setup-cloudflare-demo-dns.sh
+```
+
+Worker demo (`storage-demo`):
+
+```bash
+bash deploy/scripts/deploy-cloudflare-worker-demo.sh /opt/softone-demo/.env
+```
+
+Tras actualizar `deploy/cloudflared/config.yml` (ingress `demo` / `files-demo` → `softone-demo-nginx`):
+
+```bash
+cd /opt/softone-app/deploy
+docker compose -f docker-compose.prod.yml --env-file ../.env restart cloudflared
+```
+
+### Desplegar manualmente demo (LAN)
+
+```bash
+deploy/scripts/sync.sh softone@192.168.1.2   # destino /opt/softone-demo si adaptas sync
+ssh softone@192.168.1.2 'cd /opt/softone-demo && deploy/scripts/deploy-demo.sh'
+# LAN: http://192.168.1.2:8081
+```
+
+---
+
+## Despliegue de cambios (producción)
+
+Servidor prod: `/opt/softone-app`
 
 **Sincronizar ramas tras merge:**
 
@@ -457,6 +515,8 @@ bash deploy/scripts/deploy-cloudflare-worker-from-prod.sh
 ```
 
 Alternativa con `.env` local completo: `bash deploy/scripts/deploy-cloudflare-worker.sh`
+
+Worker demo: `bash deploy/scripts/deploy-cloudflare-worker-demo.sh /opt/softone-demo/.env`
 
 ### Acceso SSH al servidor
 

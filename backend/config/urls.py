@@ -9,6 +9,7 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from apps.common.b2_buckets import b2_bucket_url_pattern
 from apps.common.views import ProtectedMediaView, SignedFileDeliveryView
 
 
@@ -23,7 +24,7 @@ urlpatterns = [
     path("api/v1/public/", include("apps.asistencia.public_urls")),
     path("api/v1/", include("config.api_v1")),
     re_path(
-        r"^(?P<bucket>softone-pqrs|softone-pdm|softone-th|softone-correspondence)/(?P<path>.+)$",
+        rf"^(?P<bucket>{b2_bucket_url_pattern()})/(?P<path>.+)$",
         SignedFileDeliveryView.as_view(),
         name="signed-file-delivery",
     ),

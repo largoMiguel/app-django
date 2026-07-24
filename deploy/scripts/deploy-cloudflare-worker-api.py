@@ -24,6 +24,11 @@ def main() -> int:
         "--signing-key",
         default=os.getenv("FILE_DELIVERY_SIGNING_KEY", ""),
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Despliega softone-files-demo (files-demo.softone360.com)",
+    )
     args = parser.parse_args()
 
     if not shutil.which("npm"):
@@ -46,12 +51,24 @@ def main() -> int:
 
     env = os.environ.copy()
     env["CLOUDFLARE_API_TOKEN"] = args.token
+    wrangler_config = "wrangler.demo.toml" if args.demo else "wrangler.toml"
+    deploy_url = (
+        "https://files-demo.softone360.com"
+        if args.demo
+        else "https://files.softone360.com"
+    )
+    config_flag = ["--config", wrangler_config]
 
     print("==> npm install (worker)…")
     subprocess.run(["npm", "install", "--silent"], cwd=WORKER_DIR, check=True)
 
     print("==> wrangler deploy…")
-    subprocess.run(["npx", "wrangler", "deploy"], cwd=WORKER_DIR, env=env, check=True)
+    subprocess.run(
+        ["npx", "wrangler", "deploy", *config_flag],
+        cwd=WORKER_DIR,
+        env=env,
+        check=True,
+    )
 
     print("==> wrangler secrets…")
     for secret_name, secret_val in (
@@ -60,7 +77,7 @@ def main() -> int:
         ("FILE_DELIVERY_SIGNING_KEY", args.signing_key),
     ):
         proc = subprocess.run(
-            ["npx", "wrangler", "secret", "put", secret_name],
+            ["npx", "wrangler", "secret", "put", secret_name, *config_flag],
             cwd=WORKER_DIR,
             env=env,
             input=secret_val.encode(),
@@ -69,7 +86,7 @@ def main() -> int:
         if proc.returncode != 0:
             return proc.returncode
 
-    print("OK: Worker desplegado en https://files.softone360.com")
+    print(f"OK: Worker desplegado en {deploy_url}")
     return 0
 
 

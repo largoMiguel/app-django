@@ -9,18 +9,9 @@ import {
 } from "@/core/auth/authErrors";
 import { getClerkToken } from "@/core/auth/clerkToken";
 import { clearClientSession } from "@/core/auth/session";
+import { isSignedDeliveryUrl } from "@/core/api/fileDelivery";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
-const FILE_DELIVERY_HOST = "files.softone360.com";
-
-function isSignedDeliveryUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url, window.location.origin);
-    return parsed.hostname === FILE_DELIVERY_HOST && parsed.searchParams.has("sig");
-  } catch {
-    return false;
-  }
-}
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_URL,

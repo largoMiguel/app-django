@@ -10,6 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from botocore.exceptions import ClientError
 
+from apps.common.b2_buckets import configured_b2_buckets
 from apps.common.b2_client import get_b2_client
 from apps.common.file_delivery import verify_signed_file_url
 from apps.pdm.access import user_can_access_pdm_media_path
@@ -23,13 +24,7 @@ class SignedFileDeliveryView(APIView):
     authentication_classes = ()
 
     def get(self, request, bucket: str, path: str):
-        allowed = {
-            settings.B2_BUCKET_PQRS,
-            settings.B2_BUCKET_PDM,
-            settings.B2_BUCKET_ASISTENCIA,
-            settings.B2_BUCKET_CORRESPONDENCIA,
-        }
-        if bucket not in allowed:
+        if bucket not in configured_b2_buckets():
             return HttpResponseForbidden("Forbidden")
 
         exp = request.query_params.get("exp")

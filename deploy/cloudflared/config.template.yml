@@ -25,8 +25,12 @@ ingress:
     service: http://nginx:80
   - hostname: app.softone360.com
     service: http://nginx:80
+  - hostname: demo.softone360.com
+    service: http://softone-demo-nginx:80
   - hostname: files.softone360.com
     service: http://nginx:80
+  - hostname: files-demo.softone360.com
+    service: http://softone-demo-nginx:80
   # TEMPORAL — Lavonia showcase
   - hostname: lavonia.softone360.com
     service: http://lavonia:80

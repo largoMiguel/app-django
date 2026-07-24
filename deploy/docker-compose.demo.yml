@@ -1,0 +1,281 @@
+name: softone-demo
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: softone-demo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    command:
+      - postgres
+      - -c
+      - max_connections=100
+      - -c
+      - shared_buffers=256MB
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: redis:7-alpine
+    container_name: softone-demo-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+
+  celery-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: softone-demo-backend:latest
+    container_name: softone-demo-celery-worker
+    restart: unless-stopped
+    command: celery -A config worker -l info --concurrency=2
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME -t 5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      SECRET_KEY: ${SECRET_KEY}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      PDM_CHAT_OPENAI_API_KEY: ${PDM_CHAT_OPENAI_API_KEY}
+      PDM_CHAT_MODEL: ${PDM_CHAT_MODEL:-}
+      PQRS_REPORTS_OPENAI_API_KEY: ${PQRS_REPORTS_OPENAI_API_KEY}
+      PQRS_REPORTS_OPENAI_MODEL: ${PQRS_REPORTS_OPENAI_MODEL:-}
+    volumes:
+      - media_data:/app/media
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    security_opt:
+      - no-new-privileges:true
+
+  celery-beat:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: softone-demo-backend:latest
+    container_name: softone-demo-celery-beat
+    restart: unless-stopped
+    command: celery -A config beat -l info
+    healthcheck:
+      test: ["CMD-SHELL", "test -f celerybeat-schedule || test -f celerybeat-schedule.db"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      SECRET_KEY: ${SECRET_KEY}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_URL: redis://redis:6379/0
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: softone-demo-backend:latest
+    container_name: softone-demo-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "false"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      ALLOW_API_DOCS: ${ALLOW_API_DOCS:-true}
+      ENABLE_DJANGO_ADMIN: ${ENABLE_DJANGO_ADMIN:-false}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_URL: redis://redis:6379/0
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
+      INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-Admin Demo}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      PDM_CHAT_OPENAI_API_KEY: ${PDM_CHAT_OPENAI_API_KEY}
+      PDM_CHAT_MODEL: ${PDM_CHAT_MODEL:-}
+      PQRS_REPORTS_OPENAI_API_KEY: ${PQRS_REPORTS_OPENAI_API_KEY}
+      PQRS_REPORTS_OPENAI_MODEL: ${PQRS_REPORTS_OPENAI_MODEL:-}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
+      CLERK_JWT_KEY: ${CLERK_JWT_KEY:-}
+      CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:-https://demo.softone360.com}
+      CLERK_WEBHOOK_SIGNING_SECRET: ${CLERK_WEBHOOK_SIGNING_SECRET:-}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
+      USE_B2_STORAGE: ${USE_B2_STORAGE:-true}
+      B2_ENDPOINT_URL: ${B2_ENDPOINT_URL:-https://s3.us-east-005.backblazeb2.com}
+      B2_REGION: ${B2_REGION:-us-east-005}
+      B2_KEY_ID: ${B2_KEY_ID:-}
+      B2_APP_KEY: ${B2_APP_KEY:-}
+      B2_BUCKET_PQRS: ${B2_BUCKET_PQRS:-storage-demo}
+      B2_BUCKET_PDM: ${B2_BUCKET_PDM:-storage-demo}
+      B2_BUCKET_ASISTENCIA: ${B2_BUCKET_ASISTENCIA:-storage-demo}
+      B2_BUCKET_CORRESPONDENCIA: ${B2_BUCKET_CORRESPONDENCIA:-storage-demo}
+      B2_BUCKET_DB: ${B2_BUCKET_DB:-storage-demo}
+      FILE_DELIVERY_BASE_URL: ${FILE_DELIVERY_BASE_URL:-https://files-demo.softone360.com}
+      FILE_DELIVERY_SIGNING_KEY: ${FILE_DELIVERY_SIGNING_KEY:-}
+      FILE_DELIVERY_TTL: ${FILE_DELIVERY_TTL:-600}
+      PQRS_EMAIL_ENABLED: ${PQRS_EMAIL_ENABLED:-false}
+      ZEPTOMAIL_API_URL: ${ZEPTOMAIL_API_URL:-https://api.zeptomail.com/v1.1/email}
+      ZEPTOMAIL_TOKEN: ${ZEPTOMAIL_TOKEN:-}
+      ZEPTOMAIL_FROM_EMAIL: ${ZEPTOMAIL_FROM_EMAIL:-noreply@softone360.com}
+      ZEPTOMAIL_WEBHOOK_SECRET: ${ZEPTOMAIL_WEBHOOK_SECRET:-}
+      PQRS_INBOUND_ENABLED: ${PQRS_INBOUND_ENABLED:-false}
+      PQRS_INBOUND_REQUIRE_GOVCO: ${PQRS_INBOUND_REQUIRE_GOVCO:-true}
+      IMAP_HOST: ${IMAP_HOST:-imap.gmail.com}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      IMAP_MAILBOX: ${IMAP_MAILBOX:-INBOX}
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    networks:
+      - internal
+      - edge
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
+        VITE_FILE_DELIVERY_HOST: ${VITE_FILE_DELIVERY_HOST:-files-demo.softone360.com}
+    image: softone-demo-frontend:latest
+    container_name: softone-demo-frontend
+    restart: unless-stopped
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: softone-demo-nginx
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    ports:
+      - "${LAN_HTTP_PORT:-8081}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d-demo:/etc/nginx/conf.d:ro
+      - static_data:/var/www/static:ro
+      - media_data:/var/www/media:ro
+    networks:
+      edge:
+        aliases:
+          - softone-demo-nginx
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  internal:
+    driver: bridge
+    internal: true
+  edge:
+    external: true
+    name: softone_edge
+
+volumes:
+  db_data:
+  media_data:
+  static_data:

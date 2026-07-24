@@ -1,6 +1,8 @@
-name: CI Pull Request
+name: CI Development
 
 on:
+  push:
+    branches: [development]
   pull_request:
     branches: [main]
 
