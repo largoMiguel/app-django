@@ -157,7 +157,6 @@ class KioskFacialRegistroView(APIView):
         registro, new_token, distance = register_punch_facial(
             equipo=equipo,
             descriptor=data["descriptor"],
-            foto_base64=data["foto_base64"],
             idempotency_key=data["idempotency_key"],
             liveness_passed=data["liveness_passed"],
             client_ts=data.get("client_ts"),

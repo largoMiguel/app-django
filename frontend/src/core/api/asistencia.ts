@@ -237,7 +237,6 @@ export const kioskApi = {
     token: string,
     payload: {
       descriptor: number[];
-      foto_base64: string;
       idempotency_key: string;
       liveness_passed: boolean;
     },

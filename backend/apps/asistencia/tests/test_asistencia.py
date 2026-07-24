@@ -111,7 +111,7 @@ class AsistenciaModuleTests(TestCase):
         res = self.client.get("/api/v1/asistencia/stats")
         self.assertEqual(res.status_code, 403)
 
-    @override_settings(USE_B2_STORAGE=False)
+    @override_settings(USE_B2_STORAGE=False, ASISTENCIA_PUNCH_COOLDOWN_SECONDS=0)
     def test_pairing_and_punch_sequence_2(self):
         code = issue_pairing_code(self.equipo_a)
         pair_res = self.client.post(

@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, Loader2, RefreshCw, X } from "lucide-react";
+import { CheckCircle2, Loader2, RefreshCw, X } from "lucide-react";
 import { asistenciaApi, type Funcionario } from "@/core/api/asistencia";
 import { formatApiError } from "@/core/api/errors";
 import {
   captureFace,
   captureFrameBase64,
+  detectLandmarks,
+  ENROLL_POSES,
+  enrollPoseLabel,
   loadFaceModels,
-  livenessHint,
-  LivenessTracker,
+  matchesEnrollPose,
+  openCameraStream,
+  type EnrollPose,
 } from "@/core/face/faceApi";
-
-const MAX_SAMPLES = 3;
 
 type Props = {
   funcionario: Funcionario;
@@ -21,15 +23,23 @@ type Props = {
 export default function FaceEnrollModal({ funcionario, onClose, onEnrolled }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const livenessRef = useRef(new LivenessTracker());
+  const busyRef = useRef(false);
+  const poseHoldRef = useRef(0);
   const [modelsReady, setModelsReady] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [poseIndex, setPoseIndex] = useState(() =>
+    Math.min(funcionario.face_samples, ENROLL_POSES.length - 1),
+  );
   const [samples, setSamples] = useState(0);
   const [hint, setHint] = useState("Preparando…");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  const totalDone = funcionario.face_samples + samples;
+  const currentPose: EnrollPose =
+    ENROLL_POSES[Math.min(poseIndex, ENROLL_POSES.length - 1)] ?? "front";
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -41,25 +51,28 @@ export default function FaceEnrollModal({ funcionario, onClose, onEnrolled }: Pr
   const startCamera = useCallback(async () => {
     setCameraError(null);
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setCameraError("Este navegador no permite acceso a la cámara.");
-        return;
-      }
       stopCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
+      const stream = await openCameraStream();
       streamRef.current = stream;
       const video = videoRef.current;
-      if (!video) return;
+      if (!video) {
+        stream.getTracks().forEach((t) => t.stop());
+        setCameraError("Vista de cámara no disponible. Reintente.");
+        return;
+      }
       video.srcObject = stream;
       video.muted = true;
       video.setAttribute("playsinline", "true");
       await video.play();
       setCameraReady(true);
-    } catch {
-      setCameraError("No se pudo acceder a la cámara.");
+      poseHoldRef.current = 0;
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : "";
+      if (name === "NotAllowedError") {
+        setCameraError("Permiso de cámara denegado. Actívelo y pulse reintentar.");
+      } else {
+        setCameraError("No se pudo acceder a la cámara. Pruebe otra webcam o reintente.");
+      }
       setCameraReady(false);
     }
   }, [stopCamera]);
@@ -80,47 +93,19 @@ export default function FaceEnrollModal({ funcionario, onClose, onEnrolled }: Pr
     };
   }, [startCamera, stopCamera]);
 
-  useEffect(() => {
-    if (!cameraReady || !modelsReady || saving || done || samples >= MAX_SAMPLES) return;
-    let raf = 0;
-    const tick = async () => {
-      const video = videoRef.current;
-      if (!video || video.readyState < 2) {
-        raf = requestAnimationFrame(tick);
-        return;
-      }
-      try {
-        const face = await captureFace(video);
-        if (!face) {
-          setHint(livenessHint("need_face"));
-          livenessRef.current.reset();
-        } else {
-          const state = livenessRef.current.update(face.landmarks);
-          setHint(livenessHint(state));
-        }
-      } catch {
-        /* ignore frame errors */
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [cameraReady, modelsReady, saving, done, samples]);
-
-  async function captureSample() {
+  const saveSample = useCallback(async () => {
     const video = videoRef.current;
-    if (!video || saving || samples >= MAX_SAMPLES) return;
-    if (!livenessRef.current.passed) {
-      setError("Complete la verificación: parpadee y gire levemente la cabeza.");
-      return;
-    }
+    if (!video || busyRef.current || done || totalDone >= ENROLL_POSES.length) return;
+    busyRef.current = true;
     setSaving(true);
     setError(null);
+    setHint("Guardando muestra…");
     try {
       const face = await captureFace(video);
       const foto = captureFrameBase64(video);
       if (!face || !foto) {
         setError("No se detectó un rostro nítido. Intente de nuevo.");
+        poseHoldRef.current = 0;
         return;
       }
       await asistenciaApi.funcionarios.enrollFace(funcionario.id, {
@@ -129,19 +114,74 @@ export default function FaceEnrollModal({ funcionario, onClose, onEnrolled }: Pr
       });
       const next = samples + 1;
       setSamples(next);
-      livenessRef.current.reset();
-      if (next >= MAX_SAMPLES || funcionario.face_samples + next >= MAX_SAMPLES) {
+      const nextPose = Math.min(funcionario.face_samples + next, ENROLL_POSES.length - 1);
+      setPoseIndex(nextPose);
+      poseHoldRef.current = 0;
+      if (funcionario.face_samples + next >= ENROLL_POSES.length) {
         setDone(true);
+        setHint("Enrolamiento completo");
+        onEnrolled();
+      } else {
+        setHint(enrollPoseLabel(ENROLL_POSES[nextPose]));
         onEnrolled();
       }
     } catch (err) {
       setError(formatApiError(err));
+      poseHoldRef.current = 0;
     } finally {
+      busyRef.current = false;
       setSaving(false);
     }
-  }
+  }, [done, totalDone, samples, funcionario.id, funcionario.face_samples, onEnrolled]);
 
-  const remaining = Math.max(0, MAX_SAMPLES - (funcionario.face_samples + samples));
+  useEffect(() => {
+    if (!cameraReady || !modelsReady || saving || done || totalDone >= ENROLL_POSES.length) {
+      return;
+    }
+    let cancelled = false;
+    let timer = 0;
+
+    const tick = async () => {
+      if (cancelled || busyRef.current) {
+        timer = window.setTimeout(tick, 80);
+        return;
+      }
+      const video = videoRef.current;
+      if (!video || video.readyState < 2) {
+        timer = window.setTimeout(tick, 80);
+        return;
+      }
+      try {
+        const landmarks = await detectLandmarks(video);
+        if (cancelled) return;
+        if (!landmarks) {
+          poseHoldRef.current = 0;
+          setHint("Centre su rostro en el recuadro");
+        } else if (matchesEnrollPose(landmarks, currentPose)) {
+          poseHoldRef.current += 1;
+          setHint(`${enrollPoseLabel(currentPose)} — ¡hold!`);
+          // ~3 frames estables (~240ms) → captura automática
+          if (poseHoldRef.current >= 3) {
+            await saveSample();
+            if (!cancelled) timer = window.setTimeout(tick, 120);
+            return;
+          }
+        } else {
+          poseHoldRef.current = 0;
+          setHint(enrollPoseLabel(currentPose));
+        }
+      } catch {
+        /* skip */
+      }
+      if (!cancelled) timer = window.setTimeout(tick, 80);
+    };
+
+    timer = window.setTimeout(tick, 50);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [cameraReady, modelsReady, saving, done, totalDone, currentPose, saveSample]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
@@ -180,13 +220,35 @@ export default function FaceEnrollModal({ funcionario, onClose, onEnrolled }: Pr
             )}
             <div className="pointer-events-none absolute inset-3 rounded-xl ring-2 ring-[#3eafd4]/40" />
             <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-black/55 px-3 py-2 text-center text-xs text-white">
-              {hint}
+              {saving ? "Guardando…" : hint}
             </div>
           </div>
 
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            {ENROLL_POSES.map((pose, i) => {
+              const donePose = totalDone > i;
+              const active = !done && totalDone === i;
+              return (
+                <span
+                  key={pose}
+                  className={`rounded-full px-2.5 py-1 font-medium ${
+                    donePose
+                      ? "bg-emerald-50 text-emerald-700"
+                      : active
+                        ? "bg-[#e8f6fa] text-[#0d6e8a]"
+                        : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {i + 1}.{" "}
+                  {pose === "front" ? "Frente" : pose === "left" ? "Izquierda" : "Derecha"}
+                </span>
+              );
+            })}
+          </div>
+
           <p className="mt-3 text-sm text-slate-600">
-            Capture {remaining > 1 ? `hasta ${remaining} muestras` : "una muestra"} con buena luz
-            frontal. Máximo {MAX_SAMPLES} por funcionario.
+            Tres muestras en posiciones distintas (frente, izquierda, derecha). La captura es
+            automática al sostener la pose.
           </p>
 
           {error && (
@@ -203,7 +265,16 @@ export default function FaceEnrollModal({ funcionario, onClose, onEnrolled }: Pr
           )}
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:justify-end sm:px-6">
+        <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p className="text-xs text-slate-500">
+            {saving ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Guardando muestra…
+              </span>
+            ) : (
+              `Muestras ${Math.min(totalDone, 3)}/3`
+            )}
+          </p>
           <button
             type="button"
             onClick={onClose}
@@ -211,25 +282,6 @@ export default function FaceEnrollModal({ funcionario, onClose, onEnrolled }: Pr
           >
             {done ? "Cerrar" : "Cancelar"}
           </button>
-          {!done && (
-            <button
-              type="button"
-              disabled={!cameraReady || !modelsReady || saving || remaining <= 0}
-              onClick={() => void captureSample()}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#0d6e8a] px-4 py-2 text-sm font-medium text-white hover:bg-[#0a5870] disabled:opacity-60"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Guardando…
-                </>
-              ) : (
-                <>
-                  <Camera className="h-4 w-4" /> Capturar muestra ({samples + funcionario.face_samples}/
-                  {MAX_SAMPLES})
-                </>
-              )}
-            </button>
-          )}
         </div>
       </div>
     </div>

@@ -38,7 +38,8 @@ PAIRING_TTL_MINUTES = 15
 MAX_PHOTO_BYTES = 1_572_864  # 1.5 MB
 MAX_FACE_SAMPLES = 3
 FACE_DESCRIPTOR_DIM = 128
-PUNCH_COOLDOWN_SECONDS = 30
+# Mínimo entre marcaciones del mismo funcionario (evita entrada→salida inmediato).
+PUNCH_COOLDOWN_SECONDS = int(getattr(settings, "ASISTENCIA_PUNCH_COOLDOWN_SECONDS", 300))
 BOGOTA_TZ = timezone.get_default_timezone()
 
 
@@ -259,35 +260,116 @@ def match_funcionario_by_descriptor(
     entity,
     descriptor: list[float],
 ) -> tuple[Funcionario, float] | None:
-    """Busca el funcionario más cercano por distancia L2 (face-api)."""
+    """
+    Empareja por distancia L2 (face-api).
+
+    Más robusto que “el más cercano”:
+    1) umbral estricto (default ~0.48);
+    2) mejor plantilla por funcionario;
+    3) margen mínimo vs el 2.º funcionario (evita confundir caras parecidas).
+    """
     values = _validate_descriptor(descriptor)
     threshold = float(settings.ASISTENCIA_FACE_MATCH_THRESHOLD)
-    qs = (
+    margin = float(getattr(settings, "ASISTENCIA_FACE_MATCH_MARGIN", 0.1))
+
+    templates = list(
         FuncionarioFaceTemplate.objects.filter(
             funcionario__entity=entity,
             funcionario__is_active=True,
         )
+        .select_related("funcionario")
         .annotate(distance=L2Distance("descriptor", values))
-        .order_by("distance")
+        .order_by("distance")[:80]
     )
-    best = qs.first()
-    if best is None or best.distance is None or best.distance >= threshold:
+    if not templates:
         return None
-    return best.funcionario, float(best.distance)
+
+    best_by_func: dict[int, tuple[Funcionario, float]] = {}
+    for tpl in templates:
+        dist = float(tpl.distance) if tpl.distance is not None else None
+        if dist is None:
+            continue
+        fid = tpl.funcionario_id
+        current = best_by_func.get(fid)
+        if current is None or dist < current[1]:
+            best_by_func[fid] = (tpl.funcionario, dist)
+
+    ranked = sorted(best_by_func.values(), key=lambda item: item[1])
+    if not ranked:
+        return None
+
+    best_func, best_dist = ranked[0]
+    if best_dist >= threshold:
+        return None
+
+    # Si hay otro funcionario casi igual de cerca, rechazar (ambigüedad).
+    if len(ranked) >= 2:
+        second_dist = ranked[1][1]
+        if (second_dist - best_dist) < margin:
+            logger.info(
+                "Match facial ambiguo entity=%s best=%s d=%.4f second=%s d=%.4f margin=%.3f",
+                getattr(entity, "id", None),
+                best_func.id,
+                best_dist,
+                ranked[1][0].id,
+                second_dist,
+                margin,
+            )
+            return None
+
+    return best_func, best_dist
 
 
 def _punch_lock_key(funcionario_id: int) -> str:
     return f"asistencia:punch:{funcionario_id}"
 
 
+def _assert_punch_cooldown(funcionario: Funcionario) -> None:
+    """Impide una segunda marcación antes del cooldown (default 5 min)."""
+    cooldown = int(getattr(settings, "ASISTENCIA_PUNCH_COOLDOWN_SECONDS", PUNCH_COOLDOWN_SECONDS))
+    if cooldown <= 0:
+        return
+    last = (
+        RegistroAsistencia.objects.filter(funcionario=funcionario)
+        .order_by("-fecha_hora")
+        .only("tipo", "fecha_hora")
+        .first()
+    )
+    if last is None:
+        return
+    elapsed = (timezone.now() - last.fecha_hora).total_seconds()
+    if elapsed >= cooldown:
+        return
+    remaining = max(1, int(cooldown - elapsed))
+    mins, secs = divmod(remaining, 60)
+    if mins >= 1:
+        wait = f"{mins} min" if secs == 0 else f"{mins} min {secs} s"
+    else:
+        wait = f"{secs} s"
+    tipo_label = label_for_tipo(last.tipo)
+    raise ValidationError(
+        {
+            "detail": (
+                f"Ya registró {tipo_label}. "
+                f"Espere al menos {wait} antes de la siguiente marcación."
+            ),
+            "code": "already_registered",
+            "ultimo_tipo": last.tipo,
+            "ultimo_tipo_label": tipo_label,
+            "espera_segundos": remaining,
+        }
+    )
+
+
 def register_punch(
     *,
     equipo: EquipoRegistro,
-    foto_base64: str,
     idempotency_key: str,
     client_ts=None,
     cedula: str | None = None,
     funcionario: Funcionario | None = None,
+    foto_base64: str | None = None,
+    save_photo: bool = True,
 ) -> tuple[RegistroAsistencia, str | None]:
     idempotency_key = (idempotency_key or "").strip()
     if not idempotency_key or len(idempotency_key) > 64:
@@ -312,15 +394,30 @@ def register_punch(
     elif funcionario.entity_id != entity.id or not funcionario.is_active:
         raise ValidationError({"detail": "Funcionario no válido para esta entidad."})
 
+    _assert_punch_cooldown(funcionario)
+
+    cooldown = int(getattr(settings, "ASISTENCIA_PUNCH_COOLDOWN_SECONDS", PUNCH_COOLDOWN_SECONDS))
+    lock_ttl = max(cooldown, 30) if cooldown > 0 else 30
     lock_key = _punch_lock_key(funcionario.id)
-    if not cache.add(lock_key, "1", timeout=PUNCH_COOLDOWN_SECONDS):
-        raise ValidationError({"detail": "Espere unos segundos antes de registrar de nuevo."})
+    if not cache.add(lock_key, "1", timeout=lock_ttl):
+        raise ValidationError(
+            {
+                "detail": "Ya registró hace un momento. Espere antes de marcar de nuevo.",
+                "code": "already_registered",
+            }
+        )
 
     try:
         with transaction.atomic():
             locked = Funcionario.objects.select_for_update().get(pk=funcionario.pk)
+            _assert_punch_cooldown(locked)
             tipo = infer_next_tipo(entity, locked)
-            foto_key = upload_foto(entity.id, locked.id, foto_base64)
+            if save_photo:
+                if not foto_base64:
+                    raise ValidationError({"foto_base64": "La foto es obligatoria."})
+                foto_key = upload_foto(entity.id, locked.id, foto_base64)
+            else:
+                foto_key = ""
             registro = RegistroAsistencia.objects.create(
                 entity=entity,
                 funcionario=locked,
@@ -348,7 +445,6 @@ def register_punch_facial(
     *,
     equipo: EquipoRegistro,
     descriptor: list[float],
-    foto_base64: str,
     idempotency_key: str,
     liveness_passed: bool,
     client_ts=None,
@@ -359,12 +455,13 @@ def register_punch_facial(
     if match is None:
         raise NotFound("Rostro no reconocido. Acérquese al kiosco o contacte a Talento Humano.")
     funcionario, distance = match
+    # Facial: sin foto de evidencia (solo el modo cédula guarda foto).
     registro, new_token = register_punch(
         equipo=equipo,
         funcionario=funcionario,
-        foto_base64=foto_base64,
         idempotency_key=idempotency_key,
         client_ts=client_ts,
+        save_photo=False,
     )
     return registro, new_token, distance
 

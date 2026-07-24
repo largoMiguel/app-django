@@ -103,7 +103,37 @@ class AsistenciaFacialTests(TestCase):
         self.assertIsNotNone(match)
         funcionario, distance = match
         self.assertEqual(funcionario.id, self.func_a.id)
-        self.assertLess(distance, 0.6)
+        self.assertLess(distance, 0.48)
+
+    @override_settings(
+        USE_B2_STORAGE=False,
+        ASISTENCIA_FACE_MATCH_THRESHOLD=0.6,
+        ASISTENCIA_FACE_MATCH_MARGIN=0.10,
+    )
+    def test_ambiguous_match_rejects(self):
+        """Si dos funcionarios quedan casi igual de cerca, no emparejar."""
+        near_a = _descriptor(0.10)
+        near_b = _descriptor(0.12)  # muy similar a near_a
+        enroll_face_template(
+            funcionario=self.func_a,
+            descriptor=near_a,
+            foto_base64=self.foto,
+        )
+        func_c = Funcionario.objects.create(
+            entity=self.entity_a,
+            cedula="901",
+            nombres="Casi",
+            apellidos="Igual",
+        )
+        enroll_face_template(
+            funcionario=func_c,
+            descriptor=near_b,
+            foto_base64=self.foto,
+        )
+        # Consulta a medio camino → distancias cercanas entre ambos
+        probe = _descriptor(0.11)
+        match = match_funcionario_by_descriptor(self.entity_a, probe)
+        self.assertIsNone(match)
 
     @override_settings(USE_B2_STORAGE=False)
     def test_unknown_face_returns_none(self):
@@ -138,7 +168,6 @@ class AsistenciaFacialTests(TestCase):
             "/api/v1/public/asistencia/kiosk/registros-facial",
             {
                 "descriptor": self.descriptor_a,
-                "foto_base64": self.foto,
                 "idempotency_key": "facial-1",
                 "liveness_passed": True,
             },
@@ -148,6 +177,7 @@ class AsistenciaFacialTests(TestCase):
         self.assertEqual(res.status_code, 201, res.data)
         self.assertEqual(res.data["registro"]["tipo"], TipoRegistro.ENTRADA)
         self.assertEqual(res.data["funcionario_nombre"], self.func_a.nombre_completo)
+        self.assertFalse(res.data["registro"].get("foto_url"))
 
     @override_settings(USE_B2_STORAGE=False)
     def test_facial_punch_requires_liveness(self):
@@ -162,7 +192,6 @@ class AsistenciaFacialTests(TestCase):
             "/api/v1/public/asistencia/kiosk/registros-facial",
             {
                 "descriptor": self.descriptor_a,
-                "foto_base64": self.foto,
                 "idempotency_key": "facial-no-live",
                 "liveness_passed": False,
             },
@@ -179,7 +208,6 @@ class AsistenciaFacialTests(TestCase):
             "/api/v1/public/asistencia/kiosk/registros-facial",
             {
                 "descriptor": self.descriptor_a,
-                "foto_base64": self.foto,
                 "idempotency_key": "facial-unknown",
                 "liveness_passed": True,
             },

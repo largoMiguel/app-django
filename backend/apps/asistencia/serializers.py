@@ -146,7 +146,8 @@ class KioskFacialRegistroRequestSerializer(serializers.Serializer):
         min_length=128,
         max_length=128,
     )
-    foto_base64 = serializers.CharField()
     idempotency_key = serializers.CharField(max_length=64)
     liveness_passed = serializers.BooleanField()
     client_ts = serializers.DateTimeField(required=False, allow_null=True)
+    # Opcional / ignorado: el fichaje facial ya no guarda foto de evidencia.
+    foto_base64 = serializers.CharField(required=False, allow_blank=True, default="")

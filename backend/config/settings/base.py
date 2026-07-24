@@ -197,14 +197,22 @@ REST_FRAMEWORK = {
         "pqrs_public": "30/hour",
         "pqrs_ai_auto": "20/hour",
         "pdm_chat_public": "60/hour",
-        "asistencia_kiosk_pair": "5/hour",
+        "asistencia_kiosk_pair": "20/hour",
         "asistencia_kiosk_punch": "30/min",
     },
 }
 
-# Reconocimiento facial — distancia L2 máxima (face-api.js, típico ~0.6)
+# Reconocimiento facial — distancia L2 máxima (face-api.js; más estricto = menos falsos positivos)
 ASISTENCIA_FACE_MATCH_THRESHOLD = float(
-    os.getenv("ASISTENCIA_FACE_MATCH_THRESHOLD", "0.6")
+    os.getenv("ASISTENCIA_FACE_MATCH_THRESHOLD", "0.48")
+)
+# Margen mínimo entre el 1.er y 2.º funcionario (ambigüedad → rechazar)
+ASISTENCIA_FACE_MATCH_MARGIN = float(
+    os.getenv("ASISTENCIA_FACE_MATCH_MARGIN", "0.10")
+)
+# Segundos mínimos entre marcaciones del mismo funcionario (default 5 min)
+ASISTENCIA_PUNCH_COOLDOWN_SECONDS = int(
+    os.getenv("ASISTENCIA_PUNCH_COOLDOWN_SECONDS", "300")
 )
 
 SPECTACULAR_SETTINGS = {
