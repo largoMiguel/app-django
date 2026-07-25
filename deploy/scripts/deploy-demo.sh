@@ -29,7 +29,7 @@ echo "==> Levantando servicios demo…"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
 
 echo "==> Recargando nginx demo…"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T nginx nginx -s reload
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T demo-nginx nginx -s reload
 
 echo "==> Estado:"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
@@ -37,7 +37,7 @@ docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 echo "==> Esperando salud del backend demo…"
 healthy=0
 for _ in $(seq 1 24); do
-  if docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T backend \
+  if docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T demo-backend \
       curl -fsS http://localhost:8000/api/health >/dev/null 2>&1; then
     healthy=1
     break
@@ -50,8 +50,8 @@ if [[ "$healthy" -ne 1 ]]; then
 fi
 
 echo "==> Smoke test interno…"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T nginx wget -qO- http://127.0.0.1/healthz | grep -q ok
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T backend curl -fsS http://localhost:8000/api/health | grep -q ok
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T demo-nginx wget -qO- http://127.0.0.1/healthz | grep -q ok
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T demo-backend curl -fsS http://localhost:8000/api/health | grep -q ok
 
 ensure_prod_tunnel_ingress() {
     local prod_app="/opt/softone-app"

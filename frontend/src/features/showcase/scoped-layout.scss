@@ -1,13 +1,19 @@
 // Utilidades de layout SOLO dentro del landing público (sin Bootstrap global).
 .showcase-main,
 .nos-page {
-    .container {
+    .container,
+    .sc-shell {
         width: 100%;
-        max-width: 1140px;
+        max-width: min(100%, 1480px);
         margin-left: auto;
         margin-right: auto;
-        padding-left: 1rem;
-        padding-right: 1rem;
+        padding-left: clamp(1.1rem, 3.5vw, 2.75rem);
+        padding-right: clamp(1.1rem, 3.5vw, 2.75rem);
+    }
+
+    &.sc-fullbleed .container,
+    &.sc-fullbleed .sc-shell {
+        max-width: min(100%, 1600px);
     }
 
     .row {

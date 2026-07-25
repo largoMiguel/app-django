@@ -134,7 +134,9 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  backend:
+  # Prefijo demo-* evita aliases DNS "backend"/"frontend"/"nginx" en softone_edge
+  # que colisionan con el stack de producción (JS/API 404 intercalados).
+  demo-backend:
     build:
       context: ../backend
       dockerfile: Dockerfile
@@ -223,7 +225,7 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  frontend:
+  demo-frontend:
     build:
       context: ../frontend
       dockerfile: Dockerfile
@@ -239,14 +241,14 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  nginx:
+  demo-nginx:
     image: nginx:1.27-alpine
     container_name: softone-demo-nginx
     restart: unless-stopped
     depends_on:
-      backend:
+      demo-backend:
         condition: service_healthy
-      frontend:
+      demo-frontend:
         condition: service_started
     ports:
       - "${LAN_HTTP_PORT:-8081}:80"

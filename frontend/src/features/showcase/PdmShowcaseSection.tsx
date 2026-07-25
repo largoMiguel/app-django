@@ -28,8 +28,8 @@ export default function PdmShowcaseSection() {
         <span className="sc-pdm-orb sc-pdm-orb--2" />
       </div>
 
-      <div className="container sc-pdm-container">
-        <header className={`sc-pdm-hero ${reveal.clip}`}>
+      <div className="sc-shell sc-pdm-container">
+        <header className={`sc-pdm-hero sc-pdm-hero--wide ${reveal.clip}`}>
           <div className="sc-pdm-hero-badge">
             <Si icon="fas fa-map-marked-alt" size={14} />
             Módulo principal

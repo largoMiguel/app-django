@@ -18,6 +18,7 @@ function setStagger(root: Element, selector: string, stepMs: number): void {
 }
 
 const STAGGER_RULES: Array<{ selector: string; stepMs: number }> = [
+  { selector: "#features .sc-feature-rail .animate", stepMs: 90 },
   { selector: "#features .sc-cards-grid .animate", stepMs: 75 },
   { selector: ".sc-modules-grid .sc-module.animate", stepMs: 100 },
   { selector: "#benefits .sc-cards-grid .animate", stepMs: 80 },
@@ -26,6 +27,7 @@ const STAGGER_RULES: Array<{ selector: string; stepMs: number }> = [
   { selector: ".sc-pdm-feat-pill.animate", stepMs: 45 },
   { selector: ".sc-pdm-stats .animate", stepMs: 90 },
   { selector: ".sc-tech-grid .animate", stepMs: 55 },
+  { selector: ".sc-stats-row .sc-stat", stepMs: 70 },
 ];
 
 export function useScrollReveal(rootSelector = ".showcase-main, .nos-page"): void {

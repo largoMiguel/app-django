@@ -29,8 +29,12 @@ $sc-ease: cubic-bezier(0.23, 1, 0.32, 1);
     margin: 0;
     background: $sc-slate-50;
     color: $sc-slate-800;
-    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: "Figtree", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+
+    h1, h2, h3, .sc-hero-brand strong, .sc-section-title, .sc-cta-title, .sc-about-title {
+        font-family: "Sora", "Figtree", ui-sans-serif, system-ui, sans-serif;
+    }
 }
 
 .showcase-grid {
@@ -2305,5 +2309,454 @@ $sc-ease: cubic-bezier(0.23, 1, 0.32, 1);
 
     .login-dialog-brand::after {
         animation: none;
+    }
+}
+
+// ── Full-bleed redesign (showcase landing) ──────────────────────────────────
+@keyframes scMarquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+
+@keyframes scBeamSweep {
+    0%   { opacity: 0.15; transform: translateX(-30%) rotate(12deg); }
+    50%  { opacity: 0.45; transform: translateX(10%) rotate(12deg); }
+    100% { opacity: 0.15; transform: translateX(40%) rotate(12deg); }
+}
+
+@keyframes scScrollPulse {
+    0%, 100% { transform: translateY(0); opacity: 0.55; }
+    50%      { transform: translateY(8px); opacity: 1; }
+}
+
+@keyframes scPhotoDrift {
+    0%   { transform: scale(1.05) translate3d(0, 0, 0); }
+    100% { transform: scale(1.12) translate3d(-1.5%, -1%, 0); }
+}
+
+.sc-fullbleed {
+    overflow-x: clip;
+}
+
+.sc-hero--bleed {
+    min-height: 100dvh;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0;
+    background: $sc-slate-950;
+    color: #fff;
+}
+
+.sc-hero-stage {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.sc-hero-photo {
+    position: absolute;
+    inset: -4%;
+    background:
+        radial-gradient(ellipse 70% 55% at 75% 20%, color-mix(in srgb, $sc-primary 45%, transparent), transparent 60%),
+        radial-gradient(ellipse 55% 45% at 15% 80%, color-mix(in srgb, $sc-accent 35%, transparent), transparent 55%),
+        linear-gradient(145deg, #07111f 0%, #0d2740 42%, #0a3a48 72%, #07111f 100%);
+    animation: scPhotoDrift 22s ease-in-out infinite alternate;
+}
+
+.sc-hero-veil {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(180deg, rgba(7, 17, 31, 0.35) 0%, rgba(7, 17, 31, 0.55) 45%, rgba(7, 17, 31, 0.88) 100%),
+        linear-gradient(90deg, rgba(7, 17, 31, 0.72) 0%, rgba(7, 17, 31, 0.2) 55%, rgba(7, 17, 31, 0.55) 100%);
+}
+
+.sc-hero--bleed .sc-hero-grid {
+    opacity: 0.22;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, transparent 78%);
+}
+
+.sc-hero--bleed .sc-hero-glow--primary {
+    width: min(55vw, 560px);
+    height: min(55vw, 560px);
+    top: -12%;
+    right: -8%;
+    opacity: 0.55;
+    background: color-mix(in srgb, #2b8fc7 50%, transparent);
+}
+
+.sc-hero--bleed .sc-hero-glow--accent {
+    width: min(40vw, 420px);
+    height: min(40vw, 420px);
+    bottom: 5%;
+    left: -6%;
+    opacity: 0.4;
+    background: color-mix(in srgb, $sc-accent 45%, transparent);
+}
+
+.sc-hero-beam {
+    position: absolute;
+    top: -20%;
+    left: 20%;
+    width: 28%;
+    height: 140%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    filter: blur(18px);
+    animation: scBeamSweep 9s ease-in-out infinite;
+}
+
+.sc-hero-shell {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    padding-top: clamp(1.5rem, 4vw, 2.75rem);
+    padding-bottom: clamp(4rem, 8vw, 6rem);
+}
+
+.sc-hero-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    margin-bottom: clamp(2.5rem, 7vw, 5rem);
+}
+
+.sc-hero-brand--xl {
+    margin-left: 0;
+
+    strong {
+        color: #fff;
+        font-size: clamp(1.2rem, 2.4vw, 1.55rem);
+    }
+
+    small {
+        color: rgba(255, 255, 255, 0.68);
+    }
+}
+
+.sc-hero-toplinks {
+    display: none;
+    align-items: center;
+    gap: 1.35rem;
+
+    a {
+        color: rgba(255, 255, 255, 0.72);
+        text-decoration: none;
+        font-size: 0.88rem;
+        font-weight: 600;
+        transition: color 0.15s ease;
+
+        @media (hover: hover) and (pointer: fine) {
+            &:hover { color: #fff; }
+        }
+    }
+
+    @media (min-width: 860px) {
+        display: inline-flex;
+    }
+}
+
+.sc-hero-copy {
+    max-width: min(100%, 920px);
+}
+
+.sc-hero-title--xl {
+    max-width: none;
+    color: #fff;
+    font-size: clamp(2.35rem, 7vw, 5.1rem);
+    line-height: 1.02;
+    letter-spacing: -0.04em;
+    margin-bottom: 1.25rem;
+}
+
+.sc-hero--bleed .sc-hero-highlight {
+    color: #7ec8e8;
+}
+
+.sc-hero-lead--wide {
+    max-width: 42rem;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: clamp(1.02rem, 1.8vw, 1.25rem);
+}
+
+.sc-hero--bleed .sc-btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #fff;
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.4);
+            color: #fff;
+        }
+    }
+}
+
+.sc-hero-scroll {
+    position: absolute;
+    left: 50%;
+    bottom: 1.4rem;
+    z-index: 3;
+    width: 26px;
+    height: 42px;
+    margin-left: -13px;
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    display: grid;
+    place-items: start center;
+    padding-top: 8px;
+    text-decoration: none;
+
+    span {
+        width: 4px;
+        height: 8px;
+        border-radius: 999px;
+        background: #fff;
+        animation: scScrollPulse 1.6s $sc-ease infinite;
+    }
+}
+
+.sc-stats-band {
+    position: relative;
+    z-index: 2;
+    margin-top: -2.5rem;
+    padding: 0 0 clamp(2rem, 4vw, 3rem);
+}
+
+.sc-stats-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    padding: clamp(1rem, 2vw, 1.35rem);
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid $sc-slate-200;
+    border-radius: $sc-radius-lg;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+    backdrop-filter: blur(10px);
+
+    @media (min-width: 720px) {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0;
+    }
+}
+
+.sc-stat--band {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    text-align: center;
+    padding: 0.85rem 0.5rem;
+
+    @media (min-width: 720px) {
+        border-right: 1px solid $sc-slate-200;
+
+        &:last-child { border-right: 0; }
+    }
+
+    .sc-stat-value {
+        font-family: "Sora", "Figtree", sans-serif;
+        font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+        color: $sc-primary;
+    }
+}
+
+.sc-section--bleed {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.sc-section-head--wide {
+    max-width: none;
+    display: grid;
+    gap: 0.65rem;
+    margin-bottom: clamp(2rem, 4vw, 3.25rem);
+
+    &.text-center,
+    &:not(.text-center) {
+        text-align: left;
+    }
+
+    @media (min-width: 900px) {
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        align-items: end;
+
+        .sc-section-lead {
+            text-align: right;
+            justify-self: end;
+            max-width: 36rem;
+        }
+    }
+}
+
+.sc-feature-rail {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.sc-feature-band {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1rem;
+    align-items: center;
+    width: 100%;
+    padding: clamp(1.1rem, 2vw, 1.45rem) clamp(1rem, 2vw, 1.5rem);
+    background: #fff;
+    border: 1px solid $sc-slate-200;
+    border-left: 4px solid var(--feature-color, $sc-primary);
+    border-radius: $sc-radius;
+    overflow: hidden;
+    transition: transform 0.28s $sc-ease, box-shadow 0.28s ease, border-color 0.28s ease;
+
+    @media (hover: hover) and (pointer: fine) {
+        &:hover {
+            transform: translateX(6px);
+            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+            border-color: color-mix(in srgb, var(--feature-color, $sc-primary) 35%, $sc-slate-200);
+        }
+    }
+}
+
+.sc-feature-band-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    color: var(--feature-color, $sc-primary);
+    background: color-mix(in srgb, var(--feature-color, $sc-primary) 12%, white);
+}
+
+.sc-feature-band-copy {
+    min-width: 0;
+
+    .sc-feature-title {
+        margin: 0 0 0.25rem;
+    }
+
+    .sc-feature-text {
+        margin: 0;
+        max-width: 60rem;
+    }
+}
+
+.sc-feature-band-index {
+    font-family: "Sora", sans-serif;
+    font-size: clamp(1.4rem, 2.5vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: $sc-slate-200;
+    line-height: 1;
+}
+
+.sc-marquee {
+    width: 100%;
+    overflow: hidden;
+    margin: 0 0 clamp(1.5rem, 3vw, 2.25rem);
+    border-block: 1px solid $sc-slate-200;
+    background: linear-gradient(90deg, rgba(26, 95, 140, 0.06), rgba(15, 118, 110, 0.06));
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.sc-marquee-track {
+    display: flex;
+    width: max-content;
+    gap: 0.75rem;
+    padding: 0.85rem 0;
+    animation: scMarquee 32s linear infinite;
+}
+
+.sc-marquee-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.95rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: $sc-slate-800;
+    background: #fff;
+    border: 1px solid color-mix(in srgb, var(--module-color, $sc-primary) 28%, $sc-slate-200);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+
+    svg { color: var(--module-color, $sc-primary); }
+}
+
+.sc-modules-grid--wide {
+    @media (min-width: 1100px) {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+.sc-cards-grid--wide,
+.sc-tech-grid--wide {
+    width: 100%;
+}
+
+.sc-pdm-hero--wide {
+    max-width: none;
+    text-align: left;
+
+    @media (min-width: 900px) {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+        gap: 1.5rem 2rem;
+        align-items: end;
+
+        .sc-pdm-hero-badge { grid-column: 1; }
+        .sc-pdm-hero-title { grid-column: 1; margin-bottom: 0; }
+        .sc-pdm-hero-lead {
+            grid-column: 2;
+            grid-row: 1 / span 2;
+            align-self: end;
+            font-size: clamp(1rem, 1.5vw, 1.15rem);
+        }
+    }
+}
+
+.sc-about-banner--bleed {
+    width: 100%;
+    display: block;
+}
+
+.sc-cta--wide {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    padding: clamp(1.5rem, 3vw, 2.25rem);
+}
+
+.sc-footer--bleed .sc-footer-main {
+    width: 100%;
+}
+
+.sc-footer-wa {
+    margin-top: 0.85rem;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sc-hero-photo,
+    .sc-hero-beam,
+    .sc-marquee-track,
+    .sc-hero-scroll span {
+        animation: none;
+    }
+
+    .sc-marquee-track {
+        transform: none;
     }
 }
