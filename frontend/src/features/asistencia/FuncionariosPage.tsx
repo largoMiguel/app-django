@@ -139,7 +139,49 @@ export default function FuncionariosPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="divide-y divide-slate-100 md:hidden">
+          {loading && <div className="px-4 py-8 text-center text-slate-500">Cargando…</div>}
+          {!loading && items.length === 0 && (
+            <div className="px-4 py-8 text-center text-slate-500">No hay funcionarios registrados.</div>
+          )}
+          {items.map((f) => (
+            <div key={f.id} className="space-y-2 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-medium text-slate-800">{f.nombre_completo}</div>
+                  <div className="font-mono text-xs text-slate-500">{f.cedula}</div>
+                </div>
+                <span
+                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                    f.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {f.is_active ? "Activo" : "Inactivo"}
+                </span>
+              </div>
+              <div className="text-xs text-slate-600">{f.cargo || "Sin cargo"}</div>
+              <div className="text-xs text-slate-600">
+                {f.face_enrolled ? `Rostro enrolado (${f.face_samples}/3)` : "Sin enrolar rostro"}
+              </div>
+              <div className="flex justify-end gap-1">
+                <button onClick={() => setEnrollTarget(f)} className="rounded p-1.5 text-slate-500 hover:bg-[#e8f6fa]">
+                  <ScanFace className="h-4 w-4" />
+                </button>
+                <button onClick={() => openEdit(f)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100">
+                  <Pencil className="h-4 w-4" />
+                </button>
+                {canDelete && (
+                  <button onClick={() => remove(f.id)} className="rounded p-1.5 text-slate-500 hover:bg-red-50">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
             <tr>
@@ -230,6 +272,7 @@ export default function FuncionariosPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {enrollTarget && (

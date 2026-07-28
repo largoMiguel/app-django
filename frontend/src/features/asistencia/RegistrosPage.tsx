@@ -124,7 +124,49 @@ export default function RegistrosPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        {/* Vista móvil: tarjetas */}
+        <div className="divide-y divide-slate-100 md:hidden">
+          {loading && (
+            <div className="px-4 py-8 text-center text-slate-500">Cargando…</div>
+          )}
+          {!loading && items.length === 0 && (
+            <div className="px-4 py-8 text-center text-slate-500">Sin registros.</div>
+          )}
+          {items.map((r) => (
+            <div key={`${r.fecha}-${r.funcionario_id}`} className="space-y-2 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-medium text-slate-800">{r.funcionario_nombre}</div>
+                  <div className="text-xs text-slate-500">{r.funcionario_cedula}</div>
+                </div>
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    r.estado === "completa"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : r.estado === "solo_entrada"
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {r.estado_label}
+                </span>
+              </div>
+              <div className="text-xs text-slate-600">
+                {new Date(`${r.fecha}T12:00:00`).toLocaleDateString("es-CO")} · {r.equipo_nombre || "—"}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-slate-700">
+                <div>Entrada: <PunchCell slot={r.entrada} /></div>
+                {showFour && <div>Salida alm.: <PunchCell slot={r.salida_almuerzo} /></div>}
+                {showFour && <div>Retorno: <PunchCell slot={r.retorno_almuerzo} /></div>}
+                <div>Salida: <PunchCell slot={r.salida} /></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Vista escritorio: tabla */}
+        <div className="hidden overflow-x-auto md:block">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
@@ -200,6 +242,7 @@ export default function RegistrosPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

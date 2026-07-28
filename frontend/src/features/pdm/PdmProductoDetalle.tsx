@@ -724,11 +724,17 @@ const ActividadCard = memo(function ActividadCard({
                 )}
               </h6>
               <p className="mb-2 text-sm text-slate-500">{actividad.descripcion || "Sin descripción"}</p>
-              <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+              <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="flex items-start gap-1.5">
                   <User size={12} className="mt-0.5 shrink-0 text-slate-400" />
                   <span>
-                    <strong>Responsable:</strong> {actividad.responsable_secretaria_nombre || "Sin asignar"}
+                    <strong>Secretaría:</strong> {actividad.responsable_secretaria_nombre || "Sin asignar"}
+                  </span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <User size={12} className="mt-0.5 shrink-0 text-slate-400" />
+                  <span>
+                    <strong>Contratista:</strong> {actividad.responsable_usuario_nombre || "Sin asignar"}
                   </span>
                 </div>
                 <div className="flex items-start gap-1.5">

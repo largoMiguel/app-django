@@ -4,8 +4,7 @@ from __future__ import annotations
 import secrets
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, models, transaction
 from rest_framework import serializers, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -17,7 +16,11 @@ from apps.common.pagination import StandardPageNumberPagination
 from apps.common.roles import is_platform_superadmin, user_roles
 from apps.entities.models import Entity, Secretaria
 from apps.entities.permissions import IsUserManager
-from apps.accounts.memberships import upsert_membership
+from apps.accounts.memberships import (
+    sync_groups_from_memberships,
+    sync_user_flags_from_memberships,
+    upsert_membership,
+)
 from apps.accounts.models import UserEntityMembership
 from apps.accounts.services.clerk import (
     ClerkServiceError,
@@ -35,6 +38,7 @@ User = get_user_model()
 
 
 class UserAdminSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(validators=[])
     password = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=8)
     invite = serializers.BooleanField(
         write_only=True,
@@ -99,25 +103,76 @@ class UserAdminSerializer(serializers.ModelSerializer):
             "is_superuser",
         )
 
-    def get_supervisor_name(self, obj) -> str | None:
+    def _context_entity_id(self) -> int | None:
+        raw = self.context.get("entity_id")
+        if raw is None:
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
+    def _resolve_entity_membership(self, obj) -> UserEntityMembership | None:
         membership = getattr(obj, "_entity_membership", None)
-        if membership is None and obj.entity_id:
-            membership = UserEntityMembership.objects.filter(
-                user=obj, entity_id=obj.entity_id, is_active=True
-            ).select_related("supervisor").first()
+        if membership is not None:
+            return membership
+        entity_id = self._context_entity_id()
+        if entity_id:
+            prefetched = getattr(obj, "_entity_memberships_for_context", None)
+            if prefetched:
+                return prefetched[0] if prefetched else None
+            return (
+                UserEntityMembership.objects.filter(
+                    user=obj, entity_id=entity_id, is_active=True
+                )
+                .select_related("entity", "secretaria", "supervisor")
+                .first()
+            )
+        if obj.entity_id:
+            return (
+                UserEntityMembership.objects.filter(
+                    user=obj, entity_id=obj.entity_id, is_active=True
+                )
+                .select_related("entity", "secretaria", "supervisor")
+                .first()
+            )
+        return None
+
+    def get_supervisor_name(self, obj) -> str | None:
+        membership = self._resolve_entity_membership(obj)
         if membership and membership.supervisor_id:
             sup = membership.supervisor
             return sup.full_name or sup.email
         return None
 
     def to_representation(self, instance):
+        membership = self._resolve_entity_membership(instance)
+        if membership:
+            instance._entity_membership = membership
+            instance.entity = membership.entity
+            instance.entity_id = membership.entity_id
+            instance.role = membership.role or ""
+            instance.secretaria = membership.secretaria
+            instance.secretaria_id = membership.secretaria_id
+            instance.enabled_modules = list(membership.enabled_modules or [])
         data = super().to_representation(instance)
         if self.context.get("membership_added"):
             data["membership_added"] = True
         return data
 
     def get_roles(self, obj) -> list[str]:
+        membership = self._resolve_entity_membership(obj)
+        if membership and membership.role:
+            return [membership.role]
         return obj.role_names
+
+    def validate_email(self, value: str) -> str:
+        email = value.strip().lower()
+        if self.instance is not None:
+            conflict = User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists()
+            if conflict:
+                raise serializers.ValidationError("Ya existe un usuario con este email.")
+        return email
 
     def validate_role(self, value: str) -> str:
         if value not in {"superadmin", "admin", "secretario", "contratista", "ciudadano", ""}:
@@ -153,26 +208,6 @@ class UserAdminSerializer(serializers.ModelSerializer):
         if actor and self._actor_is_secretario_only(actor) and role != "contratista":
             raise serializers.ValidationError({"role": "Secretario solo puede gestionar contratistas."})
         return data
-
-    def _apply_groups(self, user: User, role: str) -> None:
-        managed = {"superadmin", "admin", "secretario", "contratista", "ciudadano"}
-        current = set(user.groups.values_list("name", flat=True))
-        to_remove = (current & managed) - {role}
-        if to_remove:
-            user.groups.remove(*Group.objects.filter(name__in=to_remove))
-        if role:
-            g, _ = Group.objects.get_or_create(name=role)
-            user.groups.add(g)
-
-    def _sync_role_flags(self, user: User, role: str, *, is_super: bool) -> None:
-        if is_super:
-            user.is_superuser = role == "superadmin"
-            user.is_staff = role in {"superadmin", "admin"}
-        else:
-            user.is_superuser = False
-            user.is_staff = role == "admin"
-        if role not in {"secretario", "contratista"}:
-            user.secretaria = None
 
     def _resolve_secretaria(self, validated_data, *, actor, role: str):
         nueva_sec_nombre = (validated_data.pop("nueva_secretaria_nombre", "") or "").strip()
@@ -240,12 +275,20 @@ class UserAdminSerializer(serializers.ModelSerializer):
                 supervisor=supervisor if role == "contratista" else None,
                 is_default=not UserEntityMembership.objects.filter(user=existing, is_active=True).exists(),
             )
+            if validated_data.get("full_name") and validated_data["full_name"].strip():
+                existing.full_name = validated_data["full_name"].strip()
+                existing.save(update_fields=["full_name"])
+            if "is_active" in validated_data:
+                existing.is_active = validated_data["is_active"]
+                existing.save(update_fields=["is_active"])
             self.context["membership_added"] = True
             if not existing.clerk_id:
                 clerk_user = find_user_by_email(email)
                 if clerk_user:
                     existing.clerk_id = clerk_user.id
                     existing.save(update_fields=["clerk_id"])
+            sync_groups_from_memberships(existing)
+            sync_user_flags_from_memberships(existing)
             return existing
 
         with transaction.atomic():
@@ -292,7 +335,8 @@ class UserAdminSerializer(serializers.ModelSerializer):
                     if field in validated_data:
                         setattr(user, field, validated_data[field])
                 user.save()
-                self._apply_groups(user, role)
+                sync_groups_from_memberships(user)
+                sync_user_flags_from_memberships(user)
                 if entity:
                     upsert_membership(
                         user=user,
@@ -317,14 +361,36 @@ class UserAdminSerializer(serializers.ModelSerializer):
         actor = request.user
         is_super = is_platform_superadmin(actor)
 
-        # Admin no puede editar fuera de su entidad
-        if not is_super and instance.entity_id != actor.entity_id:
-            raise PermissionDenied("No puedes editar usuarios de otra entidad.")
+        target_entity_id = self._context_entity_id()
+        if target_entity_id is None and not is_super:
+            target_entity_id = actor.entity_id
+        if target_entity_id is None:
+            target_entity_id = instance.entity_id
+
+        if not is_super:
+            has_membership = UserEntityMembership.objects.filter(
+                user=instance,
+                entity_id=target_entity_id,
+                is_active=True,
+            ).exists()
+            if not has_membership:
+                raise PermissionDenied("No puedes editar usuarios de otra entidad.")
 
         password = validated_data.pop("password", None)
         validated_data.pop("invite", None)
+        supervisor = validated_data.pop("supervisor", None)
         nueva_sec_nombre = (validated_data.pop("nueva_secretaria_nombre", "") or "").strip()
-        role = validated_data.get("role", instance.role)
+
+        membership_fields = {}
+        for field in ("role", "secretaria", "entity", "enabled_modules"):
+            if field in validated_data:
+                membership_fields[field] = validated_data.pop(field)
+
+        role = membership_fields.get("role", None)
+        if role is None:
+            existing_membership = self._resolve_entity_membership(instance)
+            role = existing_membership.role if existing_membership else instance.role
+
         new_email = validated_data.get("email")
         new_full_name = validated_data.get("full_name")
         email_changed = (
@@ -337,44 +403,60 @@ class UserAdminSerializer(serializers.ModelSerializer):
         )
 
         if not is_super:
-            # Admin no puede convertir a superadmin ni alterar flags Django directamente
             if role == "superadmin":
                 raise ValidationError({"role": "No autorizado."})
             validated_data.pop("is_superuser", None)
             validated_data.pop("is_staff", None)
-            validated_data["entity"] = actor.entity
+            membership_fields["entity"] = actor.entity
+            target_entity_id = actor.entity_id
 
-        if role == "secretario":
-            sec = validated_data.get("secretaria", instance.secretaria)
-            entity = validated_data.get("entity", instance.entity)
+        entity = membership_fields.get("entity")
+        if entity is None and target_entity_id:
+            entity = Entity.objects.filter(pk=target_entity_id).first()
+
+        secretaria = membership_fields.get("secretaria", None)
+        if role in {"secretario", "contratista"}:
             if nueva_sec_nombre:
                 if not entity:
                     raise ValidationError({"entity": "Requerida para crear secretaría."})
-                sec, _ = Secretaria.objects.get_or_create(entity=entity, nombre=nueva_sec_nombre)
-            if not sec:
-                raise ValidationError({"secretaria": "Requerida para rol secretario."})
-            if sec.entity_id != entity.id:
+                secretaria, _ = Secretaria.objects.get_or_create(entity=entity, nombre=nueva_sec_nombre)
+            elif secretaria is None:
+                existing_membership = self._resolve_entity_membership(instance)
+                secretaria = existing_membership.secretaria if existing_membership else instance.secretaria
+            if not secretaria:
+                raise ValidationError({"secretaria": f"Requerida para rol {role}."})
+            if entity and secretaria.entity_id != entity.id:
                 raise ValidationError({"secretaria": "No pertenece a la entidad."})
-            validated_data["secretaria"] = sec
         elif role not in {"secretario", "contratista"}:
-            validated_data["secretaria"] = None
+            secretaria = None
+
+        if self._actor_is_secretario_only(actor):
+            supervisor = actor
+
+        existing_membership = self._resolve_entity_membership(instance)
+        enabled_modules = membership_fields.get("enabled_modules")
+        if enabled_modules is None:
+            if existing_membership:
+                enabled_modules = list(existing_membership.enabled_modules or [])
+            else:
+                enabled_modules = list(instance.enabled_modules or [])
 
         for k, v in validated_data.items():
             setattr(instance, k, v)
-        self._sync_role_flags(instance, role or instance.role or "", is_super=is_super)
         instance.save()
 
-        if instance.entity_id:
-            membership = UserEntityMembership.objects.filter(
-                user=instance, entity_id=instance.entity_id, is_active=True
-            ).first()
-            if membership:
-                membership.role = role or membership.role
-                membership.secretaria = instance.secretaria
-                membership.enabled_modules = list(instance.enabled_modules or [])
-                membership.save(
-                    update_fields=["role", "secretaria", "enabled_modules", "updated_at"]
-                )
+        if entity:
+            upsert_membership(
+                user=instance,
+                entity=entity,
+                role=role or "",
+                secretaria=secretaria,
+                enabled_modules=enabled_modules,
+                supervisor=supervisor if role == "contratista" else None,
+            )
+
+        sync_groups_from_memberships(instance)
+        sync_user_flags_from_memberships(instance)
 
         if instance.clerk_id:
             if password:
@@ -397,7 +479,6 @@ class UserAdminSerializer(serializers.ModelSerializer):
                 except ClerkServiceError as exc:
                     raise ValidationError({"email": f"Error en Clerk: {exc}"}) from exc
 
-        self._apply_groups(instance, role or "")
         return instance
 
 
@@ -422,9 +503,32 @@ class UserViewSet(viewsets.ModelViewSet):
                 message="El módulo de administración de usuarios está deshabilitado.",
             )
 
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        actor = self.request.user
+        entity_id = self.request.query_params.get("entity") or self.request.query_params.get("entity_id")
+        if entity_id is None and not is_platform_superadmin(actor) and actor.entity_id:
+            entity_id = actor.entity_id
+        if entity_id is not None:
+            ctx["entity_id"] = entity_id
+        return ctx
+
     def get_queryset(self):
         actor = self.request.user
         qs = User.objects.select_related("entity", "secretaria").prefetch_related("groups").all()
+        entity_id = self.request.query_params.get("entity") or self.request.query_params.get("entity_id")
+        if entity_id is None and not is_platform_superadmin(actor) and actor.entity_id:
+            entity_id = actor.entity_id
+        if entity_id:
+            qs = qs.prefetch_related(
+                models.Prefetch(
+                    "memberships",
+                    queryset=UserEntityMembership.objects.filter(
+                        entity_id=entity_id, is_active=True
+                    ).select_related("entity", "secretaria", "supervisor"),
+                    to_attr="_entity_memberships_for_context",
+                )
+            )
         if is_platform_superadmin(actor):
             entity_id = self.request.query_params.get("entity") or self.request.query_params.get("entity_id")
             if entity_id:

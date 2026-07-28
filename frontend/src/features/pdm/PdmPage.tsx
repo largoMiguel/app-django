@@ -237,7 +237,7 @@ export default function PdmPage(): ReactElement {
   const { data: contratistas = [] } = useQuery({
     queryKey: ["contratistas", entityId],
     queryFn: () => usersApi.list({ role: "contratista", page_size: 100 }),
-    enabled: Boolean(entityId) && canDelegatePdm && vista === "productos",
+    enabled: Boolean(entityId) && canDelegatePdm && (vista === "productos" || mostrarModalActividad),
   });
 
   const { data: resumenEjecucion } = usePdmResumenEjecucionAnual(slug, tieneDatos && vista === "dashboard");
@@ -385,6 +385,7 @@ export default function PdmPage(): ReactElement {
           nombre: values.nombre.trim(),
           descripcion: values.descripcion.trim(),
           responsable_secretaria: values.responsable_secretaria_id,
+          responsable_usuario: values.responsable_usuario_id,
           estado: "COMPLETADA" as const,
           fecha_inicio: new Date(values.fecha_inicio).toISOString(),
           fecha_fin: new Date(values.fecha_fin).toISOString(),
@@ -1035,6 +1036,8 @@ export default function PdmPage(): ReactElement {
             anio={anioDetalle}
             producto={productoSeleccionado}
             secretarias={secretarias}
+            contratistas={contratistas}
+            canDelegate={canDelegatePdm}
             actividadEnEdicion={actividadEnEdicion}
             secretariaUsuarioId={secretariaUsuarioId}
             esSecretario={isSecretario}

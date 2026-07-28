@@ -310,6 +310,7 @@ function UserModal({
     role: string;
     payload: CreateUserPayload;
   } | null>(null);
+  const [secretarios, setSecretarios] = useState<AppUser[]>([]);
 
   const targetEntityId = superMode ? form.entity : actorEntity?.id ?? null;
 
@@ -328,6 +329,16 @@ function UserModal({
     () => modulesForEntity(entityForModules as Entity | null).filter((m: ModuleDef) => m.scope === "all"),
     [entityForModules],
   );
+
+  useEffect(() => {
+    if (form.role !== "contratista" || secretarioMode) {
+      setSecretarios([]);
+      return;
+    }
+    const params: Record<string, string | number> = { role: "secretario", page_size: 100 };
+    if (targetEntityId) params.entity = targetEntityId;
+    usersApi.list(params).then(setSecretarios).catch(() => setSecretarios([]));
+  }, [form.role, secretarioMode, targetEntityId]);
 
   function toggleModule(key: string) {
     setForm((f) => {
@@ -361,6 +372,7 @@ function UserModal({
       if (payload.role !== "secretario" && payload.role !== "contratista") {
         delete payload.secretaria;
         delete payload.nueva_secretaria_nombre;
+        delete payload.supervisor;
         payload.enabled_modules = [];
       } else if (createNewSec) {
         delete payload.secretaria;
@@ -583,6 +595,30 @@ function UserModal({
                   ))}
                 </div>
               </div>
+            )}
+
+            {form.role === "contratista" && !secretarioMode && (
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Supervisor (secretario) *</span>
+                <select
+                  required
+                  value={form.supervisor ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      supervisor: e.target.value ? Number(e.target.value) : null,
+                    }))
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+                >
+                  <option value="">— Selecciona secretario —</option>
+                  {secretarios.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.full_name || s.email}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
 
             <label className="flex items-center gap-2 text-sm">

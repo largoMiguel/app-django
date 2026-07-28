@@ -3,6 +3,7 @@ import { CheckCircle2, ClipboardCheck, Loader2 } from "lucide-react";
 import type { PdmActividad, PdmEvidenciaArchivo } from "@/core/api/pdm";
 import { useAuthenticatedImage } from "@/features/pdm/useAuthenticatedImage";
 import type { Secretaria } from "@/core/api/entities";
+import type { AppUser } from "@/core/api/users";
 import { PdmAlert, PdmCard, PdmModal } from "@/features/pdm/components/PdmUi";
 import { pdmBtnPrimary, pdmBtnSecondary, pdmInput, pdmSelect } from "@/features/pdm/pdmLayout";
 import {
@@ -16,6 +17,7 @@ export interface ActividadFormValues {
   nombre: string;
   descripcion: string;
   responsable_secretaria_id: number | null;
+  responsable_usuario_id: number | null;
   estado: PdmActividad["estado"];
   fecha_inicio: string;
   fecha_fin: string;
@@ -30,6 +32,8 @@ interface PdmActividadModalProps {
   anio: number;
   producto: ResumenProducto;
   secretarias: Secretaria[];
+  contratistas?: AppUser[];
+  canDelegate?: boolean;
   actividadEnEdicion: PdmActividad | null;
   secretariaUsuarioId?: number | null;
   esSecretario: boolean;
@@ -42,6 +46,7 @@ const EMPTY_FORM: ActividadFormValues = {
   nombre: "",
   descripcion: "",
   responsable_secretaria_id: null,
+  responsable_usuario_id: null,
   estado: "COMPLETADA",
   fecha_inicio: "",
   fecha_fin: "",
@@ -101,6 +106,8 @@ export default function PdmActividadModal({
   anio,
   producto,
   secretarias,
+  contratistas = [],
+  canDelegate = false,
   actividadEnEdicion,
   secretariaUsuarioId,
   esSecretario,
@@ -128,6 +135,7 @@ export default function PdmActividadModal({
         nombre: actividadEnEdicion.nombre,
         descripcion: actividadEnEdicion.descripcion || "",
         responsable_secretaria_id: actividadEnEdicion.responsable_secretaria || null,
+        responsable_usuario_id: actividadEnEdicion.responsable_usuario || null,
         estado: actividadEnEdicion.estado,
         fecha_inicio: (actividadEnEdicion.fecha_inicio || "").slice(0, 10),
         fecha_fin: (actividadEnEdicion.fecha_fin || "").slice(0, 10),
@@ -252,6 +260,27 @@ export default function PdmActividadModal({
                   ))}
                 </select>
               </Field>
+              {canDelegate && (
+                <Field label="Contratista responsable">
+                  <select
+                    className={pdmSelect}
+                    value={form.responsable_usuario_id || ""}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        responsable_usuario_id: e.target.value ? Number(e.target.value) : null,
+                      }))
+                    }
+                  >
+                    <option value="">Sin asignar</option>
+                    {contratistas.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name || u.email}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               <Field label="Estado *">
                 <select className={pdmSelect}
                   value={form.estado}

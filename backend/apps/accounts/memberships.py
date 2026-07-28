@@ -117,9 +117,40 @@ def sync_user_cache_from_membership(membership: UserEntityMembership) -> None:
     )
 
 
+MANAGED_ROLES = frozenset({"superadmin", "admin", "secretario", "contratista", "ciudadano"})
+
+
 def ensure_membership_group(role: str) -> None:
     if role:
         Group.objects.get_or_create(name=role)
+
+
+def sync_groups_from_memberships(user) -> None:
+    """Sincroniza grupos Django como unión de roles en todas las membresías activas."""
+    active_roles = {
+        m.role
+        for m in UserEntityMembership.objects.filter(user=user, is_active=True)
+        if m.role in MANAGED_ROLES
+    }
+    current = set(user.groups.filter(name__in=MANAGED_ROLES).values_list("name", flat=True))
+    to_remove = current - active_roles
+    if to_remove:
+        user.groups.remove(*Group.objects.filter(name__in=to_remove))
+    for role in active_roles:
+        g, _ = Group.objects.get_or_create(name=role)
+        user.groups.add(g)
+
+
+def sync_user_flags_from_memberships(user) -> None:
+    """Recalcula is_staff / is_superuser según la unión de membresías activas."""
+    roles = {
+        m.role
+        for m in UserEntityMembership.objects.filter(user=user, is_active=True)
+        if m.role
+    }
+    user.is_superuser = "superadmin" in roles
+    user.is_staff = bool(roles & {"superadmin", "admin"})
+    user.save(update_fields=["is_staff", "is_superuser"])
 
 
 @transaction.atomic
@@ -151,6 +182,8 @@ def upsert_membership(
         membership.save(update_fields=["is_default", "updated_at"])
     sync_user_cache_from_membership(membership if membership.is_default else default_membership(user) or membership)
     ensure_membership_group(role)
+    sync_groups_from_memberships(user)
+    sync_user_flags_from_memberships(user)
     return membership
 
 

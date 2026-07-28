@@ -30,6 +30,7 @@ export interface CreateUserPayload {
   nueva_secretaria_nombre?: string;
   is_active?: boolean;
   enabled_modules?: string[];
+  supervisor?: number | null;
 }
 
 export interface PaginatedResponse<T> {
