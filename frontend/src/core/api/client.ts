@@ -95,6 +95,11 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     if (err.response?.status === 401) {
+      const hadToken = Boolean(err.config?.headers?.Authorization);
+      // Sin token (p. ej. Clerk aún no listo tras login): no cerrar sesión; dejar reintentar.
+      if (!hadToken) {
+        return Promise.reject(err);
+      }
       const blockCode = parseAuthErrorCode(err);
       clearClientSession();
       await forceClerkSignOut(blockCode);

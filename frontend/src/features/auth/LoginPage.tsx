@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { SignIn, useAuth } from "@clerk/react";
 import { Moon, Sun } from "lucide-react";
+import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
 import { consumeAuthBlockMessage } from "@/core/auth/authErrors";
 import { isPlatformSuperadmin } from "@/core/auth/modules";
 import { canAccessPath, firstAccessibleRoute } from "@/core/auth/routes";
@@ -43,7 +44,15 @@ export default function LoginPage() {
     setBlockMessage(consumeAuthBlockMessage());
   }, []);
 
-  if (isLoaded && isSignedIn && user) {
+  if (!isLoaded) {
+    return <SessionLoadingScreen message="Iniciando…" />;
+  }
+
+  if (isSignedIn && !user) {
+    return <SessionLoadingScreen />;
+  }
+
+  if (isSignedIn && user) {
     const memberships = user.memberships ?? [];
     if (!isPlatformSuperadmin(user) && memberships.length > 1 && !activeEntityId) {
       return <Navigate to="/seleccionar-entidad" replace />;
@@ -84,7 +93,6 @@ export default function LoginPage() {
           <SignIn
             routing="path"
             path="/login"
-            forceRedirectUrl="/"
             appearance={loginAppearance(dark)}
           />
         </div>

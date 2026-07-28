@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { useAuth } from "@clerk/react";
 import { Building2, Loader2 } from "lucide-react";
+import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
 import { authApi } from "@/core/auth/api";
 import { isPlatformSuperadmin } from "@/core/auth/modules";
 import { firstAccessibleRoute, useAuthStore } from "@/core/auth/store";
 
 export default function EntitySelectPage() {
+  const { isLoaded, isSignedIn } = useAuth();
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const setActiveEntityId = useAuthStore((s) => s.setActiveEntityId);
@@ -13,7 +16,11 @@ export default function EntitySelectPage() {
   const navigate = useNavigate();
   const [loadingId, setLoadingId] = useState<number | null>(null);
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!isLoaded || (isSignedIn && !user)) {
+    return <SessionLoadingScreen />;
+  }
+
+  if (!isSignedIn || !user) return <Navigate to="/login" replace />;
   if (isPlatformSuperadmin(user)) return <Navigate to="/superadmin/entities" replace />;
 
   const memberships = user.memberships ?? [];

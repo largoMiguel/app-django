@@ -463,6 +463,8 @@ Clerk demo: usar `pk_test_` / `sk_test_` de la instancia development. `CLERK_JWT
 development (push → deploy demo) → merge → main (deploy prod)
 ```
 
+**Estado actual demo vs prod y checklist para el merge a producción:** [README_MAIN.md](README_MAIN.md)
+
 ### Bootstrap demo (una vez en el servidor)
 
 ```bash

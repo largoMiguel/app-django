@@ -1,10 +1,12 @@
 import { lazy, Suspense, useEffect, type ReactElement } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { useAuth } from "@clerk/react";
 import ScrollToTop from "@/core/routing/ScrollToTop";
 import { isMarketingHost, redirectToApp } from "@/core/host";
 import LoginPage from "@/features/auth/LoginPage";
 import EntitySelectPage from "@/features/auth/EntitySelectPage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
+import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
 import PQRSPage from "@/features/pqrs/PQRSPage";
 import PQRSInformesPage from "@/features/pqrs/PQRSInformesPage";
@@ -55,7 +57,13 @@ function RedirectToAppHost() {
 
 /** En app.* no hay showcase: / → login (o dashboard si ya hay sesión). */
 function AppRootEntry() {
+  const { isLoaded, isSignedIn } = useAuth();
   const user = useAuthStore((s) => s.user);
+
+  if (!isLoaded || (isSignedIn && !user)) {
+    return <SessionLoadingScreen />;
+  }
+
   if (user) return <Navigate to={firstAccessibleRoute(user)} replace />;
   return <Navigate to="/login" replace />;
 }
