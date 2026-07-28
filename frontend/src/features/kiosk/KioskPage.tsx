@@ -4,7 +4,6 @@ import {
   Camera,
   CheckCircle2,
   Loader2,
-  LogOut,
   RefreshCw,
   ScanFace,
   ShieldCheck,
@@ -13,6 +12,8 @@ import {
   getKioskToken,
   kioskApi,
   setKioskToken,
+  hydrateKioskTokenFromIdb,
+  isKioskAuthError,
   type KioskPunchResult,
   type KioskSession,
 } from "@/core/api/asistencia";
@@ -118,7 +119,18 @@ export default function KioskPage() {
   const cameraStartingRef = useRef(false);
   const livenessRef = useRef(new LivenessTracker());
   const lastScanRef = useRef(0);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const lockedRef = useRef(false); // tras éxito: no volver a escanear hasta reload
+
+  useEffect(() => {
+    void hydrateKioskTokenFromIdb().then((t) => {
+      if (t) {
+        setToken(t);
+        tokenRef.current = t;
+        setLoadingSession(true);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     tokenRef.current = token;
@@ -212,24 +224,45 @@ export default function KioskPage() {
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
-    setLoadingSession(true);
-    kioskApi
-      .session(token)
-      .then((data) => {
-        if (!cancelled) setSession(data);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setKioskToken(null);
-          setToken(null);
-          setSession(null);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingSession(false);
-      });
+    let retryTimer = 0;
+    let attempt = 0;
+
+    const loadSession = () => {
+      if (cancelled) return;
+      setLoadingSession(true);
+      setSessionError(null);
+      kioskApi
+        .session(token)
+        .then((data) => {
+          if (!cancelled) {
+            setSession(data);
+            setSessionError(null);
+            attempt = 0;
+          }
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          if (isKioskAuthError(err)) {
+            setKioskToken(null);
+            setToken(null);
+            setSession(null);
+            setSessionError(null);
+            return;
+          }
+          attempt += 1;
+          const delay = Math.min(30_000, 2000 * attempt);
+          setSessionError("Sin conexión. Reintentando…");
+          retryTimer = window.setTimeout(loadSession, delay);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingSession(false);
+        });
+    };
+
+    loadSession();
     return () => {
       cancelled = true;
+      window.clearTimeout(retryTimer);
     };
   }, [token]);
 
@@ -490,19 +523,6 @@ export default function KioskPage() {
     }
   }
 
-  function handleLogout() {
-    stopCamera();
-    setKioskToken(null);
-    tokenRef.current = null;
-    setToken(null);
-    setSession(null);
-    setFeedback(null);
-    submittingRef.current = false;
-    lockedRef.current = false;
-    setSubmitting(false);
-    setFallbackMode(false);
-  }
-
   const jornadaLabel =
     session?.asistencias_por_dia === 4
       ? "Doble jornada · 4 marcaciones"
@@ -525,7 +545,7 @@ export default function KioskPage() {
             {loadingSession ? (
               <div className="flex flex-col items-center gap-3 py-6 text-slate-500">
                 <Loader2 className="h-9 w-9 animate-spin text-brand-600" />
-                <p className="text-sm">Verificando equipo…</p>
+                <p className="text-sm">{sessionError || "Verificando equipo…"}</p>
               </div>
             ) : (
               <>
@@ -598,24 +618,15 @@ export default function KioskPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="font-mono text-lg font-semibold tabular-nums text-slate-800">
-                {clock.toLocaleTimeString("es-CO", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-              </p>
-              <p className="text-[11px] text-slate-400">{jornadaLabel}</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
-              <LogOut className="h-3.5 w-3.5" /> Desvincular
-            </button>
+          <div className="hidden text-right sm:block">
+            <p className="font-mono text-lg font-semibold tabular-nums text-slate-800">
+              {clock.toLocaleTimeString("es-CO", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </p>
+            <p className="text-[11px] text-slate-400">{jornadaLabel}</p>
           </div>
         </div>
       </header>

@@ -111,12 +111,19 @@ class KioskRegistroView(APIView):
             client_ts=data.get("client_ts"),
         )
         return Response(
-            _build_punch_response(equipo, registro, new_token),
+            _build_punch_response(request, equipo, registro, new_token),
             status=201,
         )
 
 
-def _build_punch_response(equipo, registro, new_token, *, match_distance: float | None = None):
+def _build_punch_response(
+    request,
+    equipo,
+    registro,
+    new_token,
+    *,
+    match_distance: float | None = None,
+):
     progress = punch_progress(equipo.entity, registro.funcionario, last_tipo=registro.tipo)
     tipo_label = label_for_tipo(registro.tipo)
     if progress["jornada_completa"]:
@@ -134,8 +141,9 @@ def _build_punch_response(equipo, registro, new_token, *, match_distance: float 
     }
     if match_distance is not None:
         payload["match_distance"] = round(match_distance, 4)
-    if new_token:
-        payload["device_token"] = new_token
+    token = new_token or getattr(request, "device_token_raw", None)
+    if token:
+        payload["device_token"] = token
     return payload
 
 
@@ -162,6 +170,8 @@ class KioskFacialRegistroView(APIView):
             client_ts=data.get("client_ts"),
         )
         return Response(
-            _build_punch_response(equipo, registro, new_token, match_distance=distance),
+            _build_punch_response(
+                request, equipo, registro, new_token, match_distance=distance
+            ),
             status=201,
         )

@@ -203,14 +203,14 @@ const kioskClient = axios.create({
   timeout: 30_000,
 });
 
-export function getKioskToken(): string | null {
-  return localStorage.getItem("softone.kiosk.token");
-}
+import {
+  getKioskToken,
+  setKioskToken,
+  hydrateKioskTokenFromIdb,
+  isKioskAuthError,
+} from "@/core/api/kioskTokenStorage";
 
-export function setKioskToken(token: string | null) {
-  if (token) localStorage.setItem("softone.kiosk.token", token);
-  else localStorage.removeItem("softone.kiosk.token");
-}
+export { getKioskToken, setKioskToken, hydrateKioskTokenFromIdb, isKioskAuthError };
 
 export const kioskApi = {
   pair: (pairing_code: string) =>

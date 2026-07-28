@@ -124,6 +124,12 @@ def pair_equipo(code: str) -> tuple[EquipoRegistro, str]:
     )
     if equipo is None:
         raise ValidationError({"pairing_code": "Código inválido o expirado."})
+    if equipo.device_token_hash:
+        logger.info(
+            "Re-emparejamiento equipo id=%s entity=%s (revoca token anterior)",
+            equipo.pk,
+            equipo.entity_id,
+        )
     entity = equipo.entity
     if not entity.is_active or not entity.enable_asistencia:
         raise ValidationError({"detail": "Asistencia no habilitada para esta entidad."})
@@ -434,11 +440,10 @@ def register_punch(
         cache.delete(lock_key)
         raise
 
-    new_token = generate_device_token()
-    equipo.device_token_hash = hash_token(new_token)
+    # Token estable: no rotar en cada marcación (evita desvinculación si falla localStorage).
     equipo.last_seen_at = timezone.now()
-    equipo.save(update_fields=["device_token_hash", "last_seen_at", "updated_at"])
-    return registro, new_token
+    equipo.save(update_fields=["last_seen_at", "updated_at"])
+    return registro, None
 
 
 def register_punch_facial(
