@@ -42,6 +42,17 @@ export interface AuthSecretaria {
   nombre: string;
 }
 
+export interface AuthMembership {
+  entity_id: number;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  role: string;
+  secretaria_id: number | null;
+  secretaria_nombre: string | null;
+  is_default: boolean;
+}
+
 export interface AuthUser {
   id: number;
   email: string;
@@ -55,6 +66,8 @@ export interface AuthUser {
   secretaria?: AuthSecretaria | null;
   email_firma?: string;
   enabled_modules?: string[];
+  active_entity_id?: number | null;
+  memberships?: AuthMembership[];
   capabilities?: {
     pqrs?: {
       view?: boolean;
@@ -74,7 +87,9 @@ export interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
+  activeEntityId: number | null;
   setUser: (u: AuthUser | null) => void;
+  setActiveEntityId: (id: number | null) => void;
   logout: () => void;
 }
 
@@ -82,12 +97,30 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
-      setUser: (user) => set({ user: user ? normalizeAuthUser(user) : null }),
-      logout: () => set({ user: null }),
+      activeEntityId: null,
+      setUser: (user) =>
+        set((state) => {
+          const next = user ? normalizeAuthUser(user) : null;
+          let activeEntityId = state.activeEntityId;
+          if (next) {
+            const memberships = next.memberships ?? [];
+            if (memberships.length === 1) {
+              activeEntityId = memberships[0].entity_id;
+            } else if (next.active_entity_id && !activeEntityId) {
+              activeEntityId = next.active_entity_id;
+            }
+          }
+          return { user: next, activeEntityId: next ? activeEntityId : null };
+        }),
+      setActiveEntityId: (activeEntityId) => set({ activeEntityId }),
+      logout: () => set({ user: null, activeEntityId: null }),
     }),
     {
       name: "softone.auth",
-      partialize: (state) => ({ user: state.user }),
+      partialize: (state) => ({
+        user: state.user,
+        activeEntityId: state.activeEntityId,
+      }),
     },
   ),
 );

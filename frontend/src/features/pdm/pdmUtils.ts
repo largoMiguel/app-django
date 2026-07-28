@@ -40,6 +40,8 @@ export interface ResumenProducto {
   porcentaje_ejecucion: number;
   responsable_secretaria?: number | null;
   responsable_secretaria_nombre?: string | null;
+  responsable_usuario?: number | null;
+  responsable_usuario_nombre?: string | null;
   resumen_por_anio?: Record<string, ResumenAnioBackend>;
   actividades: PdmActividad[];
 }
@@ -243,6 +245,8 @@ export function mapProductoToResumen(producto: PdmProducto): ResumenProducto {
     estado_anio: producto.estado_anio,
     responsable_secretaria: producto.responsable_secretaria,
     responsable_secretaria_nombre: producto.responsable_secretaria_nombre,
+    responsable_usuario: producto.responsable_usuario,
+    responsable_usuario_nombre: producto.responsable_usuario_nombre,
     resumen_por_anio: producto.resumen_por_anio,
     actividades: producto.actividades || [],
   };

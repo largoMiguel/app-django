@@ -27,6 +27,8 @@ export interface PdmActividad {
   descripcion?: string | null;
   responsable_secretaria?: number | null;
   responsable_secretaria_nombre?: string | null;
+  responsable_usuario?: number | null;
+  responsable_usuario_nombre?: string | null;
   fecha_inicio?: string | null;
   fecha_fin?: string | null;
   meta_ejecutar: number;
@@ -60,6 +62,8 @@ export interface PdmProducto {
   total_2027: number;
   responsable_secretaria?: number | null;
   responsable_secretaria_nombre?: string | null;
+  responsable_usuario?: number | null;
+  responsable_usuario_nombre?: string | null;
   porcentaje_ejecucion?: number;
   avance_anio?: number;
   estado_anio?: string;
@@ -371,6 +375,14 @@ export const pdmApi = {
         `/pdm/v2/${slug}/productos/${encodeURIComponent(codigoProducto)}/responsable`,
         {},
         { params: { responsable_secretaria_id: secretariaId } },
+      )
+      .then((r) => r.data),
+  asignarResponsableUsuario: (slug: string, codigoProducto: string, usuarioId: number) =>
+    api
+      .patch(
+        `/pdm/v2/${slug}/productos/${encodeURIComponent(codigoProducto)}/responsable-usuario`,
+        {},
+        { params: { responsable_usuario_id: usuarioId } },
       )
       .then((r) => r.data),
   uploadEjecucion: (file: File, anio?: number) => {

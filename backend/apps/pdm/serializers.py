@@ -71,6 +71,7 @@ class PdmActividadSerializer(serializers.ModelSerializer):
         source="responsable_secretaria.nombre",
         read_only=True,
     )
+    responsable_usuario_nombre = serializers.SerializerMethodField()
     tiene_evidencia = serializers.SerializerMethodField()
 
     class Meta:
@@ -84,6 +85,8 @@ class PdmActividadSerializer(serializers.ModelSerializer):
             "descripcion",
             "responsable_secretaria",
             "responsable_secretaria_nombre",
+            "responsable_usuario",
+            "responsable_usuario_nombre",
             "fecha_inicio",
             "fecha_fin",
             "meta_ejecutar",
@@ -93,6 +96,12 @@ class PdmActividadSerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = ("id", "entity", "created_at", "updated_at")
+
+    def get_responsable_usuario_nombre(self, obj) -> str | None:
+        if not obj.responsable_usuario_id:
+            return None
+        user = obj.responsable_usuario
+        return user.full_name or user.email
 
     def get_tiene_evidencia(self, obj):
         return hasattr(obj, "evidencia") and obj.evidencia is not None
@@ -109,6 +118,7 @@ class PdmProductoListSerializer(serializers.ModelSerializer):
     pagos_anio = serializers.FloatField(read_only=True, required=False)
     avance_financiero_anio = serializers.FloatField(read_only=True, required=False)
     porcentaje_ejecucion = serializers.FloatField(read_only=True, required=False)
+    responsable_usuario_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = PdmProducto
@@ -136,6 +146,8 @@ class PdmProductoListSerializer(serializers.ModelSerializer):
             "total_2027",
             "responsable_secretaria",
             "responsable_secretaria_nombre",
+            "responsable_usuario",
+            "responsable_usuario_nombre",
             "avance_anio",
             "estado_anio",
             "meta_anio",
@@ -145,6 +157,12 @@ class PdmProductoListSerializer(serializers.ModelSerializer):
             "avance_financiero_anio",
             "porcentaje_ejecucion",
         )
+
+    def get_responsable_usuario_nombre(self, obj) -> str | None:
+        if not obj.responsable_usuario_id:
+            return None
+        user = obj.responsable_usuario
+        return user.full_name or user.email
 
 
 class PdmProductoSerializer(serializers.ModelSerializer):
@@ -158,6 +176,7 @@ class PdmProductoSerializer(serializers.ModelSerializer):
     avance_financiero_anio = serializers.FloatField(read_only=True, required=False)
     porcentaje_ejecucion = serializers.FloatField(read_only=True, required=False)
     resumen_por_anio = serializers.JSONField(read_only=True, required=False)
+    responsable_usuario_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = PdmProducto
@@ -188,6 +207,8 @@ class PdmProductoSerializer(serializers.ModelSerializer):
             "bpin",
             "responsable_secretaria",
             "responsable_secretaria_nombre",
+            "responsable_usuario",
+            "responsable_usuario_nombre",
             "programacion_2024",
             "programacion_2025",
             "programacion_2026",
@@ -214,6 +235,12 @@ class PdmProductoSerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = ("id", "entity", "created_at", "updated_at")
+
+    def get_responsable_usuario_nombre(self, obj) -> str | None:
+        if not obj.responsable_usuario_id:
+            return None
+        user = obj.responsable_usuario
+        return user.full_name or user.email
 
 
 class PdmProductoUploadSerializer(serializers.Serializer):

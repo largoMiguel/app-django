@@ -18,6 +18,10 @@ def usuario_asignado_a_pqrs(user, pqrs: PQRS) -> bool:
     return pqrs.assigned_secretarias.filter(pk=user.secretaria_id).exists()
 
 
+def usuario_delegado_en_pqrs(user, pqrs: PQRS) -> bool:
+    return pqrs.assigned_users.filter(pk=user.id).exists()
+
+
 def user_can_access_pqrs(user, pqrs: PQRS) -> bool:
     roles = user_roles(user)
     if is_platform_superadmin(user):
@@ -28,6 +32,8 @@ def user_can_access_pqrs(user, pqrs: PQRS) -> bool:
         return True
     if "secretario" in roles:
         return usuario_asignado_a_pqrs(user, pqrs)
+    if "contratista" in roles:
+        return usuario_delegado_en_pqrs(user, pqrs)
     if "ciudadano" in roles:
         return pqrs.created_by_id == user.id
     return False
@@ -54,6 +60,9 @@ def pqrs_queryset_for_user(user, qs):
     combined: Q | None = None
     if "secretario" in roles and user.secretaria_id:
         combined = Q(assigned_secretarias=user.secretaria_id)
+    if "contratista" in roles:
+        delegate_q = Q(assigned_users=user.id)
+        combined = delegate_q if combined is None else (combined | delegate_q)
     if "ciudadano" in roles:
         citizen_q = ciudadano_pqrs_filter(user)
         combined = citizen_q if combined is None else (combined | citizen_q)
@@ -91,7 +100,6 @@ def user_can_access_media_path(user, path: str) -> bool:
         ).first()
         return pqrs is not None and user_can_access_pqrs(user, pqrs)
 
-    # Rutas legacy (pqrs/<id> y pqrs/respuestas/<id>_…)
     entity_legacy = re.match(
         r"^entities/(?P<entity_id>\d+)/pqrs/(?P<pqrs_id>\d+)/",
         path,

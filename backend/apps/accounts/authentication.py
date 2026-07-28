@@ -10,6 +10,7 @@ from clerk_backend_api.security.types import AuthenticateRequestOptions
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 
+from apps.accounts.memberships import apply_request_entity_context
 from apps.accounts.services.clerk import (
     ClerkServiceError,
     get_primary_email_for_clerk_id,
@@ -46,12 +47,20 @@ class ClerkAuthentication(BaseAuthentication):
 
         user = self._resolve_user(clerk_id)
         self._validate_user(user)
+        apply_request_entity_context(request, user)
         return (user, payload)
 
     def _resolve_user(self, clerk_id: str) -> User:
         user = (
             User.objects.select_related("entity", "secretaria")
-            .prefetch_related("groups", "groups__permissions", "user_permissions")
+            .prefetch_related(
+                "groups",
+                "groups__permissions",
+                "user_permissions",
+                "memberships",
+                "memberships__entity",
+                "memberships__secretaria",
+            )
             .filter(clerk_id=clerk_id)
             .first()
         )
@@ -72,7 +81,14 @@ class ClerkAuthentication(BaseAuthentication):
 
         user = (
             User.objects.select_related("entity", "secretaria")
-            .prefetch_related("groups", "groups__permissions", "user_permissions")
+            .prefetch_related(
+                "groups",
+                "groups__permissions",
+                "user_permissions",
+                "memberships",
+                "memberships__entity",
+                "memberships__secretaria",
+            )
             .filter(email__iexact=email)
             .first()
         )

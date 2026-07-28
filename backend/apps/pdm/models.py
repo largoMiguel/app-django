@@ -57,6 +57,14 @@ class PdmProducto(models.Model):
         db_column="responsable_secretaria_id",
     )
     responsable_secretaria_nombre = models.CharField(max_length=256, blank=True, null=True)
+    responsable_usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pdm_productos_responsable_usuario",
+        db_column="responsable_usuario_id",
+    )
 
     programacion_2024 = models.FloatField(default=0)
     programacion_2025 = models.FloatField(default=0)
@@ -152,6 +160,14 @@ class PdmActividad(models.Model):
         blank=True,
         related_name="pdm_actividades_responsable",
         db_column="responsable_secretaria_id",
+    )
+    responsable_usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pdm_actividades_responsable_usuario",
+        db_column="responsable_usuario_id",
     )
     fecha_inicio = models.DateTimeField(blank=True, null=True)
     fecha_fin = models.DateTimeField(blank=True, null=True)

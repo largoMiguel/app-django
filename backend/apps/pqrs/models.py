@@ -171,6 +171,13 @@ class PQRS(models.Model):
         db_table="pqrs_secretarias_asignadas",
         help_text="Secretarías asignadas (puede ser más de una).",
     )
+    assigned_users = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="pqrs_asignadas_usuario",
+        blank=True,
+        db_table="pqrs_usuarios_asignados",
+        help_text="Usuarios delegados (p. ej. contratistas bajo un secretario).",
+    )
 
     numero_radicado = models.CharField(max_length=64, unique=True, db_index=True)
 

@@ -52,6 +52,12 @@ export interface SecretariaAsignada {
   nombre: string;
 }
 
+export interface UsuarioAsignado {
+  id: number;
+  email: string;
+  full_name: string;
+}
+
 export interface PQRSCorreoDestinatario {
   email: string;
   estado: string;
@@ -79,6 +85,7 @@ export interface PQRS {
   assigned_to: number | null;
   assigned_to_nombre: string | null;
   assigned_secretarias?: SecretariaAsignada[];
+  assigned_users?: UsuarioAsignado[];
   numero_radicado: string;
   tipo_identificacion: string;
   medio_respuesta: string;
@@ -168,6 +175,18 @@ export interface SecretaryStats {
   vencidas: number;
 }
 
+export interface ContratistaStats {
+  user_id: number;
+  nombre: string;
+  email: string;
+  total: number;
+  respondidas: number;
+  cerradas: number;
+  en_proceso: number;
+  pendientes: number;
+  vencidas: number;
+}
+
 export interface PQRSStats {
   total: number;
   this_month: number;
@@ -183,6 +202,7 @@ export interface PQRSStats {
   by_canal: Record<string, number>;
   timeline: { month: number; recibidas: number; resueltas: number }[];
   by_secretaria: SecretaryStats[];
+  by_contratista?: ContratistaStats[];
 }
 
 export interface PQRSReportPreview {
@@ -335,6 +355,10 @@ export const pqrsApi = {
   asignar: (id: number, secretaria_ids: number[], justificacion?: string) =>
     api
       .post<PQRS>(`/pqrs/${id}/asignar/`, { secretaria_ids, justificacion })
+      .then((r) => r.data),
+  asignarUsuario: (id: number, user_ids: number[], justificacion?: string) =>
+    api
+      .post<PQRS>(`/pqrs/${id}/asignar-usuario/`, { user_ids, justificacion })
       .then((r) => r.data),
   rechazarAsignacion: (id: number, motivo: string) =>
     api.post<PQRS>(`/pqrs/${id}/rechazar-asignacion/`, { motivo }).then((r) => r.data),

@@ -33,7 +33,7 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     label: "PQRS",
     module: "enable_pqrs",
     access: {
-      roles: ["admin", "secretario", "ciudadano"],
+      roles: ["admin", "secretario", "contratista", "ciudadano"],
       permissions: [PERM.PQRS_VIEW],
     },
     showInNav: true,
@@ -44,7 +44,7 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     path: "/pdm",
     label: "PDM",
     module: "enable_pdm",
-    access: { roles: ["admin", "secretario"] },
+    access: { roles: ["admin", "secretario", "contratista"] },
     showInNav: true,
     navSection: "main",
   },
@@ -64,7 +64,7 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     paths: ["/correspondencia"],
     label: "Correspondencia",
     module: "enable_correspondencia",
-    access: { roles: ["admin", "secretario"] },
+    access: { roles: ["admin", "secretario", "contratista"] },
     showInNav: true,
     navSection: "main",
   },
@@ -73,7 +73,7 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     path: "/users",
     label: "Usuarios",
     module: "enable_users_admin",
-    access: { roles: ["admin"], permissions: [PERM.USER_VIEW] },
+    access: { roles: ["admin", "secretario"], permissions: [PERM.USER_VIEW] },
     showInNav: true,
     navSection: "secondary",
   },
@@ -115,6 +115,12 @@ function modulesInOrder(user: AuthUser): string[] {
     return orderedKeys.filter((key) => allowed.has(key));
   }
 
+  if (role === "contratista") {
+    if (userEnabled.length === 0) return [];
+    const allowed = new Set(userEnabled);
+    return orderedKeys.filter((key) => allowed.has(key));
+  }
+
   if (userEnabled.length > 0) {
     const allowed = new Set(userEnabled);
     return orderedKeys.filter((key) => allowed.has(key));
@@ -139,7 +145,11 @@ export function canAccessModuleRoute(user: AuthUser | null, moduleKey: AppModule
   if (!entity) return false;
 
   const modules = [entry.module, ...(entry.alsoRequires ?? [])];
+  const role = primaryRole(user);
   for (const mod of modules) {
+    if (entry.moduleKey === "users_admin" && role === "secretario") {
+      continue;
+    }
     if (!isModuleEnabled(entity, mod) || !isUserModuleEnabled(user, mod)) {
       return false;
     }

@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Box, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Clock, DollarSign, Loader2, Search, X } from "lucide-react";
 import type { Secretaria } from "@/core/api/entities";
+import type { AppUser } from "@/core/api/users";
 import type { PdmMetaResponse } from "@/core/api/pdm";
 import {
   ANIOS_PDM,
@@ -24,7 +25,9 @@ interface PdmProductosViewProps {
   onFiltroAnio: (anio: number) => void;
   meta: PdmMetaResponse | undefined;
   secretarias: Secretaria[];
+  contratistas: AppUser[];
   isAdmin: boolean;
+  canDelegate: boolean;
   saving: boolean;
   productos: ResumenProducto[];
   totalCount: number;
@@ -51,24 +54,31 @@ interface PdmProductosViewProps {
   onPageChange: (page: number) => void;
   onOpenDetalle: (p: ResumenProducto) => void;
   onAsignar: (p: ResumenProducto, secretariaId: number) => void;
+  onAsignarUsuario: (p: ResumenProducto, usuarioId: number) => void;
 }
 
 const ProductoRow = memo(function ProductoRow({
   producto,
   filtroAnio,
   isAdmin,
+  canDelegate,
   saving,
   secretarias,
+  contratistas,
   onOpenDetalle,
   onAsignar,
+  onAsignarUsuario,
 }: {
   producto: ResumenProducto;
   filtroAnio: number;
   isAdmin: boolean;
+  canDelegate: boolean;
   saving: boolean;
   secretarias: Secretaria[];
+  contratistas: AppUser[];
   onOpenDetalle: (p: ResumenProducto) => void;
   onAsignar: (p: ResumenProducto, secretariaId: number) => void;
+  onAsignarUsuario: (p: ResumenProducto, usuarioId: number) => void;
 }) {
   const avance = getAvanceAnio(producto, filtroAnio, filtroAnio);
   const avanceFinanciero = getAvanceFinancieroAnio(producto);
@@ -109,7 +119,7 @@ const ProductoRow = memo(function ProductoRow({
             disabled={saving}
             onChange={(e) => void onAsignar(producto, Number(e.target.value))}
           >
-            <option value="">Asignar...</option>
+            <option value="">Asignar secretaría...</option>
             {secretarias.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nombre}
@@ -118,6 +128,25 @@ const ProductoRow = memo(function ProductoRow({
           </select>
         ) : (
           <span className="text-xs text-slate-600">{producto.responsable_secretaria_nombre || "—"}</span>
+        )}
+      </td>
+      <td className="hidden px-4 py-3 xl:table-cell" onClick={(e) => e.stopPropagation()}>
+        {canDelegate ? (
+          <select
+            className={pdmSelect}
+            value={producto.responsable_usuario || ""}
+            disabled={saving}
+            onChange={(e) => void onAsignarUsuario(producto, Number(e.target.value))}
+          >
+            <option value="">Asignar contratista...</option>
+            {contratistas.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.full_name || u.email}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-xs text-slate-600">{producto.responsable_usuario_nombre || "—"}</span>
         )}
       </td>
     </tr>
@@ -129,7 +158,9 @@ export default function PdmProductosView({
   onFiltroAnio,
   meta,
   secretarias,
+  contratistas,
   isAdmin,
+  canDelegate,
   saving,
   productos,
   totalCount,
@@ -156,6 +187,7 @@ export default function PdmProductosView({
   onPageChange,
   onOpenDetalle,
   onAsignar,
+  onAsignarUsuario,
 }: PdmProductosViewProps) {
   const pctPagadoAnio =
     ejecucionAnio && ejecucionAnio.pto_definitivo > 0
@@ -332,13 +364,14 @@ export default function PdmProductosView({
                   <th className="px-4 py-3 font-semibold text-slate-600">Avance Físico</th>
                   <th className="px-4 py-3 font-semibold text-slate-600">Avance Financiero</th>
                   <th className="px-4 py-3 text-center font-semibold text-slate-600">Estado</th>
-                  <th className="hidden px-4 py-3 font-semibold text-slate-600 xl:table-cell">Responsable</th>
+                  <th className="hidden px-4 py-3 font-semibold text-slate-600 xl:table-cell">Secretaría</th>
+                  <th className="hidden px-4 py-3 font-semibold text-slate-600 xl:table-cell">Contratista</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {productos.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
+                    <td colSpan={10} className="px-4 py-10 text-center text-slate-500">
                       No hay productos con los filtros seleccionados
                     </td>
                   </tr>
@@ -349,10 +382,13 @@ export default function PdmProductosView({
                       producto={producto}
                       filtroAnio={filtroAnio}
                       isAdmin={isAdmin}
+                      canDelegate={canDelegate}
                       saving={saving}
                       secretarias={secretarias}
+                      contratistas={contratistas}
                       onOpenDetalle={onOpenDetalle}
                       onAsignar={onAsignar}
+                      onAsignarUsuario={onAsignarUsuario}
                     />
                   ))
                 )}

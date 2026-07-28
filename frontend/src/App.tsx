@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ScrollToTop from "@/core/routing/ScrollToTop";
 import { isMarketingHost, redirectToApp } from "@/core/host";
 import LoginPage from "@/features/auth/LoginPage";
+import EntitySelectPage from "@/features/auth/EntitySelectPage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
 import PQRSPage from "@/features/pqrs/PQRSPage";
@@ -105,6 +106,7 @@ export default function App(): ReactElement {
           <Route path="/kiosk" element={<KioskPage />} />
 
           <Route element={<RequireAuth />}>
+            <Route path="/seleccionar-entidad" element={<EntitySelectPage />} />
             <Route element={<AppLayout />}>
               <Route path="/app" element={<AppHomeRedirect />} />
               <Route path="/sin-acceso" element={<SinAccesoPage />} />

@@ -427,7 +427,52 @@ export default function PQRSPage() {
       </div>
 
       <div className="rounded-[0.6rem] border border-[#e9ecef] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-slate-100 md:hidden">
+          {isLoading && <div className="px-4 py-8 text-center text-slate-500">Cargando…</div>}
+          {!isLoading && !loadError && items.length === 0 && (
+            <div className="px-4 py-12 text-center text-slate-400">
+              <FileText className="mx-auto mb-2 h-10 w-10" />
+              No hay PQRS para mostrar.
+            </div>
+          )}
+          {items.map((p) => {
+            const t = tiempoRestante(p);
+            return (
+              <div key={p.id} className="space-y-2 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-mono text-sm font-semibold text-slate-800">{p.numero_radicado}</div>
+                    <div className="mt-1 text-xs text-slate-500">{p.nombre_ciudadano || "Anónimo"}</div>
+                  </div>
+                  <span className={`rounded px-2 py-0.5 text-[0.72rem] font-medium ${ESTADO_LABEL[p.estado].color}`}>
+                    {ESTADO_LABEL[p.estado].label}
+                  </span>
+                </div>
+                <p className="line-clamp-2 text-sm text-slate-700">{p.asunto}</p>
+                <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                  <span>{TIPO_SOLICITUD_LABEL[p.tipo_solicitud]}</span>
+                  <span>{p.assigned_to_nombre || "Sin asignar"}</span>
+                  <span className={t.cls}>{t.text}</span>
+                </div>
+                <div className="flex justify-end gap-1">
+                  <button
+                    onClick={() => updateParams({ id: String(p.id) }, { resetPage: false })}
+                    className="rounded p-1.5 text-slate-500 hover:bg-slate-100"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  {canDelete && (
+                    <button onClick={() => handleDelete(p)} className="rounded p-1.5 text-slate-500 hover:bg-red-50">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">

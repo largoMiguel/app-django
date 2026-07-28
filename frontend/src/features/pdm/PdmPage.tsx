@@ -16,6 +16,7 @@ import { useAuthStore } from "@/core/auth/store";
 import { bpinApi, type ProyectoBpin } from "@/core/api/bpin";
 import { pdmApi, type PdmProducto } from "@/core/api/pdm";
 import { secretariasApi } from "@/core/api/entities";
+import { usersApi } from "@/core/api/users";
 import { formatApiError } from "@/core/api/errors";
 import {
   useInvalidatePdmQueries,
@@ -83,6 +84,7 @@ export default function PdmPage(): ReactElement {
   const secretariaUsuarioId = useAuthStore((s) => s.user?.secretaria?.id);
   const isAdmin = roles.includes("admin");
   const isSecretario = roles.includes("secretario");
+  const canDelegatePdm = isAdmin || isSecretario;
   const puedeCrearEvidencia = Boolean(isAdmin || isSecretario || roles.includes("superadmin") || isSuperuser);
   const invalidatePdm = useInvalidatePdmQueries();
   const queryClient = useQueryClient();
@@ -230,6 +232,12 @@ export default function PdmPage(): ReactElement {
     queryKey: ["secretarias", entityId],
     queryFn: () => secretariasApi.list(entityId!),
     enabled: needsSecretarias,
+  });
+
+  const { data: contratistas = [] } = useQuery({
+    queryKey: ["contratistas", entityId],
+    queryFn: () => usersApi.list({ role: "contratista", page_size: 100 }),
+    enabled: Boolean(entityId) && canDelegatePdm && vista === "productos",
   });
 
   const { data: resumenEjecucion } = usePdmResumenEjecucionAnual(slug, tieneDatos && vista === "dashboard");
@@ -462,6 +470,22 @@ export default function PdmPage(): ReactElement {
         invalidatePdm.afterAsignarResponsable(slug);
       } catch (e) {
         setError(formatApiError(e, "No se pudo asignar."));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [invalidatePdm, slug],
+  );
+
+  const handleAsignarUsuario = useCallback(
+    async (p: ResumenProducto, uid: number) => {
+      if (!slug || !uid) return;
+      setSaving(true);
+      try {
+        await pdmApi.asignarResponsableUsuario(slug, p.codigo, uid);
+        invalidatePdm.afterAsignarResponsable(slug);
+      } catch (e) {
+        setError(formatApiError(e, "No se pudo asignar al contratista."));
       } finally {
         setSaving(false);
       }
@@ -794,7 +818,9 @@ export default function PdmPage(): ReactElement {
             onFiltroAnio={setFiltroAnio}
             meta={meta}
             secretarias={secretarias}
+            contratistas={contratistas}
             isAdmin={isAdmin}
+            canDelegate={canDelegatePdm}
             saving={saving}
             productos={resumenProductos}
             totalCount={totalCount}
@@ -821,6 +847,7 @@ export default function PdmPage(): ReactElement {
             onPageChange={setCurrentPage}
             onOpenDetalle={openDetalle}
             onAsignar={handleAsignar}
+            onAsignarUsuario={handleAsignarUsuario}
           />
         </VistaSuspense>
       )}

@@ -57,10 +57,31 @@ def compute_pqrs_stats(queryset, user) -> dict:
     ).count()
 
     by_secretaria = []
+    by_contratista = []
     if "admin" in roles:
         by_secretaria = list(
             queryset.filter(assigned_secretarias__isnull=False)
             .values("assigned_secretarias__id", "assigned_secretarias__nombre")
+            .annotate(
+                total=Count("id", distinct=True),
+                respondidas=Count("id", filter=Q(estado=EstadoPQRS.RESPONDIDA), distinct=True),
+                cerradas=Count("id", filter=Q(estado=EstadoPQRS.CERRADA), distinct=True),
+                en_proceso=Count("id", filter=Q(estado=EstadoPQRS.EN_PROCESO), distinct=True),
+                pendientes=Count("id", filter=~Q(estado__in=closed_states), distinct=True),
+                vencidas=Count(
+                    "id",
+                    filter=pqrs_abiertas_q()
+                    & Q(fecha_vencimiento__lt=now, fecha_vencimiento__isnull=False),
+                    distinct=True,
+                ),
+            )
+            .order_by("-total")
+        )
+
+    if "secretario" in roles and "admin" not in roles:
+        by_contratista = list(
+            queryset.filter(assigned_users__isnull=False)
+            .values("assigned_users__id", "assigned_users__email", "assigned_users__full_name")
             .annotate(
                 total=Count("id", distinct=True),
                 respondidas=Count("id", filter=Q(estado=EstadoPQRS.RESPONDIDA), distinct=True),
@@ -109,5 +130,19 @@ def compute_pqrs_stats(queryset, user) -> dict:
                 "vencidas": row["vencidas"],
             }
             for row in by_secretaria
+        ],
+        "by_contratista": [
+            {
+                "user_id": row["assigned_users__id"],
+                "nombre": row["assigned_users__full_name"] or row["assigned_users__email"] or f"#{row['assigned_users__id']}",
+                "email": row["assigned_users__email"] or "",
+                "total": row["total"],
+                "respondidas": row["respondidas"],
+                "cerradas": row["cerradas"],
+                "en_proceso": row["en_proceso"],
+                "pendientes": row["pendientes"],
+                "vencidas": row["vencidas"],
+            }
+            for row in by_contratista
         ],
     }

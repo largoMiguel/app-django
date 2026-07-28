@@ -16,12 +16,13 @@ export interface AppUser {
   date_joined?: string;
   last_login?: string | null;
   enabled_modules?: string[];
+  supervisor_name?: string | null;
 }
 
 export interface CreateUserPayload {
   email: string;
   full_name: string;
-  role: "admin" | "secretario" | "ciudadano" | "superadmin";
+  role: "admin" | "secretario" | "contratista" | "ciudadano" | "superadmin";
   password?: string;
   invite?: boolean;
   entity?: number | null;
@@ -45,6 +46,17 @@ function parsePaginated<T>(d: T[] | PaginatedResponse<T>): PaginatedResponse<T> 
   return d;
 }
 
+export interface CreateUserResponse extends AppUser {
+  membership_added?: boolean;
+}
+
+export interface EmailLookupResult {
+  exists: boolean;
+  email?: string;
+  full_name?: string;
+  memberships?: Array<{ entity_id: number; entity_name: string; role: string }>;
+}
+
 export const usersApi = {
   listPaginated: (params?: Record<string, string | number>) =>
     api
@@ -53,7 +65,11 @@ export const usersApi = {
   list: (params?: Record<string, string | number>) =>
     usersApi.listPaginated(params).then((d) => d.results),
   create: (payload: CreateUserPayload) =>
-    api.post<AppUser>("/users/", payload).then((r) => r.data),
+    api.post<CreateUserResponse>("/users/", payload).then((r) => r.data),
+  lookupEmail: (email: string) =>
+    api
+      .get<EmailLookupResult>("/users/lookup-email/", { params: { email } })
+      .then((r) => r.data),
   update: (id: number, payload: Partial<CreateUserPayload>) =>
     api.patch<AppUser>(`/users/${id}/`, payload).then((r) => r.data),
   deactivate: (id: number) => api.delete(`/users/${id}/`),

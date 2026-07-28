@@ -8,6 +8,8 @@ Aplicación full-stack lista para producción.
 - **Auth:** Clerk en español (login, invitaciones, revocación de sesión en vivo) + Django RBAC (roles, permisos, módulos por entidad)
 - **RBAC:** roles sobre `django.contrib.auth.Group` + `Permission` — listo para proteger vistas DRF, URLs y consultas
 - **Multi-tenancy:** entidades (municipios/organismos) + secretarías + módulos habilitables por entidad
+- **Multi-entidad:** un usuario puede pertenecer a varias entidades (`UserEntityMembership`); la entidad activa se envía con la cabecera `X-Entity-Id` (selector al iniciar sesión si tiene más de una)
+- **Jerarquía de delegación:** admin → secretario → contratista (supervisor en membresía, sub-asignación PQRS/PDM, módulos en cascada)
 - **Módulo PQRS:** Gestión de Peticiones, Quejas, Reclamos, Sugerencias y Denuncias (Ley 1755 de 2015)
 - **Portal ciudadano:** formulario público por entidad (`/portal/:slug`) sin autenticación
 - **IA:** OpenAI (`gpt-4o-mini` por defecto) para extracción y clasificación automática de PQRS a partir de texto o documentos adjuntos
@@ -106,10 +108,11 @@ Ciudadano crea PQRS (manual, portal público o vía IA)
 |---|---|
 | `superadmin` | Gestión de entidades (crear/editar); **no opera PQRS** |
 | `admin` | CRUD PQRS de su entidad, asignar/reasignar, cerrar, reabrir, eliminar adjuntos, usuarios |
-| `secretario` | Ver PQRS asignadas a su secretaría, responder, rechazar asignación |
+| `secretario` | Ver PQRS asignadas a su secretaría, responder, rechazar asignación, delegar a contratistas |
+| `contratista` | Ver y responder PQRS delegadas a su usuario; productos PDM asignados |
 | `ciudadano` | Crear y consultar sus PQRS (si el módulo está habilitado) |
 
-Otros roles del sistema (`contratista`, `auditor`) se crean en bootstrap pero aún no tienen flujos PQRS asignados.
+La jerarquía **secretario → contratista** permite crear contratistas supervisados, limitar módulos y delegar PQRS (`POST .../asignar-usuario/`) o productos PDM (`PATCH .../responsable-usuario`).
 
 ### Endpoints PQRS (autenticados)
 
@@ -120,7 +123,8 @@ Otros roles del sistema (`contratista`, `auditor`) se crean en bootstrap pero a�
 | `POST` | `/api/v1/pqrs/` | Crear PQRS manual (soporta multipart con `archivos`) |
 | `GET/PATCH` | `/api/v1/pqrs/{id}/` | Detalle / editar |
 | `DELETE` | `/api/v1/pqrs/{id}/` | Eliminar (admin) |
-| `POST` | `/api/v1/pqrs/{id}/asignar/` | Asignar a secretaría `{secretaria_id, justificacion}` |
+| `POST` | `/api/v1/pqrs/{id}/asignar/` | Asignar a secretaría `{secretaria_ids, justificacion}` |
+| `POST` | `/api/v1/pqrs/{id}/asignar-usuario/` | Delegar a contratistas `{user_ids, justificacion}` |
 | `POST` | `/api/v1/pqrs/{id}/rechazar-asignacion/` | Rechazar asignación `{motivo}` |
 | `POST` | `/api/v1/pqrs/{id}/responder/` | Responder PQRS (multipart: `respuesta` + `archivo_respuesta`; opcional `enviar_email`) |
 | `POST` | `/api/v1/pqrs/{id}/cerrar/` | Cerrar PQRS |
@@ -393,7 +397,12 @@ El login, logout y cambio de contraseña los gestiona **Clerk** (`<SignIn>` en e
 
 | Método | Endpoint | Descripción |
 |---|---|---|
-| `GET` | `/api/v1/auth/me` | Usuario actual (requiere token de sesión Clerk en `Authorization: Bearer`) |
+| `GET` | `/api/v1/auth/me` | Usuario actual + `memberships[]` y `active_entity_id` (cabecera opcional `X-Entity-Id`) |
+| `GET` | `/api/v1/auth/memberships/` | Entidades del usuario con rol por entidad |
+
+El frontend persiste `activeEntityId` y envía `X-Entity-Id` en cada petición API. Si hay varias membresías y ninguna elegida, redirige a `/seleccionar-entidad`.
+
+**Kiosco de asistencia:** el token del equipo ya no rota en cada marcación; se almacena de forma redundante (localStorage + cookie + IndexedDB). La desvinculación solo está disponible en el panel admin (Revocar), no en el kiosco.
 
 Webhook Clerk (público, verificado con firma Svix):
 
@@ -408,6 +417,7 @@ Desactivar o eliminar usuarios:
 | Método | Endpoint | Descripción |
 |---|---|---|
 | `DELETE` | `/api/v1/users/{id}/` | Desactiva en Django y banea en Clerk (reversible) |
+| `GET` | `/api/v1/users/lookup-email/?email=` | Comprueba si el email ya existe y en qué entidades |
 | `DELETE` | `/api/v1/users/{id}/?purge=true` | Elimina permanentemente en Django y Clerk |
 
 ### Configuración requerida en Clerk Dashboard

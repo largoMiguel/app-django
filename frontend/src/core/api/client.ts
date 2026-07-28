@@ -9,6 +9,7 @@ import {
 } from "@/core/auth/authErrors";
 import { getClerkToken } from "@/core/auth/clerkToken";
 import { clearClientSession } from "@/core/auth/session";
+import { useAuthStore } from "@/core/auth/store";
 import { isSignedDeliveryUrl } from "@/core/api/fileDelivery";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
@@ -85,6 +86,8 @@ export async function openAuthenticatedFile(url: string): Promise<void> {
 api.interceptors.request.use(async (cfg: InternalAxiosRequestConfig) => {
   const token = await getClerkToken();
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
+  const entityId = useAuthStore.getState().activeEntityId;
+  if (entityId) cfg.headers["X-Entity-Id"] = String(entityId);
   return cfg;
 });
 
