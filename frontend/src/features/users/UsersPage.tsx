@@ -20,6 +20,7 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
   const role = primaryRole(user);
   const superMode = isSuperAdmin || role === "superadmin";
   const secretarioMode = role === "secretario" && !superMode;
+  const actorEntityId = user?.entity?.id ?? null;
 
   const [items, setItems] = useState<AppUser[]>([]);
   const [secretarias, setSecretarias] = useState<Secretaria[]>([]);
@@ -55,12 +56,21 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
   }, [superMode, page, search]);
 
   async function handleDeactivate(u: AppUser) {
-    if (!confirm(`¿Desactivar al usuario ${u.email}?\n\nNo podrá iniciar sesión hasta reactivarlo.`)) return;
+    const entityId = superMode ? u.entity : actorEntityId;
+    if (
+      !confirm(
+        entityId
+          ? `¿Desvincular a ${u.email} de esta entidad?\n\nSi no pertenece a otras entidades, tampoco podrá iniciar sesión.`
+          : `¿Desactivar al usuario ${u.email}?\n\nNo podrá iniciar sesión hasta reactivarlo.`,
+      )
+    ) {
+      return;
+    }
     try {
-      await usersApi.deactivate(u.id);
+      await usersApi.deactivate(u.id, entityId ? { entity: entityId } : undefined);
       load();
     } catch (err) {
-      alert(formatApiError(err, "No se pudo desactivar."));
+      alert(formatApiError(err, "No se pudo desvincular."));
     }
   }
 

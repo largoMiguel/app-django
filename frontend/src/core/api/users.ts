@@ -73,6 +73,7 @@ export const usersApi = {
       .then((r) => r.data),
   update: (id: number, payload: Partial<CreateUserPayload>) =>
     api.patch<AppUser>(`/users/${id}/`, payload).then((r) => r.data),
-  deactivate: (id: number) => api.delete(`/users/${id}/`),
+  deactivate: (id: number, params?: { entity?: number }) =>
+    api.delete(`/users/${id}/`, { params }),
   purge: (id: number) => api.delete(`/users/${id}/`, { params: { purge: true } }),
 };

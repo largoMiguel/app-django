@@ -592,12 +592,18 @@ function UsersTab({ entity }: { entity: Entity }) {
   }, [entity.id]);
 
   async function handleDeactivate(u: AppUser) {
-    if (!confirm(`¿Desactivar al usuario ${u.email}?\n\nNo podrá iniciar sesión hasta reactivarlo.`)) return;
+    if (
+      !confirm(
+        `¿Desvincular a ${u.email} de ${entity.name}?\n\nSi no pertenece a otras entidades, tampoco podrá iniciar sesión.`,
+      )
+    ) {
+      return;
+    }
     try {
-      await usersApi.deactivate(u.id);
+      await usersApi.deactivate(u.id, { entity: entity.id });
       load();
     } catch (err) {
-      alert(formatApiError(err, "No se pudo desactivar."));
+      alert(formatApiError(err, "No se pudo desvincular."));
     }
   }
 

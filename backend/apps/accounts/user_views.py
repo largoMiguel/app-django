@@ -485,7 +485,8 @@ class UserAdminSerializer(serializers.ModelSerializer):
 class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserAdminSerializer
     permission_classes = (IsAuthenticated, IsUserManager)
-    filterset_fields = ("entity", "secretaria", "role", "is_active")
+    # entity/role/secretaria se resuelven por membresía en get_queryset(), no por FK cacheado en User
+    filterset_fields = ("is_active",)
     search_fields = ("email", "full_name")
     ordering_fields = ("date_joined", "email", "full_name")
     pagination_class = StandardPageNumberPagination
@@ -586,6 +587,23 @@ class UserViewSet(viewsets.ModelViewSet):
             }
         )
 
+    def _resolve_target_entity_id(self, request, actor) -> int | None:
+        raw = request.query_params.get("entity") or request.query_params.get("entity_id")
+        if raw:
+            try:
+                return int(raw)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"entity": "Identificador de entidad inválido."}) from exc
+        if not is_platform_superadmin(actor) and actor.entity_id:
+            return actor.entity_id
+        ctx = self.get_serializer_context().get("entity_id")
+        if ctx is not None:
+            try:
+                return int(ctx)
+            except (TypeError, ValueError):
+                return None
+        return None
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         actor = request.user
@@ -593,6 +611,28 @@ class UserViewSet(viewsets.ModelViewSet):
             raise ValidationError("No puedes eliminarte a ti mismo.")
 
         purge = request.query_params.get("purge", "").lower() in {"true", "1", "yes"}
+        entity_id = self._resolve_target_entity_id(request, actor)
+
+        if not purge and entity_id is not None:
+            membership = UserEntityMembership.objects.filter(
+                user=instance, entity_id=entity_id, is_active=True
+            ).first()
+            if membership is None:
+                raise ValidationError({"detail": "El usuario no pertenece a esta entidad."})
+            membership.is_active = False
+            membership.save(update_fields=["is_active", "updated_at"])
+            if not UserEntityMembership.objects.filter(user=instance, is_active=True).exists():
+                instance.is_active = False
+                instance.save(update_fields=["is_active"])
+                if instance.clerk_id:
+                    try:
+                        ban_user(instance.clerk_id)
+                    except ClerkServiceError:
+                        pass
+            else:
+                sync_groups_from_memberships(instance)
+                sync_user_flags_from_memberships(instance)
+            return Response(status=204)
 
         if purge:
             clerk_id = instance.clerk_id

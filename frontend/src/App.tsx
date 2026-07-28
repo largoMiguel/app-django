@@ -4,7 +4,6 @@ import { useAuth } from "@clerk/react";
 import ScrollToTop from "@/core/routing/ScrollToTop";
 import { isMarketingHost, redirectToApp } from "@/core/host";
 import LoginPage from "@/features/auth/LoginPage";
-import EntitySelectPage from "@/features/auth/EntitySelectPage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
 import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
@@ -114,7 +113,6 @@ export default function App(): ReactElement {
           <Route path="/kiosk" element={<KioskPage />} />
 
           <Route element={<RequireAuth />}>
-            <Route path="/seleccionar-entidad" element={<EntitySelectPage />} />
             <Route element={<AppLayout />}>
               <Route path="/app" element={<AppHomeRedirect />} />
               <Route path="/sin-acceso" element={<SinAccesoPage />} />

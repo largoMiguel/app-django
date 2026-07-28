@@ -106,8 +106,13 @@ export const useAuthStore = create<AuthState>()(
             const memberships = next.memberships ?? [];
             if (memberships.length === 1) {
               activeEntityId = memberships[0].entity_id;
-            } else if (next.active_entity_id && !activeEntityId) {
-              activeEntityId = next.active_entity_id;
+            } else if (memberships.length > 1) {
+              const stillValid =
+                activeEntityId != null &&
+                memberships.some((m) => m.entity_id === activeEntityId);
+              if (!stillValid) {
+                activeEntityId = null;
+              }
             }
           }
           return { user: next, activeEntityId: next ? activeEntityId : null };
