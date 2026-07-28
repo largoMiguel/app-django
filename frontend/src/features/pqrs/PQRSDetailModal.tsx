@@ -130,13 +130,12 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
     isContratista && data?.assigned_users?.some((u) => u.id === user?.id),
   );
   const canDelegateUsers =
-    canAdmin ||
-    (canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] }) &&
-      Boolean(
-        user?.secretaria?.id &&
-          (data?.assigned_secretarias?.some((s) => s.id === user.secretaria?.id) ||
-            data?.assigned_to === user.secretaria.id),
-      ));
+    canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] }) &&
+    Boolean(
+      user?.secretaria?.id &&
+        (data?.assigned_secretarias?.some((s) => s.id === user.secretaria?.id) ||
+          data?.assigned_to === user.secretaria.id),
+    );
   const usuarioAsignado =
     Boolean(
       user?.secretaria?.id &&
@@ -180,13 +179,14 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
         setSecretarias([]);
       }
       if (
-        role === "admin" ||
         role === "secretario" ||
-        canAccess(user, { roles: ["admin", "secretario"], permissions: [PERM.PQRS_CHANGE] })
+        canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] })
       ) {
         loads.push(
           usersApi.list({ role: "contratista", page_size: 100 }).then(setContratistas),
         );
+      } else {
+        setContratistas([]);
       }
       await Promise.all(loads);
     } finally {

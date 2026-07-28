@@ -84,7 +84,7 @@ export default function PdmPage(): ReactElement {
   const secretariaUsuarioId = useAuthStore((s) => s.user?.secretaria?.id);
   const isAdmin = roles.includes("admin");
   const isSecretario = roles.includes("secretario");
-  const canDelegatePdm = isAdmin || isSecretario;
+  const canDelegateContratista = isSecretario;
   const puedeCrearEvidencia = Boolean(isAdmin || isSecretario || roles.includes("superadmin") || isSuperuser);
   const invalidatePdm = useInvalidatePdmQueries();
   const queryClient = useQueryClient();
@@ -237,7 +237,7 @@ export default function PdmPage(): ReactElement {
   const { data: contratistas = [] } = useQuery({
     queryKey: ["contratistas", entityId],
     queryFn: () => usersApi.list({ role: "contratista", page_size: 100 }),
-    enabled: Boolean(entityId) && canDelegatePdm && (vista === "productos" || mostrarModalActividad),
+    enabled: Boolean(entityId) && canDelegateContratista && (vista === "productos" || mostrarModalActividad),
   });
 
   const { data: resumenEjecucion } = usePdmResumenEjecucionAnual(slug, tieneDatos && vista === "dashboard");
@@ -821,7 +821,7 @@ export default function PdmPage(): ReactElement {
             secretarias={secretarias}
             contratistas={contratistas}
             isAdmin={isAdmin}
-            canDelegate={canDelegatePdm}
+            canDelegateContratista={canDelegateContratista}
             saving={saving}
             productos={resumenProductos}
             totalCount={totalCount}
@@ -1037,7 +1037,7 @@ export default function PdmPage(): ReactElement {
             producto={productoSeleccionado}
             secretarias={secretarias}
             contratistas={contratistas}
-            canDelegate={canDelegatePdm}
+            canDelegate={canDelegateContratista}
             actividadEnEdicion={actividadEnEdicion}
             secretariaUsuarioId={secretariaUsuarioId}
             esSecretario={isSecretario}

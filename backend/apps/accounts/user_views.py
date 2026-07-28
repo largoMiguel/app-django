@@ -37,6 +37,34 @@ from apps.accounts.services.clerk import (
 User = get_user_model()
 
 
+def _supervisor_for_secretaria(entity, secretaria):
+    """Secretario activo de la secretaría, si existe."""
+    if entity is None or secretaria is None:
+        return None
+    membership = (
+        UserEntityMembership.objects.filter(
+            entity=entity,
+            secretaria=secretaria,
+            role="secretario",
+            is_active=True,
+        )
+        .select_related("user")
+        .first()
+    )
+    return membership.user if membership else None
+
+
+def _resolve_contratista_supervisor(*, actor, entity, secretaria, role: str, explicit_supervisor=None):
+    if role != "contratista":
+        return None
+    roles = user_roles(actor)
+    if "secretario" in roles and "admin" not in roles and not is_platform_superadmin(actor):
+        return actor
+    if explicit_supervisor is not None:
+        return explicit_supervisor
+    return _supervisor_for_secretaria(entity, secretaria)
+
+
 class UserAdminSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(validators=[])
     password = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=8)
@@ -259,6 +287,13 @@ class UserAdminSerializer(serializers.ModelSerializer):
 
         secretaria = self._resolve_secretaria(validated_data, actor=actor, role=role)
         entity = validated_data.get("entity")
+        supervisor = _resolve_contratista_supervisor(
+            actor=actor,
+            entity=entity,
+            secretaria=secretaria,
+            role=role,
+            explicit_supervisor=supervisor,
+        )
 
         existing = User.objects.filter(email__iexact=email).first()
         if existing:
@@ -430,8 +465,13 @@ class UserAdminSerializer(serializers.ModelSerializer):
         elif role not in {"secretario", "contratista"}:
             secretaria = None
 
-        if self._actor_is_secretario_only(actor):
-            supervisor = actor
+        supervisor = _resolve_contratista_supervisor(
+            actor=actor,
+            entity=entity,
+            secretaria=secretaria,
+            role=role or "",
+            explicit_supervisor=supervisor,
+        )
 
         existing_membership = self._resolve_entity_membership(instance)
         enabled_modules = membership_fields.get("enabled_modules")
@@ -514,12 +554,44 @@ class UserViewSet(viewsets.ModelViewSet):
             ctx["entity_id"] = entity_id
         return ctx
 
+    def _resolve_entity_id(self, actor) -> int | None:
+        raw = self.request.query_params.get("entity") or self.request.query_params.get("entity_id")
+        if raw is None and not is_platform_superadmin(actor) and actor.entity_id:
+            raw = actor.entity_id
+        if raw is None:
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
+    def _apply_membership_query_filters(self, qs, *, entity_id: int | None):
+        role_filter = (self.request.query_params.get("role") or "").strip()
+        if role_filter:
+            mem_qs = UserEntityMembership.objects.filter(is_active=True, role=role_filter)
+            if entity_id is not None:
+                mem_qs = mem_qs.filter(entity_id=entity_id)
+            qs = qs.filter(id__in=mem_qs.values_list("user_id", flat=True))
+
+        secretaria_filter = self.request.query_params.get("secretaria")
+        if secretaria_filter:
+            try:
+                secretaria_id = int(secretaria_filter)
+            except (TypeError, ValueError):
+                pass
+            else:
+                mem_qs = UserEntityMembership.objects.filter(
+                    is_active=True, secretaria_id=secretaria_id
+                )
+                if entity_id is not None:
+                    mem_qs = mem_qs.filter(entity_id=entity_id)
+                qs = qs.filter(id__in=mem_qs.values_list("user_id", flat=True))
+        return qs
+
     def get_queryset(self):
         actor = self.request.user
         qs = User.objects.select_related("entity", "secretaria").prefetch_related("groups").all()
-        entity_id = self.request.query_params.get("entity") or self.request.query_params.get("entity_id")
-        if entity_id is None and not is_platform_superadmin(actor) and actor.entity_id:
-            entity_id = actor.entity_id
+        entity_id = self._resolve_entity_id(actor)
         if entity_id:
             qs = qs.prefetch_related(
                 models.Prefetch(
@@ -531,16 +603,16 @@ class UserViewSet(viewsets.ModelViewSet):
                 )
             )
         if is_platform_superadmin(actor):
-            entity_id = self.request.query_params.get("entity") or self.request.query_params.get("entity_id")
             if entity_id:
                 user_ids = UserEntityMembership.objects.filter(
                     entity_id=entity_id, is_active=True
                 ).values_list("user_id", flat=True)
-                return qs.filter(id__in=user_ids)
-            detail_actions = {"retrieve", "update", "partial_update", "destroy"}
-            if self.action in detail_actions:
-                return qs
-            return qs
+                qs = qs.filter(id__in=user_ids)
+            else:
+                detail_actions = {"retrieve", "update", "partial_update", "destroy"}
+                if self.action not in detail_actions:
+                    return qs
+            return self._apply_membership_query_filters(qs, entity_id=entity_id)
         if not actor.entity_id:
             return qs.none()
         roles = user_roles(actor)
@@ -551,11 +623,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 role="contratista",
                 is_active=True,
             ).values_list("user_id", flat=True)
-            return qs.filter(id__in=supervised)
-        user_ids = UserEntityMembership.objects.filter(
-            entity_id=actor.entity_id, is_active=True
-        ).values_list("user_id", flat=True)
-        return qs.filter(id__in=user_ids)
+            qs = qs.filter(id__in=supervised)
+        else:
+            user_ids = UserEntityMembership.objects.filter(
+                entity_id=actor.entity_id, is_active=True
+            ).values_list("user_id", flat=True)
+            qs = qs.filter(id__in=user_ids)
+        return self._apply_membership_query_filters(qs, entity_id=entity_id or actor.entity_id)
 
     @action(detail=False, methods=["get"], url_path="lookup-email")
     def lookup_email(self, request):

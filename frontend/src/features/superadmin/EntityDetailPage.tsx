@@ -757,7 +757,7 @@ function UserModal({
           full_name: initial.full_name,
           role: (initial.role || "admin") as CreateUserPayload["role"],
           entity: entity.id,
-          secretaria: initial.secretaria,
+          secretaria: initial.secretaria ?? null,
           is_active: initial.is_active,
           enabled_modules: initial.enabled_modules || [],
         }

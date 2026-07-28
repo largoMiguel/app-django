@@ -27,7 +27,7 @@ interface PdmProductosViewProps {
   secretarias: Secretaria[];
   contratistas: AppUser[];
   isAdmin: boolean;
-  canDelegate: boolean;
+  canDelegateContratista: boolean;
   saving: boolean;
   productos: ResumenProducto[];
   totalCount: number;
@@ -61,7 +61,7 @@ const ProductoRow = memo(function ProductoRow({
   producto,
   filtroAnio,
   isAdmin,
-  canDelegate,
+  canDelegateContratista,
   saving,
   secretarias,
   contratistas,
@@ -72,7 +72,7 @@ const ProductoRow = memo(function ProductoRow({
   producto: ResumenProducto;
   filtroAnio: number;
   isAdmin: boolean;
-  canDelegate: boolean;
+  canDelegateContratista: boolean;
   saving: boolean;
   secretarias: Secretaria[];
   contratistas: AppUser[];
@@ -130,8 +130,8 @@ const ProductoRow = memo(function ProductoRow({
           <span className="text-xs text-slate-600">{producto.responsable_secretaria_nombre || "—"}</span>
         )}
       </td>
-      <td className="hidden px-4 py-3 xl:table-cell" onClick={(e) => e.stopPropagation()}>
-        {canDelegate ? (
+      {canDelegateContratista && (
+        <td className="hidden px-4 py-3 xl:table-cell" onClick={(e) => e.stopPropagation()}>
           <select
             className={pdmSelect}
             value={producto.responsable_usuario || ""}
@@ -145,10 +145,8 @@ const ProductoRow = memo(function ProductoRow({
               </option>
             ))}
           </select>
-        ) : (
-          <span className="text-xs text-slate-600">{producto.responsable_usuario_nombre || "—"}</span>
-        )}
-      </td>
+        </td>
+      )}
     </tr>
   );
 });
@@ -160,7 +158,7 @@ export default function PdmProductosView({
   secretarias,
   contratistas,
   isAdmin,
-  canDelegate,
+  canDelegateContratista,
   saving,
   productos,
   totalCount,
@@ -365,13 +363,15 @@ export default function PdmProductosView({
                   <th className="px-4 py-3 font-semibold text-slate-600">Avance Financiero</th>
                   <th className="px-4 py-3 text-center font-semibold text-slate-600">Estado</th>
                   <th className="hidden px-4 py-3 font-semibold text-slate-600 xl:table-cell">Secretaría</th>
-                  <th className="hidden px-4 py-3 font-semibold text-slate-600 xl:table-cell">Contratista</th>
+                  {canDelegateContratista && (
+                    <th className="hidden px-4 py-3 font-semibold text-slate-600 xl:table-cell">Contratista</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {productos.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-center text-slate-500">
+                    <td colSpan={canDelegateContratista ? 10 : 9} className="px-4 py-10 text-center text-slate-500">
                       No hay productos con los filtros seleccionados
                     </td>
                   </tr>
@@ -382,7 +382,7 @@ export default function PdmProductosView({
                       producto={producto}
                       filtroAnio={filtroAnio}
                       isAdmin={isAdmin}
-                      canDelegate={canDelegate}
+                      canDelegateContratista={canDelegateContratista}
                       saving={saving}
                       secretarias={secretarias}
                       contratistas={contratistas}

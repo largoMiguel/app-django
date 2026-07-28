@@ -444,6 +444,9 @@ class PdmActividadCreateView(APIView):
         payload = request.data.copy()
         payload["fecha_inicio"] = _parse_iso_dt(payload.get("fecha_inicio"))
         payload["fecha_fin"] = _parse_iso_dt(payload.get("fecha_fin"))
+        if not _is_secretario(request.user):
+            payload.pop("responsable_usuario", None)
+            payload.pop("responsable_usuario_id", None)
         ser = PdmActividadSerializer(data=payload)
         ser.is_valid(raise_exception=True)
         actividad = PdmActividad.objects.create(entity=entity, **ser.validated_data)
@@ -480,6 +483,9 @@ class PdmActividadDetailView(APIView):
             payload["fecha_inicio"] = _parse_iso_dt(payload.get("fecha_inicio"))
         if "fecha_fin" in payload:
             payload["fecha_fin"] = _parse_iso_dt(payload.get("fecha_fin"))
+        if not _is_secretario(request.user):
+            payload.pop("responsable_usuario", None)
+            payload.pop("responsable_usuario_id", None)
         ser = PdmActividadSerializer(actividad, data=payload, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
@@ -603,8 +609,8 @@ class PdmAsignarResponsableUsuarioView(APIView):
         entity = _entity_or_404(slug)
         _ensure_user_can_manage_entity(request.user, entity)
         roles = user_roles(request.user)
-        if "admin" not in roles and "secretario" not in roles:
-            raise PermissionDenied("Sin permiso para asignar responsables.")
+        if "secretario" not in roles:
+            raise PermissionDenied("Solo secretario puede asignar contratistas.")
         usuario_id = request.query_params.get("responsable_usuario_id")
         if not usuario_id:
             raise ValidationError({"responsable_usuario_id": "Parámetro requerido."})
@@ -618,11 +624,10 @@ class PdmAsignarResponsableUsuarioView(APIView):
         ).first()
         if membership is None:
             raise ValidationError({"responsable_usuario_id": "Usuario no pertenece a la entidad."})
-        if "secretario" in roles and "admin" not in roles:
-            if not request.user.secretaria_id or producto.responsable_secretaria_id != request.user.secretaria_id:
-                raise PermissionDenied("Solo puede delegar productos de su secretaría.")
-            if membership.supervisor_id != request.user.id or membership.role != "contratista":
-                raise PermissionDenied("Solo puede asignar a sus contratistas.")
+        if not request.user.secretaria_id or producto.responsable_secretaria_id != request.user.secretaria_id:
+            raise PermissionDenied("Solo puede delegar productos de su secretaría.")
+        if membership.supervisor_id != request.user.id or membership.role != "contratista":
+            raise PermissionDenied("Solo puede asignar a sus contratistas.")
         producto.responsable_usuario = target
         producto.save(update_fields=["responsable_usuario", "updated_at"])
         return Response(

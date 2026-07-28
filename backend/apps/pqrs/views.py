@@ -78,7 +78,7 @@ def _can_delegate_pqrs_users(user) -> bool:
     if is_platform_superadmin(user):
         return False
     roles = _roles(user)
-    return "admin" in roles or "secretario" in roles
+    return "secretario" in roles
 
 
 def _supervised_user_ids(user) -> set[int]:
@@ -185,7 +185,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
             "partial_update": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "destroy": [IsAuthenticated, HasPermOrRole(perms=("pqrs.delete_pqrs",), roles=("admin",))],
             "asignar": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
-            "asignar_usuario": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
+            "asignar_usuario": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("secretario",))],
             "rechazar_asignacion": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("secretario",))],
             "responder": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario", "contratista"))],
             "reenviar_correo": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
@@ -410,23 +410,20 @@ class PQRSViewSet(viewsets.ModelViewSet):
         if not _can_delegate_pqrs_users(user):
             raise PermissionDenied("Sin permiso para delegar usuarios en PQRS.")
 
-        roles = _roles(user)
-        if "secretario" in roles and "admin" not in roles:
-            if not usuario_asignado_a_pqrs(user, pqrs):
-                raise PermissionDenied("No tienes esta PQRS asignada a tu secretaría.")
+        if not usuario_asignado_a_pqrs(user, pqrs):
+            raise PermissionDenied("No tienes esta PQRS asignada a tu secretaría.")
 
         ser = AsignarUsuarioSerializer(data=request.data, context={"entity_id": pqrs.entity_id})
         ser.is_valid(raise_exception=True)
         user_ids = ser.validated_data["user_ids"]
         target_users = list(User.objects.filter(pk__in=user_ids, entity_id=pqrs.entity_id))
 
-        if "secretario" in roles and "admin" not in roles:
-            allowed = _supervised_user_ids(user)
-            invalid = [u.id for u in target_users if u.id not in allowed]
-            if invalid:
-                raise ValidationError(
-                    {"user_ids": "Solo puede asignar a contratistas bajo su supervisión."}
-                )
+        allowed = _supervised_user_ids(user)
+        invalid = [u.id for u in target_users if u.id not in allowed]
+        if invalid:
+            raise ValidationError(
+                {"user_ids": "Solo puede asignar a contratistas bajo su supervisión."}
+            )
 
         with transaction.atomic():
             pqrs.assigned_users.set(target_users)
