@@ -50,6 +50,12 @@ def apply_membership_context(user, membership: UserEntityMembership | None) -> N
         user._active_membership = None
         user._active_role = None
         user._active_entity_id = None
+        user.entity = None
+        user.entity_id = None
+        user.role = ""
+        user.secretaria = None
+        user.secretaria_id = None
+        user.enabled_modules = []
         return
 
     user._active_membership = membership
@@ -84,6 +90,11 @@ def apply_request_entity_context(request, user) -> None:
                 code="entity_not_allowed",
             )
         apply_membership_context(user, membership)
+        return
+
+    active_memberships = list_memberships(user)
+    if len(active_memberships) > 1:
+        apply_membership_context(user, None)
         return
 
     membership = default_membership(user)

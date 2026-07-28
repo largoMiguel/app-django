@@ -30,7 +30,7 @@ import CorrespondenciaListPage from "@/features/correspondencia/CorrespondenciaL
 import CorrespondenciaDetailPage from "@/features/correspondencia/CorrespondenciaDetailPage";
 import CorrespondenciaInformesPage from "@/features/correspondencia/CorrespondenciaInformesPage";
 import { PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
-import { firstAccessibleRoute, useAuthStore } from "@/core/auth/store";
+import { firstAccessibleRoute, needsEntitySelection, useAuthStore } from "@/core/auth/store";
 
 const HomePage = lazy(() => import("@/features/showcase/HomePage"));
 const NosotrosPage = lazy(() => import("@/features/nosotros/NosotrosPage"));
@@ -42,6 +42,10 @@ const suspenseFallback = (
 
 function AppHomeRedirect() {
   const user = useAuthStore((s) => s.user);
+  const activeEntityId = useAuthStore((s) => s.activeEntityId);
+  if (needsEntitySelection(user, activeEntityId)) {
+    return <SessionLoadingScreen message="Seleccione una entidad…" />;
+  }
   return <Navigate to={firstAccessibleRoute(user)} replace />;
 }
 
@@ -58,12 +62,18 @@ function RedirectToAppHost() {
 function AppRootEntry() {
   const { isLoaded, isSignedIn } = useAuth();
   const user = useAuthStore((s) => s.user);
+  const activeEntityId = useAuthStore((s) => s.activeEntityId);
 
   if (!isLoaded || (isSignedIn && !user)) {
     return <SessionLoadingScreen />;
   }
 
-  if (user) return <Navigate to={firstAccessibleRoute(user)} replace />;
+  if (user) {
+    if (needsEntitySelection(user, activeEntityId)) {
+      return <Navigate to="/app" replace />;
+    }
+    return <Navigate to={firstAccessibleRoute(user)} replace />;
+  }
   return <Navigate to="/login" replace />;
 }
 

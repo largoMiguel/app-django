@@ -1,10 +1,32 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { normalizeAuthUser } from "./permissions";
+import { isPlatformSuperadmin } from "./modules";
 
 export { firstAccessibleRoute, canAccessPath, accessibleNavRoutes } from "./routes";
 
 export { primaryRole } from "./modules";
+
+export function needsEntitySelection(
+  user: AuthUser | null,
+  activeEntityId: number | null | undefined,
+): boolean {
+  if (!user || isPlatformSuperadmin(user)) return false;
+  const memberships = user.memberships ?? [];
+  return memberships.length > 1 && !activeEntityId;
+}
+
+export function stripEntityContext(user: AuthUser): AuthUser {
+  return {
+    ...user,
+    entity: null,
+    secretaria: null,
+    role: "",
+    roles: [],
+    enabled_modules: [],
+    active_entity_id: null,
+  };
+}
 
 export type { PermissionCode } from "./permissions";
 export {
@@ -102,6 +124,7 @@ export const useAuthStore = create<AuthState>()(
         set((state) => {
           const next = user ? normalizeAuthUser(user) : null;
           let activeEntityId = state.activeEntityId;
+          let profile = next;
           if (next) {
             const memberships = next.memberships ?? [];
             if (memberships.length === 1) {
@@ -113,9 +136,12 @@ export const useAuthStore = create<AuthState>()(
               if (!stillValid) {
                 activeEntityId = null;
               }
+              if (!activeEntityId) {
+                profile = stripEntityContext(next);
+              }
             }
           }
-          return { user: next, activeEntityId: next ? activeEntityId : null };
+          return { user: profile, activeEntityId: next ? activeEntityId : null };
         }),
       setActiveEntityId: (activeEntityId) => set({ activeEntityId }),
       logout: () => set({ user: null, activeEntityId: null }),
@@ -123,7 +149,6 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "softone.auth",
       partialize: (state) => ({
-        user: state.user,
         activeEntityId: state.activeEntityId,
       }),
     },

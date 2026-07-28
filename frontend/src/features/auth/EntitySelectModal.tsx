@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Building2, Loader2 } from "lucide-react";
 import { authApi } from "@/core/auth/api";
-import { isPlatformSuperadmin } from "@/core/auth/modules";
-import { useAuthStore } from "@/core/auth/store";
+import { needsEntitySelection, useAuthStore } from "@/core/auth/store";
+import { queryClient } from "@/core/queryClient";
 
 /**
  * Modal bloqueante al iniciar sesión cuando hay varias membresías.
@@ -15,14 +15,12 @@ export default function EntitySelectModal() {
   const setActiveEntityId = useAuthStore((s) => s.setActiveEntityId);
   const [loadingId, setLoadingId] = useState<number | null>(null);
 
-  if (!user || isPlatformSuperadmin(user)) return null;
-
-  const memberships = user.memberships ?? [];
-  if (memberships.length <= 1 || activeEntityId) return null;
+  if (!user || !needsEntitySelection(user, activeEntityId)) return null;
 
   async function choose(entityId: number) {
     setLoadingId(entityId);
     setActiveEntityId(entityId);
+    queryClient.clear();
     try {
       const profile = await authApi.me();
       setUser(profile);
@@ -55,7 +53,7 @@ export default function EntitySelectModal() {
         </div>
 
         <div className="space-y-2">
-          {memberships.map((m) => (
+          {(user.memberships ?? []).map((m) => (
             <button
               key={m.entity_id}
               type="button"
