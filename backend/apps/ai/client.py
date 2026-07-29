@@ -29,6 +29,8 @@ def get_model_for_feature(feature: str) -> str:
     """Selecciona modelo según feature."""
     if feature in ("pdm_copilot", "pdm_chat_public", "global_copilot"):
         return settings.PDM_CHAT_MODEL or settings.OPENAI_MODEL
+    if feature in ("secop_analisis", "secop_copilot", "secop_contrato"):
+        return settings.SECOP_OPENAI_MODEL or settings.OPENAI_MODEL
     return settings.OPENAI_MODEL
 
 
@@ -36,6 +38,8 @@ def get_api_key_for_feature(feature: str) -> str:
     """Selecciona API key según feature."""
     if feature in ("pdm_copilot", "pdm_chat_public", "global_copilot"):
         return settings.PDM_CHAT_OPENAI_API_KEY or settings.OPENAI_API_KEY
+    if feature in ("secop_analisis", "secop_copilot", "secop_contrato"):
+        return settings.SECOP_OPENAI_API_KEY or settings.OPENAI_API_KEY
     return settings.OPENAI_API_KEY
 
 

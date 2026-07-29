@@ -15,7 +15,7 @@ export const MODULES: ModuleDef[] = [
   { key: "reports_pdf", label: "Reportes PDF", flag: "enable_reports_pdf", scope: "all" },
   { key: "ai_reports", label: "Reportes con IA", flag: "enable_ai_reports", scope: "all" },
   { key: "planes_institucionales", label: "Planes institucionales", flag: "enable_planes_institucionales", scope: "all" },
-  { key: "contratacion", label: "Contratación", flag: "enable_contratacion", scope: "all" },
+  { key: "contratacion", label: "Contratación (SECOP)", flag: "enable_contratacion", scope: "all" },
   { key: "pdm", label: "Plan de Desarrollo Municipal", flag: "enable_pdm", scope: "all" },
   { key: "pdm_chat", label: "Chat IA del PDM (público)", flag: "enable_pdm_chat", scope: "admin_only" },
   { key: "asistencia", label: "Asistencia", flag: "enable_asistencia", scope: "all" },

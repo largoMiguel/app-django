@@ -217,6 +217,66 @@ Query param `anio` (opcional): año de seguimiento; por defecto el año actual. 
 
 ---
 
+## Módulo Contratación (SECOP I y SECOP II)
+
+Análisis de contratación pública de la entidad a partir de **datos abiertos** ([datos.gov.co](https://www.datos.gov.co)). Consulta **en vivo por vigencia (año)** con caché Redis; no replica contratos en PostgreSQL.
+
+### Activación
+
+1. **Superadmin → Entidad → Módulos:** activar **Contratación (SECOP)** (`enable_contratacion`).
+2. Configurar **NIT SECOP I** y/o **NIT SECOP II** (opcional; varios NIT separados por coma). Si están vacíos, se usa el NIT general de la entidad.
+3. En demo/prod, agregar `SECOP_OPENAI_API_KEY` en `.env` del servidor (API key dedicada; **no** commitear al repo).
+
+### Fuentes de datos
+
+| Dataset | ID datos.gov.co | Contenido |
+|---|---|---|
+| SECOP II contratos | `jbjy-vk9h` | Procesos **con** contrato firmado |
+| SECOP II procesos | `p6dx-8zbt` | Procesos **sin** contrato |
+| SECOP I | `f789-7hwg` | Contratos históricos SECOP I |
+
+SECOP II unifica contratos + procesos sin duplicar: enlace por `proceso_de_compra` ↔ `id_del_portafolio` (respaldo: `noticeUID` en URL). Duplicados SECOP I se eliminan por `uid`.
+
+### Frontend
+
+Ruta: `/contratacion` — pestañas **Resumen**, **SECOP II**, **SECOP I**, **Alertas**, **Análisis IA**. Selector de vigencia (año) global.
+
+### Endpoints (`/api/v1/secop/`)
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/config/` | NITs, años disponibles, tendencias |
+| `GET` | `/resumen/?anio=` | KPIs consolidados + comparativo año anterior |
+| `GET` | `/secop2/?anio=&page=&search=&…` | Lista unificada SECOP II (contratos + procesos sin contrato) |
+| `GET` | `/secop2/analitica/?anio=` | Gráficos y distribuciones SECOP II |
+| `GET` | `/secop1/?anio=&…` | Contratos SECOP I |
+| `GET` | `/secop1/analitica/?anio=` | Analítica SECOP I |
+| `GET` | `/alertas/?anio=` | Alertas de riesgo (vencimientos, financieras, transparencia) |
+| `GET` | `/detalle/?fuente=&id=&anio=` | Ficha de contrato/proceso |
+| `GET` | `/export/?anio=&fuente=` | Excel (unificado, secop1, secop2, alertas) |
+| `POST` | `/refrescar/` | Invalida caché Redis de la entidad |
+| `POST` | `/ai/analisis/` | Análisis narrativo IA de la vigencia |
+| `POST` | `/ai/copilot/` | Chat copiloto de contratación |
+| `POST` | `/ai/contrato/` | Resumen IA de un contrato |
+
+Roles: `admin`, `secretario`. Throttle: `secop_datos_gov` 120/h, `secop_ai` 30/h.
+
+### Alertas automáticas (reglas)
+
+Vencidos en ejecución, por vencer (7/15/30 días), sin liquidar (+4 meses), saldo pendiente, sobrepago, adiciones >50 % (SECOP I), concentración de proveedores, contratación directa elevada, procesos desiertos, firmas en diciembre, posible fraccionamiento, etc.
+
+### Variables de entorno
+
+```
+SECOP_OPENAI_API_KEY=sk-...       # obligatoria para IA SECOP
+SECOP_OPENAI_MODEL=gpt-4o-mini    # opcional
+SECOP_CACHE_TTL=21600             # 6h caché consultas datos.gov.co
+```
+
+**Demo:** agregar `SECOP_OPENAI_API_KEY` en `/opt/softone-demo/.env` y redeploy (`development`).
+
+---
+
 ## Módulo Chat IA del PDM (público)
 
 Chat ciudadano **sin autenticación** para consultar el Plan de Desarrollo Municipal de cada entidad en **tiempo real** (datos leídos directamente de PostgreSQL vía herramientas OpenAI). Un chat por entidad; solo responde sobre el PDM de esa entidad.

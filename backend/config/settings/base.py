@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "apps.asistencia",
     "apps.correspondencia",
     "apps.ai",
+    "apps.secop",
 ]
 
 MIDDLEWARE = [
@@ -199,6 +200,8 @@ REST_FRAMEWORK = {
         "pdm_chat_public": "60/hour",
         "asistencia_kiosk_pair": "20/hour",
         "asistencia_kiosk_punch": "30/min",
+        "secop_datos_gov": "120/hour",
+        "secop_ai": "30/hour",
     },
 }
 
@@ -271,6 +274,10 @@ PDM_CHAT_MODEL = os.getenv("PDM_CHAT_MODEL", "") or OPENAI_MODEL
 # Informes PQRS PDF — API key dedicada (narrativa IA del reporte institucional)
 PQRS_REPORTS_OPENAI_API_KEY = os.getenv("PQRS_REPORTS_OPENAI_API_KEY", "")
 PQRS_REPORTS_OPENAI_MODEL = os.getenv("PQRS_REPORTS_OPENAI_MODEL", "") or OPENAI_MODEL
+# Módulo SECOP — análisis de contratación pública
+SECOP_OPENAI_API_KEY = os.getenv("SECOP_OPENAI_API_KEY", "")
+SECOP_OPENAI_MODEL = os.getenv("SECOP_OPENAI_MODEL", "") or OPENAI_MODEL
+SECOP_CACHE_TTL = int(os.getenv("SECOP_CACHE_TTL", "21600"))
 
 # Celery (broker Redis)
 CELERY_BROKER_URL = _redis_url or "redis://localhost:6379/1"

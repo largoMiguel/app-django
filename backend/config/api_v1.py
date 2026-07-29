@@ -15,5 +15,6 @@ urlpatterns = [
     path("", include("apps.asistencia.urls")),
     path("", include("apps.correspondencia.urls")),
     path("", include("apps.ai.urls")),
+    path("", include("apps.secop.urls")),
     path("users/", include("apps.accounts.user_urls")),
 ]

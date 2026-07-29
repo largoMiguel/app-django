@@ -5,6 +5,8 @@ export interface Entity {
   name: string;
   code: string;
   nit: string | null;
+  nit_secop_i: string | null;
+  nit_secop_ii: string | null;
   slug: string;
   description: string | null;
   address: string | null;

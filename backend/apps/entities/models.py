@@ -11,6 +11,18 @@ class Entity(models.Model):
     name = models.CharField(max_length=200, unique=True)
     code = models.CharField(max_length=50, unique=True)
     nit = models.CharField(max_length=50, blank=True, null=True, db_index=True)
+    nit_secop_i = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text="NIT(s) para SECOP I en datos.gov.co; varios separados por coma.",
+    )
+    nit_secop_ii = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text="NIT(s) para SECOP II en datos.gov.co; varios separados por coma.",
+    )
     slug = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, null=True)
     address = models.CharField(max_length=300, blank=True, null=True)

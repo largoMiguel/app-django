@@ -29,6 +29,11 @@ import CorrespondenciaDashboard from "@/features/correspondencia/Correspondencia
 import CorrespondenciaListPage from "@/features/correspondencia/CorrespondenciaListPage";
 import CorrespondenciaDetailPage from "@/features/correspondencia/CorrespondenciaDetailPage";
 import CorrespondenciaInformesPage from "@/features/correspondencia/CorrespondenciaInformesPage";
+import SecopLayout from "@/features/secop/SecopLayout";
+import SecopResumen from "@/features/secop/SecopResumen";
+import SecopListPage from "@/features/secop/SecopListPage";
+import SecopAlertasPage from "@/features/secop/SecopAlertasPage";
+import SecopAnalisisIAPage from "@/features/secop/SecopAnalisisIAPage";
 import { PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
 import { firstAccessibleRoute, needsEntitySelection, useAuthStore } from "@/core/auth/store";
 
@@ -164,6 +169,16 @@ export default function App(): ReactElement {
                   <Route path="todas" element={<CorrespondenciaListPage />} />
                   <Route path="informes" element={<CorrespondenciaInformesPage />} />
                   <Route path=":id" element={<CorrespondenciaDetailPage />} />
+                </Route>
+              </Route>
+
+              <Route element={<ModuleRouteGuard moduleKey="contratacion" />}>
+                <Route path="/contratacion" element={<SecopLayout />}>
+                  <Route index element={<SecopResumen />} />
+                  <Route path="secop2" element={<SecopListPage fuente="secop2" />} />
+                  <Route path="secop1" element={<SecopListPage fuente="secop1" />} />
+                  <Route path="alertas" element={<SecopAlertasPage />} />
+                  <Route path="ia" element={<SecopAnalisisIAPage />} />
                 </Route>
               </Route>
 

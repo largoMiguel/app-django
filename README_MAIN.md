@@ -2,11 +2,11 @@
 
 Documento de referencia para **cuándo aplicar migraciones** y **qué hacer el día que se decida subir a producción** todo lo que hoy solo está en demo.
 
-> **Estado al 28 jul 2026 (noche)**
+> **Estado al 28 jul 2026 (noche, actualizado)**
 >
 > | Rama | Commit destacado | URL | Qué incluye |
 > |------|------------------|-----|-------------|
-> | `development` | `becee59`+ | https://demo.softone360.com | Multi-entidad, contratistas por secretaría, delegación PDM/PQRS, selector entidad, usuarios secretario |
+> | `development` | (SECOP) | https://demo.softone360.com | Multi-entidad + **módulo Contratación SECOP I/II** (análisis, alertas, IA) |
 > | `main` | `d25474c` | https://app.softone360.com | **Solo** fix asistencia (token kiosk estable, sin desvincular en kiosco) |
 
 Prod y demo **no están alineados en funcionalidad**. Eso es intencional hasta validar en demo.
@@ -47,6 +47,7 @@ $COMPOSE exec demo-backend python manage.py showmigrations accounts pqrs pdm ent
 #   pqrs      0016_multi_entity_delegation
 #   pdm       0006_multi_entity_delegation
 #   entities  0005_multi_entity_delegation   (cambio menor de campo id)
+#   entities  0006_entity_secop_nits         (NIT SECOP I/II — aditiva, sin riesgo)
 ```
 
 Si alguna sale `[ ]` (pendiente), forzar una vez:
@@ -76,12 +77,15 @@ Prod **no necesita** esas migraciones todavía: el código en `main` no las usa.
 | `pqrs` | `0016_multi_entity_delegation` | M2M `assigned_users` en PQRS |
 | `pdm` | `0006_multi_entity_delegation` | FK `responsable_usuario` en producto y actividad |
 | `entities` | `0005_multi_entity_delegation` | Ajuste de campo (sin datos nuevos relevantes) |
+| `entities` | `0006_entity_secop_nits` | Campos opcionales `nit_secop_i`, `nit_secop_ii` para consulta SECOP |
 
 La `0010` es **idempotente en espíritu**: solo inserta membresías donde no existen. Los usuarios actuales siguen con `User.entity` como caché de la membresía por defecto.
 
 **Sin migración nueva** en los fixes de jul 2026 posteriores (delegación por secretaría, listado contratistas, modal entidad): solo cambios de API/UI/permisos sobre tablas ya existentes.
 
 **No hay migración** en el fix de asistencia ya desplegado en prod.
+
+La migración `entities/0006_entity_secop_nits` solo agrega dos campos nullable; es segura en prod cuando se mergee el módulo SECOP.
 
 ---
 
@@ -100,6 +104,7 @@ Hacer en https://demo.softone360.com con usuarios reales de prueba:
 - [ ] Listado API `GET /users/?role=contratista` filtra por membresía en entidad activa
 - [ ] Kiosco asistencia: emparejar, marcar, **no** desvincular desde el kiosco; token persiste tras recarga
 - [ ] Responsive básico en móvil (menú, PQRS/usuarios en tarjetas)
+- [ ] **SECOP:** activar `enable_contratacion`, configurar NIT SECOP I/II, dashboard `/contratacion`, alertas, export Excel, análisis IA (requiere `SECOP_OPENAI_API_KEY` en demo)
 
 Si algo falla, corregir en `development` y volver a push (demo se redeploya solo).
 
@@ -199,6 +204,8 @@ Así demo y prod comparten la misma punta de historia.
 | `.env` servidor | `/opt/softone-demo/.env` | `/opt/softone-app/.env` |
 
 Al merge a prod **no cambies** las claves de Clerk de producción. Los usuarios de prod siguen en la instancia live; el backfill de membresías solo toca PostgreSQL local.
+
+**SECOP en prod:** cuando se mergee, agregar `SECOP_OPENAI_API_KEY` en `/opt/softone-app/.env` (clave dedicada; rotar si estuvo expuesta).
 
 ---
 
