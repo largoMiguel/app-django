@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { Download, Search, DollarSign, FileText, Layers } from "lucide-react";
 import { formatCOP, secopApi, type PaginatedSecop, type SecopRecord } from "@/core/api/secop";
+import { formatApiError } from "@/core/api/errors";
 import { useSecopYear } from "./SecopYearContext";
 import { ChartCard, StatCard } from "./components";
 import SecopDetalleModal from "./SecopDetalleModal";
@@ -23,37 +24,40 @@ interface Props {
 }
 
 export default function SecopListPage({ fuente }: Props) {
-  const { anio } = useSecopYear();
+  const { anio, loadingConfig } = useSecopYear();
   const [list, setList] = useState<PaginatedSecop | null>(null);
-  const [analytics, setAnalytics] = useState<Awaited<ReturnType<typeof secopApi.analiticaSecop2>> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [tipoRegistro, setTipoRegistro] = useState("all");
   const [selected, setSelected] = useState<SecopRecord | null>(null);
 
   const load = useCallback(async () => {
+    if (loadingConfig) return;
     setLoading(true);
+    setError("");
     try {
       const params: Record<string, string | number> = { anio, page, page_size: 15 };
       if (search.trim()) params.search = search.trim();
       if (tipoRegistro !== "all") params.tipo_registro = tipoRegistro;
-      const [listRes, analRes] = await Promise.all([
-        fuente === "secop2" ? secopApi.listSecop2(params) : secopApi.listSecop1(params),
-        fuente === "secop2" ? secopApi.analiticaSecop2(anio) : secopApi.analiticaSecop1(anio),
-      ]);
+      const listRes =
+        fuente === "secop2" ? await secopApi.listSecop2(params) : await secopApi.listSecop1(params);
       setList(listRes);
-      setAnalytics(analRes);
+    } catch (err) {
+      setList(null);
+      setError(formatApiError(err) || "No se pudo cargar los contratos. Intente de nuevo o use «Actualizar datos».");
     } finally {
       setLoading(false);
     }
-  }, [anio, page, search, tipoRegistro, fuente]);
+  }, [anio, page, search, tipoRegistro, fuente, loadingConfig]);
 
   useEffect(() => {
     const t = setTimeout(load, search ? 400 : 0);
     return () => clearTimeout(t);
   }, [load, search]);
 
+  const analytics = list?.analitica;
   const kpis = list?.kpis || analytics?.kpis;
   const totalPages = list ? Math.ceil(list.count / 15) : 1;
   const title = fuente === "secop2" ? "SECOP II — procesos y contratos" : "SECOP I — contratos históricos";
@@ -71,6 +75,10 @@ export default function SecopListPage({ fuente }: Props) {
           Exportar Excel
         </button>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
 
       {kpis && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -141,7 +149,9 @@ export default function SecopListPage({ fuente }: Props) {
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         {loading ? (
-          <div className="p-8 text-center text-slate-500">Cargando…</div>
+          <div className="p-8 text-center text-slate-500">
+            Cargando contratos desde datos.gov.co… puede tardar hasta 1 minuto la primera vez.
+          </div>
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -157,24 +167,32 @@ export default function SecopListPage({ fuente }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(list?.results || []).map((row) => (
-                    <tr
-                      key={row.id}
-                      className="cursor-pointer border-b border-slate-50 hover:bg-slate-50"
-                      onClick={() => setSelected(row)}
-                    >
-                      <td className="px-4 py-3 font-medium text-slate-800">{row.referencia}</td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded px-1.5 py-0.5 text-[0.7rem] font-medium ${row.tipo_registro === "contrato" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                          {row.tipo_registro === "contrato" ? "Contrato" : "Proceso"}
-                        </span>
+                  {(list?.results || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                        No hay registros para {anio}. Pruebe otro año en el selector de vigencia.
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{row.estado}</td>
-                      <td className="max-w-[180px] truncate px-4 py-3 text-slate-600">{row.proveedor || "—"}</td>
-                      <td className="px-4 py-3 text-right font-medium">{formatCOP(row.valor)}</td>
-                      <td className="px-4 py-3 text-slate-500">{row.fecha_firma?.slice(0, 10) || "—"}</td>
                     </tr>
-                  ))}
+                  ) : (
+                    (list?.results || []).map((row) => (
+                      <tr
+                        key={row.id}
+                        className="cursor-pointer border-b border-slate-50 hover:bg-slate-50"
+                        onClick={() => setSelected(row)}
+                      >
+                        <td className="px-4 py-3 font-medium text-slate-800">{row.referencia}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded px-1.5 py-0.5 text-[0.7rem] font-medium ${row.tipo_registro === "contrato" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                            {row.tipo_registro === "contrato" ? "Contrato" : "Proceso"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{row.estado}</td>
+                        <td className="max-w-[180px] truncate px-4 py-3 text-slate-600">{row.proveedor || "—"}</td>
+                        <td className="px-4 py-3 text-right font-medium">{formatCOP(row.valor)}</td>
+                        <td className="px-4 py-3 text-slate-500">{row.fecha_firma?.slice(0, 10) || "—"}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

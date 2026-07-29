@@ -1,5 +1,8 @@
 import { api } from "@/core/api/client";
 
+/** Consultas SECOP pueden tardar (datos.gov.co + caché fría). */
+const SECOP_TIMEOUT_MS = 120_000;
+
 export interface SecopRecord {
   fuente: "secop1" | "secop2";
   tipo_registro: "contrato" | "proceso";
@@ -91,6 +94,7 @@ export interface PaginatedSecop {
   results: SecopRecord[];
   meta?: Record<string, unknown>;
   kpis?: SecopKpis;
+  analitica?: SecopAnalytics;
 }
 
 export interface SecopResumen {
@@ -116,13 +120,13 @@ function downloadBlob(data: Blob, filename: string) {
 }
 
 export const secopApi = {
-  config: () => api.get<SecopConfig>("/secop/config/").then((r) => r.data),
+  config: () => api.get<SecopConfig>("/secop/config/", { timeout: SECOP_TIMEOUT_MS }).then((r) => r.data),
 
   resumen: (anio: number) =>
-    api.get<SecopResumen>("/secop/resumen/", { params: { anio } }).then((r) => r.data),
+    api.get<SecopResumen>("/secop/resumen/", { params: { anio }, timeout: SECOP_TIMEOUT_MS }).then((r) => r.data),
 
   listSecop2: (params: Record<string, string | number>) =>
-    api.get<PaginatedSecop>("/secop/secop2/", { params }).then((r) => r.data),
+    api.get<PaginatedSecop>("/secop/secop2/", { params, timeout: SECOP_TIMEOUT_MS }).then((r) => r.data),
 
   analiticaSecop2: (anio: number) =>
     api.get<SecopAnalytics & { anio: number; meta: Record<string, unknown> }>("/secop/secop2/analitica/", {
@@ -130,7 +134,7 @@ export const secopApi = {
     }).then((r) => r.data),
 
   listSecop1: (params: Record<string, string | number>) =>
-    api.get<PaginatedSecop>("/secop/secop1/", { params }).then((r) => r.data),
+    api.get<PaginatedSecop>("/secop/secop1/", { params, timeout: SECOP_TIMEOUT_MS }).then((r) => r.data),
 
   analiticaSecop1: (anio: number) =>
     api.get<SecopAnalytics & { anio: number; meta: Record<string, unknown> }>("/secop/secop1/analitica/", {
@@ -152,25 +156,36 @@ export const secopApi = {
     const res = await api.get("/secop/export/", {
       params: { fuente, anio },
       responseType: "blob",
+      timeout: SECOP_TIMEOUT_MS,
     });
     downloadBlob(res.data as Blob, `SECOP_${fuente}_${anio}.xlsx`);
   },
 
   aiAnalisis: (anio: number) =>
-    api.post<{ anio: number; analisis: string; contexto: Record<string, unknown> }>("/secop/ai/analisis/", { anio }).then((r) => r.data),
+    api
+      .post<{ anio: number; analisis: string; contexto: Record<string, unknown> }>(
+        "/secop/ai/analisis/",
+        { anio },
+        { timeout: SECOP_TIMEOUT_MS },
+      )
+      .then((r) => r.data),
 
   aiCopilot: (message: string, anio: number, history?: { role: string; content: string }[]) =>
     api
-      .post<{ reply: string; sources: { tool: string; preview: string }[] }>("/secop/ai/copilot/", {
-        message,
-        anio,
-        history,
-      })
+      .post<{ reply: string; sources: { tool: string; preview: string }[] }>(
+        "/secop/ai/copilot/",
+        { message, anio, history },
+        { timeout: SECOP_TIMEOUT_MS },
+      )
       .then((r) => r.data),
 
   aiContrato: (fuente: string, id: string, anio: number) =>
     api
-      .post<{ resumen: string; registro: SecopRecord }>("/secop/ai/contrato/", { fuente, id, anio })
+      .post<{ resumen: string; registro: SecopRecord }>(
+        "/secop/ai/contrato/",
+        { fuente, id, anio },
+        { timeout: SECOP_TIMEOUT_MS },
+      )
       .then((r) => r.data),
 };
 

@@ -111,7 +111,16 @@ def _filter_records(records: list[dict], params: dict) -> list[dict]:
     reverse = ordering.startswith("-")
     field = ordering.lstrip("-")
     if field in {"valor", "fecha_firma", "referencia", "estado"}:
-        out = sorted(out, key=lambda r: r.get(field) or "", reverse=reverse)
+
+        def sort_key(record: dict, key: str):
+            val = record.get(key)
+            if val is None:
+                return ""
+            if key == "valor":
+                return float(val or 0)
+            return val
+
+        out = sorted(out, key=lambda r: sort_key(r, field), reverse=reverse)
     return out
 
 
@@ -202,6 +211,7 @@ class Secop2ListView(SecopBaseView):
         payload = _paginate(filtered, params["page"], params["page_size"])
         payload["meta"] = meta
         payload["kpis"] = compute_kpis(records)
+        payload["analitica"] = compute_analytics(records)
         return Response(payload)
 
 
@@ -224,6 +234,7 @@ class Secop1ListView(SecopBaseView):
         payload = _paginate(filtered, params["page"], params["page_size"])
         payload["meta"] = meta
         payload["kpis"] = compute_kpis(records)
+        payload["analitica"] = compute_analytics(records)
         return Response(payload)
 
 
