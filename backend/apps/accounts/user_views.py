@@ -17,6 +17,7 @@ from apps.common.roles import is_platform_superadmin, user_roles
 from apps.entities.models import Entity, Secretaria
 from apps.entities.permissions import IsUserManager
 from apps.accounts.memberships import (
+    contratista_user_ids_for_secretario,
     sync_groups_from_memberships,
     sync_user_flags_from_memberships,
     upsert_membership,
@@ -617,13 +618,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return qs.none()
         roles = user_roles(actor)
         if "secretario" in roles and "admin" not in roles:
-            supervised = UserEntityMembership.objects.filter(
-                entity_id=actor.entity_id,
-                supervisor_id=actor.id,
-                role="contratista",
-                is_active=True,
-            ).values_list("user_id", flat=True)
-            qs = qs.filter(id__in=supervised)
+            qs = qs.filter(id__in=contratista_user_ids_for_secretario(actor))
         else:
             user_ids = UserEntityMembership.objects.filter(
                 entity_id=actor.entity_id, is_active=True

@@ -2,11 +2,11 @@
 
 Documento de referencia para **cuándo aplicar migraciones** y **qué hacer el día que se decida subir a producción** todo lo que hoy solo está en demo.
 
-> **Estado al 28 jul 2026**
+> **Estado al 28 jul 2026 (noche)**
 >
 > | Rama | Commit destacado | URL | Qué incluye |
 > |------|------------------|-----|-------------|
-> | `development` | `aee30f7` | https://demo.softone360.com | Multi-entidad, contratistas, login, responsive + asistencia |
+> | `development` | `becee59`+ | https://demo.softone360.com | Multi-entidad, contratistas por secretaría, delegación PDM/PQRS, selector entidad, usuarios secretario |
 > | `main` | `d25474c` | https://app.softone360.com | **Solo** fix asistencia (token kiosk estable, sin desvincular en kiosco) |
 
 Prod y demo **no están alineados en funcionalidad**. Eso es intencional hasta validar en demo.
@@ -79,6 +79,8 @@ Prod **no necesita** esas migraciones todavía: el código en `main` no las usa.
 
 La `0010` es **idempotente en espíritu**: solo inserta membresías donde no existen. Los usuarios actuales siguen con `User.entity` como caché de la membresía por defecto.
 
+**Sin migración nueva** en los fixes de jul 2026 posteriores (delegación por secretaría, listado contratistas, modal entidad): solo cambios de API/UI/permisos sobre tablas ya existentes.
+
 **No hay migración** en el fix de asistencia ya desplegado en prod.
 
 ---
@@ -87,13 +89,15 @@ La `0010` es **idempotente en espíritu**: solo inserta membresías donde no exi
 
 Hacer en https://demo.softone360.com con usuarios reales de prueba:
 
-- [ ] Login una columna y selector de entidad si el usuario tiene varias membresías (`/seleccionar-entidad`)
-- [ ] Cambio de entidad en sidebar recarga contexto (`X-Entity-Id`)
+- [ ] Login una columna y **modal de entidad** si el usuario tiene varias membresías (cambiar entidad = cerrar sesión)
 - [ ] Crear usuario nuevo y **agregar admin existente de otra entidad** (diálogo de confirmación)
-- [ ] Secretario crea contratista; módulos limitados; cascada al quitar módulo al secretario
-- [ ] PQRS: asignar secretaría → delegar a contratista → contratista ve y responde solo las suyas
-- [ ] PDM: asignar secretaría (admin) → asignar contratista (admin/secretario)
+- [ ] **Admin** crea contratista asignándolo a una **secretaría** (no elige supervisor usuario)
+- [ ] **Secretario** ve módulo Usuarios → lista **sus contratistas** (misma secretaría)
+- [ ] Secretario crea/edita contratista; módulos limitados; cascada al quitar módulo al secretario
+- [ ] PQRS: admin asigna secretaría → **secretario** delega a contratista → contratista responde solo las suyas
+- [ ] PDM: admin asigna secretaría → **secretario** asigna/quita contratista en dropdown ("Sin asignar")
 - [ ] Dashboard PQRS secretario: tabla “Delegación a contratistas”
+- [ ] Listado API `GET /users/?role=contratista` filtra por membresía en entidad activa
 - [ ] Kiosco asistencia: emparejar, marcar, **no** desvincular desde el kiosco; token persiste tras recarga
 - [ ] Responsive básico en móvil (menú, PQRS/usuarios en tarjetas)
 
@@ -238,6 +242,16 @@ El flujo acordado es merge completo `development` → `main` cuando toque. No ha
 
 **¿Cuándo actualizar este documento?**  
 Cuando cambie el commit de referencia en `main`/`development` o el procedimiento de deploy.
+
+---
+
+## Jerarquía de delegación (referencia funcional)
+
+| Rol | Usuarios | PQRS | PDM |
+|-----|----------|------|-----|
+| **Admin** | Crea admin/secretario/contratista/ciudadano; contratista → elige **secretaría** | Asigna **secretaría** | Asigna **secretaría** |
+| **Secretario** | Ve y gestiona **contratistas de su secretaría** | Delega a contratistas bajo su secretaría | Asigna o quita contratista en productos de su secretaría |
+| **Contratista** | — | Responde PQRS delegadas | Ejecuta productos/actividades asignados |
 
 ---
 

@@ -112,6 +112,9 @@ function modulesInOrder(user: AuthUser): string[] {
   if (role === "secretario") {
     if (userEnabled.length === 0) return [];
     const allowed = new Set(userEnabled);
+    if (isModuleEnabled(entity, "enable_users_admin")) {
+      allowed.add("users_admin");
+    }
     return orderedKeys.filter((key) => allowed.has(key));
   }
 

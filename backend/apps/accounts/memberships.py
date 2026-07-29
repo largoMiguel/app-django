@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from django.contrib.auth.models import Group
 from django.db import transaction
+from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
 from apps.accounts.models import UserEntityMembership
@@ -198,15 +199,38 @@ def upsert_membership(
     return membership
 
 
+def contratista_membership_filter_for_secretario(user) -> Q:
+    """Contratistas bajo supervisión directa o de la misma secretaría."""
+    q = Q(supervisor_id=user.id)
+    secretaria_id = getattr(user, "secretaria_id", None)
+    if secretaria_id:
+        q |= Q(secretaria_id=secretaria_id)
+    return q
+
+
+def contratista_user_ids_for_secretario(user) -> list[int]:
+    if not user.entity_id:
+        return []
+    return list(
+        UserEntityMembership.objects.filter(
+            entity_id=user.entity_id,
+            role="contratista",
+            is_active=True,
+        )
+        .filter(contratista_membership_filter_for_secretario(user))
+        .values_list("user_id", flat=True)
+    )
+
+
 def cascade_modules_to_supervised(supervisor_membership: UserEntityMembership) -> None:
     """Si un secretario pierde módulos, los contratistas bajo su supervisión también."""
     allowed = set(supervisor_membership.enabled_modules or [])
-    for sub in UserEntityMembership.objects.filter(
-        supervisor=supervisor_membership.user,
+    subs = UserEntityMembership.objects.filter(
         entity=supervisor_membership.entity,
         role="contratista",
         is_active=True,
-    ):
+    ).filter(contratista_membership_filter_for_secretario(supervisor_membership.user))
+    for sub in subs:
         current = set(sub.enabled_modules or [])
         trimmed = sorted(current & allowed)
         if trimmed != list(sub.enabled_modules or []):

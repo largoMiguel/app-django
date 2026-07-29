@@ -54,7 +54,7 @@ interface PdmProductosViewProps {
   onPageChange: (page: number) => void;
   onOpenDetalle: (p: ResumenProducto) => void;
   onAsignar: (p: ResumenProducto, secretariaId: number) => void;
-  onAsignarUsuario: (p: ResumenProducto, usuarioId: number) => void;
+  onAsignarUsuario: (p: ResumenProducto, usuarioId: number | null) => void;
 }
 
 const ProductoRow = memo(function ProductoRow({
@@ -78,7 +78,7 @@ const ProductoRow = memo(function ProductoRow({
   contratistas: AppUser[];
   onOpenDetalle: (p: ResumenProducto) => void;
   onAsignar: (p: ResumenProducto, secretariaId: number) => void;
-  onAsignarUsuario: (p: ResumenProducto, usuarioId: number) => void;
+  onAsignarUsuario: (p: ResumenProducto, usuarioId: number | null) => void;
 }) {
   const avance = getAvanceAnio(producto, filtroAnio, filtroAnio);
   const avanceFinanciero = getAvanceFinancieroAnio(producto);
@@ -136,9 +136,11 @@ const ProductoRow = memo(function ProductoRow({
             className={pdmSelect}
             value={producto.responsable_usuario || ""}
             disabled={saving}
-            onChange={(e) => void onAsignarUsuario(producto, Number(e.target.value))}
+            onChange={(e) =>
+              void onAsignarUsuario(producto, e.target.value ? Number(e.target.value) : null)
+            }
           >
-            <option value="">Asignar contratista...</option>
+            <option value="">Sin asignar</option>
             {contratistas.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.full_name || u.email}

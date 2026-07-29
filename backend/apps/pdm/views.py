@@ -612,22 +612,35 @@ class PdmAsignarResponsableUsuarioView(APIView):
         if "secretario" not in roles:
             raise PermissionDenied("Solo secretario puede asignar contratistas.")
         usuario_id = request.query_params.get("responsable_usuario_id")
-        if not usuario_id:
-            raise ValidationError({"responsable_usuario_id": "Parámetro requerido."})
         producto = get_object_or_404(
             productos_queryset_for_user(request.user, entity),
             codigo_producto=codigo_producto,
         )
+        if not request.user.secretaria_id or producto.responsable_secretaria_id != request.user.secretaria_id:
+            raise PermissionDenied("Solo puede delegar productos de su secretaría.")
+
+        if usuario_id in (None, "", "null", "none", "0"):
+            producto.responsable_usuario = None
+            producto.save(update_fields=["responsable_usuario", "updated_at"])
+            return Response(
+                {
+                    "success": True,
+                    "producto_codigo": producto.codigo_producto,
+                    "responsable_usuario_id": None,
+                    "responsable_usuario_nombre": None,
+                }
+            )
+
         target = get_object_or_404(User, pk=usuario_id)
         membership = UserEntityMembership.objects.filter(
             user=target, entity=entity, is_active=True
         ).first()
         if membership is None:
             raise ValidationError({"responsable_usuario_id": "Usuario no pertenece a la entidad."})
-        if not request.user.secretaria_id or producto.responsable_secretaria_id != request.user.secretaria_id:
-            raise PermissionDenied("Solo puede delegar productos de su secretaría.")
-        if membership.supervisor_id != request.user.id or membership.role != "contratista":
-            raise PermissionDenied("Solo puede asignar a sus contratistas.")
+        if membership.role != "contratista":
+            raise PermissionDenied("Solo puede asignar contratistas.")
+        if membership.secretaria_id != request.user.secretaria_id:
+            raise PermissionDenied("Solo puede asignar contratistas de su secretaría.")
         producto.responsable_usuario = target
         producto.save(update_fields=["responsable_usuario", "updated_at"])
         return Response(

@@ -82,18 +82,9 @@ def _can_delegate_pqrs_users(user) -> bool:
 
 
 def _supervised_user_ids(user) -> set[int]:
-    from apps.accounts.models import UserEntityMembership
+    from apps.accounts.memberships import contratista_user_ids_for_secretario
 
-    if not user.entity_id:
-        return set()
-    return set(
-        UserEntityMembership.objects.filter(
-            entity_id=user.entity_id,
-            supervisor_id=user.id,
-            role="contratista",
-            is_active=True,
-        ).values_list("user_id", flat=True)
-    )
+    return set(contratista_user_ids_for_secretario(user))
 
 
 def _can_create_pqrs(user) -> bool:

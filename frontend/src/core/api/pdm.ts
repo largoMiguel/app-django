@@ -377,12 +377,12 @@ export const pdmApi = {
         { params: { responsable_secretaria_id: secretariaId } },
       )
       .then((r) => r.data),
-  asignarResponsableUsuario: (slug: string, codigoProducto: string, usuarioId: number) =>
+  asignarResponsableUsuario: (slug: string, codigoProducto: string, usuarioId: number | null) =>
     api
       .patch(
         `/pdm/v2/${slug}/productos/${encodeURIComponent(codigoProducto)}/responsable-usuario`,
         {},
-        { params: { responsable_usuario_id: usuarioId } },
+        { params: { responsable_usuario_id: usuarioId ?? "" } },
       )
       .then((r) => r.data),
   uploadEjecucion: (file: File, anio?: number) => {

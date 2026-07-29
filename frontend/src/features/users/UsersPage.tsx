@@ -97,19 +97,22 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-[#111827] sm:text-2xl flex items-center gap-2">
-            <Users className="h-6 w-6 text-[#3eafd4]" /> {superMode ? "Usuarios (todos)" : "Usuarios"}
+            <Users className="h-6 w-6 text-[#3eafd4]" />{" "}
+            {superMode ? "Usuarios (todos)" : secretarioMode ? "Contratistas" : "Usuarios"}
           </h1>
           <p className="mt-1 text-xs text-slate-600 sm:text-sm">
             {superMode
               ? "Vista global de usuarios del sistema."
-              : "Gestiona los usuarios de tu entidad."}
+              : secretarioMode
+                ? "Gestiona los contratistas de tu secretaría."
+                : "Gestiona los usuarios de tu entidad."}
           </p>
         </div>
         <button
           onClick={() => setShowNew(true)}
           className="flex items-center gap-2 rounded-md bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2] self-start sm:self-auto"
         >
-          <Plus className="h-4 w-4" /> Nuevo usuario
+          <Plus className="h-4 w-4" /> {secretarioMode ? "Nuevo contratista" : "Nuevo usuario"}
         </button>
       </div>
 
@@ -157,9 +160,11 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
                 <button onClick={() => handleDeactivate(u)} className="rounded p-1.5 text-slate-500 hover:bg-amber-50">
                   <UserX className="h-4 w-4" />
                 </button>
-                <button onClick={() => handlePurge(u)} className="rounded p-1.5 text-slate-500 hover:bg-red-50">
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                {!secretarioMode && (
+                  <button onClick={() => handlePurge(u)} className="rounded p-1.5 text-slate-500 hover:bg-red-50">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -208,9 +213,11 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
                       <button onClick={() => handleDeactivate(u)} className="rounded p-1.5 text-slate-500 hover:bg-amber-50 hover:text-amber-700" title="Desactivar">
                         <UserX className="h-4 w-4" />
                       </button>
-                      <button onClick={() => handlePurge(u)} className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600" title="Eliminar definitivamente">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {!secretarioMode && (
+                        <button onClick={() => handlePurge(u)} className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600" title="Eliminar definitivamente">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

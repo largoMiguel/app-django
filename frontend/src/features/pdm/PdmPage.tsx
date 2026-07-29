@@ -479,8 +479,8 @@ export default function PdmPage(): ReactElement {
   );
 
   const handleAsignarUsuario = useCallback(
-    async (p: ResumenProducto, uid: number) => {
-      if (!slug || !uid) return;
+    async (p: ResumenProducto, uid: number | null) => {
+      if (!slug) return;
       setSaving(true);
       try {
         await pdmApi.asignarResponsableUsuario(slug, p.codigo, uid);
