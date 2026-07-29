@@ -5,6 +5,10 @@ import { formatApiError } from "@/core/api/errors";
 import { getClerkToken } from "@/core/auth/clerkToken";
 import { useAuthStore } from "@/core/auth/store";
 
+function todayLocalISO(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+
 function PunchCell({ slot }: { slot?: RegistroDiario["entrada"] }) {
   if (!slot) return <span className="text-slate-300">—</span>;
   return (
@@ -29,8 +33,7 @@ export default function RegistrosPage() {
   const [items, setItems] = useState<RegistroDiario[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [fechaDesde, setFechaDesde] = useState("");
-  const [fechaHasta, setFechaHasta] = useState("");
+  const [fecha, setFecha] = useState(todayLocalISO);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const showFour = punchesPerDay === 4;
@@ -38,10 +41,12 @@ export default function RegistrosPage() {
   async function load() {
     setLoading(true);
     try {
-      const params: Record<string, string> = { page_size: "50" };
+      const params: Record<string, string> = {
+        page_size: "50",
+        fecha_desde: `${fecha}T00:00:00`,
+        fecha_hasta: `${fecha}T23:59:59`,
+      };
       if (search.trim()) params.search = search.trim();
-      if (fechaDesde) params.fecha_desde = `${fechaDesde}T00:00:00`;
-      if (fechaHasta) params.fecha_hasta = `${fechaHasta}T23:59:59`;
       const res = await asistenciaApi.registros.diario(params);
       setItems(res.results);
     } catch (err) {
@@ -54,15 +59,17 @@ export default function RegistrosPage() {
   useEffect(() => {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
-  }, [search, fechaDesde, fechaHasta]);
+  }, [search, fecha]);
 
   async function exportExcel() {
     setExporting(true);
     try {
-      const params: Record<string, string> = { diario: "1" };
+      const params: Record<string, string> = {
+        diario: "1",
+        fecha_desde: `${fecha}T00:00:00`,
+        fecha_hasta: `${fecha}T23:59:59`,
+      };
       if (search.trim()) params.search = search.trim();
-      if (fechaDesde) params.fecha_desde = `${fechaDesde}T00:00:00`;
-      if (fechaHasta) params.fecha_hasta = `${fechaHasta}T23:59:59`;
       const url = asistenciaApi.registros.exportUrl(params);
       const token = await getClerkToken();
       const res = await fetch(url, {
@@ -99,14 +106,9 @@ export default function RegistrosPage() {
         </div>
         <input
           type="date"
-          value={fechaDesde}
-          onChange={(e) => setFechaDesde(e.target.value)}
-          className="rounded-[0.3rem] border border-slate-300 px-3 py-2 text-sm"
-        />
-        <input
-          type="date"
-          value={fechaHasta}
-          onChange={(e) => setFechaHasta(e.target.value)}
+          value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          aria-label="Fecha"
           className="rounded-[0.3rem] border border-slate-300 px-3 py-2 text-sm"
         />
         <button
