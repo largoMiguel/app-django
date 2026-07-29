@@ -62,6 +62,69 @@ class SecopNormalizeTests(TestCase):
         self.assertEqual(len(procesos), 1)
         self.assertEqual(procesos[0]["id"], "PR2")
 
+    def test_unify_hides_all_process_phases_when_contract_exists(self):
+        contract_row = {
+            "id_contrato": "C1",
+            "proceso_de_compra": "P1",
+            "referencia_del_contrato": "MS-SA-MC-003-2026",
+            "estado_contrato": "En ejecución",
+            "valor_del_contrato": "1000",
+            "urlproceso": {"url": "https://x?noticeUID=N1"},
+        }
+        process_rows = [
+            {
+                "id_del_proceso": "PR-A",
+                "id_del_portafolio": "P1",
+                "referencia_del_proceso": "MS-SA-MC-003-2026",
+                "adjudicado": "No",
+                "precio_base": "1000",
+            },
+            {
+                "id_del_proceso": "PR-B",
+                "id_del_portafolio": "P1",
+                "referencia_del_proceso": "MS-SA-MC-003-2026 (Manifestación de interés (Menor Cuantía))",
+                "adjudicado": "Si",
+                "precio_base": "1000",
+                "urlproceso": {"url": "https://x?noticeUID=N1"},
+            },
+        ]
+
+        with patch("apps.secop.unify.fetch_secop2_contracts", return_value=([contract_row], None)):
+            with patch("apps.secop.unify.fetch_secop2_processes", return_value=(process_rows, None)):
+                with patch("apps.secop.unify.fetch_secop2_processes_by_portfolios", return_value=([], None)):
+                    unified, meta = load_secop2_unified(["123"], 2026)
+
+        self.assertEqual(meta["total_unificado"], 1)
+        self.assertEqual(unified[0]["tipo_registro"], "contrato")
+        self.assertIn("proceso_vinculado", unified[0])
+
+    def test_unify_dedupes_orphan_process_phases_by_portfolio(self):
+        process_rows = [
+            {
+                "id_del_proceso": "PR-A",
+                "id_del_portafolio": "P9",
+                "referencia_del_proceso": "PROC-9",
+                "adjudicado": "No",
+                "precio_base": "100",
+            },
+            {
+                "id_del_proceso": "PR-B",
+                "id_del_portafolio": "P9",
+                "referencia_del_proceso": "PROC-9 (Fase de Selección)",
+                "adjudicado": "Si",
+                "precio_base": "100",
+            },
+        ]
+
+        with patch("apps.secop.unify.fetch_secop2_contracts", return_value=([], None)):
+            with patch("apps.secop.unify.fetch_secop2_processes", return_value=(process_rows, None)):
+                with patch("apps.secop.unify.fetch_secop2_processes_by_portfolios", return_value=([], None)):
+                    unified, meta = load_secop2_unified(["123"], 2026)
+
+        self.assertEqual(meta["total_unificado"], 1)
+        self.assertEqual(unified[0]["tipo_registro"], "proceso")
+        self.assertEqual(unified[0]["id"], "PR-B")
+
 
 class SecopAlertsTests(TestCase):
     def test_vencido_en_ejecucion_alert(self):
