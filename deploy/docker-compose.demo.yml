@@ -35,7 +35,7 @@ services:
     image: redis:7-alpine
     container_name: softone-demo-redis
     restart: unless-stopped
-    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     networks:
       - internal
     healthcheck:
@@ -46,7 +46,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 384M
     security_opt:
       - no-new-privileges:true
 
