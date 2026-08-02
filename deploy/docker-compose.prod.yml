@@ -36,7 +36,7 @@ services:
       - -c
       - max_wal_size=2GB
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - /srv/postgres/prod:/var/lib/postgresql/data
     networks:
       - internal
     healthcheck:
@@ -150,7 +150,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
     security_opt:
       - no-new-privileges:true
 
@@ -335,6 +335,5 @@ networks:
     driver: bridge
 
 volumes:
-  db_data:
   media_data:
   static_data:

@@ -10,4 +10,7 @@ cd "$DEPLOY_DIR"
 echo "==> $(date -Is) Prune imágenes Docker huérfanas (>7 días)"
 docker image prune -af --filter "until=168h" >/dev/null 2>&1 || true
 
+echo "==> $(date -Is) Prune caché de compilación BuildKit (>7 días)"
+docker builder prune -f --filter "until=168h" >/dev/null 2>&1 || true
+
 echo "OK maintenance $(date -Is)"
