@@ -16,7 +16,7 @@ services:
       - -c
       - shared_buffers=256MB
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - /srv/postgres/demo:/var/lib/postgresql/data
     networks:
       - internal
     healthcheck:
@@ -93,7 +93,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1G
     security_opt:
       - no-new-privileges:true
 
@@ -130,7 +130,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
     security_opt:
       - no-new-privileges:true
 
@@ -281,6 +281,5 @@ networks:
     name: softone_edge
 
 volumes:
-  db_data:
   media_data:
   static_data:

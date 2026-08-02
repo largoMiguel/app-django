@@ -38,7 +38,7 @@ else
   exit 2
 fi
 
-# Retención 14 días
-find "$BACKUP_DIR" -name 'softone_*.dump' -mtime +14 -delete
+# Retención 30 días
+find "$BACKUP_DIR" -name 'softone_*.dump' -mtime +30 -delete
 
 echo "OK: $OUT ($(du -h "$OUT" | cut -f1))"
