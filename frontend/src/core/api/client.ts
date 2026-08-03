@@ -22,12 +22,20 @@ export const api: AxiosInstance = axios.create({
 export const PUBLIC_API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "";
 
+function authRequestHeaders(token: string | null): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const entityId = useAuthStore.getState().activeEntityId;
+  if (entityId) headers["X-Entity-Id"] = String(entityId);
+  return headers;
+}
+
 async function fetchWithAuth(url: string): Promise<Response> {
   const absolute = url.startsWith("http") ? url : `${window.location.origin}${url}`;
   const token = await getClerkToken();
 
   const response = await fetch(absolute, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: authRequestHeaders(token),
   });
 
   if (response.status === 401 && token) {
