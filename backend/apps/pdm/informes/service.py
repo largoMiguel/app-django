@@ -184,6 +184,7 @@ def generate_informe_pdm_pdf(informe: InformePDM) -> bytes:
         usar_ia=informe.usar_ia and informe.entity.enable_ai_reports,
         incluir_evidencias=informe.incluir_evidencias,
         ai_analysis=data["ai_analysis"],
+        analytics=data["analytics"],
     )
     pdf_buffer = generator.generate_pdf()
     informe.total_productos = data["total_productos"]

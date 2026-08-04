@@ -80,10 +80,33 @@ def _word_rect(word) -> fitz.Rect:
     return fitz.Rect(word[0], word[1], word[2], word[3])
 
 
-def _cover_rect_white(page, rect: fitz.Rect, pad: float = 4) -> None:
+def _cover_rect_white(page, rect: fitz.Rect, pad_x: float = 4, pad_y: float = 1) -> None:
     """Cubre un rectángulo con blanco sólido (evita artefactos de redacción)."""
-    cover = fitz.Rect(rect.x0 - pad, rect.y0 - pad, rect.x1 + pad, rect.y1 + pad)
+    cover = fitz.Rect(
+        rect.x0 - pad_x,
+        rect.y0 - pad_y,
+        rect.x1 + pad_x,
+        rect.y1 + pad_y,
+    )
     page.draw_rect(cover, color=(1, 1, 1), fill=(1, 1, 1))
+
+
+def _find_pagina_line_rect(page) -> fitz.Rect | None:
+    """Localiza solo la línea 'Página X de Y' sin incluir Versión u otros textos."""
+    page_num_re = re.compile(r"P[aá]gina\s+\d+\s+de\s+\d+", re.IGNORECASE)
+    data = page.get_text("dict")
+    for block in data.get("blocks", []):
+        for line in block.get("lines", []):
+            line_text = "".join(span["text"] for span in line.get("spans", [])).strip()
+            if page_num_re.search(line_text):
+                bbox = line["bbox"]
+                return fitz.Rect(bbox)
+    return None
+
+
+def _words_on_same_line(words: list, start_idx: int, end_idx: int, tolerance: float = 2.0) -> bool:
+    y_values = [words[i][1] for i in range(start_idx, end_idx + 1)]
+    return (max(y_values) - min(y_values)) <= tolerance
 
 
 def _insert_page_number_text(page, rect: fitz.Rect, text: str) -> None:
@@ -100,27 +123,38 @@ def _insert_page_number_text(page, rect: fitz.Rect, text: str) -> None:
 def replace_page_number(page, page_index: int, total_pages: int) -> None:
     """Reemplaza la frase completa 'Página X de Y' en el membrete."""
     new_text = f"Página {page_index + 1} de {total_pages}"
+
+    line_rect = _find_pagina_line_rect(page)
+    if line_rect is not None:
+        _cover_rect_white(page, line_rect, pad_x=4, pad_y=1)
+        _insert_page_number_text(page, line_rect, new_text)
+        return
+
     words = page.get_text("words")
     indices = _find_page_number_word_indices(words)
     if indices:
         start_idx, _, _, end_idx = indices
-        union = _word_rect(words[start_idx])
-        for i in range(start_idx + 1, end_idx + 1):
-            union |= _word_rect(words[i])
-        _cover_rect_white(page, union, pad=5)
-        _insert_page_number_text(page, union, new_text)
-        return
+        if _words_on_same_line(words, start_idx, end_idx):
+            union = _word_rect(words[start_idx])
+            for i in range(start_idx + 1, end_idx + 1):
+                union |= _word_rect(words[i])
+            _cover_rect_white(page, union, pad_x=4, pad_y=1)
+            _insert_page_number_text(page, union, new_text)
+            return
 
     page_num_re = re.compile(r"P[aá]gina\s+\d+\s+de\s+\d+", re.IGNORECASE)
     for block in page.get_text("blocks"):
         if len(block) < 5:
             continue
         text = str(block[4]).strip()
-        if not page_num_re.search(text):
+        match = page_num_re.search(text)
+        if not match:
             continue
         rect = fitz.Rect(block[:4])
-        _cover_rect_white(page, rect, pad=5)
-        _insert_page_number_text(page, rect, new_text)
+        line_height = max(8, rect.height * 0.35)
+        line_rect = fitz.Rect(rect.x0, rect.y0, rect.x1, rect.y0 + line_height)
+        _cover_rect_white(page, line_rect, pad_x=4, pad_y=1)
+        _insert_page_number_text(page, line_rect, new_text)
         return
 
 

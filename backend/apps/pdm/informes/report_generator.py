@@ -51,6 +51,8 @@ from apps.pdm.models import PDMEjecucionPresupuestal
 class PDMReportGenerator:
     """Generador de informes PDF con estructura general con mejoras de rendimiento y contenido"""
 
+    REPORT_TITLE = "INFORME DE INDICADORES PLAN DE DESARROLLO"
+
     def __init__(
         self,
         entity,
@@ -61,6 +63,7 @@ class PDMReportGenerator:
         usar_ia: bool = False,
         incluir_evidencias: bool = True,
         ai_analysis: dict | None = None,
+        analytics: dict | None = None,
     ):
         self.entity = entity
         self.productos = productos
@@ -70,6 +73,8 @@ class PDMReportGenerator:
         self.usar_ia = usar_ia
         self.incluir_evidencias = incluir_evidencias
         self.ai_analysis = ai_analysis or {}
+        self.analytics = analytics or {}
+        self.use_template = False
         self.buffer = BytesIO()
         self.doc = None
         self.styles = None
@@ -126,6 +131,169 @@ class PDMReportGenerator:
                 for y in (2024, 2025, 2026, 2027)
             )
         return float(getattr(producto, f"programacion_{self.anio}", 0) or 0)
+
+    def _resolve_plan_name(self) -> str:
+        name = getattr(self.entity, "plan_name", None)
+        if name and str(name).strip() and str(name).lower() != "none":
+            return str(name).strip()
+        for prod in self.productos:
+            plan = getattr(prod, "nombre_plan", None)
+            if plan and str(plan).strip() and str(plan).lower() != "none":
+                return str(plan).strip()
+        return "Plan de Desarrollo Municipal"
+
+    def _avance_fisico_meta_grupo(self, productos: list) -> float:
+        codigos = {p.codigo_producto for p in productos}
+        meta_prog = sum(self._meta_programada_producto(p) for p in productos)
+        if meta_prog <= 0:
+            return 0.0
+        meta_ejec = 0.0
+        for act in self.actividades:
+            if act.codigo_producto not in codigos:
+                continue
+            if self.anio != 0 and act.anio != self.anio:
+                continue
+            if getattr(act, "tiene_evidencia", False) or act.estado == "COMPLETADA":
+                meta_ejec += float(act.meta_ejecutar or 0)
+        return min(100.0, (meta_ejec / meta_prog) * 100)
+
+    def _fecha_ejecucion_producto(self, actividades: list) -> str:
+        fechas = []
+        for act in actividades:
+            evidencia = getattr(act, "evidencia", None)
+            if evidencia and getattr(evidencia, "fecha_registro", None):
+                fechas.append(evidencia.fecha_registro)
+            elif act.fecha_fin:
+                fechas.append(act.fecha_fin)
+        if not fechas:
+            return "Sin registro"
+        latest = max(fechas)
+        return latest.strftime("%d/%m/%Y") if hasattr(latest, "strftime") else str(latest)[:10]
+
+    def _append_bar_chart(
+        self,
+        labels: list[str],
+        values: list[float],
+        title: str,
+        cache_key: str,
+    ) -> None:
+        if not labels:
+            return
+        if cache_key in self._cache_graficas:
+            self.story.append(self._cache_graficas[cache_key])
+            return
+        try:
+            fig, ax = plt.subplots(
+                figsize=(7, self._chart_image_height(len(labels)) / inch),
+            )
+            fig.patch.set_facecolor("white")
+            bar_colors = [
+                "#4F9A54" if v >= 70 else "#FFA726" if v >= 50 else "#EF5350"
+                for v in values
+            ]
+            y_pos = np.arange(len(labels))
+            bars = ax.barh(y_pos, values, color=bar_colors, height=0.6, alpha=0.9)
+            for bar, val in zip(bars, values):
+                width = bar.get_width()
+                ax.text(
+                    width + 2,
+                    bar.get_y() + bar.get_height() / 2,
+                    f"{val:.1f}%",
+                    ha="left",
+                    va="center",
+                    fontsize=10,
+                    fontweight="bold",
+                    color="#333",
+                )
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels(labels, fontsize=9)
+            ax.set_xlabel("Porcentaje de Avance (%)", fontsize=11, fontweight="bold", color="#333")
+            ax.set_title(title, fontsize=13, fontweight="bold", color="#003366", pad=20)
+            ax.set_xlim(0, 110)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            ax.spines["left"].set_color("#CCCCCC")
+            ax.spines["bottom"].set_color("#CCCCCC")
+            ax.grid(axis="x", alpha=0.2, linestyle="--", color="#CCCCCC")
+            ax.set_axisbelow(True)
+            plt.tight_layout()
+            img_buffer = BytesIO()
+            plt.savefig(img_buffer, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+            img_buffer.seek(0)
+            plt.close(fig)
+            img = self._rl_image(img_buffer, 7 * inch, self._chart_image_height(len(labels)))
+            self._cache_graficas[cache_key] = img
+            self.story.append(img)
+        except Exception as exc:
+            print(f"   ❌ Error generando gráfica '{title}': {exc}")
+        finally:
+            plt.close("all")
+
+    def _chart_values_for_group(self, productos: list, metric: str) -> float:
+        if not productos:
+            return 0.0
+        if metric == "cumplimiento":
+            return sum(self.calcular_avance_producto(p) for p in productos) / len(productos)
+        if metric == "fisico_meta":
+            return self._avance_fisico_meta_grupo(productos)
+        if metric == "financiero":
+            return sum(self.calcular_avance_financiero(p) for p in productos) / len(productos)
+        return 0.0
+
+    def _generate_tres_graficas_grupo(
+        self,
+        group_key,
+        group_label: str,
+        cache_prefix: str,
+        label_max_len: int = 40,
+    ) -> None:
+        groups: dict[str, list] = defaultdict(list)
+        for prod in self.productos:
+            groups[group_key(prod)].append(prod)
+        chart_specs = [
+            ("cumplimiento", f"Avance de cumplimiento por {group_label}"),
+            ("fisico_meta", f"Avance físico de metas por {group_label}"),
+            ("financiero", f"Avance financiero por {group_label}"),
+        ]
+        for metric, title in chart_specs:
+            labels: list[str] = []
+            values: list[float] = []
+            for name, prods in sorted(groups.items()):
+                labels.append((name or "Sin asignar")[:label_max_len])
+                values.append(self._chart_values_for_group(prods, metric))
+            self._append_bar_chart(
+                labels,
+                values,
+                title,
+                f"grafica_{cache_prefix}_{metric}_{self.anio}",
+            )
+            self.story.append(Spacer(1, 0.08 * inch))
+
+    def generate_grafica_por_dependencia(self) -> None:
+        por_secretaria = (self.analytics or {}).get("por_secretaria") or []
+        if not por_secretaria:
+            return
+        title_style = ParagraphStyle(
+            "ChartSectionTitle",
+            parent=self.styles["Heading2"],
+            fontSize=12,
+            textColor=colors.HexColor("#003366"),
+            spaceAfter=4,
+            spaceBefore=8,
+            fontName="Helvetica-Bold",
+        )
+        self.story.append(
+            Paragraph("AVANCE DE CUMPLIMIENTO POR DEPENDENCIA / RESPONSABLE", title_style)
+        )
+        labels = [item["secretaria"][:35] for item in por_secretaria]
+        values = [float(item.get("avance_pct") or 0) for item in por_secretaria]
+        self._append_bar_chart(
+            labels,
+            values,
+            "Avance de cumplimiento por dependencia / responsable",
+            f"grafica_secretaria_{self.anio}",
+        )
+        self.story.append(Spacer(1, 0.12 * inch))
 
     def _aggregate_grupo_productos(self, productos: list) -> dict:
         count = len(productos)
@@ -259,7 +427,7 @@ class PDMReportGenerator:
         
         # Número de página y título
         canvas.drawRightString(8*inch, 10.5*inch, f"Página {doc.page}")
-        canvas.drawRightString(8*inch, 10.3*inch, "INFORME DE GESTIÓN INSTITUCIONAL")
+        canvas.drawRightString(8*inch, 10.3*inch, self.REPORT_TITLE)
         
         # Línea separadora
         canvas.setStrokeColor(colors.HexColor('#003366'))
@@ -274,7 +442,6 @@ class PDMReportGenerator:
     
     def generate_portada(self):
         """Genera la portada institucional según formato colombiano"""
-        # Título principal institucional
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=self.styles['Title'],
@@ -284,67 +451,78 @@ class PDMReportGenerator:
             spaceAfter=2,
             fontName='Helvetica-Bold'
         )
-        
-        self.story.append(Paragraph("INFORME DE GESTIÓN INSTITUCIONAL", title_style))
-        
-        # Año de vigencia
-        anio_texto = "Vigencia 2024-2027" if self.anio == 0 else f"Vigencia {self.anio}"
         anio_style = ParagraphStyle(
             'AnioStyle',
             parent=self.styles['Heading2'],
             fontSize=18,
             textColor=colors.HexColor('#003366'),
             alignment=TA_CENTER,
-            spaceAfter=20
+            spaceAfter=12
         )
-        self.story.append(Paragraph(anio_texto, anio_style))
-        
-        # Nombre del plan
         plan_style = ParagraphStyle(
             'PlanTitle',
             parent=self.styles['Heading1'],
             fontSize=16,
             textColor=colors.HexColor('#003366'),
             alignment=TA_CENTER,
-            spaceAfter=2
+            spaceAfter=8
         )
-        
-        plan_name = getattr(self.entity, 'plan_name', None) or "PLAN DE DESARROLLO MUNICIPAL"
-        self.story.append(Paragraph(plan_name, plan_style))
-        
-        # Tipo de informe
         tipo_style = ParagraphStyle(
             'TipoInforme',
             parent=self.styles['Normal'],
             fontSize=12,
             alignment=TA_CENTER,
             textColor=colors.HexColor('#666666'),
-            spaceAfter=2
+            spaceAfter=8
         )
-        self.story.append(Paragraph("Informe de Gestión / Rendición de Cuentas", tipo_style))
-        
-        # Entidad - Municipio
         entity_style = ParagraphStyle(
             'EntityName',
             parent=self.styles['Heading2'],
             fontSize=16,
             alignment=TA_CENTER,
             textColor=colors.HexColor('#003366'),
-            fontName='Helvetica-Bold'
+            fontName='Helvetica-Bold',
+            spaceAfter=4,
         )
-        self.story.append(Paragraph(self.entity.name.upper(), entity_style))
-        
         alcaldia_style = ParagraphStyle(
             'Alcaldia',
             parent=self.styles['Normal'],
             fontSize=14,
             alignment=TA_CENTER,
             textColor=colors.HexColor('#666666'),
-            spaceAfter=2
+            spaceAfter=8
         )
+        equipo_style = ParagraphStyle(
+            'EquipoGobierno',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor('#666666'),
+            spaceAfter=4,
+            leading=14
+        )
+
+        if self.use_template:
+            self.story.append(Spacer(1, 1.4 * inch))
+        else:
+            self.story.append(Spacer(1, 0.5 * inch))
+            self.story.append(Paragraph(self.REPORT_TITLE, title_style))
+            self.story.append(Spacer(1, 0.25 * inch))
+
+        anio_texto = "Vigencia 2024-2027" if self.anio == 0 else f"Vigencia {self.anio}"
+        self.story.append(Paragraph(anio_texto, anio_style))
+        self.story.append(Spacer(1, 0.15 * inch))
+
+        plan_name = self._resolve_plan_name().upper()
+        self.story.append(Paragraph(plan_name, plan_style))
+        self.story.append(Spacer(1, 0.12 * inch))
+        self.story.append(Paragraph("Informe de Gestión / Rendición de Cuentas", tipo_style))
+        self.story.append(Spacer(1, 0.2 * inch))
+
+        self.story.append(Paragraph(self.entity.name.upper(), entity_style))
         self.story.append(Paragraph("Alcaldía Municipal", alcaldia_style))
-        
-        # Información de filtros si existen
+        self.story.append(Spacer(1, 0.15 * inch))
+
         if self.filtros:
             filter_info = []
             if self.filtros.get('secretarias'):
@@ -357,7 +535,7 @@ class PDMReportGenerator:
             if self.filtros.get('estados'):
                 estados = ', '.join(self.filtros['estados'])
                 filter_info.append(f"Estados: {estados}")
-            
+
             if filter_info:
                 filter_style = ParagraphStyle(
                     'FilterInfo',
@@ -365,25 +543,14 @@ class PDMReportGenerator:
                     fontSize=10,
                     alignment=TA_CENTER,
                     textColor=colors.HexColor('#666666'),
-                    spaceAfter=2
+                    spaceAfter=6
                 )
                 for info in filter_info:
                     self.story.append(Paragraph(info, filter_style))
-        
-        # Equipo de gobierno (si está disponible)
-        equipo_style = ParagraphStyle(
-            'EquipoGobierno',
-            parent=self.styles['Normal'],
-            fontSize=10,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#666666'),
-            spaceAfter=4,
-            leading=14
-        )
-        
+
+        self.story.append(Spacer(1, 0.25 * inch))
         self.story.append(Paragraph("<b>Equipo de Gobierno Municipal</b>", equipo_style))
-        
-        # Información del equipo (placeholder - puede venir de la entidad)
+
         equipo_info = [
             "Alcalde Municipal",
             "Gestor(a) Social",
@@ -392,9 +559,12 @@ class PDMReportGenerator:
             "Comisaría de Familia",
             "Inspector de Policía"
         ]
-        
+
         for cargo in equipo_info:
             self.story.append(Paragraph(cargo, equipo_style))
+
+        if self.use_template:
+            self.story.append(Spacer(1, 0.6 * inch))
 
         self.story.append(PageBreak())
     
@@ -413,7 +583,7 @@ class PDMReportGenerator:
         self.story.append(Paragraph("INTRODUCCIÓN", title_style))
         
         anio_texto = "el cuatrienio 2024-2027" if self.anio == 0 else f"la vigencia {self.anio}"
-        plan_name = getattr(self.entity, 'plan_name', 'Plan de Desarrollo Municipal')
+        plan_name = self._resolve_plan_name()
         
         intro_text = f"""
         Los planes de desarrollo de las entidades territoriales constituyen la carta de navegación y el principal 
@@ -453,6 +623,9 @@ class PDMReportGenerator:
         
         # RESUMEN EJECUTIVO con KPIs principales
         self.generar_resumen_ejecutivo()
+
+        # Gráfica por dependencia / responsable
+        self.generate_grafica_por_dependencia()
         
         # RESUMEN CON IA (si está habilitado)
         if self.usar_ia:
@@ -847,245 +1020,44 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
     
     def generate_grafica_moderna_lineas(self):
         """Genera gráfica moderna de avance por líneas estratégicas con caché"""
-        # Verificar caché (incluir año en la key)
-        cache_key = f'grafica_lineas_{self.anio}'
-        if cache_key in self._cache_graficas:
-            print(f"   ⚡ Usando gráfica en caché: {cache_key}")
-            self.story.append(self._cache_graficas[cache_key])
-            return
-        
-        # Calcular avance por línea (ya respeta self.anio por calcular_avance_producto)
         lineas_data = {}
         for prod in self.productos:
             linea = prod.linea_estrategica or 'Sin Línea'
             if linea not in lineas_data:
                 lineas_data[linea] = {'total': 0, 'suma_avance': 0}
             lineas_data[linea]['total'] += 1
-            avance = self.calcular_avance_producto(prod)
-            lineas_data[linea]['suma_avance'] += avance
-        
+            lineas_data[linea]['suma_avance'] += self.calcular_avance_producto(prod)
+
         lineas = []
         avances = []
         for linea, data in lineas_data.items():
             if data['total'] > 0:
-                promedio = data['suma_avance'] / data['total']
                 lineas.append(linea[:40])
-                avances.append(promedio)
-        
-        if not lineas:
-            return
-        
-        try:
-            # Diseño moderno con colores institucionales
-            fig, ax = plt.subplots(
-                figsize=(7, self._chart_image_height(len(lineas)) / inch),
-            )
-            fig.patch.set_facecolor('white')
-            
-            # Colores: verde institucional y gradientes
-            colors = ['#4F9A54' if a >= 70 else '#FFA726' if a >= 50 else '#EF5350' for a in avances]
-            
-            y_pos = np.arange(len(lineas))
-            bars = ax.barh(y_pos, avances, color=colors, height=0.6, alpha=0.9)
-            
-            # Agregar valores al final de cada barra
-            for i, (bar, val) in enumerate(zip(bars, avances)):
-                width = bar.get_width()
-                ax.text(width + 2, bar.get_y() + bar.get_height()/2, 
-                       f'{val:.1f}%', ha='left', va='center', 
-                       fontsize=10, fontweight='bold', color='#333')
-            
-            ax.set_yticks(y_pos)
-            ax.set_yticklabels(lineas, fontsize=9)
-            ax.set_xlabel('Porcentaje de Avance (%)', fontsize=11, fontweight='bold', color='#333')
-            ax.set_title('Avance por Línea Estratégica', fontsize=13, fontweight='bold', 
-                        color='#003366', pad=20)
-            ax.set_xlim(0, 110)
-            
-            # Estilo moderno
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_color('#CCCCCC')
-            ax.spines['bottom'].set_color('#CCCCCC')
-            ax.grid(axis='x', alpha=0.2, linestyle='--', color='#CCCCCC')
-            ax.set_axisbelow(True)
-            
-            plt.tight_layout()
-            
-            img_buffer = BytesIO()
-            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight', facecolor='white')
-            img_buffer.seek(0)
-            plt.close(fig)
-            
-            img = self._rl_image(img_buffer, 7 * inch, self._chart_image_height(len(lineas)))
-            
-            # Guardar en caché
-            self._cache_graficas[cache_key] = img
-            print(f"   💾 Gráfica guardada en caché: {cache_key}")
-            
-            self.story.append(img)
-            
-        except Exception as e:
-            print(f"   ❌ Error generando gráfica de líneas: {str(e)}")
-        finally:
-            plt.close('all')
-    
-    def generate_grafica_moderna_sectores(self):
-        """Genera gráfica moderna de avance por sectores MGA"""
-        cache_key = f'grafica_sectores_{self.anio}'
-        if cache_key in self._cache_graficas:
-            print(f"   ⚡ Usando gráfica en caché: {cache_key}")
-            self.story.append(self._cache_graficas[cache_key])
-            return
+                avances.append(data['suma_avance'] / data['total'])
 
-        sectores_data = defaultdict(lambda: {'total': 0, 'suma_avance': 0})
-        
-        for prod in self.productos:
-            sector = prod.sector_mga or 'Sin Sector'
-            sectores_data[sector]['total'] += 1
-            avance = self.calcular_avance_producto(prod)
-            sectores_data[sector]['suma_avance'] += avance
-        
-        sectores = []
-        avances = []
-        for sector, data in sectores_data.items():
-            if data['total'] > 0:
-                promedio = data['suma_avance'] / data['total']
-                sectores.append(sector[:40])
-                avances.append(promedio)
-        
-        if not sectores:
-            return
-        
-        try:
-            fig, ax = plt.subplots(
-                figsize=(7, self._chart_image_height(len(sectores)) / inch),
-            )
-            fig.patch.set_facecolor('white')
-            
-            colors = ['#4F9A54' if a >= 70 else '#FFA726' if a >= 50 else '#EF5350' for a in avances]
-            
-            y_pos = np.arange(len(sectores))
-            bars = ax.barh(y_pos, avances, color=colors, height=0.6, alpha=0.9)
-            
-            for i, (bar, val) in enumerate(zip(bars, avances)):
-                width = bar.get_width()
-                ax.text(width + 2, bar.get_y() + bar.get_height()/2, 
-                       f'{val:.1f}%', ha='left', va='center', 
-                       fontsize=10, fontweight='bold', color='#333')
-            
-            ax.set_yticks(y_pos)
-            ax.set_yticklabels(sectores, fontsize=9)
-            ax.set_xlabel('Porcentaje de Avance (%)', fontsize=11, fontweight='bold', color='#333')
-            ax.set_title('Avance por Sector MGA', fontsize=13, fontweight='bold', 
-                        color='#003366', pad=20)
-            ax.set_xlim(0, 110)
-            
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_color('#CCCCCC')
-            ax.spines['bottom'].set_color('#CCCCCC')
-            ax.grid(axis='x', alpha=0.2, linestyle='--', color='#CCCCCC')
-            ax.set_axisbelow(True)
-            
-            plt.tight_layout()
-            
-            img_buffer = BytesIO()
-            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight', facecolor='white')
-            img_buffer.seek(0)
-            plt.close(fig)
-            
-            img = self._rl_image(img_buffer, 7 * inch, self._chart_image_height(len(sectores)))
-            
-            # Guardar en caché
-            self._cache_graficas[cache_key] = img
-            print(f"   💾 Gráfica guardada en caché: {cache_key}")
-            
-            self.story.append(img)
-            
-        except Exception as e:
-            print(f"   ❌ Error generando gráfica de sectores: {str(e)}")
-        finally:
-            plt.close('all')
-    
+        self._append_bar_chart(
+            lineas,
+            avances,
+            'Avance por Línea Estratégica',
+            f'grafica_lineas_{self.anio}',
+        )
+
+    def generate_grafica_moderna_sectores(self):
+        """Genera tres gráficas de avance por sectores MGA."""
+        self._generate_tres_graficas_grupo(
+            group_key=lambda p: p.sector_mga or "Sin Sector",
+            group_label="Sector MGA",
+            cache_prefix="sectores",
+        )
+
     def generate_grafica_moderna_ods(self):
-        """Genera gráfica moderna de avance por ODS con caché"""
-        # Verificar caché (incluir año en la key)
-        cache_key = f'grafica_ods_{self.anio}'
-        if cache_key in self._cache_graficas:
-            print(f"   ⚡ Usando gráfica en caché: {cache_key}")
-            self.story.append(self._cache_graficas[cache_key])
-            return
-        
-        ods_data = defaultdict(lambda: {'total': 0, 'suma_avance': 0})
-        
-        for prod in self.productos:
-            ods = prod.ods or 'Sin ODS'
-            ods_data[ods]['total'] += 1
-            avance = self.calcular_avance_producto(prod)
-            ods_data[ods]['suma_avance'] += avance
-        
-        ods_list = []
-        avances = []
-        for ods, data in ods_data.items():
-            if data['total'] > 0:
-                promedio = data['suma_avance'] / data['total']
-                ods_list.append(ods[:45])
-                avances.append(promedio)
-        
-        if not ods_list:
-            return
-        
-        try:
-            fig, ax = plt.subplots(
-                figsize=(7, self._chart_image_height(len(ods_list)) / inch),
-            )
-            fig.patch.set_facecolor('white')
-            
-            colors = ['#4F9A54' if a >= 70 else '#FFA726' if a >= 50 else '#EF5350' for a in avances]
-            
-            y_pos = np.arange(len(ods_list))
-            bars = ax.barh(y_pos, avances, color=colors, height=0.6, alpha=0.9)
-            
-            for i, (bar, val) in enumerate(zip(bars, avances)):
-                width = bar.get_width()
-                ax.text(width + 2, bar.get_y() + bar.get_height()/2, 
-                       f'{val:.1f}%', ha='left', va='center', 
-                       fontsize=10, fontweight='bold', color='#333')
-            
-            ax.set_yticks(y_pos)
-            ax.set_yticklabels(ods_list, fontsize=9)
-            ax.set_xlabel('Porcentaje de Avance (%)', fontsize=11, fontweight='bold', color='#333')
-            ax.set_title('Avance por Objetivos de Desarrollo Sostenible', fontsize=13, 
-                        fontweight='bold', color='#003366', pad=20)
-            ax.set_xlim(0, 110)
-            
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_color('#CCCCCC')
-            ax.spines['bottom'].set_color('#CCCCCC')
-            ax.grid(axis='x', alpha=0.2, linestyle='--', color='#CCCCCC')
-            ax.set_axisbelow(True)
-            
-            plt.tight_layout()
-            
-            img_buffer = BytesIO()
-            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight', facecolor='white')
-            img_buffer.seek(0)
-            plt.close(fig)
-            
-            img = self._rl_image(img_buffer, 7 * inch, self._chart_image_height(len(ods_list)))
-            
-            # Guardar en caché
-            self._cache_graficas[cache_key] = img
-            print(f"   💾 Gráfica guardada en caché: {cache_key}")
-            
-            self.story.append(img)
-            
-        except Exception as e:
-            print(f"   ❌ Error generando gráfica de ODS: {str(e)}")
-        finally:
-            plt.close('all')
+        """Genera tres gráficas de avance por ODS."""
+        self._generate_tres_graficas_grupo(
+            group_key=lambda p: p.ods or "Sin ODS",
+            group_label="Objetivo de Desarrollo Sostenible",
+            cache_prefix="ods",
+            label_max_len=45,
+        )
     
     def generate_seccion_lineas(self):
         """Genera sección de avance por líneas estratégicas"""
@@ -1257,65 +1229,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             
             self.story.append(table)
     
-    def generate_tabla_productos_por_sector(self):
-        """Genera tabla resumen consolidada por sector MGA (sin listar productos)."""
-        productos_por_sector: dict[str, list] = {}
-        for prod in self.productos:
-            sector = prod.sector_mga or "Sin Sector"
-            productos_por_sector.setdefault(sector, []).append(prod)
-
-        title_style = ParagraphStyle(
-            "SectionTitle",
-            parent=self.styles["Heading1"],
-            fontSize=14,
-            textColor=colors.HexColor("#003366"),
-            spaceAfter=6,
-            fontName="Helvetica-Bold",
-        )
-
-        self.story.append(
-            Paragraph("DESCRIPCIÓN DE CUMPLIMIENTO DE METAS POR SECTORES MGA", title_style)
-        )
-        self.story.append(Spacer(1, 0.08 * inch))
-
-        for sector, productos in productos_por_sector.items():
-            self._append_grupo_resumen_table(
-                grupo_label="SECTOR MGA",
-                grupo_nombre=sector,
-                productos=productos,
-            )
-    
-    def generate_tabla_productos_por_ods(self):
-        """Genera tabla resumen consolidada por ODS (sin listar productos)."""
-        productos_por_ods: dict[str, list] = {}
-        for prod in self.productos:
-            ods = prod.ods or "Sin ODS Asignado"
-            productos_por_ods.setdefault(ods, []).append(prod)
-
-        title_style = ParagraphStyle(
-            "SectionTitle",
-            parent=self.styles["Heading1"],
-            fontSize=14,
-            textColor=colors.HexColor("#003366"),
-            spaceAfter=6,
-            fontName="Helvetica-Bold",
-        )
-
-        self.story.append(
-            Paragraph(
-                "DESCRIPCIÓN DE CUMPLIMIENTO DE METAS POR OBJETIVOS DE DESARROLLO SOSTENIBLE",
-                title_style,
-            )
-        )
-        self.story.append(Spacer(1, 0.08 * inch))
-
-        for ods, productos in productos_por_ods.items():
-            self._append_grupo_resumen_table(
-                grupo_label="OBJETIVO DE DESARROLLO SOSTENIBLE",
-                grupo_nombre=ods,
-                productos=productos,
-            )
-
     def generate_seccion_sectores(self):
         """Genera sección de avance por sectores MGA"""
         title_style = ParagraphStyle(
@@ -1356,11 +1269,8 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         self.story.append(Paragraph(desc_text, justify_style))
         self.story.append(Spacer(1, 0.1 * inch))
         
-        # Generar gráfica moderna de sectores
+        # Generar gráficas de sectores (cumplimiento, físico y financiero)
         self.generate_grafica_moderna_sectores()
-        
-        # Generar tablas de productos por sector
-        self.generate_tabla_productos_por_sector()
         
     
     def generate_seccion_ods(self):
@@ -1406,11 +1316,8 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         self.story.append(Paragraph(desc_text, justify_style))
         self.story.append(Spacer(1, 0.1 * inch))
         
-        # Generar gráfica moderna de ODS
+        # Generar gráficas de ODS (cumplimiento, físico y financiero)
         self.generate_grafica_moderna_ods()
-        
-        # Generar tablas de productos por ODS
-        self.generate_tabla_productos_por_ods()
         
     
     def _build_ai_narrative(self) -> str:
@@ -1474,25 +1381,33 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]))
             self.story.append(linea_table)
             
-            # 2. PRODUCTO(S), INDICADOR, AVANCE DEL PRODUCTO, AVANCE FINANCIERO
+            # 2. PRODUCTO(S), INDICADOR, AVANCES Y FECHA DE EJECUCIÓN
             producto_nombre = prod.producto_mga or prod.codigo_producto
             indicador_nombre = prod.indicador_producto_mga or prod.personalizacion_indicador or 'N/A'
             avance_fisico = self.calcular_avance_producto(prod)
             avance_financiero = self.calcular_avance_financiero(prod)
+            actividades = actividades_por_producto.get(prod.codigo_producto, [])
+            fecha_ejecucion = self._fecha_ejecucion_producto(actividades)
             
             producto_data = [[
                 Paragraph('<b>PRODUCTO(S)</b>', white_style),
                 Paragraph('<b>INDICADOR DE PRODUCTO</b>', white_style),
                 Paragraph('<b>AVANCE DEL PRODUCTO</b>', white_style),
-                Paragraph('<b>AVANCE FINANCIERO</b>', white_style)
+                Paragraph('<b>AVANCE FINANCIERO</b>', white_style),
+                Paragraph('<b>FECHA DE EJECUCIÓN</b>', white_style),
             ], [
                 Paragraph(producto_nombre, self.styles['Normal']),
                 Paragraph(indicador_nombre, self.styles['Normal']),
                 Paragraph(f'<b>{avance_fisico:.0f}%</b>', self.styles['Normal']),
-                Paragraph(f'<b>{avance_financiero:.0f}%</b>', self.styles['Normal'])
+                Paragraph(f'<b>{avance_financiero:.0f}%</b>', self.styles['Normal']),
+                Paragraph(f'<b>{fecha_ejecucion}</b>', self.styles['Normal']),
             ]]
             
-            producto_table = Table(producto_data, colWidths=[2*inch, 2.5*inch, 1.25*inch, 1.25*inch], splitByRow=True)
+            producto_table = Table(
+                producto_data,
+                colWidths=[1.75 * inch, 2.1 * inch, 1.05 * inch, 1.05 * inch, 1.05 * inch],
+                splitByRow=True,
+            )
             producto_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#C6EBBE')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
@@ -1506,7 +1421,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             self.story.append(producto_table)
             
             # 3. EJECUCIÓN PLAN DE ACCIÓN VIGENCIA
-            actividades = actividades_por_producto.get(prod.codigo_producto, [])
             anio_vigencia = "2025" if self.anio == 2025 else str(self.anio) if self.anio > 0 else "2024-2027"
             
             ejecucion_header = [[Paragraph(f'<b>EJECUCIÓN PLAN DE ACCIÓN VIGENCIA {anio_vigencia}</b>', white_style)]]
@@ -1729,7 +1643,9 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 ]))
                 self.story.append(evidencia_table)
             
-            # Separador entre productos (flujo continuo, sin salto forzado)
+            # Separador entre productos (después de evidencias y antes del siguiente bloque)
+            if idx < total_productos:
+                self.story.append(Spacer(1, 0.35 * inch))
     
     def _build_content_pdf(
         self,
@@ -1739,6 +1655,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         use_template: bool,
     ) -> bytes:
         """Genera el PDF de contenido con márgenes según plantilla o FM-PDM-001."""
+        self.use_template = use_template
         self.buffer = BytesIO()
         self.story = []
         self._cache_graficas = {}
