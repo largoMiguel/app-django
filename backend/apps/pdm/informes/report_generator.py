@@ -81,21 +81,30 @@ class PDMReportGenerator:
     MAX_FLOWABLE_WIDTH = 7.0 * inch
     MAX_FLOWABLE_HEIGHT = 9.0 * inch
     MAX_CHART_HEIGHT = 9.0 * inch
-    MAX_EVIDENCIA_CELL = 3.0 * inch
+    MAX_EVIDENCIA_CELL = 2.6 * inch
+    FRAME_SAFETY_PT = 18
 
     def _update_flowable_limits(self, top_margin: float, bottom_margin: float) -> None:
-        usable_height = letter[1] - top_margin - bottom_margin - 0.12 * inch
-        self._max_flowable_height = min(self.MAX_CHART_HEIGHT, usable_height)
+        usable_height = letter[1] - top_margin - bottom_margin - self.FRAME_SAFETY_PT
+        self._max_flowable_height = max(3.5 * inch, min(self.MAX_CHART_HEIGHT, usable_height))
         self._max_flowable_width = self.MAX_FLOWABLE_WIDTH
+
+    def _sync_flowable_limits_from_doc(self) -> None:
+        """Usa el alto/ancho real del frame ReportLab (más fiable con plantilla)."""
+        frame_h = float(getattr(self.doc, "height", letter[1]))
+        frame_w = float(getattr(self.doc, "width", letter[0] - inch))
+        self._max_flowable_height = max(3.5 * inch, frame_h - self.FRAME_SAFETY_PT)
+        self._max_flowable_width = min(self.MAX_FLOWABLE_WIDTH, frame_w - 4)
 
     def _chart_image_height(self, item_count: int) -> float:
         cap = getattr(self, "_max_flowable_height", self.MAX_CHART_HEIGHT)
-        return min(max(item_count * 0.6 * inch, 3.5 * inch), cap)
+        raw = max(item_count * 0.5 * inch, 3.2 * inch)
+        return min(raw, cap)
 
     def _rl_image(self, img_buffer, width, height, kind=None):
         max_w = getattr(self, "_max_flowable_width", self.MAX_FLOWABLE_WIDTH)
         max_h = getattr(self, "_max_flowable_height", self.MAX_FLOWABLE_HEIGHT)
-        scale = min(1.0, max_w / width, max_h / height)
+        scale = min(1.0, max_w / width, max_h / height) * 0.98
         width *= scale
         height *= scale
         img_buffer.seek(0)
@@ -758,7 +767,9 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         
         try:
             # Diseño moderno con colores institucionales
-            fig, ax = plt.subplots(figsize=(9, max(len(lineas) * 0.6, 4)))
+            fig, ax = plt.subplots(
+                figsize=(7, self._chart_image_height(len(lineas)) / inch),
+            )
             fig.patch.set_facecolor('white')
             
             # Colores: verde institucional y gradientes
@@ -839,7 +850,9 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             return
         
         try:
-            fig, ax = plt.subplots(figsize=(9, max(len(sectores) * 0.6, 4)))
+            fig, ax = plt.subplots(
+                figsize=(7, self._chart_image_height(len(sectores)) / inch),
+            )
             fig.patch.set_facecolor('white')
             
             colors = ['#4F9A54' if a >= 70 else '#FFA726' if a >= 50 else '#EF5350' for a in avances]
@@ -918,7 +931,9 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             return
         
         try:
-            fig, ax = plt.subplots(figsize=(9, max(len(ods_list) * 0.6, 4)))
+            fig, ax = plt.subplots(
+                figsize=(7, self._chart_image_height(len(ods_list)) / inch),
+            )
             fig.patch.set_facecolor('white')
             
             colors = ['#4F9A54' if a >= 70 else '#FFA726' if a >= 50 else '#EF5350' for a in avances]
@@ -1822,6 +1837,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         """Genera el PDF de contenido con márgenes según plantilla o FM-PDM-001."""
         self.buffer = BytesIO()
         self.story = []
+        self._cache_graficas = {}
         self._update_flowable_limits(top_margin, bottom_margin)
 
         self.doc = SimpleDocTemplate(
@@ -1832,6 +1848,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             topMargin=top_margin,
             bottomMargin=bottom_margin,
         )
+        self._sync_flowable_limits_from_doc()
         self.styles = getSampleStyleSheet()
 
         print("  ├─ Portada")
