@@ -158,8 +158,7 @@ def replace_page_number(page, page_index: int, total_pages: int) -> None:
         return
 
 
-def replace_report_title(page, new_title: str) -> None:
-    """Reemplaza el título del membrete (p. ej. INFORME DE GESTIÓN INSTITUCIONAL)."""
+def _find_report_title_rect(page) -> fitz.Rect | None:
     old_title_re = re.compile(
         r"INFORME\s+DE\s+GESTI[ÓO]N\s+INSTITUCIONAL",
         re.IGNORECASE,
@@ -168,37 +167,62 @@ def replace_report_title(page, new_title: str) -> None:
     for block in data.get("blocks", []):
         for line in block.get("lines", []):
             line_text = "".join(span["text"] for span in line.get("spans", [])).strip()
-            if not old_title_re.search(line_text):
-                continue
-            rect = fitz.Rect(line["bbox"])
-            _cover_rect_white(page, rect, pad_x=10, pad_y=3)
-            fontsize = max(7, min(10, rect.height * 0.82))
-            page.insert_textbox(
-                rect,
-                new_title,
-                fontsize=fontsize,
-                fontname="helv",
-                color=(0, 0, 0),
-                align=fitz.TEXT_ALIGN_CENTER,
-            )
-            return
-
+            if old_title_re.search(line_text):
+                return fitz.Rect(line["bbox"])
     for old_text in (
         "INFORME DE GESTIÓN INSTITUCIONAL",
         "INFORME DE GESTION INSTITUCIONAL",
     ):
-        for rect in page.search_for(old_text):
-            _cover_rect_white(page, rect, pad_x=10, pad_y=3)
-            fontsize = max(7, min(10, rect.height * 0.82))
-            page.insert_textbox(
-                rect,
-                new_title,
-                fontsize=fontsize,
-                fontname="helv",
-                color=(0, 0, 0),
-                align=fitz.TEXT_ALIGN_CENTER,
-            )
-            return
+        hits = page.search_for(old_text)
+        if hits:
+            return hits[0]
+    return None
+
+
+def _insert_report_title_text(page, rect: fitz.Rect, new_title: str) -> None:
+    """Inserta título negro legible tras redactar el texto original del membrete."""
+    expanded = fitz.Rect(rect.x0 - 18, rect.y0 - 5, rect.x1 + 18, rect.y1 + 8)
+    page.add_redact_annot(expanded, fill=(1, 1, 1))
+    page.apply_redactions()
+
+    title_lines = (
+        "INFORME DE INDICADORES\nPLAN DE DESARROLLO"
+        if len(new_title) > 34
+        else new_title
+    )
+    fontsize = max(7.5, min(9.5, expanded.height * 0.38))
+    overflow = page.insert_textbox(
+        expanded,
+        title_lines,
+        fontsize=fontsize,
+        fontname="helv",
+        color=(0, 0, 0),
+        align=fitz.TEXT_ALIGN_CENTER,
+    )
+    if overflow >= 0:
+        return
+
+    page.draw_rect(expanded, color=(1, 1, 1), fill=(1, 1, 1))
+    mid_x = (expanded.x0 + expanded.x1) / 2
+    lines = title_lines.split("\n")
+    step = expanded.height / (len(lines) + 1)
+    for idx, line in enumerate(lines):
+        y = expanded.y1 - step * (idx + 1)
+        text_width = fitz.get_text_length(line, fontname="helv", fontsize=fontsize)
+        page.insert_text(
+            (mid_x - text_width / 2, y),
+            line,
+            fontsize=fontsize,
+            fontname="helv",
+            color=(0, 0, 0),
+        )
+
+
+def replace_report_title(page, new_title: str) -> None:
+    """Reemplaza el título del membrete (p. ej. INFORME DE GESTIÓN INSTITUCIONAL)."""
+    rect = _find_report_title_rect(page)
+    if rect is not None:
+        _insert_report_title_text(page, rect, new_title)
 
 
 def load_entity_template(entity) -> bytes | None:

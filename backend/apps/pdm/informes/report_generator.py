@@ -89,6 +89,99 @@ class PDMReportGenerator:
     EVIDENCIA_IMG_INCH = 2.4 * inch
     FRAME_SAFETY_PT = 18
     GRUPO_BLOCK_GAP = 0.15 * inch
+    COLOR_PRIMARY = colors.HexColor("#4F9A54")
+    COLOR_HEADER = colors.HexColor("#003366")
+    COLOR_ROW_ALT = colors.HexColor("#F5F8F5")
+    TABLE_WIDTH = 7.0 * inch
+
+    def _institutional_styles(self) -> dict:
+        if hasattr(self, "_inst_styles_cache"):
+            return self._inst_styles_cache
+        self._inst_styles_cache = {
+            "banner": ParagraphStyle(
+                "InstBanner",
+                parent=self.styles["Normal"],
+                textColor=colors.white,
+                fontName="Helvetica-Bold",
+                fontSize=10,
+                alignment=TA_CENTER,
+            ),
+            "col_header": ParagraphStyle(
+                "InstColHeader",
+                parent=self.styles["Normal"],
+                textColor=colors.white,
+                fontName="Helvetica-Bold",
+                fontSize=8,
+                alignment=TA_CENTER,
+                leading=10,
+            ),
+            "cell_center": ParagraphStyle(
+                "InstCellCenter",
+                parent=self.styles["Normal"],
+                fontSize=9,
+                alignment=TA_CENTER,
+                leading=11,
+            ),
+            "cell_left": ParagraphStyle(
+                "InstCellLeft",
+                parent=self.styles["Normal"],
+                fontSize=9,
+                alignment=TA_LEFT,
+                leading=11,
+            ),
+            "cell_bold": ParagraphStyle(
+                "InstCellBold",
+                parent=self.styles["Normal"],
+                fontSize=9,
+                fontName="Helvetica-Bold",
+                alignment=TA_CENTER,
+                leading=11,
+            ),
+        }
+        return self._inst_styles_cache
+
+    def _append_banner_table(self, title: str) -> None:
+        st = self._institutional_styles()
+        table = Table(
+            [[Paragraph(f"<b>{title}</b>", st["banner"])]],
+            colWidths=[self.TABLE_WIDTH],
+            splitByRow=True,
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), self.COLOR_PRIMARY),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ]
+            )
+        )
+        self.story.append(table)
+
+    def _append_data_table(self, rows: list, col_widths: list) -> None:
+        st = self._institutional_styles()
+        table = Table(rows, colWidths=col_widths, splitByRow=True)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), self.COLOR_HEADER),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("BACKGROUND", (0, 1), (-1, -1), self.COLOR_ROW_ALT),
+                    ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        self.story.append(table)
 
     def _update_flowable_limits(self, top_margin: float, bottom_margin: float) -> None:
         usable_height = letter[1] - top_margin - bottom_margin - self.FRAME_SAFETY_PT
@@ -157,13 +250,11 @@ class PDMReportGenerator:
                 meta_ejec += float(act.meta_ejecutar or 0)
         return min(100.0, (meta_ejec / meta_prog) * 100)
 
-    def _meta_resumen_producto(self, producto) -> str:
-        """Retorna meta ejecutada / programada para el año o cuatrienio filtrado."""
+    def _meta_ejecutada_producto(self, producto) -> float:
         if self.anio == 0:
             anios = (2024, 2025, 2026, 2027)
         else:
             anios = (self.anio,)
-        meta_prog = sum(float(getattr(producto, f"programacion_{a}", 0) or 0) for a in anios)
         meta_ejec = 0.0
         for anio in anios:
             for act in self.actividades:
@@ -171,7 +262,18 @@ class PDMReportGenerator:
                     continue
                 if getattr(act, "tiene_evidencia", False):
                     meta_ejec += float(act.meta_ejecutar or 0)
-        return f"{meta_ejec:g} / {meta_prog:g}"
+        return meta_ejec
+
+    def _presupuesto_producto(self, producto) -> tuple[float, float]:
+        qs = PDMEjecucionPresupuestal.objects.filter(
+            entity_id=self.entity.id,
+            codigo_producto=producto.codigo_producto,
+        )
+        if self.anio != 0:
+            qs = qs.filter(anio=self.anio)
+        pto = sum(float(e.pto_definitivo or 0) for e in qs)
+        pagos = sum(float(e.pagos or 0) for e in qs)
+        return pto, pagos
 
     def _append_bar_chart(
         self,
@@ -1320,101 +1422,132 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 actividades_por_producto[act.codigo_producto].append(act)
         
         # Procesar cada producto (SIN LÍMITE - mejora implementada)
-        white_style = ParagraphStyle('WhiteText', parent=self.styles['Normal'], textColor=colors.white, fontName='Helvetica-Bold', fontSize=10)
-        
+        st = self._institutional_styles()
         total_productos = len(self.productos)
         print(f"   📦 Procesando {total_productos} productos...")
         
         for idx, prod in enumerate(self.productos, 1):
             print(f"   📦 Procesando producto {idx}/{total_productos}: {prod.codigo_producto}")
-            
-            # 1. LÍNEA ESTRATÉGICA (encabezado verde)
-            linea_header = [[Paragraph('LÍNEA ESTRATÉGICA', white_style)]]
-            linea_nombre = prod.linea_estrategica or 'SIN LÍNEA'
-            linea_header.append([Paragraph(f'<b>{linea_nombre.upper()}</b>', self.styles['Normal'])])
-            
-            linea_table = Table(linea_header, colWidths=[7*inch], splitByRow=True)
-            linea_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('TOPPADDING', (0, 0), (-1, -1), 5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            ]))
-            self.story.append(linea_table)
-            
-            # 2. PRODUCTO(S), INDICADOR, AVANCES Y META EJECUTADA
+
+            actividades = actividades_por_producto.get(prod.codigo_producto, [])
             producto_nombre = prod.producto_mga or prod.codigo_producto
-            indicador_nombre = prod.indicador_producto_mga or prod.personalizacion_indicador or 'N/A'
+            indicador_nombre = prod.indicador_producto_mga or prod.personalizacion_indicador or "N/A"
             avance_fisico = self.calcular_avance_producto(prod)
             avance_financiero = self.calcular_avance_financiero(prod)
-            actividades = actividades_por_producto.get(prod.codigo_producto, [])
-            meta_resumen = self._meta_resumen_producto(prod)
-            
-            producto_data = [[
-                Paragraph('<b>PRODUCTO(S)</b>', white_style),
-                Paragraph('<b>INDICADOR DE PRODUCTO</b>', white_style),
-                Paragraph('<b>AVANCE DEL PRODUCTO</b>', white_style),
-                Paragraph('<b>AVANCE FINANCIERO</b>', white_style),
-                Paragraph('<b>META EJECUTADA /<br/>PROGRAMADA</b>', white_style),
-            ], [
-                Paragraph(producto_nombre, self.styles['Normal']),
-                Paragraph(indicador_nombre, self.styles['Normal']),
-                Paragraph(f'<b>{avance_fisico:.0f}%</b>', self.styles['Normal']),
-                Paragraph(f'<b>{avance_financiero:.0f}%</b>', self.styles['Normal']),
-                Paragraph(f'<b>{meta_resumen}</b>', self.styles['Normal']),
-            ]]
-            
-            producto_table = Table(
-                producto_data,
-                colWidths=[1.75 * inch, 2.1 * inch, 1.05 * inch, 1.05 * inch, 1.05 * inch],
+            meta_ejecutada = self._meta_ejecutada_producto(prod)
+            meta_programada = self._meta_programada_producto(prod)
+            pto_definitivo, pagos = self._presupuesto_producto(prod)
+            responsable = prod.responsable_secretaria.nombre if prod.responsable_secretaria else "N/A"
+            anio_vigencia = "2024-2027" if self.anio == 0 else str(self.anio)
+            meta_prog_label = (
+                "META FÍSICA PROGRAMADA (CUATRIENIO)"
+                if self.anio == 0
+                else f"META FÍSICA PROGRAMADA ({self.anio})"
+            )
+
+            linea_nombre = (prod.linea_estrategica or "SIN LÍNEA").upper()
+            linea_table = Table(
+                [
+                    [Paragraph("LÍNEA ESTRATÉGICA", st["banner"])],
+                    [Paragraph(f"<b>{linea_nombre}</b>", st["cell_center"])],
+                ],
+                colWidths=[self.TABLE_WIDTH],
                 splitByRow=True,
             )
-            producto_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#C6EBBE')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ]))
-            self.story.append(producto_table)
-            
-            # 3. EJECUCIÓN PLAN DE ACCIÓN VIGENCIA
-            anio_vigencia = "2025" if self.anio == 2025 else str(self.anio) if self.anio > 0 else "2024-2027"
-            
-            ejecucion_header = [[Paragraph(f'<b>EJECUCIÓN PLAN DE ACCIÓN VIGENCIA {anio_vigencia}</b>', white_style)]]
-            ejecucion_table = Table(ejecucion_header, colWidths=[7*inch], splitByRow=True)
-            ejecucion_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#C6EBBE')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ]))
-            self.story.append(ejecucion_table)
-            
-            # 4. ACTIVIDADES — una fila por actividad
-            justify_style = ParagraphStyle(
-                'JustifyContent',
-                parent=self.styles['Normal'],
-                alignment=TA_JUSTIFY,
-                fontSize=9,
-                leading=12
+            linea_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), self.COLOR_PRIMARY),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("BACKGROUND", (0, 1), (-1, 1), self.COLOR_ROW_ALT),
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("TOPPADDING", (0, 0), (-1, -1), 5),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ]
+                )
             )
+            self.story.append(linea_table)
+            
+            resumen_rows = [
+                [
+                    Paragraph("<b>PRODUCTO(S)</b>", st["col_header"]),
+                    Paragraph("<b>INDICADOR DE PRODUCTO</b>", st["col_header"]),
+                    Paragraph("", st["col_header"]),
+                ],
+                [
+                    Paragraph(producto_nombre, st["cell_left"]),
+                    Paragraph(indicador_nombre, st["cell_left"]),
+                    Paragraph("", st["cell_left"]),
+                ],
+                [
+                    Paragraph("<b>AVANCE FÍSICO</b>", st["col_header"]),
+                    Paragraph("<b>AVANCE FINANCIERO</b>", st["col_header"]),
+                    Paragraph("<b>META EJECUTADA</b>", st["col_header"]),
+                ],
+                [
+                    Paragraph(f"{avance_fisico:.0f}%", st["cell_bold"]),
+                    Paragraph(f"{avance_financiero:.0f}%", st["cell_bold"]),
+                    Paragraph(f"{meta_ejecutada:g}", st["cell_bold"]),
+                ],
+                [
+                    Paragraph(f"<b>{meta_prog_label}</b>", st["col_header"]),
+                    Paragraph("<b>PRESUPUESTO TOTAL</b>", st["col_header"]),
+                    Paragraph("<b>PAGOS EJECUTADOS</b>", st["col_header"]),
+                ],
+                [
+                    Paragraph(f"{meta_programada:g}", st["cell_bold"]),
+                    Paragraph(f"${pto_definitivo:,.0f}", st["cell_bold"]),
+                    Paragraph(f"${pagos:,.0f}", st["cell_bold"]),
+                ],
+                [
+                    Paragraph("<b>RESPONSABLE</b>", st["col_header"]),
+                    Paragraph(f"<b>{responsable.upper()}</b>", st["cell_left"]),
+                    Paragraph("", st["cell_left"]),
+                ],
+            ]
+            resumen_table = Table(
+                resumen_rows,
+                colWidths=[2.33 * inch, 2.34 * inch, 2.33 * inch],
+                splitByRow=True,
+            )
+            resumen_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), self.COLOR_HEADER),
+                        ("BACKGROUND", (0, 2), (-1, 2), self.COLOR_HEADER),
+                        ("BACKGROUND", (0, 4), (-1, 4), self.COLOR_HEADER),
+                        ("BACKGROUND", (0, 6), (0, 6), self.COLOR_HEADER),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("TEXTCOLOR", (0, 2), (-1, 2), colors.white),
+                        ("TEXTCOLOR", (0, 4), (-1, 4), colors.white),
+                        ("TEXTCOLOR", (0, 6), (0, 6), colors.white),
+                        ("SPAN", (1, 0), (2, 0)),
+                        ("SPAN", (1, 1), (2, 1)),
+                        ("SPAN", (1, 6), (2, 6)),
+                        ("BACKGROUND", (0, 1), (-1, 1), self.COLOR_ROW_ALT),
+                        ("BACKGROUND", (0, 3), (-1, 3), colors.white),
+                        ("BACKGROUND", (0, 5), (-1, 5), self.COLOR_ROW_ALT),
+                        ("BACKGROUND", (0, 6), (-1, 6), colors.white),
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("TOPPADDING", (0, 0), (-1, -1), 5),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ]
+                )
+            )
+            self.story.append(resumen_table)
 
-            actividades_data = [[
-                Paragraph('<b>Meta y/o Actividades</b>', white_style),
-                Paragraph('<b>Descripción</b>', white_style),
-                Paragraph('<b>Ejecutado</b>', white_style),
+            self._append_banner_table(f"EJECUCIÓN PLAN DE ACCIÓN VIGENCIA {anio_vigencia}")
+
+            actividades_rows = [[
+                Paragraph("<b>Meta y/o Actividades</b>", st["col_header"]),
+                Paragraph("<b>Descripción</b>", st["col_header"]),
+                Paragraph("<b>Ejecutado</b>", st["col_header"]),
             ]]
-
             if actividades:
                 for act in actividades:
                     nombre_actividad = act.nombre or "Sin nombre"
@@ -1423,82 +1556,44 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                     descripcion = (act.descripcion or "").strip()
                     if len(descripcion) > 800:
                         descripcion = descripcion[:797] + "..."
-                    meta_ejecutada = float(act.meta_ejecutar or 0)
-                    actividades_data.append([
-                        Paragraph(f"<b>{nombre_actividad}</b>", justify_style),
-                        Paragraph(descripcion or "—", justify_style),
-                        Paragraph(f"<b>{meta_ejecutada:g}</b>", self.styles['Normal']),
+                    meta_act = float(act.meta_ejecutar or 0)
+                    actividades_rows.append([
+                        Paragraph(f"<b>{nombre_actividad}</b>", st["cell_left"]),
+                        Paragraph(descripcion or "—", st["cell_left"]),
+                        Paragraph(f"{meta_act:g}", st["cell_bold"]),
                     ])
             else:
-                actividades_data.append([
-                    Paragraph("Sin actividades registradas", justify_style),
-                    Paragraph("—", justify_style),
-                    Paragraph("—", self.styles['Normal']),
+                actividades_rows.append([
+                    Paragraph("Sin actividades registradas", st["cell_left"]),
+                    Paragraph("—", st["cell_left"]),
+                    Paragraph("—", st["cell_center"]),
                 ])
 
             actividades_table = Table(
-                actividades_data,
+                actividades_rows,
                 colWidths=[2.5 * inch, 3.25 * inch, 1.25 * inch],
                 splitByRow=True,
             )
-            actividades_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),  # Títulos centrados
-                ('ALIGN', (0, 1), (-1, -1), 'LEFT'),  # Contenido justificado (via Paragraph)
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                ('LEFTPADDING', (0, 0), (-1, -1), 8),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-            ]))
+            actividades_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), self.COLOR_HEADER),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("BACKGROUND", (0, 1), (-1, -1), self.COLOR_ROW_ALT),
+                        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                        ("ALIGN", (2, 1), (2, -1), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("TOPPADDING", (0, 0), (-1, -1), 5),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ]
+                )
+            )
             self.story.append(actividades_table)
-            
-            # 5. CANTIDAD META FÍSICA | RECURSOS | RESPONSABLE
-            if self.anio == 0:
-                # Cuatrienio completo: suma de todos los años
-                total_recursos = (prod.total_2024 or 0) + (prod.total_2025 or 0) + (prod.total_2026 or 0) + (prod.total_2027 or 0)
-            else:
-                # Año específico
-                if self.anio == 2024:
-                    total_recursos = prod.total_2024 or 0
-                elif self.anio == 2025:
-                    total_recursos = prod.total_2025 or 0
-                elif self.anio == 2026:
-                    total_recursos = prod.total_2026 or 0
-                elif self.anio == 2027:
-                    total_recursos = prod.total_2027 or 0
-                else:
-                    total_recursos = 0
-            
-            responsable = prod.responsable_secretaria.nombre if prod.responsable_secretaria else 'N/A'
-            
-            recursos_data = [[
-                Paragraph('<b>CANTIDAD DE META<br/>FÍSICA PROGRAMADA</b>', white_style),
-                Paragraph('<b>Recursos Ejecutados</b>', white_style),
-                Paragraph('<b>RESPONSABLE</b>', white_style)
-            ], [
-                Paragraph(f'<b>{prod.meta_cuatrienio or 1}</b>', self.styles['Normal']),
-                Paragraph(f'<b>${total_recursos:,.0f}</b>', self.styles['Normal']),
-                Paragraph(f'<b>{responsable.upper()}</b>', ParagraphStyle('Small', parent=self.styles['Normal'], fontSize=7))
-            ]]
-            
-            recursos_table = Table(recursos_data, colWidths=[2.33*inch, 2.33*inch, 2.34*inch], splitByRow=True)
-            recursos_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ]))
-            self.story.append(recursos_table)
-            
-            # 6. REGISTRO DE EVIDENCIA + IMÁGENES (OPTIMIZADO - carga bajo demanda)
+
+            # REGISTRO DE EVIDENCIA + IMÁGENES
             evidencias_encontradas = False
             
             # OPTIMIZACIÓN: Solo verificar si hay evidencias (sin cargar imágenes aún)
@@ -1519,19 +1614,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 
                 if evidencias_con_imagenes:
                     evidencias_encontradas = True
-                    evidencia_header = [[Paragraph('<b>REGISTRO DE EVIDENCIAS</b>', white_style)]]
-                    evidencia_table = Table(evidencia_header, colWidths=[7*inch], splitByRow=True)
-                    evidencia_table.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
-                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Título centrado
-                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                        ('TOPPADDING', (0, 0), (-1, -1), 4),
-                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                        ('LEFTPADDING', (0, 0), (-1, -1), 10),
-                    ]))
-                    self.story.append(evidencia_table)
+                    self._append_banner_table("REGISTRO DE EVIDENCIAS")
                     
                     # Procesar TODAS las evidencias
                     for num_evidencia, actividad in enumerate(evidencias_con_imagenes, 1):
@@ -1585,18 +1668,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                             self.story.append(img_table)
             
             if not evidencias_encontradas:
-                evidencia_header = [[Paragraph('<b>REGISTRO DE EVIDENCIA</b>', white_style)]]
-                evidencia_table = Table(evidencia_header, colWidths=[7*inch], splitByRow=True)
-                evidencia_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Título centrado
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                    ('TOPPADDING', (0, 0), (-1, -1), 4),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                ]))
-                self.story.append(evidencia_table)
+                self._append_banner_table("REGISTRO DE EVIDENCIA")
             
             # Separador entre productos (después de evidencias y antes del siguiente bloque)
             if idx < total_productos:
