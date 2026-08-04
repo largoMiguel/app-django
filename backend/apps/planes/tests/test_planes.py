@@ -163,6 +163,43 @@ class PlanesAccessTests(TestCase):
         self.assertFalse(response.data["es_decreto612"])
         self.assertEqual(response.data["entity"], self.entity_a.id)
 
+    def test_retrieve_plan_without_actividades(self):
+        request = self.factory.get(f"/api/v1/planes/{self.plan_a.id}/")
+        force_authenticate(request, user=self.admin_a)
+        view = PlanViewSet.as_view({"get": "retrieve"})
+        response = view(request, pk=self.plan_a.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["actividades"], [])
+        self.assertEqual(len(response.data["resumen_por_trimestre"]), 4)
+
+    def test_detail_serializer_prefetched_actividad_without_evidencia(self):
+        from apps.planes.access import actividades_queryset_for_user
+        from apps.planes.serializers import PlanDetailSerializer
+        from apps.planes.stats import build_resumen_por_trimestre
+
+        PlanActividad.objects.create(
+            entity=self.entity_a,
+            plan=self.plan_a,
+            anio=2026,
+            trimestre=4,
+            nombre="Prefetch sin evidencia",
+            responsable_secretaria=self.secretaria_a,
+        )
+        actividades = list(
+            actividades_queryset_for_user(self.admin_a, self.entity_a).filter(plan=self.plan_a)
+        )
+        resumen = build_resumen_por_trimestre(self.plan_a, actividades)
+        data = PlanDetailSerializer(
+            self.plan_a,
+            context={
+                "actividades_detail": actividades,
+                "resumen_por_trimestre": resumen,
+            },
+        ).data
+        self.assertEqual(len(data["actividades"]), 1)
+        self.assertIsNone(data["actividades"][0]["evidencia"])
+        self.assertFalse(data["actividades"][0]["tiene_evidencia"])
+
     def test_admin_can_retrieve_plan_detail(self):
         request = self.factory.get(f"/api/v1/planes/{self.plan_a.id}/")
         force_authenticate(request, user=self.admin_a)

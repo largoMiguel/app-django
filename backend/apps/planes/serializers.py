@@ -32,15 +32,18 @@ class PlanEvidenciaArchivoSerializer(serializers.ModelSerializer):
             return None
         from django.conf import settings
 
-        if settings.USE_B2_STORAGE and settings.FILE_DELIVERY_SIGNING_KEY:
-            filename = obj.nombre_original or obj.archivo.name.rsplit("/", 1)[-1]
-            return signed_planes_url(obj.archivo.name, filename=filename)
+        try:
+            if settings.USE_B2_STORAGE and settings.FILE_DELIVERY_SIGNING_KEY:
+                filename = obj.nombre_original or obj.archivo.name.rsplit("/", 1)[-1]
+                return signed_planes_url(obj.archivo.name, filename=filename)
 
-        request = self.context.get("request")
-        url = obj.archivo.url
-        if request and not url.startswith("http"):
-            return request.build_absolute_uri(url)
-        return url
+            request = self.context.get("request")
+            url = obj.archivo.url
+            if request and not url.startswith("http"):
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return None
 
     def get_nombre(self, obj):
         return obj.nombre_original or (obj.archivo.name.rsplit("/", 1)[-1] if obj.archivo else "")
@@ -110,7 +113,10 @@ class PlanActividadSerializer(serializers.ModelSerializer):
         return user.full_name or user.email
 
     def get_tiene_evidencia(self, obj) -> bool:
-        return hasattr(obj, "evidencia") and obj.evidencia is not None
+        try:
+            return obj.evidencia is not None
+        except PlanEvidencia.DoesNotExist:
+            return False
 
     def get_trimestre_label(self, obj) -> str:
         try:
@@ -174,11 +180,29 @@ class PlanListSerializer(serializers.ModelSerializer):
 
 
 class PlanDetailSerializer(PlanListSerializer):
-    actividades = PlanActividadDetailSerializer(many=True, read_only=True)
-    resumen_por_trimestre = serializers.JSONField(read_only=True, required=False)
+    actividades = serializers.SerializerMethodField()
+    resumen_por_trimestre = serializers.SerializerMethodField()
 
     class Meta(PlanListSerializer.Meta):
         fields = PlanListSerializer.Meta.fields + ("actividades", "resumen_por_trimestre")
+
+    def get_actividades(self, obj):
+        actividades = self.context.get("actividades_detail")
+        if actividades is None:
+            actividades = getattr(obj, "actividades", [])
+            if hasattr(actividades, "all"):
+                actividades = actividades.all()
+        return PlanActividadDetailSerializer(
+            actividades,
+            many=True,
+            context=self.context,
+        ).data
+
+    def get_resumen_por_trimestre(self, obj):
+        cached = self.context.get("resumen_por_trimestre")
+        if cached is not None:
+            return cached
+        return getattr(obj, "resumen_por_trimestre", [])
 
 
 class PlanWriteSerializer(serializers.Serializer):

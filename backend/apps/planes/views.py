@@ -75,9 +75,15 @@ def _build_plan_detail_data(plan_pk: int, user, entity, request=None) -> dict | 
         .filter(plan=obj)
         .order_by("trimestre", "fecha_inicio", "id")
     )
-    obj.actividades = actividades
     obj.resumen_por_trimestre = build_resumen_por_trimestre(obj, actividades)
-    return PlanDetailSerializer(obj, context={"request": request}).data
+    return PlanDetailSerializer(
+        obj,
+        context={
+            "request": request,
+            "actividades_detail": actividades,
+            "resumen_por_trimestre": obj.resumen_por_trimestre,
+        },
+    ).data
 
 
 class PlanCatalogoViewSet(viewsets.ModelViewSet):
