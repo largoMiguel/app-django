@@ -325,3 +325,77 @@ export const planesApi = {
       api.delete(`/planes/actividades/${actividadId}/evidencia/${evidenciaId}/`),
   },
 };
+
+export type InformePlanEstado = "PENDIENTE" | "PROCESANDO" | "COMPLETADO" | "ERROR";
+export type InformePlanTipo = "SEGUIMIENTO_D612";
+
+export interface InformePlan {
+  id: number;
+  filename: string;
+  tipo: InformePlanTipo;
+  tipo_label: string;
+  anio: number;
+  trimestre: number;
+  trimestre_label: string;
+  plan: number | null;
+  plan_nombre: string;
+  responsable_secretaria: number | null;
+  responsable_secretaria_nombre: string;
+  incluir_evidencias: boolean;
+  usar_ia: boolean;
+  usuario_firmante: number;
+  usuario_firmante_nombre: string;
+  cargo_firmante: string;
+  estado: InformePlanEstado;
+  error_detail: string;
+  total_planes: number;
+  total_actividades: number;
+  avance_promedio: number;
+  file_size: number;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  expires_at: string;
+  expires_in_days: number;
+  created_by_nombre: string;
+}
+
+export interface GenerarInformePlanPayload {
+  tipo: InformePlanTipo;
+  anio: number;
+  trimestre: number;
+  plan_id?: number;
+  responsable_secretaria_id?: number;
+  incluir_evidencias?: boolean;
+  usar_ia?: boolean;
+  usuario_firmante_id: number;
+  cargo_firmante?: string;
+}
+
+export interface InformeFirmante {
+  id: number;
+  full_name: string;
+  email: string;
+}
+
+export const planesInformesApi = {
+  list: (tipo?: InformePlanTipo) =>
+    api
+      .get<InformePlan[]>("/planes/informes/", { params: tipo ? { tipo } : undefined })
+      .then((r) => r.data),
+
+  firmantes: (secretariaId?: number) =>
+    api
+      .get<InformeFirmante[]>("/planes/informes/firmantes/", {
+        params: secretariaId ? { secretaria_id: secretariaId } : undefined,
+      })
+      .then((r) => r.data),
+
+  create: (payload: GenerarInformePlanPayload) =>
+    api.post<InformePlan>("/planes/informes/", payload).then((r) => r.data),
+
+  download: (id: number, filename: string) =>
+    downloadAuthenticatedFile(`/api/v1/planes/informes/${id}/download/`, filename),
+
+  remove: (id: number) => api.delete(`/planes/informes/${id}/`),
+};

@@ -1,105 +1,142 @@
-import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
-import { secretariasApi, type Secretaria } from "@/core/api/entities";
-import { planesApi, TRIMESTRE_OPTIONS, type PlanListItem } from "@/core/api/planes";
-import { formatApiError } from "@/core/api/errors";
-import { PlanesCard, btnPrimary, inputClass } from "./components/PlanesUi";
-import { usePlanesYear } from "./PlanesYearContext";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ChevronRight, FileBarChart2, Plus, X } from "lucide-react";
+import { primaryRole, useAuthStore } from "@/core/auth/store";
+import { PLANES_INFORME_TYPES } from "@/features/planes/informes/planesInformeTypes";
+import { btnPrimary } from "./components/PlanesUi";
+
+function TypePickerModal({ onClose, onSelect }: { onClose: () => void; onSelect: (route: string) => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between bg-[#0e7490] px-6 py-4 text-white">
+          <span className="text-base font-semibold">Seleccionar tipo de informe</span>
+          <button type="button" onClick={onClose} className="rounded p-1 transition-colors hover:bg-white/20">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="space-y-3 p-6">
+          {PLANES_INFORME_TYPES.filter((t) => t.enabled).map((tipo) => {
+            const Icon = tipo.icon;
+            return (
+              <button
+                key={tipo.id}
+                type="button"
+                onClick={() => onSelect(tipo.route)}
+                className="flex w-full items-start gap-4 rounded-lg border border-slate-200 p-4 text-left transition-colors hover:border-[#3eafd4] hover:bg-cyan-50/50"
+              >
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-100 text-cyan-700">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-900">{tipo.title}</p>
+                  <p className="mt-1 text-sm text-slate-600">{tipo.description}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function PlanesInformesPage() {
-  const { anio } = usePlanesYear();
-  const [trimestre, setTrimestre] = useState<number | "">("");
-  const [planId, setPlanId] = useState<number | "">("");
-  const [secretariaId, setSecretariaId] = useState<number | "">("");
-  const [planes, setPlanes] = useState<PlanListItem[]>([]);
-  const [secretarias, setSecretarias] = useState<Secretaria[]>([]);
-  const [downloading, setDownloading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const user = useAuthStore((s) => s.user);
+  const role = primaryRole(user);
+  const canView = role === "admin" || role === "secretario";
+  const navigate = useNavigate();
+  const [showPicker, setShowPicker] = useState(false);
 
-  useEffect(() => {
-    planesApi.list({ anio: String(anio), page_size: "100" }).then((r) => setPlanes(r.results)).catch(() => setPlanes([]));
-    secretariasApi.list().then(setSecretarias).catch(() => setSecretarias([]));
-  }, [anio]);
+  if (!canView) {
+    return (
+      <div className="flex h-64 items-center justify-center text-sm text-slate-500">
+        No tienes permiso para ver informes de Planes Institucionales.
+      </div>
+    );
+  }
 
-  async function handleDownload() {
-    setDownloading(true);
-    setError(null);
-    const params: Record<string, string> = { anio: String(anio) };
-    if (trimestre) params.trimestre = String(trimestre);
-    if (planId) params.plan = String(planId);
-    if (secretariaId) params.responsable_secretaria = String(secretariaId);
-    const triSuffix = trimestre ? `_T${trimestre}` : "";
-    const filename = `Planes_D612_${anio}${triSuffix}.xlsx`;
-    try {
-      await planesApi.downloadExport(params, filename);
-    } catch (err) {
-      setError(formatApiError(err));
-    } finally {
-      setDownloading(false);
-    }
+  function handleTypeSelect(route: string) {
+    setShowPicker(false);
+    navigate(route);
   }
 
   return (
-    <PlanesCard title="Informe trimestral (Excel)">
-      <p className="mb-4 text-sm text-slate-600">
-        Exporte el seguimiento de actividades y evidencias por vigencia y trimestre, conforme al Decreto 612 de 2018.
-      </p>
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-      )}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Trimestre</label>
-          <select
-            value={trimestre}
-            onChange={(e) => setTrimestre(e.target.value ? Number(e.target.value) : "")}
-            className={inputClass}
-          >
-            <option value="">Todos</option>
-            {TRIMESTRE_OPTIONS.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700">
+            <FileBarChart2 className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-[#111827]">Informes Planes Institucionales</h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Genere informes de seguimiento PDF o exportaciones trimestrales en Excel.
+            </p>
+          </div>
         </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Plan</label>
-          <select
-            value={planId}
-            onChange={(e) => setPlanId(e.target.value ? Number(e.target.value) : "")}
-            className={inputClass}
-          >
-            <option value="">Todos</option>
-            {planes.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Secretaría</label>
-          <select
-            value={secretariaId}
-            onChange={(e) => setSecretariaId(e.target.value ? Number(e.target.value) : "")}
-            className={inputClass}
-          >
-            <option value="">Todas</option>
-            {secretarias.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className="mt-6">
-        <button type="button" onClick={handleDownload} disabled={downloading} className={btnPrimary}>
-          <Download className="mr-2 h-4 w-4" />
-          {downloading ? "Generando…" : "Descargar informe Excel"}
+        <button type="button" onClick={() => setShowPicker(true)} className={btnPrimary}>
+          <Plus className="mr-2 h-4 w-4" />
+          Crear informe
         </button>
       </div>
-    </PlanesCard>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {PLANES_INFORME_TYPES.map((tipo) => {
+          const Icon = tipo.icon;
+          const card = (
+            <div
+              className={`flex h-full flex-col rounded-xl border bg-white p-5 shadow-sm transition-colors ${
+                tipo.enabled
+                  ? "border-slate-200 hover:border-[#3eafd4] hover:shadow-md"
+                  : "border-slate-100 opacity-75"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700">
+                  <Icon className="h-5 w-5" />
+                </div>
+                {tipo.badge && (
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                    {tipo.badge}
+                  </span>
+                )}
+              </div>
+              <h3 className="mt-4 text-base font-semibold text-slate-900">{tipo.title}</h3>
+              <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{tipo.description}</p>
+              {tipo.enabled ? (
+                <div className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#0e7490]">
+                  Abrir
+                  <ChevronRight className="h-4 w-4" />
+                </div>
+              ) : (
+                <p className="mt-4 text-sm font-medium text-slate-400">Disponible próximamente</p>
+              )}
+            </div>
+          );
+
+          if (tipo.enabled) {
+            return (
+              <Link key={tipo.id} to={tipo.route} className="block h-full">
+                {card}
+              </Link>
+            );
+          }
+
+          return (
+            <div key={tipo.id} className="h-full cursor-not-allowed" aria-disabled="true">
+              {card}
+            </div>
+          );
+        })}
+      </div>
+
+      {showPicker && <TypePickerModal onClose={() => setShowPicker(false)} onSelect={handleTypeSelect} />}
+    </div>
   );
 }

@@ -370,6 +370,27 @@ Superadmin → Entidad → Módulos: activar **Planes Institucionales** (`enable
 
 Ruta frontend: `/planes` (Resumen · Planes · Cronograma · Informes).
 
+### Informes Planes Institucionales
+
+Pestaña **Informes** en el módulo Planes (roles `admin` y `secretario`). Botón **Crear informe** con selector de tipo:
+
+- **Informe de Seguimiento D612 (PDF)** — generación asíncrona con Celery (membrete institucional, tablas por plan, gráficas, conclusiones con IA opcional).
+- **Informe trimestral (Excel)** — descarga inmediata (sin historial en servidor).
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/planes/informes/?tipo=SEGUIMIENTO_D612` | Historial PDF (purga perezosa de expirados) |
+| `POST` | `/api/v1/planes/informes/` | Encola generación PDF → `201`; `409` si ya hay uno del mismo tipo en cola/proceso |
+| `GET` | `/api/v1/planes/informes/firmantes/` | Usuarios candidatos a firmar (`?secretaria_id=`) |
+| `GET` | `/api/v1/planes/informes/{id}/download/` | Descarga PDF desde B2 (`B2_BUCKET_PLANES`) |
+| `DELETE` | `/api/v1/planes/informes/{id}/` | Elimina registro y archivo en B2 |
+
+**Body POST (PDF):** `tipo` (`SEGUIMIENTO_D612`), `anio`, `trimestre` (1–4, obligatorio), `plan_id` (opcional), `responsable_secretaria_id` (opcional; admin filtra dependencia), `usuario_firmante_id` (obligatorio), `cargo_firmante` (opcional), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
+
+**Retención:** 7 días (`expires_at`); purga automática Celery Beat `03:50` (`purge_expired_informes_planes`) y al listar. Requiere `celery-worker` y `celery-beat` activos.
+
+**Variables IA:** `PLANES_REPORTS_OPENAI_API_KEY` (opcional; fallback a `PQRS_REPORTS_OPENAI_API_KEY` o `OPENAI_API_KEY`).
+
 ---
 
 ## Módulo Chat IA del PDM (público)
@@ -916,6 +937,7 @@ OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini
 PDM_CHAT_OPENAI_API_KEY=
 PQRS_REPORTS_OPENAI_API_KEY=
+PLANES_REPORTS_OPENAI_API_KEY=
 
 # ZeptoMail — correos PQRS (radicación + respuesta)
 PQRS_EMAIL_ENABLED=true

@@ -49,7 +49,7 @@ $COMPOSE exec demo-backend python manage.py showmigrations accounts pqrs pdm ent
 #   entities  0005_multi_entity_delegation   (cambio menor de campo id)
 #   entities  0006_entity_secop_nits         (NIT SECOP I/II — aditiva, sin riesgo)
 #   planes    0001_initial                   (5 tablas Planes Institucionales D612)
-#   planes    0002_seed_catalogo_decreto612  (siembra idempotente 12 planes globales)
+#   planes    0006_informe_plan              (informes PDF async D612)
 ```
 
 Si alguna sale `[ ]` (pendiente), forzar una vez:
@@ -82,6 +82,7 @@ Prod **no necesita** esas migraciones todavía: el código en `main` no las usa.
 | `entities` | `0006_entity_secop_nits` | Campos opcionales `nit_secop_i`, `nit_secop_ii` para consulta SECOP |
 | `planes` | `0001_initial` | Tablas: catálogo, planes, actividades, evidencias, archivos (aditivo, sin riesgo) |
 | `planes` | `0002_seed_catalogo_decreto612` | Siembra idempotente de los 12 planes del Decreto 612 (globales, `entity=NULL`) |
+| `planes` | `0006_informe_plan` | Tabla `planes_informes` (informes PDF async con expiración 7 días) |
 
 La `0010` es **idempotente en espíritu**: solo inserta membresías donde no existen. Los usuarios actuales siguen con `User.entity` como caché de la membresía por defecto.
 
@@ -111,7 +112,7 @@ Hacer en https://demo.softone360.com con usuarios reales de prueba:
 - [ ] Kiosco asistencia: emparejar, marcar, **no** desvincular desde el kiosco; token persiste tras recarga
 - [ ] Responsive básico en móvil (menú, PQRS/usuarios en tarjetas)
 - [ ] **SECOP:** activar `enable_contratacion`, configurar NIT SECOP I/II, dashboard `/contratacion`, alertas, export Excel, análisis IA (requiere `SECOP_OPENAI_API_KEY` en demo)
-- [ ] **Planes Institucionales (D612):** activar `enable_planes_institucionales`, crear plan del catálogo por vigencia, asignar secretaría, actividades por trimestre, subir evidencia PDF/imagen (URL firmada), delegar contratista, cronograma `/planes/cronograma`, export informe trimestral, prueba cross-entity (usuario entidad A no ve plan entidad B)
+- [ ] **Planes Institucionales (D612):** activar `enable_planes_institucionales`, crear plan del catálogo por vigencia, asignar secretaría, actividades por trimestre, subir evidencia PDF/imagen (URL firmada), delegar contratista, cronograma `/planes/cronograma`, export informe trimestral Excel, **informe seguimiento PDF** (`/planes/informes/seguimiento`) con IA y purga 7 días, prueba cross-entity (usuario entidad A no ve plan entidad B)
 - [ ] **Informes PDM:** pestaña `/pdm/informes` (admin/secretario), generar PDF con vigencia y firmante, verificar `409` si hay uno en curso, descarga con membrete/gráficas, purga a los 7 días, workers Celery activos en demo
 
 Si algo falla, corregir en `development` y volver a push (demo se redeploya solo).
@@ -218,10 +219,11 @@ Al merge a prod **no cambies** las claves de Clerk de producción. Los usuarios 
 **Planes Institucionales en prod:** cuando se mergee el módulo D612:
 
 1. Agregar `B2_BUCKET_PLANES=softone-planes-612` en `/opt/softone-app/.env`.
+2. Agregar `PLANES_REPORTS_OPENAI_API_KEY` (opcional; fallback a `PQRS_REPORTS_OPENAI_API_KEY`).
 2. Confirmar bucket `softone-planes-612` en B2 (privado, endpoint `s3.us-east-005.backblazeb2.com`).
 3. Redeploy Cloudflare Worker: `bash deploy/scripts/deploy-cloudflare-worker-from-prod.sh` (incluye `softone-planes-612` en `ALLOWED_BUCKETS`).
 4. Verificar regex nginx en `main`: `softone-(pqrs|pdm|th|correspondence|planes-612)` (si falta, evidencias 404).
-5. Tras deploy: `$COMPOSE exec backend python manage.py showmigrations planes` → `[X] 0001_initial` y `[X] 0002_seed_catalogo_decreto612`.
+5. Tras deploy: `$COMPOSE exec backend python manage.py showmigrations planes` → `[X] 0001_initial`, `[X] 0002_seed_catalogo_decreto612` y `[X] 0006_informe_plan`.
 6. Activar `enable_planes_institucionales` por entidad en superadmin.
 
 Rollback Planes: tablas nuevas y aisladas; revertir código no rompe otros módulos, pero las tablas `planes_*` permanecen en PostgreSQL hasta drop manual.

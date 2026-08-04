@@ -31,4 +31,8 @@ app.conf.beat_schedule = {
         "task": "apps.pdm.tasks.purge_expired_informes_pdm",
         "schedule": crontab(hour=3, minute=45),
     },
+    "purge-expired-informes-planes": {
+        "task": "apps.planes.tasks.purge_expired_informes_planes",
+        "schedule": crontab(hour=3, minute=50),
+    },
 }

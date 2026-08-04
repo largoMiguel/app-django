@@ -35,6 +35,8 @@ import PlanesListPage from "@/features/planes/PlanesListPage";
 import PlanDetailPage from "@/features/planes/PlanDetailPage";
 import PlanesCronogramaPage from "@/features/planes/PlanesCronogramaPage";
 import PlanesInformesPage from "@/features/planes/PlanesInformesPage";
+import PlanesInformeSeguimientoPage from "@/features/planes/PlanesInformeSeguimientoPage";
+import PlanesInformeTrimestralPage from "@/features/planes/PlanesInformeTrimestralPage";
 import SecopLayout from "@/features/secop/SecopLayout";
 import SecopResumen from "@/features/secop/SecopResumen";
 import SecopListPage from "@/features/secop/SecopListPage";
@@ -191,6 +193,8 @@ export default function App(): ReactElement {
                   <Route path="lista" element={<PlanesListPage />} />
                   <Route path="cronograma" element={<PlanesCronogramaPage />} />
                   <Route path="informes" element={<PlanesInformesPage />} />
+                  <Route path="informes/seguimiento" element={<PlanesInformeSeguimientoPage />} />
+                  <Route path="informes/trimestral" element={<PlanesInformeTrimestralPage />} />
                   <Route path=":id" element={<PlanDetailPage />} />
                 </Route>
               </Route>

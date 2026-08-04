@@ -278,3 +278,119 @@ class PlanEvidenciaArchivo(models.Model):
 
     def __str__(self) -> str:
         return f"{self.evidencia_id} — {self.nombre_original or self.archivo.name}"
+
+
+class InformePlanEstado(models.TextChoices):
+    PENDIENTE = "PENDIENTE", "En cola"
+    PROCESANDO = "PROCESANDO", "Generando"
+    COMPLETADO = "COMPLETADO", "Completado"
+    ERROR = "ERROR", "Error"
+
+
+class InformePlanTipo(models.TextChoices):
+    SEGUIMIENTO_D612 = "SEGUIMIENTO_D612", "Informe de Seguimiento Decreto 612"
+
+
+class InformePlan(models.Model):
+    """Informe PDF del módulo Planes Institucionales (historial con expiración automática)."""
+
+    entity = models.ForeignKey(
+        "entities.Entity",
+        on_delete=models.CASCADE,
+        related_name="informes_planes",
+        db_column="entity_id",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="informes_planes_creados",
+        db_column="created_by_id",
+    )
+    filename = models.CharField(max_length=255, blank=True, default="")
+    b2_key = models.CharField(max_length=500, blank=True, default="")
+    file_size = models.PositiveIntegerField(default=0)
+    tipo = models.CharField(
+        max_length=32,
+        choices=InformePlanTipo.choices,
+        default=InformePlanTipo.SEGUIMIENTO_D612,
+        db_index=True,
+    )
+    anio = models.PositiveIntegerField()
+    trimestre = models.PositiveSmallIntegerField(choices=Trimestre.choices)
+    plan = models.ForeignKey(
+        PlanInstitucional,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="informes",
+        db_column="plan_id",
+    )
+    responsable_secretaria = models.ForeignKey(
+        "entities.Secretaria",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="informes_planes",
+        db_column="responsable_secretaria_id",
+    )
+    incluir_evidencias = models.BooleanField(default=True)
+    usar_ia = models.BooleanField(default=False)
+    usuario_firmante = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="informes_planes_firmados",
+        db_column="usuario_firmante_id",
+    )
+    cargo_firmante = models.CharField(max_length=512, blank=True, default="")
+    estado = models.CharField(
+        max_length=16,
+        choices=InformePlanEstado.choices,
+        default=InformePlanEstado.PENDIENTE,
+        db_index=True,
+    )
+    error_detail = models.TextField(blank=True, default="")
+    total_planes = models.PositiveIntegerField(default=0)
+    total_actividades = models.PositiveIntegerField(default=0)
+    avance_promedio = models.DecimalField(max_digits=5, decimal_places=1, default=0)
+    celery_task_id = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        db_table = "planes_informes"
+        verbose_name = "Informe Planes Institucionales"
+        verbose_name_plural = "Informes Planes Institucionales"
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["entity", "-created_at"]),
+            models.Index(fields=["entity", "estado"]),
+            models.Index(fields=["entity", "expires_at"]),
+            models.Index(fields=["entity", "tipo", "estado"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.filename or self.id} ({self.entity_id})"
+
+    @classmethod
+    def purge_expired(cls, entity_id: int | None = None) -> int:
+        """Elimina informes expirados y sus archivos en B2."""
+        from django.utils import timezone
+
+        from apps.common.storage_cleanup import delete_planes_storage_key
+
+        now = timezone.now()
+        qs = cls.objects.filter(expires_at__lte=now)
+        if entity_id is not None:
+            qs = qs.filter(entity_id=entity_id)
+        deleted = 0
+        for informe in qs.iterator():
+            delete_planes_storage_key(informe.b2_key)
+            informe.delete()
+            deleted += 1
+        return deleted

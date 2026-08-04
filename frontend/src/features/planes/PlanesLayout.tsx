@@ -21,7 +21,7 @@ function PlanesLayoutInner() {
     : location.pathname.includes("/cronograma")
       ? "Cronograma trimestral de actividades"
       : location.pathname.includes("/informes")
-        ? "Informe trimestral en Excel"
+        ? "Informes de seguimiento y exportaciones trimestrales"
         : location.pathname.match(/\/planes\/\d+/)
           ? "Detalle del plan y actividades"
           : "Seguimiento a los 12 planes del Decreto 612 de 2018";
