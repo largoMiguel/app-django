@@ -120,11 +120,21 @@ export default function EvidenciaFormModal({ open, onClose, actividad, onSaved }
             </p>
           )}
         </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          Debe adjuntar <strong>al menos uno</strong>: URL externa <em>o</em> archivo(s). No es necesario los dos.
+        </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">URL externa</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            URL externa <span className="font-normal text-slate-500">(opcional si adjunta archivo)</span>
+          </label>
           <input value={urlEvidencia} onChange={(e) => setUrlEvidencia(e.target.value)} className={inputClass} />
         </div>
-        <PlanesFilePicker files={archivosNuevos} onChange={setArchivosNuevos} />
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Archivos <span className="font-normal text-slate-500">(opcional si indica URL)</span>
+          </label>
+          <PlanesFilePicker files={archivosNuevos} onChange={setArchivosNuevos} />
+        </div>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className={btnSecondary}>
             Cancelar

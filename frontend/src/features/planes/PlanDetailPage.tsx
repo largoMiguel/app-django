@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, ClipboardCheck, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardCheck, Pencil, Plus } from "lucide-react";
 import { openAuthenticatedFile } from "@/core/api/client";
+import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import {
   planesApi,
   TRIMESTRE_OPTIONS,
   type PlanActividad,
+  type PlanCatalogoItem,
   type PlanDetail,
   type PlanEvidencia,
+  type PlanListItem,
 } from "@/core/api/planes";
 import { formatApiError } from "@/core/api/errors";
 import { primaryRole, useAuthStore } from "@/core/auth/store";
 import ActividadFormModal from "./ActividadFormModal";
 import EvidenciaFormModal from "./EvidenciaFormModal";
+import PlanFormModal from "./PlanFormModal";
 import { PlanesBadge, PlanesCard, PlanesLoading, btnPrimary, btnSecondary } from "./components/PlanesUi";
 
 export default function PlanDetailPage() {
@@ -20,13 +24,17 @@ export default function PlanDetailPage() {
   const planId = Number(id);
   const user = useAuthStore((s) => s.user);
   const role = primaryRole(user);
-  const canCreate = role === "admin" || role === "secretario";
+  const isAdmin = role === "admin";
+  const canCreate = isAdmin || role === "secretario";
 
   const [plan, setPlan] = useState<PlanDetail | null>(null);
+  const [catalogo, setCatalogo] = useState<PlanCatalogoItem[]>([]);
+  const [secretarias, setSecretarias] = useState<Secretaria[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actividadModalOpen, setActividadModalOpen] = useState(false);
   const [evidenciaModalOpen, setEvidenciaModalOpen] = useState(false);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
   const [editActividad, setEditActividad] = useState<PlanActividad | null>(null);
   const [evidenciaActividad, setEvidenciaActividad] = useState<PlanActividad | null>(null);
 
@@ -42,6 +50,12 @@ export default function PlanDetailPage() {
       setLoading(false);
     }
   }, [planId]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    planesApi.catalogo({ page_size: "50" }).then((r) => setCatalogo(r.results)).catch(() => setCatalogo([]));
+    secretariasApi.list().then(setSecretarias).catch(() => setSecretarias([]));
+  }, [isAdmin]);
 
   useEffect(() => {
     load();
@@ -79,21 +93,53 @@ export default function PlanDetailPage() {
             {plan.catalogo_codigo} · Vigencia {plan.anio} ·{" "}
             {plan.responsable_secretaria_nombre || "Sin responsable"}
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <PlanesBadge tone={planEstadoTone(plan.estado)}>{plan.estado_label}</PlanesBadge>
+            {plan.fecha_publicacion && (
+              <span className="text-xs text-slate-500">Publicado: {plan.fecha_publicacion}</span>
+            )}
+            {plan.url_publicacion && (
+              <a
+                href={plan.url_publicacion}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-[#0e7490] hover:underline"
+              >
+                Ver publicación
+              </a>
+            )}
+          </div>
         </div>
-        {canCreate && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditActividad(null);
-              setActividadModalOpen(true);
-            }}
-            className={btnPrimary}
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Nueva actividad
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {isAdmin && (
+            <button type="button" onClick={() => setPlanModalOpen(true)} className={btnSecondary}>
+              <Pencil className="mr-1 h-4 w-4" />
+              Editar plan
+            </button>
+          )}
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditActividad(null);
+                setActividadModalOpen(true);
+              }}
+              className={btnPrimary}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Nueva actividad
+            </button>
+          )}
+        </div>
       </div>
+
+      {plan.estado === "BORRADOR" && isAdmin && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Este plan está en <strong>borrador</strong>. Cuando lo publique en la web de la entidad, edítelo y cambie
+          el estado a <strong>Publicado</strong> (indique URL y fecha). Luego pase a <strong>En ejecución</strong>{" "}
+          para el seguimiento trimestral.
+        </div>
+      )}
 
       {plan.objetivo && (
         <PlanesCard title="Objetivo">
@@ -164,8 +210,30 @@ export default function PlanDetailPage() {
           }}
         />
       )}
+
+      {isAdmin && plan && (
+        <PlanFormModal
+          open={planModalOpen}
+          onClose={() => setPlanModalOpen(false)}
+          plan={plan as PlanListItem}
+          catalogo={catalogo}
+          secretarias={secretarias}
+          defaultAnio={plan.anio}
+          onSaved={() => {
+            setPlanModalOpen(false);
+            load();
+          }}
+        />
+      )}
     </div>
   );
+}
+
+function planEstadoTone(estado: string): "info" | "success" | "warning" | "slate" {
+  if (estado === "CERRADO") return "success";
+  if (estado === "EN_EJECUCION") return "info";
+  if (estado === "PUBLICADO") return "warning";
+  return "slate";
 }
 
 function ActividadRow({

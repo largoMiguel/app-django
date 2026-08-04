@@ -1,27 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import { planesApi, type PlanCatalogoItem, type PlanListItem } from "@/core/api/planes";
 import { formatApiError } from "@/core/api/errors";
 import { primaryRole, useAuthStore } from "@/core/auth/store";
 import PlanFormModal from "./PlanFormModal";
-import { PlanesBadge, PlanesLoading, btnPrimary } from "./components/PlanesUi";
-
-const currentYear = new Date().getFullYear();
+import { PlanesBadge, PlanesLoading, btnPrimary, btnSecondary } from "./components/PlanesUi";
+import { usePlanesYear } from "./PlanesYearContext";
 
 export default function PlanesListPage() {
+  const { anio } = usePlanesYear();
   const user = useAuthStore((s) => s.user);
   const role = primaryRole(user);
   const isAdmin = role === "admin";
 
-  const [anio, setAnio] = useState(currentYear);
   const [items, setItems] = useState<PlanListItem[]>([]);
   const [catalogo, setCatalogo] = useState<PlanCatalogoItem[]>([]);
   const [secretarias, setSecretarias] = useState<Secretaria[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editPlan, setEditPlan] = useState<PlanListItem | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,28 +64,21 @@ export default function PlanesListPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-600">Vigencia</label>
-          <select
-            value={anio}
-            onChange={(e) => setAnio(Number(e.target.value))}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+      {isAdmin && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setEditPlan(null);
+              setModalOpen(true);
+            }}
+            className={btnPrimary}
           >
-            {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-        {isAdmin && (
-          <button type="button" onClick={() => setModalOpen(true)} className={btnPrimary}>
             <Plus className="mr-1 h-4 w-4" />
             Crear plan
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full text-sm">
@@ -113,9 +106,7 @@ export default function PlanesListPage() {
                   <td className="px-4 py-3 font-medium text-slate-900">{plan.nombre}</td>
                   <td className="px-4 py-3 text-slate-600">{plan.catalogo_codigo}</td>
                   <td className="px-4 py-3">
-                    <PlanesBadge tone={plan.estado === "CERRADO" ? "success" : "info"}>
-                      {plan.estado_label}
-                    </PlanesBadge>
+                    <PlanesBadge tone={planEstadoTone(plan.estado)}>{plan.estado_label}</PlanesBadge>
                   </td>
                   <td className="px-4 py-3">
                     {isAdmin ? (
@@ -138,9 +129,24 @@ export default function PlanesListPage() {
                   <td className="px-4 py-3">{plan.actividades_count ?? 0}</td>
                   <td className="px-4 py-3">{plan.avance_promedio ?? 0}%</td>
                   <td className="px-4 py-3">
-                    <Link to={`/planes/${plan.id}`} className="font-medium text-[#0e7490] hover:underline">
-                      Ver →
-                    </Link>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link to={`/planes/${plan.id}`} className="font-medium text-[#0e7490] hover:underline">
+                        Ver →
+                      </Link>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditPlan(plan);
+                            setModalOpen(true);
+                          }}
+                          className={btnSecondary}
+                        >
+                          <Pencil className="mr-1 inline h-3.5 w-3.5" />
+                          Editar
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -151,16 +157,28 @@ export default function PlanesListPage() {
 
       <PlanFormModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          setEditPlan(null);
+        }}
+        plan={editPlan}
         catalogo={catalogo}
         secretarias={secretarias}
         defaultAnio={anio}
         onCatalogoCreated={(item) => setCatalogo((prev) => [...prev, item])}
         onSaved={() => {
           setModalOpen(false);
+          setEditPlan(null);
           load();
         }}
       />
     </div>
   );
+}
+
+function planEstadoTone(estado: string): "info" | "success" | "warning" | "slate" {
+  if (estado === "CERRADO") return "success";
+  if (estado === "EN_EJECUCION") return "info";
+  if (estado === "PUBLICADO") return "warning";
+  return "slate";
 }

@@ -131,6 +131,13 @@ export interface CronogramaPlan {
   }>;
 }
 
+export const PLAN_ESTADO_OPTIONS = [
+  { value: "BORRADOR", label: "Borrador", hint: "En preparación; aún no publicado en la web." },
+  { value: "PUBLICADO", label: "Publicado", hint: "Integrado al Plan de Acción y publicado (URL/fecha)." },
+  { value: "EN_EJECUCION", label: "En ejecución", hint: "Seguimiento activo de actividades y evidencias." },
+  { value: "CERRADO", label: "Cerrado", hint: "Vigencia finalizada." },
+] as const;
+
 export interface PlanWritePayload {
   catalogo_id: number;
   anio: number;

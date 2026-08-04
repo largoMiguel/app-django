@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { planesApi, TRIMESTRE_OPTIONS, type CronogramaPlan } from "@/core/api/planes";
 import { formatApiError } from "@/core/api/errors";
 import { PlanesCard, PlanesLoading } from "./components/PlanesUi";
-
-const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-const currentYear = new Date().getFullYear();
+import { usePlanesYear } from "./PlanesYearContext";
 
 function monthIndex(dateStr: string | null, anio: number): number | null {
   if (!dateStr) return null;
@@ -20,8 +18,10 @@ function estadoColor(estado: string): string {
   return "bg-amber-400";
 }
 
+const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
 export default function PlanesCronogramaPage() {
-  const [anio, setAnio] = useState(currentYear);
+  const { anio } = usePlanesYear();
   const [data, setData] = useState<CronogramaPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,21 +54,6 @@ export default function PlanesCronogramaPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <label className="text-sm text-slate-600">Vigencia</label>
-        <select
-          value={anio}
-          onChange={(e) => setAnio(Number(e.target.value))}
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-        >
-          {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {data.length === 0 ? (
         <p className="text-sm text-slate-500">No hay actividades con fechas para esta vigencia.</p>
       ) : (

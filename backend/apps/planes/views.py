@@ -499,6 +499,11 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
         cantidad_ejecutada = self._parse_cantidad_ejecutada(request)
         if not descripcion:
             raise ValidationError({"descripcion": "Este campo es requerido."})
+        archivos = request.FILES.getlist("archivos")
+        if not url_evidencia and not archivos:
+            raise ValidationError(
+                {"archivos": "Debe adjuntar al menos un archivo o una URL externa."}
+            )
 
         evidencia = PlanEvidencia.objects.create(
             actividad=actividad,

@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { AlertTriangle, Calendar, CheckCircle2, ClipboardList, TrendingUp } from "lucide-react";
 import { planesApi, type PlanStats } from "@/core/api/planes";
 import { formatApiError } from "@/core/api/errors";
 import { PlanesCard, PlanesLoading } from "./components/PlanesUi";
-
-const currentYear = new Date().getFullYear();
+import { usePlanesYear } from "./PlanesYearContext";
 
 export default function PlanesDashboard() {
-  const [anio, setAnio] = useState(currentYear);
+  const { anio } = usePlanesYear();
   const [stats, setStats] = useState<PlanStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,24 +30,6 @@ export default function PlanesDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm font-medium text-slate-600">Vigencia</label>
-        <select
-          value={anio}
-          onChange={(e) => setAnio(Number(e.target.value))}
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-        >
-          {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-        <Link to="/planes/lista" className="text-sm font-medium text-[#0e7490] hover:underline">
-          Ver todos los planes →
-        </Link>
-      </div>
-
       <div className="rounded-lg border border-[#b8e4ef] bg-[#f0f9fc] px-4 py-3 text-sm text-[#0d4f61]">
         Los <strong>12 planes del Decreto 612 de 2018</strong> deben integrarse al Plan de Acción y publicarse
         en la web a más tardar el <strong>31 de enero</strong> de cada año. El seguimiento se reporta por trimestre.

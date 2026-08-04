@@ -230,11 +230,17 @@ class PlanWriteSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         entity = self.context["entity"]
-        catalogo_id = attrs["catalogo_id"]
-        anio = attrs["anio"]
+        instance = self.context.get("instance")
+        catalogo_id = attrs.get("catalogo_id")
+        anio = attrs.get("anio")
+        if instance:
+            catalogo_id = catalogo_id if catalogo_id is not None else instance.catalogo_id
+            anio = anio if anio is not None else instance.anio
+        elif catalogo_id is None or anio is None:
+            raise serializers.ValidationError("catalogo_id y anio son requeridos.")
         qs = PlanInstitucional.objects.filter(entity=entity, catalogo_id=catalogo_id, anio=anio)
-        if self.context.get("instance"):
-            qs = qs.exclude(pk=self.context["instance"].pk)
+        if instance:
+            qs = qs.exclude(pk=instance.pk)
         if qs.exists():
             raise serializers.ValidationError(
                 {"anio": "Ya existe un plan de este catálogo para la vigencia indicada."}

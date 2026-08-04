@@ -4,11 +4,10 @@ import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import { planesApi, TRIMESTRE_OPTIONS, type PlanListItem } from "@/core/api/planes";
 import { formatApiError } from "@/core/api/errors";
 import { PlanesCard, btnPrimary, inputClass } from "./components/PlanesUi";
-
-const currentYear = new Date().getFullYear();
+import { usePlanesYear } from "./PlanesYearContext";
 
 export default function PlanesInformesPage() {
-  const [anio, setAnio] = useState(currentYear);
+  const { anio } = usePlanesYear();
   const [trimestre, setTrimestre] = useState<number | "">("");
   const [planId, setPlanId] = useState<number | "">("");
   const [secretariaId, setSecretariaId] = useState<number | "">("");
@@ -48,17 +47,7 @@ export default function PlanesInformesPage() {
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Vigencia</label>
-          <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className={inputClass}>
-            {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">Trimestre</label>
           <select
