@@ -120,10 +120,19 @@ class PlanActividadSerializer(serializers.ModelSerializer):
 
 
 class PlanActividadDetailSerializer(PlanActividadSerializer):
-    evidencia = PlanEvidenciaSerializer(read_only=True)
+    evidencia = serializers.SerializerMethodField()
 
     class Meta(PlanActividadSerializer.Meta):
         fields = PlanActividadSerializer.Meta.fields + ("evidencia",)
+
+    def get_evidencia(self, obj):
+        try:
+            ev = obj.evidencia
+        except PlanEvidencia.DoesNotExist:
+            return None
+        if ev is None:
+            return None
+        return PlanEvidenciaSerializer(ev, context=self.context).data
 
 
 class PlanListSerializer(serializers.ModelSerializer):

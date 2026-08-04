@@ -10,8 +10,10 @@ export function formatApiError(err: unknown, fallback = "Ocurrió un error. Inte
     return typeof message === "string" && message ? message : fallback;
   }
   if (typeof data === "string") {
-    const trimmed = data.trimStart();
-    if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) return fallback;
+    const trimmed = data.trimStart().toLowerCase();
+    if (trimmed.startsWith("<!doctype") || trimmed.startsWith("<html")) {
+      return "Error del servidor. Intenta de nuevo en unos momentos.";
+    }
     return data;
   }
   if (typeof data !== "object" || data === null) return fallback;

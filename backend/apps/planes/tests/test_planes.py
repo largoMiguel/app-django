@@ -163,6 +163,53 @@ class PlanesAccessTests(TestCase):
         self.assertFalse(response.data["es_decreto612"])
         self.assertEqual(response.data["entity"], self.entity_a.id)
 
+    def test_admin_can_retrieve_plan_detail(self):
+        request = self.factory.get(f"/api/v1/planes/{self.plan_a.id}/")
+        force_authenticate(request, user=self.admin_a)
+        view = PlanViewSet.as_view({"get": "retrieve"})
+        response = view(request, pk=self.plan_a.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], self.plan_a.id)
+        self.assertEqual(response.data["nombre"], self.catalogo.nombre)
+        self.assertIn("actividades", response.data)
+        self.assertIn("resumen_por_trimestre", response.data)
+
+    def test_retrieve_plan_with_actividad_without_evidencia(self):
+        PlanActividad.objects.create(
+            entity=self.entity_a,
+            plan=self.plan_a,
+            anio=2026,
+            trimestre=2,
+            nombre="Actividad sin evidencia",
+            responsable_secretaria=self.secretaria_a,
+        )
+        request = self.factory.get(f"/api/v1/planes/{self.plan_a.id}/")
+        force_authenticate(request, user=self.admin_a)
+        view = PlanViewSet.as_view({"get": "retrieve"})
+        response = view(request, pk=self.plan_a.id)
+        self.assertEqual(response.status_code, 200)
+        actividades = response.data["actividades"]
+        self.assertEqual(len(actividades), 1)
+        self.assertIsNone(actividades[0]["evidencia"])
+        self.assertFalse(actividades[0]["tiene_evidencia"])
+
+    def test_actividad_retrieve_without_evidencia(self):
+        actividad = PlanActividad.objects.create(
+            entity=self.entity_a,
+            plan=self.plan_a,
+            anio=2026,
+            trimestre=3,
+            nombre="Detalle sin evidencia",
+            responsable_secretaria=self.secretaria_a,
+        )
+        request = self.factory.get(f"/api/v1/planes/actividades/{actividad.id}/")
+        force_authenticate(request, user=self.admin_a)
+        view = PlanActividadViewSet.as_view({"get": "retrieve"})
+        response = view(request, pk=actividad.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["evidencia"])
+        self.assertFalse(response.data["tiene_evidencia"])
+
     def test_attach_metrics_on_list_not_queryset(self):
         actividad = PlanActividad.objects.create(
             entity=self.entity_a,

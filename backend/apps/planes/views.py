@@ -62,6 +62,24 @@ def _contratista_only(user) -> bool:
     return "contratista" in roles and "admin" not in roles and "secretario" not in roles
 
 
+def _build_plan_detail_data(plan_pk: int, user, entity, request=None) -> dict | None:
+    obj = (
+        PlanInstitucional.objects.filter(pk=plan_pk)
+        .select_related("catalogo", "responsable_secretaria", "responsable_usuario")
+        .first()
+    )
+    if obj is None:
+        return None
+    actividades = list(
+        actividades_queryset_for_user(user, entity)
+        .filter(plan=obj)
+        .order_by("trimestre", "fecha_inicio", "id")
+    )
+    obj.actividades = actividades
+    obj.resumen_por_trimestre = build_resumen_por_trimestre(obj, actividades)
+    return PlanDetailSerializer(obj, context={"request": request}).data
+
+
 class PlanCatalogoViewSet(viewsets.ModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = PlanCatalogoSerializer
@@ -158,24 +176,10 @@ class PlanViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         obj = self.get_object()
-        obj = (
-            PlanInstitucional.objects.filter(pk=obj.pk)
-            .select_related("catalogo", "responsable_secretaria", "responsable_usuario")
-            .prefetch_related(
-                "actividades__responsable_secretaria",
-                "actividades__responsable_usuario",
-                "actividades__evidencia__archivos",
-            )
-            .first()
-        )
-        actividades = list(
-            actividades_queryset_for_user(request.user, self.entity).filter(plan=obj).order_by(
-                "trimestre", "fecha_inicio", "id"
-            )
-        )
-        obj.actividades = actividades
-        obj.resumen_por_trimestre = build_resumen_por_trimestre(obj, actividades)
-        return Response(PlanDetailSerializer(obj).data)
+        data = _build_plan_detail_data(obj.pk, request.user, self.entity, request)
+        if data is None:
+            raise PermissionDenied("Plan no encontrado.")
+        return Response(data)
 
     def create(self, request, *args, **kwargs):
         if _contratista_only(request.user):
@@ -199,7 +203,10 @@ class PlanViewSet(viewsets.ModelViewSet):
             estado=ser.validated_data.get("estado", "BORRADOR"),
             created_by=request.user,
         )
-        return Response(PlanDetailSerializer(plan).data, status=status.HTTP_201_CREATED)
+        return Response(
+            _build_plan_detail_data(plan.pk, request.user, self.entity, request),
+            status=status.HTTP_201_CREATED,
+        )
 
     def partial_update(self, request, *args, **kwargs):
         if _contratista_only(request.user):
@@ -225,7 +232,7 @@ class PlanViewSet(viewsets.ModelViewSet):
             if field in ser.validated_data:
                 setattr(plan, field, ser.validated_data[field])
         plan.save()
-        return Response(PlanDetailSerializer(plan).data)
+        return Response(_build_plan_detail_data(plan.pk, request.user, self.entity, request))
 
     def destroy(self, request, *args, **kwargs):
         if not _is_admin(request.user):
