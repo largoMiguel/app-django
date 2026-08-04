@@ -76,6 +76,25 @@ class PDMReportGenerator:
         self.story = []
         self.page_number = 0
         self._cache_graficas = {}
+
+    # Marco usable en páginas internas (letter + márgenes 0.8" + encabezado FM-PDM-001)
+    MAX_FLOWABLE_WIDTH = 7.0 * inch
+    MAX_FLOWABLE_HEIGHT = 9.0 * inch
+    MAX_CHART_HEIGHT = 9.0 * inch
+    MAX_EVIDENCIA_CELL = 3.0 * inch
+
+    def _chart_image_height(self, item_count: int) -> float:
+        return min(max(item_count * 0.6 * inch, 3.5 * inch), self.MAX_CHART_HEIGHT)
+
+    def _rl_image(self, img_buffer, width, height, kind=None):
+        scale = min(1.0, self.MAX_FLOWABLE_WIDTH / width, self.MAX_FLOWABLE_HEIGHT / height)
+        width *= scale
+        height *= scale
+        img_buffer.seek(0)
+        kwargs = {}
+        if kind:
+            kwargs["kind"] = kind
+        return RLImage(img_buffer, width=width, height=height, **kwargs)
         
     def get_justify_style(self, fontSize=8):
         """Helper para crear estilos justificados reutilizables"""
@@ -769,7 +788,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             img_buffer.seek(0)
             plt.close(fig)
             
-            img = RLImage(img_buffer, width=7*inch, height=max(len(lineas) * 0.6*inch, 3.5*inch))
+            img = self._rl_image(img_buffer, 7 * inch, self._chart_image_height(len(lineas)))
             
             # Guardar en caché
             self._cache_graficas[cache_key] = img
@@ -847,7 +866,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             img_buffer.seek(0)
             plt.close(fig)
             
-            img = RLImage(img_buffer, width=7*inch, height=max(len(sectores) * 0.6*inch, 3.5*inch))
+            img = self._rl_image(img_buffer, 7 * inch, self._chart_image_height(len(sectores)))
             
             # Guardar en caché
             self._cache_graficas[cache_key] = img
@@ -926,7 +945,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             img_buffer.seek(0)
             plt.close(fig)
             
-            img = RLImage(img_buffer, width=7*inch, height=max(len(ods_list) * 0.6*inch, 3.5*inch))
+            img = self._rl_image(img_buffer, 7 * inch, self._chart_image_height(len(ods_list)))
             
             # Guardar en caché
             self._cache_graficas[cache_key] = img
@@ -1735,7 +1754,12 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                                     img_data = base64.b64decode(img_base64)
                                     
                                     # Tamaño optimizado: 3.3x3.3 pulgadas para grid 2x2
-                                    img = RLImage(BytesIO(img_data), width=3.3*inch, height=3.3*inch, kind='proportional')
+                                    img = self._rl_image(
+                                        BytesIO(img_data),
+                                        self.MAX_EVIDENCIA_CELL,
+                                        self.MAX_EVIDENCIA_CELL,
+                                        kind="proportional",
+                                    )
                                     imagenes_cargadas.append(img)
                                     print(f"      ✅ Evidencia {num_evidencia} - Imagen {idx+1} agregada")
                                 except Exception as e:
@@ -1752,7 +1776,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                                     row.append('')
                                 grid_data.append(row)
                             
-                            img_table = Table(grid_data, colWidths=[3.5*inch, 3.5*inch])
+                            img_table = Table(grid_data, colWidths=[3.5*inch, 3.5*inch], splitByRow=True)
                             img_table.setStyle(TableStyle([
                                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
