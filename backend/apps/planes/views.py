@@ -24,6 +24,7 @@ from .access import (
     user_can_access_plan,
 )
 from .evidencia_storage import sync_evidencia_archivos_from_request
+from .evidencia_sync import reset_actividad_ejecucion, sync_actividad_from_evidencia
 from .export import build_trimestral_excel
 from .filters import PlanActividadFilterSet, PlanCatalogoFilterSet, PlanFilterSet
 from .models import PlanActividad, PlanCatalogo, PlanEvidencia, PlanInstitucional
@@ -387,8 +388,8 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
             fecha_fin=ser.validated_data.get("fecha_fin"),
             responsable_secretaria=secretaria or plan.responsable_secretaria,
             responsable_usuario=responsable_usuario,
-            estado=ser.validated_data.get("estado", "PENDIENTE"),
-            avance=ser.validated_data.get("avance", 0),
+            estado="PENDIENTE",
+            avance=0,
         )
         return Response(PlanActividadSerializer(actividad).data, status=status.HTTP_201_CREATED)
 
@@ -399,7 +400,7 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
         ser = PlanActividadWriteSerializer(actividad, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         for field, value in ser.validated_data.items():
-            if field == "plan":
+            if field in ("plan", "estado", "avance"):
                 continue
             if field == "responsable_usuario" and _contratista_only(request.user):
                 continue
@@ -466,7 +467,10 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
     def evidencia(self, request, pk=None):
         actividad = self.get_object()
         if request.method == "GET":
-            evidencia = getattr(actividad, "evidencia", None)
+            try:
+                evidencia = actividad.evidencia
+            except PlanEvidencia.DoesNotExist:
+                return Response(None)
             if evidencia is None:
                 return Response(None)
             return Response(PlanEvidenciaSerializer(evidencia, context={"request": request}).data)
@@ -477,20 +481,34 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
             evidencia = getattr(actividad, "evidencia", None)
             if evidencia:
                 evidencia.delete()
+            reset_actividad_ejecucion(actividad)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         descripcion = str(request.data.get("descripcion") or "").strip()
         url_evidencia = str(request.data.get("url_evidencia") or "").strip() or None
+        meta_ejecutada = str(request.data.get("meta_ejecutada") or "").strip()
+        avance_raw = request.data.get("avance")
+        try:
+            avance = int(avance_raw) if avance_raw not in (None, "") else 0
+        except (TypeError, ValueError):
+            raise ValidationError({"avance": "Avance inválido (0-100)."})
+        if avance < 0 or avance > 100:
+            raise ValidationError({"avance": "El avance debe estar entre 0 y 100."})
 
         if request.method == "POST":
-            if hasattr(actividad, "evidencia") and actividad.evidencia is not None:
-                raise ValidationError({"detail": "La actividad ya tiene evidencia. Use PUT para actualizar."})
+            try:
+                if actividad.evidencia is not None:
+                    raise ValidationError({"detail": "La actividad ya tiene evidencia. Use PUT para actualizar."})
+            except PlanEvidencia.DoesNotExist:
+                pass
             if not descripcion:
                 raise ValidationError({"descripcion": "Este campo es requerido."})
             evidencia = PlanEvidencia.objects.create(
                 actividad=actividad,
                 entity=self.entity,
                 descripcion=descripcion,
+                meta_ejecutada=meta_ejecutada,
+                avance=avance,
                 url_evidencia=url_evidencia,
             )
             sync_evidencia_archivos_from_request(evidencia, request, request.user)
@@ -498,6 +516,7 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
             if not (evidencia.url_evidencia or evidencia.archivos.exists()):
                 evidencia.delete()
                 raise ValidationError({"archivos": "Debe adjuntar al menos un archivo o una URL externa."})
+            sync_actividad_from_evidencia(actividad, evidencia)
             return Response(
                 PlanEvidenciaSerializer(evidencia, context={"request": request}).data,
                 status=status.HTTP_201_CREATED,
@@ -512,6 +531,10 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
             if not descripcion:
                 raise ValidationError({"descripcion": "Este campo es requerido."})
             evidencia.descripcion = descripcion
+        if "meta_ejecutada" in request.data:
+            evidencia.meta_ejecutada = meta_ejecutada
+        if "avance" in request.data:
+            evidencia.avance = avance
         if "url_evidencia" in request.data:
             evidencia.url_evidencia = url_evidencia
         evidencia.save()
@@ -519,4 +542,5 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
         evidencia.refresh_from_db()
         if not (evidencia.url_evidencia or evidencia.archivos.exists()):
             raise ValidationError({"archivos": "Debe conservar al menos un archivo o una URL externa."})
+        sync_actividad_from_evidencia(actividad, evidencia)
         return Response(PlanEvidenciaSerializer(evidencia, context={"request": request}).data)

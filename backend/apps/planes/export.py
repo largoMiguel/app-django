@@ -9,7 +9,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from apps.entities.models import Entity
 
 from .access import actividades_queryset_for_user, planes_queryset_for_user
-from .models import Trimestre
+from .models import PlanActividad, PlanCatalogo, PlanEvidencia, PlanInstitucional, Trimestre
 
 HEADER_FILL = PatternFill(start_color="3eafd4", end_color="3eafd4", fill_type="solid")
 HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
@@ -32,6 +32,7 @@ COLUMNS = [
     "RESPONSABLE SECRETARÍA",
     "ESTADO",
     "AVANCE %",
+    "META EJECUTADA",
     "FECHA INICIO",
     "FECHA FIN",
     "EVIDENCIA URL",
@@ -74,7 +75,10 @@ def build_trimestral_excel(
 
     row_idx = 2
     for act in act_qs:
-        evidencia = getattr(act, "evidencia", None)
+        try:
+            evidencia = act.evidencia
+        except PlanEvidencia.DoesNotExist:
+            evidencia = None
         tri_label = Trimestre(act.trimestre).label if act.trimestre in Trimestre.values else str(act.trimestre)
         values = [
             act.plan.catalogo.nombre,
@@ -87,6 +91,7 @@ def build_trimestral_excel(
             act.responsable_secretaria.nombre if act.responsable_secretaria_id else "",
             act.get_estado_display(),
             act.avance,
+            evidencia.meta_ejecutada if evidencia else "",
             act.fecha_inicio.isoformat() if act.fecha_inicio else "",
             act.fecha_fin.isoformat() if act.fecha_fin else "",
             evidencia.url_evidencia if evidencia else "",
@@ -97,7 +102,7 @@ def build_trimestral_excel(
             cell.border = THIN_BORDER
         row_idx += 1
 
-    widths = [40, 14, 10, 14, 45, 30, 30, 28, 14, 10, 12, 12, 40, 50]
+    widths = [40, 14, 10, 14, 45, 30, 30, 28, 14, 10, 30, 12, 12, 40, 50]
     for idx, width in enumerate(widths, start=1):
         ws.column_dimensions[chr(64 + idx) if idx <= 26 else "A"].width = width
 

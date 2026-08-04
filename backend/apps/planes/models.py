@@ -226,6 +226,8 @@ class PlanEvidencia(models.Model):
         db_column="entity_id",
     )
     descripcion = models.TextField()
+    meta_ejecutada = models.CharField(max_length=512, blank=True, default="")
+    avance = models.PositiveSmallIntegerField(default=0)
     url_evidencia = models.CharField(max_length=1024, blank=True, null=True)
     fecha_registro = models.DateTimeField(auto_now_add=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)

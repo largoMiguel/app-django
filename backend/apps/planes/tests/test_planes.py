@@ -137,7 +137,7 @@ class PlanesAccessTests(TestCase):
         pdf = SimpleUploadedFile("informe.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         request = self.factory.post(
             f"/api/v1/planes/actividades/{actividad.id}/evidencia/",
-            {"descripcion": "Informe trimestral", "archivos": pdf},
+            {"descripcion": "Informe trimestral", "avance": "100", "meta_ejecutada": "Informe entregado", "archivos": pdf},
             format="multipart",
         )
         force_authenticate(request, user=self.admin_a)
@@ -145,6 +145,10 @@ class PlanesAccessTests(TestCase):
         response = view(request, pk=actividad.id)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["descripcion"], "Informe trimestral")
+        self.assertEqual(response.data["avance"], 100)
+        actividad.refresh_from_db()
+        self.assertEqual(actividad.avance, 100)
+        self.assertEqual(actividad.estado, "COMPLETADA")
 
     def test_admin_can_create_custom_catalogo(self):
         payload = {

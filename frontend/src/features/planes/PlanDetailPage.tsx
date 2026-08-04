@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardCheck, Plus } from "lucide-react";
 import { openAuthenticatedFile } from "@/core/api/client";
 import {
   planesApi,
@@ -11,7 +11,8 @@ import {
 import { formatApiError } from "@/core/api/errors";
 import { primaryRole, useAuthStore } from "@/core/auth/store";
 import ActividadFormModal from "./ActividadFormModal";
-import { PlanesBadge, PlanesCard, PlanesLoading, btnPrimary } from "./components/PlanesUi";
+import EvidenciaFormModal from "./EvidenciaFormModal";
+import { PlanesBadge, PlanesCard, PlanesLoading, btnPrimary, btnSecondary } from "./components/PlanesUi";
 
 export default function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,8 +24,10 @@ export default function PlanDetailPage() {
   const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [actividadModalOpen, setActividadModalOpen] = useState(false);
+  const [evidenciaModalOpen, setEvidenciaModalOpen] = useState(false);
   const [editActividad, setEditActividad] = useState<PlanActividad | null>(null);
+  const [evidenciaActividad, setEvidenciaActividad] = useState<PlanActividad | null>(null);
 
   const load = useCallback(async () => {
     if (!planId) return;
@@ -80,7 +83,7 @@ export default function PlanDetailPage() {
             type="button"
             onClick={() => {
               setEditActividad(null);
-              setModalOpen(true);
+              setActividadModalOpen(true);
             }}
             className={btnPrimary}
           >
@@ -96,10 +99,6 @@ export default function PlanDetailPage() {
         </PlanesCard>
       )}
 
-      {plan.resumen_por_trimestre?.map((r) => (
-        <div key={r.trimestre} className="hidden" />
-      ))}
-
       {byTrimestre.map(({ value, label, actividades }) => (
         <PlanesCard key={value} title={label}>
           {actividades.length === 0 ? (
@@ -110,9 +109,14 @@ export default function PlanDetailPage() {
                 <ActividadRow
                   key={act.id}
                   act={act}
-                  onEdit={() => {
+                  canCreate={canCreate}
+                  onEditActividad={() => {
                     setEditActividad(act);
-                    setModalOpen(true);
+                    setActividadModalOpen(true);
+                  }}
+                  onEvidencia={() => {
+                    setEvidenciaActividad(act);
+                    setEvidenciaModalOpen(true);
                   }}
                 />
               ))}
@@ -122,36 +126,71 @@ export default function PlanDetailPage() {
       ))}
 
       <ActividadFormModal
-        open={modalOpen}
+        open={actividadModalOpen}
         onClose={() => {
-          setModalOpen(false);
+          setActividadModalOpen(false);
           setEditActividad(null);
         }}
         plan={plan}
         actividad={editActividad}
         onSaved={() => {
-          setModalOpen(false);
+          setActividadModalOpen(false);
           setEditActividad(null);
           load();
         }}
       />
+
+      {evidenciaActividad && (
+        <EvidenciaFormModal
+          open={evidenciaModalOpen}
+          onClose={() => {
+            setEvidenciaModalOpen(false);
+            setEvidenciaActividad(null);
+          }}
+          actividad={evidenciaActividad}
+          onSaved={() => {
+            setEvidenciaModalOpen(false);
+            setEvidenciaActividad(null);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function ActividadRow({ act, onEdit }: { act: PlanActividad; onEdit: () => void }) {
+function ActividadRow({
+  act,
+  canCreate,
+  onEditActividad,
+  onEvidencia,
+}: {
+  act: PlanActividad;
+  canCreate: boolean;
+  onEditActividad: () => void;
+  onEvidencia: () => void;
+}) {
   const estadoTone =
     act.estado === "COMPLETADA" ? "success" : act.estado === "EN_PROGRESO" ? "info" : "slate";
 
   return (
     <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="font-medium text-slate-900">{act.nombre}</div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="font-medium text-slate-900">{act.nombre}</div>
+            {act.tiene_evidencia && (
+              <PlanesBadge tone="success">
+                <CheckCircle2 className="mr-1 inline h-3 w-3" />
+                Con evidencia
+              </PlanesBadge>
+            )}
+          </div>
           {act.descripcion && <p className="mt-1 text-sm text-slate-600">{act.descripcion}</p>}
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
             <PlanesBadge tone={estadoTone}>{act.estado_label}</PlanesBadge>
             <span>Avance: {act.avance}%</span>
+            {act.meta && <span>· Meta: {act.meta}</span>}
             {act.responsable_secretaria_nombre && <span>· {act.responsable_secretaria_nombre}</span>}
             {act.fecha_inicio && act.fecha_fin && (
               <span>
@@ -160,14 +199,27 @@ function ActividadRow({ act, onEdit }: { act: PlanActividad; onEdit: () => void 
             )}
           </div>
         </div>
-        <button type="button" onClick={onEdit} className="text-sm font-medium text-[#0e7490] hover:underline">
-          Editar / evidencia
-        </button>
+        {canCreate && (
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button type="button" onClick={onEditActividad} className={btnSecondary}>
+              Editar actividad
+            </button>
+            <button type="button" onClick={onEvidencia} className={btnPrimary}>
+              <ClipboardCheck className="mr-1 inline h-4 w-4" />
+              {act.tiene_evidencia ? "Editar evidencia" : "Registrar evidencia"}
+            </button>
+          </div>
+        )}
       </div>
       {act.evidencia && (
         <div className="mt-3 border-t border-slate-200 pt-3 text-sm">
-          <div className="font-medium text-slate-700">Evidencia</div>
+          <div className="font-medium text-slate-700">Evidencia de ejecución</div>
           <p className="text-slate-600">{act.evidencia.descripcion}</p>
+          {act.evidencia.meta_ejecutada && (
+            <p className="mt-1 text-slate-600">
+              <strong>Ejecutado:</strong> {act.evidencia.meta_ejecutada}
+            </p>
+          )}
           {act.evidencia.url_evidencia && (
             <a
               href={act.evidencia.url_evidencia}

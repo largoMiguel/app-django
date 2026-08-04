@@ -49,6 +49,8 @@ export interface PlanEvidencia {
   actividad: number;
   entity: number;
   descripcion: string;
+  meta_ejecutada: string;
+  avance: number;
   url_evidencia: string | null;
   archivos: PlanEvidenciaArchivo[];
   fecha_registro: string | null;
@@ -158,8 +160,6 @@ export interface PlanActividadWritePayload {
   fecha_fin?: string | null;
   responsable_secretaria?: number | null;
   responsable_usuario?: number | null;
-  estado?: string;
-  avance?: number;
 }
 
 export const TRIMESTRE_OPTIONS = [
@@ -269,10 +269,18 @@ export const planesApi = {
 
     registrarEvidencia: (
       id: number,
-      payload: { descripcion: string; url_evidencia?: string; archivos?: File[] },
+      payload: {
+        descripcion: string;
+        meta_ejecutada?: string;
+        avance: number;
+        url_evidencia?: string;
+        archivos?: File[];
+      },
     ) => {
       const form = new FormData();
       form.append("descripcion", payload.descripcion);
+      form.append("avance", String(payload.avance));
+      if (payload.meta_ejecutada) form.append("meta_ejecutada", payload.meta_ejecutada);
       if (payload.url_evidencia) form.append("url_evidencia", payload.url_evidencia);
       payload.archivos?.forEach((file) => form.append("archivos", file));
       return api
@@ -284,6 +292,8 @@ export const planesApi = {
       id: number,
       payload: {
         descripcion?: string;
+        meta_ejecutada?: string;
+        avance?: number;
         url_evidencia?: string;
         archivos?: File[];
         archivos_eliminar?: number[];
@@ -291,6 +301,8 @@ export const planesApi = {
     ) => {
       const form = new FormData();
       if (payload.descripcion !== undefined) form.append("descripcion", payload.descripcion);
+      if (payload.meta_ejecutada !== undefined) form.append("meta_ejecutada", payload.meta_ejecutada);
+      if (payload.avance !== undefined) form.append("avance", String(payload.avance));
       if (payload.url_evidencia !== undefined) form.append("url_evidencia", payload.url_evidencia);
       payload.archivos?.forEach((file) => form.append("archivos", file));
       if (payload.archivos_eliminar?.length) {

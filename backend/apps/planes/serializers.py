@@ -59,6 +59,8 @@ class PlanEvidenciaSerializer(serializers.ModelSerializer):
             "actividad",
             "entity",
             "descripcion",
+            "meta_ejecutada",
+            "avance",
             "url_evidencia",
             "archivos",
             "fecha_registro",
@@ -104,7 +106,7 @@ class PlanActividadSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "entity", "created_at", "updated_at")
+        read_only_fields = ("id", "entity", "created_at", "updated_at", "estado", "avance")
 
     def get_responsable_usuario_nombre(self, obj) -> str | None:
         if not obj.responsable_usuario_id:
@@ -258,23 +260,11 @@ class PlanActividadWriteSerializer(serializers.ModelSerializer):
             "fecha_fin",
             "responsable_secretaria",
             "responsable_usuario",
-            "estado",
-            "avance",
         )
 
     def validate_trimestre(self, value):
         if value not in Trimestre.values:
             raise serializers.ValidationError("Trimestre inválido (1-4).")
-        return value
-
-    def validate_estado(self, value):
-        if value not in ActividadEstado.values:
-            raise serializers.ValidationError("Estado inválido.")
-        return value
-
-    def validate_avance(self, value):
-        if value < 0 or value > 100:
-            raise serializers.ValidationError("El avance debe estar entre 0 y 100.")
         return value
 
 
