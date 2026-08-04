@@ -46,6 +46,7 @@ import PdmProductosPage from "@/features/pdm/PdmProductosPage";
 import PdmProductoDetallePage from "@/features/pdm/PdmProductoDetallePage";
 import PdmAnalisisPage from "@/features/pdm/PdmAnalisisPage";
 import PdmProyectosPage from "@/features/pdm/PdmProyectosPage";
+import PdmInformesPage from "@/features/pdm/PdmInformesPage";
 import { firstAccessibleRoute, needsEntitySelection, useAuthStore } from "@/core/auth/store";
 
 const HomePage = lazy(() => import("@/features/showcase/HomePage"));
@@ -154,6 +155,7 @@ export default function App(): ReactElement {
                   <Route path="productos/:codigo" element={<PdmProductoDetallePage />} />
                   <Route path="analisis" element={<PdmAnalisisPage />} />
                   <Route path="proyectos" element={<PdmProyectosPage />} />
+                  <Route path="informes" element={<PdmInformesPage />} />
                 </Route>
               </Route>
 

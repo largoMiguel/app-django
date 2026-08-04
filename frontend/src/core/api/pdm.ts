@@ -424,3 +424,51 @@ export const pdmApi = {
       .get<PdmChatAnalytics>(`/pdm/v2/${encodeURIComponent(slug)}/chat/analytics/`)
       .then((r) => r.data),
 };
+
+export type InformePdmEstado = "PENDIENTE" | "PROCESANDO" | "COMPLETADO" | "ERROR";
+
+export interface InformePDM {
+  id: number;
+  filename: string;
+  anio: number;
+  responsable_secretaria: number | null;
+  responsable_secretaria_nombre: string;
+  incluir_evidencias: boolean;
+  usar_ia: boolean;
+  usuario_firmante: number;
+  usuario_firmante_nombre: string;
+  estado: InformePdmEstado;
+  error_detail: string;
+  total_productos: number;
+  avance_fisico: number;
+  avance_financiero: number;
+  file_size: number;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  expires_at: string;
+  expires_in_days: number;
+  created_by_nombre: string;
+}
+
+export interface GenerarInformePdmPayload {
+  anio: number;
+  usuario_firmante_id: number;
+  responsable_secretaria_id?: number | null;
+  incluir_evidencias?: boolean;
+  usar_ia?: boolean;
+}
+
+export const pdmInformesApi = {
+  list: (slug: string) =>
+    api.get<InformePDM[]>(`/pdm/v2/${encodeURIComponent(slug)}/informes/`).then((r) => r.data),
+  create: (slug: string, payload: GenerarInformePdmPayload) =>
+    api.post<InformePDM>(`/pdm/v2/${encodeURIComponent(slug)}/informes/`, payload).then((r) => r.data),
+  download: (slug: string, id: number, filename: string) =>
+    downloadAuthenticatedFile(
+      `/api/v1/pdm/v2/${encodeURIComponent(slug)}/informes/${id}/download/`,
+      filename,
+    ),
+  remove: (slug: string, id: number) =>
+    api.delete(`/pdm/v2/${encodeURIComponent(slug)}/informes/${id}/`),
+};

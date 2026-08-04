@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { ArrowLeft, BarChart3, CheckCircle2, CloudUpload, FileSpreadsheet, FolderKanban, Layers, LayoutDashboard } from "lucide-react";
+import { ArrowLeft, BarChart3, CheckCircle2, CloudUpload, FileBarChart2, FileSpreadsheet, FolderKanban, Layers, LayoutDashboard } from "lucide-react";
 import PdmAccionesMenu from "@/features/pdm/PdmAccionesMenu";
 import { PdmProvider, usePdm } from "@/features/pdm/PdmContext";
 import PdmSharedModals from "@/features/pdm/PdmSharedModals";
@@ -7,11 +7,18 @@ import { ANIOS_PDM } from "@/features/pdm/pdmUtils";
 import { pdmBtnPrimary, pdmBtnSecondary, pdmSelect } from "@/features/pdm/pdmStyles";
 import { PdmAlert, PdmCard, PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
 
-const tabs = [
+const baseTabs: Array<{
+  to: string;
+  end: boolean;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles?: readonly ("admin" | "secretario")[];
+}> = [
   { to: "/pdm", end: true, label: "Resumen", icon: LayoutDashboard },
   { to: "/pdm/productos", end: false, label: "Productos", icon: FileSpreadsheet },
   { to: "/pdm/analisis", end: false, label: "Análisis", icon: BarChart3 },
   { to: "/pdm/proyectos", end: false, label: "Proyectos", icon: FolderKanban },
+  { to: "/pdm/informes", end: false, label: "Informes", icon: FileBarChart2, roles: ["admin", "secretario"] as const },
 ];
 
 function PdmLayoutInner() {
@@ -29,7 +36,6 @@ function PdmLayoutInner() {
     filtroAnio,
     setFiltroAnio,
     triggerRecargarPdm,
-    navigateToProyectos,
     handleExportarPiip,
     setModalContratos,
     setModalEjecucion,
@@ -37,6 +43,10 @@ function PdmLayoutInner() {
   } = usePdm();
 
   const isDetail = route === "detalle";
+  const tabs = baseTabs.filter((tab) => {
+    if (!tab.roles) return true;
+    return (isAdmin && tab.roles.includes("admin")) || (isSecretario && tab.roles.includes("secretario"));
+  });
 
   const subtitle = !tieneDatos
     ? isAdmin
@@ -50,7 +60,9 @@ function PdmLayoutInner() {
           ? "Dashboard analítico del Plan de Desarrollo Municipal"
           : location.pathname.includes("/proyectos")
             ? "Proyectos de inversión unificados por BPIN y sus productos del Plan Indicativo"
-            : isSecretario && !isAdmin
+            : location.pathname.includes("/informes")
+              ? "Informes institucionales de gestión del Plan de Desarrollo Municipal"
+              : isSecretario && !isAdmin
               ? "Productos asignados a su secretaría"
               : "Seguimiento del Plan de Desarrollo Municipal";
 
@@ -95,7 +107,6 @@ function PdmLayoutInner() {
           {tieneDatos && isAdmin && (
             <PdmAccionesMenu
               disabled={saving}
-              onProyectos={navigateToProyectos}
               onExportarPiip={() => void handleExportarPiip()}
               onContratos={() => setModalContratos(true)}
               onEjecucion={() => setModalEjecucion(true)}

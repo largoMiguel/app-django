@@ -27,4 +27,8 @@ app.conf.beat_schedule = {
         "task": "apps.asistencia.tasks.purge_old_asistencia_photos",
         "schedule": crontab(hour=3, minute=15),
     },
+    "purge-expired-informes-pdm": {
+        "task": "apps.pdm.tasks.purge_expired_informes_pdm",
+        "schedule": crontab(hour=3, minute=45),
+    },
 }

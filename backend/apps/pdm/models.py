@@ -389,3 +389,98 @@ class PDMContratoRPS(models.Model):
             models.Index(fields=("entity", "codigo_producto", "anio"), name="pdm_ctr_entity_prod_anio_idx"),
             models.Index(fields=("entity", "anio"), name="pdm_ctr_entity_anio_idx"),
         ]
+
+
+class InformePdmEstado(models.TextChoices):
+    PENDIENTE = "PENDIENTE", "En cola"
+    PROCESANDO = "PROCESANDO", "Generando"
+    COMPLETADO = "COMPLETADO", "Completado"
+    ERROR = "ERROR", "Error"
+
+
+class InformePDM(models.Model):
+    """Informe PDF institucional de gestión PDM (historial con expiración automática)."""
+
+    entity = models.ForeignKey(
+        "entities.Entity",
+        on_delete=models.CASCADE,
+        related_name="informes_pdm",
+        db_column="entity_id",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="informes_pdm_creados",
+        db_column="created_by_id",
+    )
+    filename = models.CharField(max_length=255, blank=True, default="")
+    b2_key = models.CharField(max_length=500, blank=True, default="")
+    file_size = models.PositiveIntegerField(default=0)
+    anio = models.PositiveIntegerField()
+    responsable_secretaria = models.ForeignKey(
+        "entities.Secretaria",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="informes_pdm",
+        db_column="responsable_secretaria_id",
+    )
+    incluir_evidencias = models.BooleanField(default=True)
+    usar_ia = models.BooleanField(default=False)
+    usuario_firmante = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="informes_pdm_firmados",
+        db_column="usuario_firmante_id",
+    )
+    estado = models.CharField(
+        max_length=16,
+        choices=InformePdmEstado.choices,
+        default=InformePdmEstado.PENDIENTE,
+        db_index=True,
+    )
+    error_detail = models.TextField(blank=True, default="")
+    total_productos = models.PositiveIntegerField(default=0)
+    avance_fisico = models.DecimalField(max_digits=5, decimal_places=1, default=0)
+    avance_financiero = models.DecimalField(max_digits=5, decimal_places=1, default=0)
+    celery_task_id = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        db_table = "pdm_informes"
+        verbose_name = "Informe PDM"
+        verbose_name_plural = "Informes PDM"
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["entity", "-created_at"]),
+            models.Index(fields=["entity", "estado"]),
+            models.Index(fields=["entity", "expires_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.filename or self.id} ({self.entity_id})"
+
+    @classmethod
+    def purge_expired(cls, entity_id: int | None = None) -> int:
+        """Elimina informes expirados y sus archivos en B2."""
+        from django.utils import timezone
+
+        from apps.common.storage_cleanup import delete_pdm_storage_key
+
+        now = timezone.now()
+        qs = cls.objects.filter(expires_at__lte=now)
+        if entity_id is not None:
+            qs = qs.filter(entity_id=entity_id)
+        deleted = 0
+        for informe in qs.iterator():
+            delete_pdm_storage_key(informe.b2_key)
+            informe.delete()
+            deleted += 1
+        return deleted

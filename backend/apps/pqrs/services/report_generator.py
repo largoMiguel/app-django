@@ -445,58 +445,9 @@ class PQRSReportGenerator:
     
     @staticmethod
     def _detect_template_margins(template_pdf_bytes: bytes):
-        """
-        Analiza el template PDF y detecta automáticamente el espacio
-        que ocupan el encabezado (arriba) y el pie de página (abajo),
-        sin importar la posición exacta en cada entidad.
-        Retorna (top_margin_inches, bottom_margin_inches).
-        """
-        import fitz
-        doc = fitz.open(stream=template_pdf_bytes, filetype="pdf")
-        page = doc[0]
-        page_height = page.rect.height   # puntos PDF
-        mid_y = page_height / 2
-        PADDING_PT = 14  # margen extra de seguridad en puntos
+        from apps.common.pdf_template import detect_template_margins
 
-        header_bottom = 0.0   # borde inferior del encabezado
-        footer_top    = page_height  # borde superior del pie
-
-        # Bloques de texto
-        for block in page.get_text("blocks"):
-            x0, y0, x1, y1 = block[:4]
-            if y1 < mid_y:
-                header_bottom = max(header_bottom, y1)
-            elif y0 > mid_y:
-                footer_top = min(footer_top, y0)
-
-        # Trazados vectoriales (líneas, rectángulos, etc.)
-        for draw in page.get_drawings():
-            r = draw.get("rect")
-            if r:
-                if r.y1 < mid_y:
-                    header_bottom = max(header_bottom, r.y1)
-                elif r.y0 > mid_y:
-                    footer_top = min(footer_top, r.y0)
-
-        # Imágenes incrustadas (p.ej. logo)
-        for img in page.get_image_info(xrefs=True):
-            bbox = img.get("bbox")
-            if bbox:
-                y0, y1 = bbox[1], bbox[3]
-                if y1 < mid_y:
-                    header_bottom = max(header_bottom, y1)
-                elif y0 > mid_y:
-                    footer_top = min(footer_top, y0)
-
-        doc.close()
-
-        top_in    = (header_bottom + PADDING_PT) / 72.0
-        bottom_in = (page_height - footer_top + PADDING_PT) / 72.0
-
-        # Límites razonables
-        top_in    = round(max(0.75, min(3.5, top_in)), 3)
-        bottom_in = round(max(0.5,  min(2.5, bottom_in)), 3)
-
+        top_in, bottom_in = detect_template_margins(template_pdf_bytes)
         print(f"📐 Márgenes detectados → top: {top_in}in  bottom: {bottom_in}in")
         return top_in, bottom_in
 
@@ -545,40 +496,9 @@ class PQRSReportGenerator:
 
     @staticmethod
     def _replace_page_number(page, page_index: int, total_pages: int) -> None:
-        """
-        Actualiza solo los dígitos de 'Página X de Y' en el membrete.
-        No toca el resto del template ni pinta cajas blancas grandes.
-        """
-        words = page.get_text("words")
-        indices = PQRSReportGenerator._find_page_number_word_indices(words)
-        if indices:
-            _, num_a_idx, _, num_b_idx = indices
-            num_word_a = words[num_a_idx]
-            num_word_b = words[num_b_idx]
-            PQRSReportGenerator._redact_tight(page, PQRSReportGenerator._word_rect(num_word_a))
-            PQRSReportGenerator._redact_tight(page, PQRSReportGenerator._word_rect(num_word_b))
-            PQRSReportGenerator._insert_at_word(page, num_word_a, page_index + 1)
-            PQRSReportGenerator._insert_at_word(page, num_word_b, total_pages)
-            return
+        from apps.common.pdf_template import replace_page_number
 
-        page_num_re = re.compile(r"P[aá]gina\s+\d+\s+de\s+\d+", re.IGNORECASE)
-        for block in page.get_text("blocks"):
-            if len(block) < 5:
-                continue
-            text = str(block[4]).strip()
-            if not page_num_re.search(text):
-                continue
-            rect = fitz.Rect(block[:4])
-            PQRSReportGenerator._redact_tight(page, rect)
-            fontsize = max(7, min(14, rect.height * 0.9))
-            page.insert_text(
-                (rect.x0, rect.y1 - 1),
-                f"Página {page_index + 1} de {total_pages}",
-                fontsize=fontsize,
-                color=(0, 0, 0),
-                fontname="helv",
-            )
-            return
+        replace_page_number(page, page_index, total_pages)
 
     def _create_content_pdf(self, top_margin: float = 1.6, bottom_margin: float = 1.0) -> BytesIO:
         """
@@ -1258,27 +1178,22 @@ class PQRSReportGenerator:
         automáticamente, genera el contenido con esos márgenes y aplica
         el template vectorial como fondo en cada página.
         """
-        import fitz  # PyMuPDF
-        import traceback
+        from apps.common.pdf_template import (
+            apply_template_overlay,
+            detect_template_margins,
+            load_entity_template,
+            replace_page_number,
+        )
 
-        from django.conf import settings
-
-        from apps.common.b2_client import get_b2_client
-
-        template_pdf_bytes = None
-        top_margin    = 1.6
+        template_pdf_bytes = load_entity_template(self.entity)
+        top_margin = 1.6
         bottom_margin = 1.0
 
-        if self.entity.pdf_template_url:
+        if template_pdf_bytes:
             try:
-                key = self.entity.pdf_template_url.lstrip("/")
-                client = get_b2_client()
-                s3_resp = client.get_object(Bucket=settings.B2_BUCKET_PQRS, Key=key)
-                template_pdf_bytes = s3_resp["Body"].read()
-                top_margin, bottom_margin = self._detect_template_margins(template_pdf_bytes)
+                top_margin, bottom_margin = detect_template_margins(template_pdf_bytes)
             except Exception as e:
-                print(f"⚠️ Error descargando template: {e}")
-                traceback.print_exc()
+                print(f"⚠️ Error detectando márgenes del template: {e}")
                 template_pdf_bytes = None
 
         # Generar contenido con los márgenes correctos para este template
@@ -1292,26 +1207,13 @@ class PQRSReportGenerator:
 
         try:
             content_buffer.seek(0)
-            content_doc = fitz.open(stream=content_buffer.read(), filetype="pdf")
-            total_pages = len(content_doc)
-
-            for i, page in enumerate(content_doc):
-                tpl_doc = fitz.open(stream=template_pdf_bytes, filetype="pdf")
-                tpl_page = tpl_doc[0]
-                self._replace_page_number(tpl_page, i, total_pages)
-                page.show_pdf_page(page.rect, tpl_doc, 0, overlay=False)
-                tpl_doc.close()
-
-            final_buffer = BytesIO()
-            content_doc.save(final_buffer)
-            content_doc.close()
-            final_buffer.seek(0)
-
-            print(f"✅ PDF con membrete institucional generado ({total_pages} páginas)")
+            final_buffer = apply_template_overlay(content_buffer.read(), template_pdf_bytes)
+            print(f"✅ PDF con membrete institucional generado")
             return final_buffer
 
         except Exception as e:
             print(f"⚠️ Error aplicando template: {e}")
+            import traceback
             traceback.print_exc()
             content_buffer.seek(0)
             return content_buffer

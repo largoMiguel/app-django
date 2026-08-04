@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .bpin_view import BpinDetailView
+from .informes.views import InformePdmViewSet
 from .views import (
     PdmActividadCreateView,
     PdmActividadDetailView,
@@ -51,4 +52,16 @@ urlpatterns = [
     path("bpin/<str:bpin>", BpinDetailView.as_view()),
     path("pdm/contratos/<slug:slug>/upload", PdmContratosUploadView.as_view()),
     path("pdm/contratos/<slug:slug>/contratos", PdmContratosView.as_view()),
+    path(
+        "pdm/v2/<slug:slug>/informes/",
+        InformePdmViewSet.as_view({"get": "list", "post": "create"}),
+    ),
+    path(
+        "pdm/v2/<slug:slug>/informes/<int:pk>/",
+        InformePdmViewSet.as_view({"delete": "destroy"}),
+    ),
+    path(
+        "pdm/v2/<slug:slug>/informes/<int:pk>/download/",
+        InformePdmViewSet.as_view({"get": "download"}),
+    ),
 ]

@@ -112,6 +112,7 @@ Hacer en https://demo.softone360.com con usuarios reales de prueba:
 - [ ] Responsive básico en móvil (menú, PQRS/usuarios en tarjetas)
 - [ ] **SECOP:** activar `enable_contratacion`, configurar NIT SECOP I/II, dashboard `/contratacion`, alertas, export Excel, análisis IA (requiere `SECOP_OPENAI_API_KEY` en demo)
 - [ ] **Planes Institucionales (D612):** activar `enable_planes_institucionales`, crear plan del catálogo por vigencia, asignar secretaría, actividades por trimestre, subir evidencia PDF/imagen (URL firmada), delegar contratista, cronograma `/planes/cronograma`, export informe trimestral, prueba cross-entity (usuario entidad A no ve plan entidad B)
+- [ ] **Informes PDM:** pestaña `/pdm/informes` (admin/secretario), generar PDF con vigencia y firmante, verificar `409` si hay uno en curso, descarga con membrete/gráficas, purga a los 7 días, workers Celery activos en demo
 
 Si algo falla, corregir en `development` y volver a push (demo se redeploya solo).
 

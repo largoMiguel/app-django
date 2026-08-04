@@ -219,6 +219,23 @@ Query param `anio` (opcional): año de seguimiento; por defecto el año actual. 
 
 ---
 
+## Informes de gestión PDM
+
+Pestaña **Informes** en el módulo PDM (roles `admin` y `secretario`). Genera un PDF institucional de gestión (membrete de la entidad, gráficas matplotlib, ejecución por producto y evidencias opcionales) de forma **asíncrona** con Celery.
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/pdm/v2/{slug}/informes/` | Historial de informes (purga perezosa de expirados) |
+| `POST` | `/api/v1/pdm/v2/{slug}/informes/` | Encola generación → `201` con estado `PENDIENTE`; `409` si ya hay uno en cola/proceso |
+| `GET` | `/api/v1/pdm/v2/{slug}/informes/{id}/download/` | Descarga PDF desde B2 (bucket PDM) |
+| `DELETE` | `/api/v1/pdm/v2/{slug}/informes/{id}/` | Elimina registro y archivo en B2 |
+
+**Body POST:** `anio`, `usuario_firmante_id` (obligatorio), `responsable_secretaria_id` (opcional; admin filtra dependencia), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
+
+**Roles:** `admin` puede filtrar por dependencia o toda la entidad; `secretario` queda forzado a su secretaría. Retención **7 días** (`expires_at`); purga automática Celery Beat `03:45` (`purge_expired_informes_pdm`) y al listar. Requiere `celery-worker` y `celery-beat` activos.
+
+---
+
 ## Módulo Contratación (SECOP I y SECOP II)
 
 Análisis de contratación pública de la entidad a partir de **datos abiertos** ([datos.gov.co](https://www.datos.gov.co)). Consulta **en vivo por vigencia (año)** con caché Redis; no replica contratos en PostgreSQL.

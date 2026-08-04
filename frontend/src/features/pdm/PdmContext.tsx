@@ -160,8 +160,7 @@ interface PdmContextValue {
   consultaUrlBpin: string | null;
   portalUrlBpin: string | null;
   cerrarModalBpin: () => void;
-  triggerRecargarPdm: () => void;
-  navigateToProyectos: () => void;
+    triggerRecargarPdm: () => void;
 }
 
 const PdmContext = createContext<PdmContextValue | null>(null);
@@ -679,10 +678,6 @@ export function PdmProvider({ children }: { children: ReactNode }) {
     fileInputRef.current?.click();
   }, []);
 
-  const navigateToProyectos = useCallback(() => {
-    navigate("/pdm/proyectos");
-  }, [navigate]);
-
   const loading = loadingStatus || procesandoExcel;
   const cargandoDetalleUrl = detalleEnabled && (loadingProductoDetail || !productoSeleccionado);
 
@@ -790,7 +785,6 @@ export function PdmProvider({ children }: { children: ReactNode }) {
     portalUrlBpin,
     cerrarModalBpin,
     triggerRecargarPdm,
-    navigateToProyectos,
   };
 
   return <PdmContext.Provider value={value}>{children}</PdmContext.Provider>;

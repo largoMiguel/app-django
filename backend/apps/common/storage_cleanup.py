@@ -12,6 +12,17 @@ from .b2_client import delete_prefix, get_b2_client, purge_bucket
 logger = logging.getLogger(__name__)
 
 
+def delete_pdm_storage_key(key: str | None) -> None:
+    """Elimina un objeto del cubo PDM (p. ej. informes PDF)."""
+    if not key or not settings.USE_B2_STORAGE:
+        return
+    client = get_b2_client()
+    try:
+        client.delete_object(Bucket=settings.B2_BUCKET_PDM, Key=key.lstrip("/"))
+    except ClientError as exc:
+        logger.warning("No se pudo borrar %s en %s: %s", key, settings.B2_BUCKET_PDM, exc)
+
+
 def delete_pqrs_storage_key(key: str | None) -> None:
     """Elimina un objeto del cubo PQRS (p. ej. archivo_respuesta)."""
     if not key or not settings.USE_B2_STORAGE:

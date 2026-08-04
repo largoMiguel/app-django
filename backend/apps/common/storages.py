@@ -75,6 +75,13 @@ def planes_file_storage():
     return default_storage
 
 
+def pdm_storage_for_paths() -> B2PdmStorage | FileSystemStorage:
+    """Storage used for PDM paths stored as plain strings (informes PDF)."""
+    if settings.USE_B2_STORAGE:
+        return b2_pdm_storage
+    return FileSystemStorage(location=settings.MEDIA_ROOT)
+
+
 def pqrs_storage_for_paths() -> B2PqrsStorage | FileSystemStorage:
     """Storage used for PQRS paths stored as plain strings (archivo_respuesta)."""
     if settings.USE_B2_STORAGE:
