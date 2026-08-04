@@ -85,9 +85,6 @@ export default function PlanDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link to="/planes/lista" className="mb-2 inline-flex items-center gap-1 text-sm text-[#0e7490]">
-            <ArrowLeft className="h-4 w-4" /> Volver a planes
-          </Link>
           <h2 className="text-xl font-bold text-slate-900">{plan.nombre}</h2>
           <p className="mt-1 text-sm text-slate-500">
             {plan.catalogo_codigo} · Vigencia {plan.anio} ·{" "}
@@ -110,7 +107,11 @@ export default function PlanDetailPage() {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/planes/lista" className={btnSecondary}>
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Volver a planes
+          </Link>
           {isAdmin && (
             <button type="button" onClick={() => setPlanModalOpen(true)} className={btnSecondary}>
               <Pencil className="mr-1 h-4 w-4" />
