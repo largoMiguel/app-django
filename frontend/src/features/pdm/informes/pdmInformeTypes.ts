@@ -7,7 +7,6 @@ export interface PdmInformeTypeDefinition {
   id: InformePdmTipo;
   title: string;
   description: string;
-  route: string;
   icon: LucideIcon;
   enabled: boolean;
   badge?: string;
@@ -19,7 +18,6 @@ export const PDM_INFORME_TYPES: PdmInformeTypeDefinition[] = [
     title: "Informe de Avance de PDM",
     description:
       "PDF institucional con resumen ejecutivo, avance por líneas, sectores y ODS, ejecución presupuestal y plan de acción con evidencias.",
-    route: "/pdm/informes/avance",
     icon: BarChart3,
     enabled: true,
   },
@@ -28,7 +26,6 @@ export const PDM_INFORME_TYPES: PdmInformeTypeDefinition[] = [
     title: "Informe de Gestión",
     description:
       "Informe consolidado de gestión institucional del Plan de Desarrollo Municipal. Próximamente disponible.",
-    route: "/pdm/informes/gestion",
     icon: FileBarChart2,
     enabled: false,
     badge: "Próximamente",

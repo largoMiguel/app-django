@@ -46,6 +46,19 @@ import numpy as np
 plt.rcParams['font.family'] = 'DejaVu Sans'
 
 from apps.pdm.models import PDMEjecucionPresupuestal
+from apps.common.report_cover import build_cover_flowables
+from apps.common.report_theme import (
+    BG_WHITE,
+    LINE_MID,
+    MPL_BAR,
+    MPL_BAR_SOFT,
+    MPL_LINE,
+    MPL_TEXT,
+    ROW_ALT,
+    TEXT_DARK,
+    banner_style_cmds,
+    table_style_cmds,
+)
 
 
 class PDMReportGenerator:
@@ -89,9 +102,9 @@ class PDMReportGenerator:
     EVIDENCIA_IMG_INCH = 2.4 * inch
     FRAME_SAFETY_PT = 18
     GRUPO_BLOCK_GAP = 0.15 * inch
-    COLOR_PRIMARY = colors.HexColor("#4F9A54")
-    COLOR_HEADER = colors.HexColor("#003366")
-    COLOR_ROW_ALT = colors.HexColor("#F5F8F5")
+    COLOR_PRIMARY = TEXT_DARK
+    COLOR_HEADER = TEXT_DARK
+    COLOR_ROW_ALT = ROW_ALT
     TABLE_WIDTH = 7.0 * inch
 
     def _institutional_styles(self) -> dict:
@@ -147,18 +160,7 @@ class PDMReportGenerator:
             colWidths=[self.TABLE_WIDTH],
             splitByRow=True,
         )
-        table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), self.COLOR_PRIMARY),
-                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ]
-            )
-        )
+        table.setStyle(TableStyle(banner_style_cmds()))
         self.story.append(table)
 
     def _append_data_table(self, rows: list, col_widths: list) -> None:
@@ -166,19 +168,7 @@ class PDMReportGenerator:
         table = Table(rows, colWidths=col_widths, splitByRow=True)
         table.setStyle(
             TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), self.COLOR_HEADER),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("BACKGROUND", (0, 1), (-1, -1), self.COLOR_ROW_ALT),
-                    ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("TOPPADDING", (0, 0), (-1, -1), 5),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ]
+                table_style_cmds(n_rows=len(rows), left_cols=tuple(range(len(col_widths))))
             )
         )
         self.story.append(table)
@@ -293,7 +283,7 @@ class PDMReportGenerator:
             )
             fig.patch.set_facecolor("white")
             bar_colors = [
-                "#4F9A54" if v >= 70 else "#FFA726" if v >= 50 else "#EF5350"
+                MPL_BAR if v >= 50 else MPL_BAR_SOFT
                 for v in values
             ]
             y_pos = np.arange(len(labels))
@@ -308,18 +298,19 @@ class PDMReportGenerator:
                     va="center",
                     fontsize=10,
                     fontweight="bold",
-                    color="#333",
+                    color=MPL_TEXT,
                 )
             ax.set_yticks(y_pos)
-            ax.set_yticklabels(labels, fontsize=9)
-            ax.set_xlabel("Porcentaje de Avance (%)", fontsize=11, fontweight="bold", color="#333")
-            ax.set_title(title, fontsize=13, fontweight="bold", color="#003366", pad=20)
+            ax.set_yticklabels(labels, fontsize=9, color=MPL_TEXT)
+            ax.set_xlabel("Porcentaje de Avance (%)", fontsize=11, fontweight="bold", color=MPL_TEXT)
+            ax.set_title(title, fontsize=13, fontweight="bold", color=MPL_TEXT, pad=20)
             ax.set_xlim(0, 110)
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)
-            ax.spines["left"].set_color("#CCCCCC")
-            ax.spines["bottom"].set_color("#CCCCCC")
-            ax.grid(axis="x", alpha=0.2, linestyle="--", color="#CCCCCC")
+            ax.spines["left"].set_color(MPL_LINE)
+            ax.spines["bottom"].set_color(MPL_LINE)
+            ax.grid(axis="x", alpha=0.3, linestyle="--", color=MPL_LINE)
+            ax.tick_params(colors=MPL_TEXT)
             ax.set_axisbelow(True)
             plt.tight_layout()
             img_buffer = BytesIO()
@@ -382,7 +373,7 @@ class PDMReportGenerator:
             "ChartSectionTitle",
             parent=self.styles["Heading2"],
             fontSize=12,
-            textColor=colors.HexColor("#003366"),
+            textColor=TEXT_DARK,
             spaceAfter=4,
             spaceBefore=8,
             fontName="Helvetica-Bold",
@@ -492,19 +483,11 @@ class PDMReportGenerator:
         )
         table.setStyle(
             TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4F9A54")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#E8F4F8")),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("GRID", (0, 0), (-1, -1), 1, colors.grey),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                ]
+                table_style_cmds(
+                    n_rows=len(data),
+                    numeric_cols=(2, 3, 4, 5),
+                    left_cols=(0, 1),
+                )
             )
         )
         self.story.append(table)
@@ -535,7 +518,8 @@ class PDMReportGenerator:
         canvas.drawRightString(8*inch, 10.3*inch, self.REPORT_TITLE)
         
         # Línea separadora
-        canvas.setStrokeColor(colors.HexColor('#003366'))
+        canvas.setStrokeColor(LINE_MID)
+        canvas.setFillColor(TEXT_DARK)
         canvas.line(0.5*inch, 10.2*inch, 8*inch, 10.2*inch)
         
         # PIE DE PÁGINA
@@ -546,132 +530,88 @@ class PDMReportGenerator:
         canvas.restoreState()
     
     def generate_portada(self):
-        """Genera la portada institucional según formato colombiano"""
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=self.styles['Title'],
-            fontSize=24,
-            textColor=colors.HexColor('#003366'),
-            alignment=TA_CENTER,
-            spaceAfter=2,
-            fontName='Helvetica-Bold'
-        )
-        anio_style = ParagraphStyle(
-            'AnioStyle',
-            parent=self.styles['Heading2'],
-            fontSize=18,
-            textColor=colors.HexColor('#003366'),
-            alignment=TA_CENTER,
-            spaceAfter=12
-        )
-        plan_style = ParagraphStyle(
-            'PlanTitle',
-            parent=self.styles['Heading1'],
-            fontSize=16,
-            textColor=colors.HexColor('#003366'),
-            alignment=TA_CENTER,
-            spaceAfter=8
-        )
-        tipo_style = ParagraphStyle(
-            'TipoInforme',
-            parent=self.styles['Normal'],
-            fontSize=12,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#666666'),
-            spaceAfter=8
-        )
-        entity_style = ParagraphStyle(
-            'EntityName',
-            parent=self.styles['Heading2'],
-            fontSize=16,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#003366'),
-            fontName='Helvetica-Bold',
-            spaceAfter=4,
-        )
-        alcaldia_style = ParagraphStyle(
-            'Alcaldia',
-            parent=self.styles['Normal'],
-            fontSize=14,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#666666'),
-            spaceAfter=8
+        """Genera la portada institucional con estructura PQRS en escala de grises."""
+        normal_style = ParagraphStyle(
+            "CoverNormal",
+            parent=self.styles["Normal"],
+            fontSize=10,
+            alignment=TA_JUSTIFY,
+            spaceAfter=8,
         )
         equipo_style = ParagraphStyle(
-            'EquipoGobierno',
-            parent=self.styles['Normal'],
+            "EquipoGobierno",
+            parent=self.styles["Normal"],
             fontSize=10,
             alignment=TA_CENTER,
-            textColor=colors.HexColor('#666666'),
+            textColor=TEXT_DARK,
             spaceAfter=4,
-            leading=14
+            leading=14,
+        )
+        filter_style = ParagraphStyle(
+            "FilterInfo",
+            parent=self.styles["Normal"],
+            fontSize=10,
+            alignment=TA_CENTER,
+            textColor=TEXT_DARK,
+            spaceAfter=6,
+        )
+        alcaldia_style = ParagraphStyle(
+            "Alcaldia",
+            parent=self.styles["Normal"],
+            fontSize=14,
+            alignment=TA_CENTER,
+            textColor=TEXT_DARK,
+            spaceAfter=8,
         )
 
-        if self.use_template:
-            self.story.append(Spacer(1, 1.4 * inch))
-        else:
-            self.story.append(Spacer(1, 0.5 * inch))
-            self.story.append(Paragraph(self.REPORT_TITLE, title_style))
-            self.story.append(Spacer(1, 0.25 * inch))
-
         anio_texto = "Vigencia 2024-2027" if self.anio == 0 else f"Vigencia {self.anio}"
-        self.story.append(Paragraph(anio_texto, anio_style))
-        self.story.append(Spacer(1, 0.15 * inch))
-
         plan_name = self._resolve_plan_name().upper()
-        self.story.append(Paragraph(plan_name, plan_style))
-        self.story.append(Spacer(1, 0.12 * inch))
-        self.story.append(Paragraph("Informe de Gestión / Rendición de Cuentas", tipo_style))
-        self.story.append(Spacer(1, 0.2 * inch))
 
-        self.story.append(Paragraph(self.entity.name.upper(), entity_style))
-        self.story.append(Paragraph("Alcaldía Municipal", alcaldia_style))
-        self.story.append(Spacer(1, 0.15 * inch))
+        extra: list = []
+        extra.append(Spacer(1, 0.15 * inch))
+        extra.append(Paragraph("Alcaldía Municipal", alcaldia_style))
 
         if self.filtros:
             filter_info = []
-            if self.filtros.get('secretarias'):
-                secs = ', '.join(self.filtros['secretarias'])
+            if self.filtros.get("secretarias"):
+                secs = ", ".join(self.filtros["secretarias"])
                 filter_info.append(f"Secretarías: {secs}")
-            if self.filtros.get('fecha_inicio') or self.filtros.get('fecha_fin'):
-                inicio = self.filtros.get('fecha_inicio', 'N/A')
-                fin = self.filtros.get('fecha_fin', 'N/A')
+            if self.filtros.get("fecha_inicio") or self.filtros.get("fecha_fin"):
+                inicio = self.filtros.get("fecha_inicio", "N/A")
+                fin = self.filtros.get("fecha_fin", "N/A")
                 filter_info.append(f"Período: {inicio} a {fin}")
-            if self.filtros.get('estados'):
-                estados = ', '.join(self.filtros['estados'])
+            if self.filtros.get("estados"):
+                estados = ", ".join(self.filtros["estados"])
                 filter_info.append(f"Estados: {estados}")
+            for info in filter_info:
+                extra.append(Paragraph(info, filter_style))
 
-            if filter_info:
-                filter_style = ParagraphStyle(
-                    'FilterInfo',
-                    parent=self.styles['Normal'],
-                    fontSize=10,
-                    alignment=TA_CENTER,
-                    textColor=colors.HexColor('#666666'),
-                    spaceAfter=6
-                )
-                for info in filter_info:
-                    self.story.append(Paragraph(info, filter_style))
-
-        self.story.append(Spacer(1, 0.25 * inch))
-        self.story.append(Paragraph("<b>Equipo de Gobierno Municipal</b>", equipo_style))
-
-        equipo_info = [
+        extra.append(Spacer(1, 0.25 * inch))
+        extra.append(Paragraph("<b>Equipo de Gobierno Municipal</b>", equipo_style))
+        for cargo in [
             "Alcalde Municipal",
             "Gestor(a) Social",
             "Jefe de Planeación Municipal",
             "Secretario de Gobierno",
             "Comisaría de Familia",
-            "Inspector de Policía"
-        ]
-
-        for cargo in equipo_info:
-            self.story.append(Paragraph(cargo, equipo_style))
+            "Inspector de Policía",
+        ]:
+            extra.append(Paragraph(cargo, equipo_style))
 
         if self.use_template:
-            self.story.append(Spacer(1, 0.6 * inch))
+            extra.append(Spacer(1, 0.6 * inch))
 
-        self.story.append(PageBreak())
+        top_spacer = 1.4 if self.use_template else 0.5
+        cover = build_cover_flowables(
+            title_line="Informe de Seguimiento",
+            subtitle_line=f"Informe de Gestión / Rendición de Cuentas<br/>{plan_name}",
+            entity_name=self.entity.name,
+            period_text=anio_texto,
+            normal_style=normal_style,
+            top_spacer=top_spacer,
+            extra_flowables=extra,
+        )
+        self.story.extend(cover)
     
     def generate_introduccion(self):
         """Genera la introducción institucional del informe"""
@@ -679,7 +619,7 @@ class PDMReportGenerator:
             'SectionTitle',
             parent=self.styles['Heading1'],
             fontSize=16,
-            textColor=colors.HexColor('#003366'),
+            textColor=TEXT_DARK,
             spaceAfter=16,
             spaceBefore=4,
             fontName='Helvetica-Bold'
@@ -744,7 +684,7 @@ class PDMReportGenerator:
                 'ExecutiveTitle',
                 parent=self.styles['Heading1'],
                 fontSize=14,
-                textColor=colors.HexColor('#003366'),
+                textColor=TEXT_DARK,
                 spaceAfter=2,
                 fontName='Helvetica-Bold'
             )
@@ -834,17 +774,9 @@ class PDMReportGenerator:
             ]
             
             kpis_table = Table(kpis_data, colWidths=[1.75*inch, 1.75*inch, 1.75*inch, 1.75*inch], splitByRow=True)
-            kpis_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#E8F4F8')),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#003366')),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ]))
+            kpis_table.setStyle(TableStyle(
+                table_style_cmds(n_rows=len(kpis_data), numeric_cols=(0, 1, 2, 3))
+            ))
             
             self.story.append(kpis_table)
             
@@ -867,7 +799,7 @@ class PDMReportGenerator:
                 'AITitle',
                 parent=self.styles['Heading1'],
                 fontSize=14,
-                textColor=colors.HexColor('#003366'),
+                textColor=TEXT_DARK,
                 spaceAfter=2,
                 fontName='Helvetica-Bold'
             )
@@ -944,7 +876,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 spaceAfter=2,
                 leftIndent=12,
                 rightIndent=12,
-                backColor=colors.HexColor('#F0F8FF'),
+                backColor=ROW_ALT,
                 borderPadding=10
             )
             
@@ -1117,7 +1049,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             'SectionTitle',
             parent=self.styles['Heading1'],
             fontSize=14,
-            textColor=colors.HexColor('#003366'),
+            textColor=TEXT_DARK,
             spaceAfter=2,
             fontName='Helvetica-Bold'
         )
@@ -1163,7 +1095,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             'SectionTitle',
             parent=self.styles['Heading1'],
             fontSize=14,
-            textColor=colors.HexColor('#003366'),
+            textColor=TEXT_DARK,
             spaceAfter=2,
             fontName='Helvetica-Bold'
         )
@@ -1180,7 +1112,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 parent=self.styles['Heading2'],
                 fontSize=11,
                 textColor=colors.white,
-                backColor=colors.HexColor('#4F9A54'),
+                backColor=TEXT_DARK,
                 alignment=TA_CENTER,
                 fontName='Helvetica-Bold',
                 leftIndent=6,
@@ -1192,11 +1124,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             # Tabla de encabezado de línea (cell merged)
             header_data = [[Paragraph("LÍNEA ESTRATÉGICA", linea_style)]]
             header_table = Table(header_data, colWidths=[7*inch], splitByRow=True)
-            header_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#4F9A54')),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            header_table.setStyle(TableStyle(banner_style_cmds() + [
                 ('TOPPADDING', (0, 0), (-1, -1), 4),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ]))
@@ -1215,7 +1143,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             )
             desc_table = Table([[Paragraph(linea.upper(), desc_linea_style)]], colWidths=[7*inch], splitByRow=True)
             desc_table.setStyle(TableStyle([
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ('LINEBELOW', (0, 0), (-1, -1), 0.5, LINE_MID),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('TOPPADDING', (0, 0), (-1, -1), 6),
@@ -1264,20 +1192,20 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 ])
             
             table = Table(data, colWidths=[2.5*inch, 2.5*inch, 1*inch, 1*inch], splitByRow=True)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                ('TOPPADDING', (0, 0), (-1, 0), 4),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),
-                ('TOPPADDING', (0, 1), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
-            ]))
+            table.setStyle(TableStyle(
+                table_style_cmds(
+                    n_rows=len(data),
+                    numeric_cols=(2, 3),
+                    left_cols=(0, 1),
+                ) + [
+                    ('FONTSIZE', (0, 0), (-1, 0), 9),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('TOPPADDING', (0, 0), (-1, 0), 4),
+                    ('FONTSIZE', (0, 1), (-1, -1), 8),
+                    ('TOPPADDING', (0, 1), (-1, -1), 6),
+                    ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+                ]
+            ))
             
             self.story.append(table)
     
@@ -1287,7 +1215,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             'SectionTitle',
             parent=self.styles['Heading1'],
             fontSize=14,
-            textColor=colors.HexColor('#003366'),
+            textColor=TEXT_DARK,
             spaceAfter=2,
             spaceBefore=4,
             fontName='Helvetica-Bold'
@@ -1331,7 +1259,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             'SectionTitle',
             parent=self.styles['Heading1'],
             fontSize=14,
-            textColor=colors.HexColor('#003366'),
+            textColor=TEXT_DARK,
             spaceAfter=2,
             fontName='Helvetica-Bold'
         )
@@ -1389,7 +1317,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             'SectionTitle',
             parent=self.styles['Heading1'],
             fontSize=14,
-            textColor=colors.HexColor('#003366'),
+            textColor=TEXT_DARK,
             spaceAfter=2,
             fontName='Helvetica-Bold'
         )
@@ -1442,12 +1370,11 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             )
             linea_table.setStyle(
                 TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, 0), self.COLOR_PRIMARY),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                        ("BACKGROUND", (0, 1), (-1, 1), self.COLOR_ROW_ALT),
-                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    banner_style_cmds()
+                    + [
+                        ("BACKGROUND", (0, 1), (-1, 1), ROW_ALT),
+                        ("TEXTCOLOR", (0, 1), (-1, 1), TEXT_DARK),
+                        ("LINEBELOW", (0, 0), (-1, -1), 0.5, LINE_MID),
                         ("TOPPADDING", (0, 0), (-1, -1), 5),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
                     ]
@@ -1512,14 +1439,14 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                         ("SPAN", (1, 1), (2, 1)),
                         ("SPAN", (1, 6), (2, 6)),
                         ("BACKGROUND", (0, 1), (-1, 1), self.COLOR_ROW_ALT),
-                        ("BACKGROUND", (0, 3), (-1, 3), colors.white),
-                        ("BACKGROUND", (0, 5), (-1, 5), self.COLOR_ROW_ALT),
+                        ("BACKGROUND", (0, 3), (-1, 3), BG_WHITE),
+                        ("BACKGROUND", (0, 5), (-1, 5), ROW_ALT),
                         ("BACKGROUND", (0, 6), (0, 6), self.COLOR_HEADER),
-                        ("BACKGROUND", (1, 6), (2, 6), colors.white),
-                        ("TEXTCOLOR", (1, 6), (2, 6), colors.black),
+                        ("BACKGROUND", (1, 6), (2, 6), BG_WHITE),
+                        ("TEXTCOLOR", (1, 6), (2, 6), TEXT_DARK),
                         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("LINEBELOW", (0, 0), (-1, -1), 0.5, LINE_MID),
                         ("TOPPADDING", (0, 0), (-1, -1), 5),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
                         ("LEFTPADDING", (0, 0), (-1, -1), 6),
@@ -1564,18 +1491,13 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             )
             actividades_table.setStyle(
                 TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, 0), self.COLOR_HEADER),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                        ("BACKGROUND", (0, 1), (-1, -1), self.COLOR_ROW_ALT),
-                        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
-                        ("ALIGN", (2, 1), (2, -1), "CENTER"),
+                    table_style_cmds(
+                        n_rows=len(actividades_rows),
+                        numeric_cols=(2,),
+                        left_cols=(0, 1),
+                    )
+                    + [
                         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                        ("TOPPADDING", (0, 0), (-1, -1), 5),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                     ]
                 )
             )
@@ -1612,7 +1534,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                         actividad_nombre = actividad.nombre[:80] if len(actividad.nombre) > 80 else actividad.nombre
                         self.story.append(Paragraph(
                             f"<b>Actividad {num_evidencia}:</b> {actividad_nombre}",
-                            ParagraphStyle('EvidenciaTitle', parent=self.styles['Normal'], fontSize=9, textColor=colors.HexColor('#003366'))
+                            ParagraphStyle('EvidenciaTitle', parent=self.styles['Normal'], fontSize=9, textColor=TEXT_DARK)
                         ))
                         
                         # Imágenes en grid 2x2 (sin límite de 4, pero paginadas)
@@ -1834,7 +1756,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 cell = ws2.cell(row=3, column=col)
                 cell.value = header
                 cell.font = Font(bold=True)
-                cell.fill = PatternFill(start_color="003366", end_color="003366", fill_type="solid")
+                cell.fill = PatternFill(start_color="2D3748", end_color="2D3748", fill_type="solid")
                 cell.font = Font(bold=True, color="FFFFFF")
             
             row = 4
@@ -1863,7 +1785,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 cell = ws3.cell(row=3, column=col)
                 cell.value = header
                 cell.font = Font(bold=True)
-                cell.fill = PatternFill(start_color="4F9A54", end_color="4F9A54", fill_type="solid")
+                cell.fill = PatternFill(start_color="2D3748", end_color="2D3748", fill_type="solid")
                 cell.font = Font(bold=True, color="FFFFFF")
             
             row = 4

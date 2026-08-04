@@ -1,13 +1,12 @@
 import { useLocation, useParams } from "react-router-dom";
 
-export type PdmRouteSegment = "dashboard" | "productos" | "detalle" | "analisis" | "proyectos" | "informes" | "informe-avance";
+export type PdmRouteSegment = "dashboard" | "productos" | "detalle" | "analisis" | "proyectos" | "informes";
 
 export function usePdmRoute(): PdmRouteSegment {
   const location = useLocation();
   const { codigo } = useParams<{ codigo?: string }>();
   const path = location.pathname;
   if (path.includes("/analisis")) return "analisis";
-  if (path.includes("/informes/avance")) return "informe-avance";
   if (path.includes("/informes")) return "informes";
   if (path.includes("/proyectos")) return "proyectos";
   if (codigo) return "detalle";

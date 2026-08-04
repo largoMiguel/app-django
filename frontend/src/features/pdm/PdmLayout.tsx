@@ -60,10 +60,8 @@ function PdmLayoutInner() {
           ? "Dashboard analítico del Plan de Desarrollo Municipal"
           : location.pathname.includes("/proyectos")
             ? "Proyectos de inversión unificados por BPIN y sus productos del Plan Indicativo"
-            : location.pathname.includes("/informes/avance")
-              ? "Informe de Avance de PDM — generación PDF institucional"
-              : location.pathname.includes("/informes")
-                ? "Catálogo de informes del Plan de Desarrollo Municipal"
+            : location.pathname.includes("/informes")
+              ? "Informes PDF del Plan de Desarrollo Municipal — generación y historial (retención 7 días)"
                 : isSecretario && !isAdmin
               ? "Productos asignados a su secretaría"
               : "Seguimiento del Plan de Desarrollo Municipal";

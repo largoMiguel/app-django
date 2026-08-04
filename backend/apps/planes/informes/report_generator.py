@@ -12,13 +12,25 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Image as RLImage
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from apps.common.report_cover import build_cover_flowables
+from apps.common.report_theme import (
+    BG_WHITE,
+    LINE_MID,
+    MPL_BAR,
+    MPL_LINE,
+    MPL_TEXT,
+    ROW_ALT,
+    TEXT_DARK,
+    banner_style_cmds,
+    table_style_cmds,
+)
 from apps.planes.informes import narrativa
 
 
@@ -26,9 +38,9 @@ class PlanesReportGenerator:
     REPORT_TITLE = "INFORME DE SEGUIMIENTO PLANES INSTITUCIONALES"
     REPORT_CODE = "FM-PLANES-612-001"
 
-    COLOR_PRIMARY = colors.HexColor("#4F9A54")
-    COLOR_HEADER = colors.HexColor("#003366")
-    COLOR_ROW_ALT = colors.HexColor("#F5F8F5")
+    COLOR_PRIMARY = TEXT_DARK
+    COLOR_HEADER = TEXT_DARK
+    COLOR_ROW_ALT = ROW_ALT
     TABLE_WIDTH = 7.0 * inch
     MAX_FLOWABLE_HEIGHT = 9.0 * inch
 
@@ -118,6 +130,13 @@ class PlanesReportGenerator:
                 alignment=TA_LEFT,
                 leading=10,
             ),
+            "cell_right": ParagraphStyle(
+                "PlanesCellRight",
+                parent=self.styles["Normal"],
+                fontSize=8,
+                alignment=TA_RIGHT,
+                leading=10,
+            ),
         }
         return self._inst_styles_cache
 
@@ -128,7 +147,8 @@ class PlanesReportGenerator:
         canvas.drawString(0.5 * inch, 10.3 * inch, "Versión: 1.0")
         canvas.drawRightString(8 * inch, 10.5 * inch, f"Página {doc.page}")
         canvas.drawRightString(8 * inch, 10.3 * inch, self.REPORT_TITLE[:48])
-        canvas.setStrokeColor(self.COLOR_HEADER)
+        canvas.setStrokeColor(LINE_MID)
+        canvas.setFillColor(TEXT_DARK)
         canvas.line(0.5 * inch, 10.2 * inch, 8 * inch, 10.2 * inch)
         canvas.setFont("Helvetica", 7)
         footer = f"Planes Institucionales D612 — {self.entity.name} — {self.trimestre_label} {self.anio}"
@@ -142,17 +162,7 @@ class PlanesReportGenerator:
             colWidths=[self.TABLE_WIDTH],
             splitByRow=True,
         )
-        table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), self.COLOR_PRIMARY),
-                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ]
-            )
-        )
+        table.setStyle(TableStyle(banner_style_cmds()))
         self.story.append(table)
 
     def _append_heading(self, text: str) -> None:
@@ -174,18 +184,26 @@ class PlanesReportGenerator:
         if cache_key not in self._cache_graficas:
             fig_h = max(3.0, min(6.0, len(labels) * 0.45))
             fig, ax = plt.subplots(figsize=(7, fig_h))
+            fig.patch.set_facecolor("white")
             y_pos = range(len(labels))
             short_labels = [lbl[:40] + "…" if len(lbl) > 40 else lbl for lbl in labels]
-            ax.barh(list(y_pos), values, color="#4F9A54", height=0.6)
+            ax.barh(list(y_pos), values, color=MPL_BAR, height=0.6)
             ax.set_yticks(list(y_pos))
-            ax.set_yticklabels(short_labels, fontsize=8)
+            ax.set_yticklabels(short_labels, fontsize=8, color=MPL_TEXT)
             ax.set_xlim(0, 100)
-            ax.set_xlabel("Avance (%)", fontsize=9)
-            ax.set_title(title, fontsize=10, fontweight="bold")
+            ax.set_xlabel("Avance (%)", fontsize=9, color=MPL_TEXT)
+            ax.set_title(title, fontsize=10, fontweight="bold", color=MPL_TEXT)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            ax.spines["left"].set_color(MPL_LINE)
+            ax.spines["bottom"].set_color(MPL_LINE)
+            ax.grid(axis="x", alpha=0.3, linestyle="--", color=MPL_LINE)
+            ax.set_axisbelow(True)
+            ax.tick_params(colors=MPL_TEXT)
             ax.invert_yaxis()
             fig.tight_layout()
             buf = BytesIO()
-            fig.savefig(buf, format="png", dpi=120, bbox_inches="tight")
+            fig.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor="white")
             plt.close(fig)
             self._cache_graficas[cache_key] = buf.getvalue()
 
@@ -195,39 +213,35 @@ class PlanesReportGenerator:
 
     def generate_portada(self) -> None:
         st = self._institutional_styles()
-        portada_rows = [
-            [Paragraph("<b>Informe de Seguimiento</b>", st["banner"])],
-            [Paragraph("<b>Planes Institucionales decreto 612 de 2018</b>", st["banner"])],
-            [Paragraph(f"<b>{self.narrativa_ctx['entity_upper']}</b>", st["banner"])],
-        ]
-        portada = Table(portada_rows, colWidths=[self.TABLE_WIDTH])
-        portada.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), self.COLOR_HEADER),
-                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 14),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
-                    ("BOX", (0, 0), (-1, -1), 1, colors.white),
-                ]
-            )
-        )
-        self.story.append(Spacer(1, 1.5 * inch))
-        self.story.append(portada)
-        self.story.append(Spacer(1, 0.4 * inch))
+        normal_style = st["body"]
+        period_text = f"{self.trimestre_label} — {self.anio}"
+
+        extra: list = []
         sec_text = self.secretaria_nombre or "Dependencia con funciones de Control Interno"
-        self.story.append(Paragraph(sec_text.upper(), ParagraphStyle("Sec", parent=st["body"], alignment=TA_CENTER, fontName="Helvetica-Bold")))
-        self.story.append(Paragraph("con funciones de Control Interno", ParagraphStyle("Sec2", parent=st["body"], alignment=TA_CENTER)))
-        self.story.append(Spacer(1, 0.2 * inch))
-        self.story.append(
+        extra.append(Spacer(1, 0.4 * inch))
+        extra.append(
             Paragraph(
-                f"{self.anio} — {self.trimestre_label}",
-                ParagraphStyle("Anio", parent=st["body"], alignment=TA_CENTER, fontSize=16, fontName="Helvetica-Bold"),
+                sec_text.upper(),
+                ParagraphStyle("Sec", parent=st["body"], alignment=TA_CENTER, fontName="Helvetica-Bold", textColor=TEXT_DARK),
             )
         )
-        self.story.append(PageBreak())
+        extra.append(
+            Paragraph(
+                "con funciones de Control Interno",
+                ParagraphStyle("Sec2", parent=st["body"], alignment=TA_CENTER, textColor=TEXT_DARK),
+            )
+        )
+
+        cover = build_cover_flowables(
+            title_line="Informe de Seguimiento",
+            subtitle_line="Planes Institucionales decreto 612 de 2018",
+            entity_name=self.narrativa_ctx["entity_upper"],
+            period_text=period_text,
+            normal_style=normal_style,
+            top_spacer=1.5,
+            extra_flowables=extra,
+        )
+        self.story.extend(cover)
 
     def generate_introduccion(self) -> None:
         self._append_heading("INTRODUCCIÓN")
@@ -290,7 +304,7 @@ class PlanesReportGenerator:
             self._append_banner(f"{plan.catalogo.codigo} — {plan.catalogo.nombre}")
 
             rows = [
-                [Paragraph(f"<b>{h}</b>", st["cell_center"]) for h in headers],
+                [Paragraph(f"<b>{h}</b>", st["cell_center" if i in (0, 3) else "cell_left"]) for i, h in enumerate(headers)],
             ]
             for idx, act in enumerate(acts, start=1):
                 ejecutado = getattr(act, "total_ejecutado_val", 0)
@@ -311,11 +325,11 @@ class PlanesReportGenerator:
                     desc_ejec = f"Ejecutado: {ejecutado}"
                 rows.append(
                     [
-                        Paragraph(str(idx), st["cell_center"]),
+                        Paragraph(str(idx), st["cell_right"]),
                         Paragraph(act.nombre[:300], st["cell_left"]),
                         Paragraph(desc_ejec or "—", st["cell_left"]),
-                        Paragraph(f"{avance}%", st["cell_center"]),
-                        Paragraph(plazo or "—", st["cell_center"]),
+                        Paragraph(f"{avance}%", st["cell_right"]),
+                        Paragraph(plazo or "—", st["cell_left"]),
                         Paragraph(resp[:120], st["cell_left"]),
                     ]
                 )
@@ -323,18 +337,11 @@ class PlanesReportGenerator:
             table = Table(rows, colWidths=col_widths, repeatRows=1, splitByRow=True)
             table.setStyle(
                 TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, 0), self.COLOR_HEADER),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                        ("BACKGROUND", (0, 1), (-1, -1), self.COLOR_ROW_ALT),
-                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                        ("TOPPADDING", (0, 0), (-1, -1), 4),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                    ]
+                    table_style_cmds(
+                        n_rows=len(rows),
+                        numeric_cols=(0, 3),
+                        left_cols=(1, 2, 4, 5),
+                    )
                 )
             )
             self.story.append(table)
