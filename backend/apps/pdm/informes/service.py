@@ -1,6 +1,7 @@
 """Orquestación de generación y almacenamiento de informes PDM."""
 from __future__ import annotations
 
+import base64
 import datetime
 import logging
 from io import BytesIO
@@ -8,28 +9,23 @@ from io import BytesIO
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from PIL import Image
 
 from apps.common.b2_client import get_b2_client
 from apps.common.storages import pdm_storage_for_paths
 from apps.pdm.access import productos_queryset_for_user
 from apps.pdm.analytics import compute_pdm_analytics
-from apps.pdm.ejecucion_resumen import ejecucion_por_codigo
-from apps.pdm.metrics import actividad_aggs_for_productos, resumen_anio
-from apps.pdm.models import InformePDM, InformePdmEstado, InformePdmTipo, PDMContratoRPS, PdmActividad, PdmProducto
+from apps.pdm.models import InformePDM, InformePdmEstado, InformePdmTipo, PdmActividad, PdmProducto
 
 from .types import storage_slug_for_tipo
 from apps.pdm.stats import compute_estado_stats, compute_pdm_stats_from_queryset, productos_for_stats
 
 from .report_ai import PdmReportAIService, build_fallback_analysis
-from .report_generator import PdmReportGenerator
+from .report_generator import PDMReportGenerator
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 STALE_PROCESSING_MINUTES = 30
-MAX_EVIDENCIA_IMAGENES = 2
-EVIDENCIA_MAX_WIDTH = 800
 
 
 def mark_stale_processing_informes(entity_id: int) -> int:
@@ -76,124 +72,52 @@ def _resolve_ai_analysis(
     return build_fallback_analysis(analytics, entity.name, anio, secretaria_nombre)
 
 
-def _resize_image_bytes(raw: bytes) -> BytesIO:
-    buf = BytesIO()
-    try:
-        with Image.open(BytesIO(raw)) as img:
-            img = img.convert("RGB")
-            w, h = img.size
-            if w > EVIDENCIA_MAX_WIDTH:
-                ratio = EVIDENCIA_MAX_WIDTH / w
-                img = img.resize((EVIDENCIA_MAX_WIDTH, int(h * ratio)), Image.Resampling.LANCZOS)
-            img.save(buf, format="JPEG", quality=75, optimize=True)
-    except Exception:
-        buf = BytesIO(raw)
-    buf.seek(0)
-    return buf
-
-
-def _load_evidencia_image(archivo_field) -> BytesIO | None:
-    if not archivo_field:
-        return None
-    try:
-        with archivo_field.open("rb") as fh:
-            return _resize_image_bytes(fh.read())
-    except Exception:
-        logger.warning("No se pudo cargar evidencia: %s", archivo_field)
-        return None
-
-
-def _build_productos_detalle(
-    productos: list[PdmProducto],
+def _prepare_actividades(
     entity_id: int,
+    codigos: list[str],
     anio: int,
     incluir_evidencias: bool,
-) -> list[dict]:
-    codigos = [p.codigo_producto for p in productos]
-    aggs_map = actividad_aggs_for_productos(entity_id, codigos)
-    ejec_map = ejecucion_por_codigo(entity_id, codigos, anio)
-    contratos_map: dict[str, list] = {}
-    for ctr in PDMContratoRPS.objects.filter(entity_id=entity_id, anio=anio, codigo_producto__in=codigos):
-        contratos_map.setdefault(str(ctr.codigo_producto).strip(), []).append(
-            {
-                "no_crp": ctr.no_crp,
-                "concepto": ctr.concepto,
-                "valor": float(ctr.valor or 0),
-                "contratista": ctr.contratista,
-            }
-        )
-
+) -> list[PdmActividad]:
     actividades_qs = (
-        PdmActividad.objects.filter(entity_id=entity_id, anio=anio, codigo_producto__in=codigos)
-        .select_related("evidencia")
+        PdmActividad.objects.filter(entity_id=entity_id, codigo_producto__in=codigos)
+        .select_related("evidencia", "responsable_secretaria")
         .prefetch_related("evidencia__archivos")
         .order_by("codigo_producto", "id")
     )
-    actividades_by_codigo: dict[str, list] = {}
-    for act in actividades_qs:
-        evidencia_imgs: list[BytesIO] = []
-        if incluir_evidencias and hasattr(act, "evidencia") and act.evidencia:
-            for arch in act.evidencia.archivos.all()[:MAX_EVIDENCIA_IMAGENES]:
-                img = _load_evidencia_image(arch.archivo)
-                if img:
-                    evidencia_imgs.append(img)
-        actividades_by_codigo.setdefault(act.codigo_producto, []).append(
-            {
-                "nombre": act.nombre,
-                "estado": act.estado,
-                "meta_ejecutar": act.meta_ejecutar,
-                "descripcion": act.descripcion,
-                "informe": getattr(act.evidencia, "descripcion", None) if hasattr(act, "evidencia") and act.evidencia else None,
-                "evidencia_imagenes": evidencia_imgs,
-            }
-        )
+    if anio != 0:
+        actividades_qs = actividades_qs.filter(anio=anio)
 
-    detalle: list[dict] = []
-    for p in productos:
-        aggs = aggs_map.get(p.codigo_producto, {})
-        resumen = resumen_anio(p, anio, aggs)
-        ej = ejec_map.get(p.codigo_producto, {"pagos": 0.0})
-        indicador = p.personalizacion_indicador or p.indicador_producto_mga or p.producto_mga or ""
-        acts = actividades_by_codigo.get(p.codigo_producto, [])
-        evidencia_imgs: list[BytesIO] = []
-        if incluir_evidencias:
-            for act in acts:
-                for img in act.get("evidencia_imagenes", []):
-                    if len(evidencia_imgs) >= MAX_EVIDENCIA_IMAGENES:
-                        break
-                    evidencia_imgs.append(img)
-                if len(evidencia_imgs) >= MAX_EVIDENCIA_IMAGENES:
-                    break
-        responsable = p.responsable_secretaria_nombre or "Sin asignar"
-        if not p.responsable_secretaria_nombre and p.responsable_usuario_id:
-            responsable = "Usuario asignado"
-        detalle.append(
-            {
-                "codigo_producto": p.codigo_producto,
-                "indicador": indicador,
-                "meta_programada": resumen.get("meta_programada", 0),
-                "meta_ejecutada": resumen.get("meta_ejecutada", 0),
-                "avance_pct": resumen.get("porcentaje_avance", 0),
-                "recursos_ejecutados": ej.get("pagos", 0),
-                "responsable": responsable,
-                "actividades": [{k: v for k, v in a.items() if k != "evidencia_imagenes"} for a in acts],
-                "contratos": contratos_map.get(p.codigo_producto, []),
-                "evidencia_imagenes": evidencia_imgs,
-            }
-        )
-    return detalle
+    actividades = list(actividades_qs)
+    for act in actividades:
+        act.tiene_evidencia = hasattr(act, "evidencia") and act.evidencia is not None
+        if act.tiene_evidencia and incluir_evidencias:
+            imagenes: list[str] = []
+            for arch in act.evidencia.archivos.all():
+                try:
+                    with arch.archivo.open("rb") as fh:
+                        raw = fh.read()
+                    encoded = base64.b64encode(raw).decode("ascii")
+                    imagenes.append(f"data:image/jpeg;base64,{encoded}")
+                except Exception:
+                    logger.warning("No se pudo cargar evidencia para actividad %s", act.id)
+            act.evidencia.imagenes = imagenes
+    return actividades
 
 
 def _gather_report_data(informe: InformePDM) -> dict:
     entity = informe.entity
     user = informe.created_by
     anio = informe.anio
-    productos_qs = productos_queryset_for_user(user, entity)
+    productos_qs = productos_queryset_for_user(user, entity).select_related("responsable_secretaria")
     if informe.responsable_secretaria_id:
         productos_qs = productos_qs.filter(responsable_secretaria_id=informe.responsable_secretaria_id)
-    productos = productos_for_stats(productos_qs)
+
+    productos = list(productos_qs.order_by("codigo_producto"))
     if not productos:
         raise ValueError("No hay productos PDM para generar el informe con los filtros seleccionados.")
+
+    codigos = [p.codigo_producto for p in productos]
+    actividades = _prepare_actividades(entity.id, codigos, anio, informe.incluir_evidencias)
 
     lineas_count = productos_qs.values("linea_estrategica").distinct().count()
     iniciativas_count = 0
@@ -205,8 +129,6 @@ def _gather_report_data(informe: InformePDM) -> dict:
     if informe.responsable_secretaria_id:
         secretaria_nombre = informe.responsable_secretaria.nombre
 
-    nombre_plan = next((p.nombre_plan for p in productos if p.nombre_plan), None)
-
     ai_analysis = _resolve_ai_analysis(
         usar_ia=informe.usar_ia,
         entity=entity,
@@ -215,21 +137,24 @@ def _gather_report_data(informe: InformePDM) -> dict:
         secretaria_nombre=secretaria_nombre,
     )
 
-    productos_detalle = _build_productos_detalle(productos, entity.id, anio, informe.incluir_evidencias)
-
     pres = analytics.get("presupuesto", {})
     pct_fin = 0.0
     if pres.get("pto_definitivo"):
         pct_fin = round((pres.get("pagos", 0) / pres["pto_definitivo"]) * 100, 1)
 
+    filtros: dict = {}
+    if secretaria_nombre:
+        filtros["secretarias"] = [secretaria_nombre]
+
     return {
+        "productos": productos,
+        "actividades": actividades,
         "stats": stats,
         "estado_stats": estado_stats,
         "analytics": analytics,
         "ai_analysis": ai_analysis,
-        "productos_detalle": productos_detalle,
         "secretaria_nombre": secretaria_nombre,
-        "nombre_plan": nombre_plan,
+        "filtros": filtros,
         "avance_fisico": analytics.get("avance_global", 0),
         "avance_financiero": pct_fin,
         "total_productos": analytics.get("total_productos", 0),
@@ -238,18 +163,15 @@ def _gather_report_data(informe: InformePDM) -> dict:
 
 def generate_informe_pdm_pdf(informe: InformePDM) -> bytes:
     data = _gather_report_data(informe)
-    usuario_firmante = informe.usuario_firmante
-    generator = PdmReportGenerator(
+    generator = PDMReportGenerator(
         entity=informe.entity,
+        productos=data["productos"],
+        actividades=data["actividades"],
         anio=informe.anio,
-        analytics=data["analytics"],
-        stats=data["stats"],
-        estado_stats=data["estado_stats"],
-        productos_detalle=data["productos_detalle"],
+        filtros=data["filtros"],
+        usar_ia=informe.usar_ia and informe.entity.enable_ai_reports,
+        incluir_evidencias=informe.incluir_evidencias,
         ai_analysis=data["ai_analysis"],
-        usuario_firmante=usuario_firmante,
-        secretaria_nombre=data["secretaria_nombre"],
-        nombre_plan=data["nombre_plan"],
     )
     pdf_buffer = generator.generate_pdf()
     informe.total_productos = data["total_productos"]
