@@ -219,18 +219,22 @@ Query param `anio` (opcional): año de seguimiento; por defecto el año actual. 
 
 ---
 
-## Informes de gestión PDM
+## Informes PDM
 
-Pestaña **Informes** en el módulo PDM (roles `admin` y `secretario`). Genera un PDF institucional de gestión (membrete de la entidad, gráficas matplotlib, ejecución por producto y evidencias opcionales) de forma **asíncrona** con Celery.
+Pestaña **Informes** en el módulo PDM (roles `admin` y `secretario`). La sección agrupa varios tipos de informe PDF; hoy está habilitado el **Informe de Avance de PDM** (`tipo=AVANCE`). El **Informe de Gestión** (`tipo=GESTION`) queda reservado para una fase posterior.
+
+Generación **asíncrona** con Celery (membrete institucional, gráficas matplotlib, ejecución por producto y evidencias opcionales).
 
 | Método | Endpoint | Descripción |
 |---|---|---|
-| `GET` | `/api/v1/pdm/v2/{slug}/informes/` | Historial de informes (purga perezosa de expirados) |
-| `POST` | `/api/v1/pdm/v2/{slug}/informes/` | Encola generación → `201` con estado `PENDIENTE`; `409` si ya hay uno en cola/proceso |
+| `GET` | `/api/v1/pdm/v2/{slug}/informes/?tipo=AVANCE` | Historial por tipo (purga perezosa de expirados) |
+| `POST` | `/api/v1/pdm/v2/{slug}/informes/` | Encola generación → `201` con estado `PENDIENTE`; `409` si ya hay uno del mismo tipo en cola/proceso |
 | `GET` | `/api/v1/pdm/v2/{slug}/informes/{id}/download/` | Descarga PDF desde B2 (bucket PDM) |
 | `DELETE` | `/api/v1/pdm/v2/{slug}/informes/{id}/` | Elimina registro y archivo en B2 |
 
-**Body POST:** `anio`, `usuario_firmante_id` (obligatorio), `responsable_secretaria_id` (opcional; admin filtra dependencia), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
+**Body POST:** `tipo` (`AVANCE`; `GESTION` rechazado hasta implementación), `anio`, `usuario_firmante_id` (obligatorio), `responsable_secretaria_id` (opcional; admin filtra dependencia), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
+
+**Tipos:** `AVANCE` = Informe de Avance de PDM · `GESTION` = Informe de Gestión (próximamente).
 
 **Roles:** `admin` puede filtrar por dependencia o toda la entidad; `secretario` queda forzado a su secretaría. Retención **7 días** (`expires_at`); purga automática Celery Beat `03:45` (`purge_expired_informes_pdm`) y al listar. Requiere `celery-worker` y `celery-beat` activos.
 

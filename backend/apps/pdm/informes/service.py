@@ -16,7 +16,9 @@ from apps.pdm.access import productos_queryset_for_user
 from apps.pdm.analytics import compute_pdm_analytics
 from apps.pdm.ejecucion_resumen import ejecucion_por_codigo
 from apps.pdm.metrics import actividad_aggs_for_productos, resumen_anio
-from apps.pdm.models import InformePDM, InformePdmEstado, PDMContratoRPS, PdmActividad, PdmProducto
+from apps.pdm.models import InformePDM, InformePdmEstado, InformePdmTipo, PDMContratoRPS, PdmActividad, PdmProducto
+
+from .types import storage_slug_for_tipo
 from apps.pdm.stats import compute_estado_stats, compute_pdm_stats_from_queryset, productos_for_stats
 
 from .report_ai import PdmReportAIService, build_fallback_analysis
@@ -48,10 +50,11 @@ def mark_stale_processing_informes(entity_id: int) -> int:
     return updated
 
 
-def has_active_informe(entity_id: int) -> bool:
+def has_active_informe(entity_id: int, tipo: str = InformePdmTipo.AVANCE) -> bool:
     mark_stale_processing_informes(entity_id)
     return InformePDM.objects.filter(
         entity_id=entity_id,
+        tipo=tipo,
         estado__in=[InformePdmEstado.PENDIENTE, InformePdmEstado.PROCESANDO],
     ).exists()
 
@@ -268,8 +271,9 @@ def run_informe_pdm_generation(informe_id: int) -> None:
         pdf_content = generate_informe_pdm_pdf(informe)
         timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
         sec_suffix = f"_sec{informe.responsable_secretaria_id}" if informe.responsable_secretaria_id else ""
-        filename = f"informe_pdm_{informe.anio}{sec_suffix}.pdf"
-        b2_key = f"informes/{informe.entity_id}/informe_pdm_{informe.anio}{sec_suffix}_{timestamp}.pdf"
+        tipo_slug = storage_slug_for_tipo(informe.tipo)
+        filename = f"informe_{tipo_slug}_pdm_{informe.anio}{sec_suffix}.pdf"
+        b2_key = f"informes/{informe.entity_id}/{tipo_slug}/informe_{tipo_slug}_pdm_{informe.anio}{sec_suffix}_{timestamp}.pdf"
 
         storage = pdm_storage_for_paths()
         storage.save(b2_key, BytesIO(pdf_content))

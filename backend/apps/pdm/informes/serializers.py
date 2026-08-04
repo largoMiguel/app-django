@@ -4,10 +4,13 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from apps.pdm.metrics import ANIOS_PDM
-from apps.pdm.models import InformePDM
+from apps.pdm.models import InformePDM, InformePdmTipo
+
+from .types import tipo_informe_habilitado
 
 
 class GenerarInformePdmSerializer(serializers.Serializer):
+    tipo = serializers.ChoiceField(choices=InformePdmTipo.choices, default=InformePdmTipo.AVANCE)
     anio = serializers.IntegerField()
     responsable_secretaria_id = serializers.IntegerField(required=False, allow_null=True)
     incluir_evidencias = serializers.BooleanField(required=False, default=True)
@@ -19,6 +22,11 @@ class GenerarInformePdmSerializer(serializers.Serializer):
             raise serializers.ValidationError(f"Año inválido. Use uno de: {ANIOS_PDM}.")
         return value
 
+    def validate_tipo(self, value: str) -> str:
+        if not tipo_informe_habilitado(value):
+            raise serializers.ValidationError("Este tipo de informe aún no está disponible.")
+        return value
+
 
 class InformePdmSerializer(serializers.ModelSerializer):
     created_by_nombre = serializers.CharField(source="created_by.full_name", read_only=True, default="")
@@ -27,12 +35,15 @@ class InformePdmSerializer(serializers.ModelSerializer):
     )
     usuario_firmante_nombre = serializers.CharField(source="usuario_firmante.full_name", read_only=True, default="")
     expires_in_days = serializers.SerializerMethodField()
+    tipo_label = serializers.CharField(source="get_tipo_display", read_only=True)
 
     class Meta:
         model = InformePDM
         fields = (
             "id",
             "filename",
+            "tipo",
+            "tipo_label",
             "anio",
             "responsable_secretaria",
             "responsable_secretaria_nombre",

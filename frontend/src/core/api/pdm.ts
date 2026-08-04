@@ -427,9 +427,13 @@ export const pdmApi = {
 
 export type InformePdmEstado = "PENDIENTE" | "PROCESANDO" | "COMPLETADO" | "ERROR";
 
+export type InformePdmTipo = "AVANCE" | "GESTION";
+
 export interface InformePDM {
   id: number;
   filename: string;
+  tipo: InformePdmTipo;
+  tipo_label: string;
   anio: number;
   responsable_secretaria: number | null;
   responsable_secretaria_nombre: string;
@@ -452,6 +456,7 @@ export interface InformePDM {
 }
 
 export interface GenerarInformePdmPayload {
+  tipo?: InformePdmTipo;
   anio: number;
   usuario_firmante_id: number;
   responsable_secretaria_id?: number | null;
@@ -460,8 +465,12 @@ export interface GenerarInformePdmPayload {
 }
 
 export const pdmInformesApi = {
-  list: (slug: string) =>
-    api.get<InformePDM[]>(`/pdm/v2/${encodeURIComponent(slug)}/informes/`).then((r) => r.data),
+  list: (slug: string, tipo?: InformePdmTipo) =>
+    api
+      .get<InformePDM[]>(`/pdm/v2/${encodeURIComponent(slug)}/informes/`, {
+        params: tipo ? { tipo } : undefined,
+      })
+      .then((r) => r.data),
   create: (slug: string, payload: GenerarInformePdmPayload) =>
     api.post<InformePDM>(`/pdm/v2/${encodeURIComponent(slug)}/informes/`, payload).then((r) => r.data),
   download: (slug: string, id: number, filename: string) =>

@@ -14,7 +14,7 @@ from rest_framework.response import Response
 
 from apps.common.roles import is_platform_superadmin, user_roles
 from apps.entities.models import Entity, Secretaria
-from apps.pdm.models import InformePDM, InformePdmEstado
+from apps.pdm.models import InformePDM, InformePdmEstado, InformePdmTipo
 from apps.pdm.views import _ensure_user_can_manage_entity, _is_admin, _is_secretario
 
 from .serializers import GenerarInformePdmSerializer, InformePdmSerializer
@@ -53,6 +53,9 @@ class InformePdmViewSet(viewsets.GenericViewSet):
         )
         if _is_secretario(user) and not _is_admin(user):
             qs = qs.filter(created_by_id=user.id)
+        tipo = self.request.query_params.get("tipo")
+        if tipo:
+            qs = qs.filter(tipo=tipo)
         return qs.order_by("-created_at", "-id")
 
     def _authorize_view(self, user) -> None:
@@ -101,10 +104,12 @@ class InformePdmViewSet(viewsets.GenericViewSet):
             if not Secretaria.objects.filter(pk=secretaria_id, entity_id=entity.id).exists():
                 raise ValidationError({"responsable_secretaria_id": "Dependencia no válida."})
 
+        tipo = data.get("tipo", InformePdmTipo.AVANCE)
+
         mark_stale_processing_informes(entity.id)
-        if has_active_informe(entity.id):
+        if has_active_informe(entity.id, tipo=tipo):
             return Response(
-                {"detail": "Ya hay un informe en cola o generándose. Espere a que finalice."},
+                {"detail": "Ya hay un informe de este tipo en cola o generándose. Espere a que finalice."},
                 status=status.HTTP_409_CONFLICT,
             )
 
@@ -114,6 +119,7 @@ class InformePdmViewSet(viewsets.GenericViewSet):
         informe = InformePDM.objects.create(
             entity=entity,
             created_by=user,
+            tipo=tipo,
             anio=data["anio"],
             responsable_secretaria_id=secretaria_id,
             incluir_evidencias=data.get("incluir_evidencias", True),

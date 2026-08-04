@@ -398,8 +398,13 @@ class InformePdmEstado(models.TextChoices):
     ERROR = "ERROR", "Error"
 
 
+class InformePdmTipo(models.TextChoices):
+    AVANCE = "AVANCE", "Informe de Avance de PDM"
+    GESTION = "GESTION", "Informe de Gestión"
+
+
 class InformePDM(models.Model):
-    """Informe PDF institucional de gestión PDM (historial con expiración automática)."""
+    """Informe PDF del módulo PDM (historial con expiración automática)."""
 
     entity = models.ForeignKey(
         "entities.Entity",
@@ -418,6 +423,12 @@ class InformePDM(models.Model):
     filename = models.CharField(max_length=255, blank=True, default="")
     b2_key = models.CharField(max_length=500, blank=True, default="")
     file_size = models.PositiveIntegerField(default=0)
+    tipo = models.CharField(
+        max_length=16,
+        choices=InformePdmTipo.choices,
+        default=InformePdmTipo.AVANCE,
+        db_index=True,
+    )
     anio = models.PositiveIntegerField()
     responsable_secretaria = models.ForeignKey(
         "entities.Secretaria",
@@ -462,6 +473,7 @@ class InformePDM(models.Model):
             models.Index(fields=["entity", "-created_at"]),
             models.Index(fields=["entity", "estado"]),
             models.Index(fields=["entity", "expires_at"]),
+            models.Index(fields=["entity", "tipo", "estado"]),
         ]
 
     def __str__(self) -> str:

@@ -1,271 +1,11 @@
-import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  Clock,
-  Download,
-  FileBarChart2,
-  FileText,
-  Filter,
-  Loader2,
-  Plus,
-  Sparkles,
-  Trash2,
-  User,
-  X,
-} from "lucide-react";
-import {
-  pdmInformesApi,
-  type GenerarInformePdmPayload,
-  type InformePDM,
-  type InformePdmEstado,
-} from "@/core/api/pdm";
-import { secretariasApi, type Secretaria } from "@/core/api/entities";
-import { formatFechaHoraCO } from "@/core/datetime";
-import { usersApi, type AppUser } from "@/core/api/users";
-import { useAuthStore } from "@/core/auth/store";
-import { formatApiError } from "@/core/api/errors";
+import { Link } from "react-router-dom";
+import { ChevronRight, FileBarChart2 } from "lucide-react";
+import { PDM_INFORME_TYPES } from "@/features/pdm/informes/pdmInformeTypes";
 import { usePdm } from "@/features/pdm/PdmContext";
-import { ANIOS_PDM } from "@/features/pdm/pdmUtils";
-import { pdmBtnPrimary } from "@/features/pdm/pdmStyles";
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-const ESTADO_BADGE: Record<
-  InformePdmEstado,
-  { label: string; className: string }
-> = {
-  PENDIENTE: { label: "En cola", className: "bg-amber-100 text-amber-800" },
-  PROCESANDO: { label: "Generando", className: "bg-blue-100 text-blue-800" },
-  COMPLETADO: { label: "Completado", className: "bg-emerald-100 text-emerald-800" },
-  ERROR: { label: "Error", className: "bg-red-100 text-red-800" },
-};
-
-interface ModalProps {
-  onClose: () => void;
-  onSubmit: (payload: GenerarInformePdmPayload) => void;
-  users: AppUser[];
-  secretarias: Secretaria[];
-  enableAi: boolean;
-  isAdmin: boolean;
-  submitting: boolean;
-  defaultAnio: number;
-}
-
-function ReportModal({
-  onClose,
-  onSubmit,
-  users,
-  secretarias,
-  enableAi,
-  isAdmin,
-  submitting,
-  defaultAnio,
-}: ModalProps) {
-  const [anio, setAnio] = useState(defaultAnio);
-  const [secretariaId, setSecretariaId] = useState("");
-  const [firmanteId, setFirmanteId] = useState("");
-  const [incluirEvidencias, setIncluirEvidencias] = useState(true);
-  const [usarIa, setUsarIa] = useState(enableAi);
-  const [tried, setTried] = useState(false);
-
-  function handleGenerate() {
-    setTried(true);
-    if (!firmanteId) return;
-    const payload: GenerarInformePdmPayload = {
-      anio,
-      usuario_firmante_id: Number(firmanteId),
-      incluir_evidencias: incluirEvidencias,
-      usar_ia: usarIa,
-    };
-    if (isAdmin && secretariaId) {
-      payload.responsable_secretaria_id = Number(secretariaId);
-    }
-    onSubmit(payload);
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between bg-[#0e7490] px-6 py-4 text-white">
-          <div className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            <span className="text-base font-semibold">Configurar Informe de Gestión PDM</span>
-          </div>
-          <button onClick={onClose} className="rounded p-1 transition-colors hover:bg-white/20">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="space-y-5 p-6">
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold text-slate-700">Vigencia</label>
-            <select
-              value={anio}
-              onChange={(e) => setAnio(Number(e.target.value))}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#0e7490] focus:outline-none"
-            >
-              {ANIOS_PDM.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {isAdmin && (
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-700">Dependencia (opcional)</label>
-              <select
-                value={secretariaId}
-                onChange={(e) => setSecretariaId(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#0e7490] focus:outline-none"
-              >
-                <option value="">Toda la entidad</option>
-                {secretarias.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="mb-1.5 flex items-center gap-1 text-sm font-semibold text-slate-700">
-              <User className="h-4 w-4 text-slate-400" /> Usuario firmante
-            </label>
-            <select
-              value={firmanteId}
-              onChange={(e) => setFirmanteId(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#0e7490] focus:outline-none"
-            >
-              <option value="">Seleccionar firmante…</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.full_name || u.email}
-                </option>
-              ))}
-            </select>
-            {tried && !firmanteId && (
-              <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-500" />
-                <span>
-                  <strong>Requerido:</strong> Selecciona un usuario firmante
-                </span>
-              </div>
-            )}
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={incluirEvidencias}
-              onChange={(e) => setIncluirEvidencias(e.target.checked)}
-              className="h-4 w-4 accent-[#0e7490]"
-            />
-            Incluir evidencias fotográficas (máx. 2 por actividad)
-          </label>
-
-          {enableAi && (
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={usarIa}
-                onChange={(e) => setUsarIa(e.target.checked)}
-                className="h-4 w-4 accent-[#0e7490]"
-              />
-              <Sparkles className="h-4 w-4 text-indigo-500" />
-              Incluir conclusiones con IA
-            </label>
-          )}
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100"
-          >
-            <X className="h-4 w-4" /> Cancelar
-          </button>
-          <button
-            onClick={handleGenerate}
-            disabled={submitting}
-            className="flex items-center gap-2 rounded-md bg-[#0e7490] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#0c6178] disabled:opacity-60"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Encolando…
-              </>
-            ) : (
-              <>
-                <FileText className="h-4 w-4" /> Generar Informe
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function PdmInformesPage() {
-  const { slug, isAdmin, isSecretario, filtroAnio, entityId } = usePdm();
-  const entity = useAuthStore((s) => s.user?.entity);
-  const queryClient = useQueryClient();
-  const [showModal, setShowModal] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<number | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
+  const { isAdmin, isSecretario } = usePdm();
   const canView = isAdmin || isSecretario;
-
-  const {
-    data: informes = [],
-    isLoading: informesLoading,
-    isError: informesError,
-    error: informesErr,
-  } = useQuery({
-    queryKey: ["pdm-informes", slug],
-    queryFn: () => pdmInformesApi.list(slug),
-    enabled: canView && Boolean(slug),
-    refetchInterval: (query) => {
-      const rows = query.state.data ?? [];
-      const pending = rows.some((i) => i.estado === "PENDIENTE" || i.estado === "PROCESANDO");
-      return pending ? 5000 : false;
-    },
-  });
-
-  const hasActiveJob = useMemo(
-    () => informes.some((i) => i.estado === "PENDIENTE" || i.estado === "PROCESANDO"),
-    [informes],
-  );
-
-  const { data: users = [], isLoading: usersLoading } = useQuery({
-    queryKey: ["users", "pdm-informes", entityId],
-    queryFn: () => usersApi.list({ entity: entityId! }),
-    enabled: canView && Boolean(entityId),
-  });
-
-  const { data: secretarias = [], isLoading: secretariasLoading } = useQuery({
-    queryKey: ["secretarias", entityId],
-    queryFn: () => secretariasApi.list(entityId),
-    enabled: isAdmin && Boolean(entityId),
-  });
-
-  const loading = informesLoading || usersLoading || (isAdmin && secretariasLoading);
-  const loadError = informesError
-    ? formatApiError(informesErr, "No se pudieron cargar los informes.")
-    : null;
 
   if (!canView) {
     return (
@@ -275,208 +15,69 @@ export default function PdmInformesPage() {
     );
   }
 
-  async function handleDownload(informe: InformePDM) {
-    if (informe.estado !== "COMPLETADO") return;
-    setActionError(null);
-    setDownloadingId(informe.id);
-    try {
-      await pdmInformesApi.download(slug, informe.id, informe.filename || `informe_pdm_${informe.anio}.pdf`);
-    } catch (err) {
-      setActionError(formatApiError(err, "No se pudo descargar el informe."));
-    } finally {
-      setDownloadingId(null);
-    }
-  }
-
-  async function handleDelete(id: number) {
-    setActionError(null);
-    try {
-      await pdmInformesApi.remove(slug, id);
-      await queryClient.invalidateQueries({ queryKey: ["pdm-informes", slug] });
-    } catch (err) {
-      setActionError(formatApiError(err, "No se pudo eliminar el informe."));
-    }
-  }
-
-  async function handleGenerate(payload: GenerarInformePdmPayload) {
-    setActionError(null);
-    setSubmitting(true);
-    setShowModal(false);
-    try {
-      await pdmInformesApi.create(slug, payload);
-      await queryClient.invalidateQueries({ queryKey: ["pdm-informes", slug] });
-    } catch (err) {
-      setActionError(formatApiError(err, "No se pudo encolar el informe PDF."));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex h-64 animate-pulse items-center justify-center text-sm text-slate-500">
-        Cargando informes…
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 text-center text-slate-600">
-        <AlertTriangle className="h-8 w-8 text-amber-500" />
-        <p>{loadError}</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700 sm:h-10 sm:w-10">
-            <FileBarChart2 className="h-4 w-4 sm:h-5 sm:w-5" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="truncate text-lg font-bold text-[#111827] sm:text-xl">Informes de gestión</h2>
-            <p className="mt-0.5 truncate text-xs text-slate-500">
-              {informes.length} informe{informes.length !== 1 ? "s" : ""} · retención 7 días
-            </p>
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700">
+          <FileBarChart2 className="h-5 w-5" />
         </div>
-        <button
-          type="button"
-          onClick={() => setShowModal(true)}
-          disabled={hasActiveJob || submitting}
-          className={`${pdmBtnPrimary} whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60`}
-          title={hasActiveJob ? "Ya hay un informe en cola o generándose" : undefined}
-        >
-          {hasActiveJob ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Generando informe…
-            </>
-          ) : (
-            <>
-              <Plus className="h-4 w-4" /> Crear Informe
-            </>
-          )}
-        </button>
-      </div>
-
-      {hasActiveJob && (
-        <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          <Loader2 className="h-5 w-5 flex-shrink-0 animate-spin text-blue-600" />
-          <div>
-            <p className="font-semibold">Hay un informe en proceso</p>
-            <p className="text-xs text-blue-700">
-              La lista se actualiza automáticamente. No podrá generar otro hasta que finalice.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {actionError && (
-        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{actionError}</p>
-      )}
-
-      {informes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-white px-4 py-12 text-center sm:py-16">
-          <FileBarChart2 className="mb-2 h-10 w-10 text-slate-300 sm:mb-3 sm:h-12 sm:w-12" />
-          <p className="text-sm font-medium text-slate-600 sm:text-base">No hay informes generados</p>
-          <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-            Cree su primer informe institucional PDF con el botón &quot;Crear Informe&quot;
+        <div>
+          <h2 className="text-xl font-bold text-[#111827]">Informes PDM</h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Seleccione el tipo de informe que desea generar o consultar en el historial.
           </p>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {informes.map((informe) => {
-            const badge = ESTADO_BADGE[informe.estado];
-            return (
-              <div
-                key={informe.id}
-                className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-white px-3 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5 sm:py-4"
-              >
-                <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-100 text-cyan-700 sm:h-10 sm:w-10 sm:rounded-xl">
-                    <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                      <span className="truncate text-xs font-semibold text-slate-800 sm:text-sm">
-                        Vigencia {informe.anio}
-                        {informe.responsable_secretaria_nombre
-                          ? ` · ${informe.responsable_secretaria_nombre}`
-                          : ""}
-                      </span>
-                      <span className={`rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold sm:px-2 sm:text-[0.68rem] ${badge.className}`}>
-                        {badge.label}
-                      </span>
-                      {informe.usar_ia && (
-                        <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[0.6rem] font-semibold text-violet-700">
-                          IA
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap gap-1 text-[0.6rem] text-slate-500 sm:mt-1 sm:gap-2 sm:text-[0.7rem]">
-                      <span>Generado: {formatFechaHoraCO(informe.created_at)}</span>
-                      {informe.file_size > 0 && (
-                        <span className="text-slate-400">· {formatFileSize(informe.file_size)}</span>
-                      )}
-                      {informe.total_productos > 0 && (
-                        <span className="text-slate-400">
-                          · {informe.total_productos} productos · Avance {informe.avance_fisico}%
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[0.62rem] text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Expira en {informe.expires_in_days} día
-                        {informe.expires_in_days !== 1 ? "s" : ""}
-                      </span>
-                      {informe.created_by_nombre && <span>· Por {informe.created_by_nombre}</span>}
-                    </div>
-                    {informe.estado === "ERROR" && informe.error_detail && (
-                      <p className="mt-1 text-xs text-red-600">{informe.error_detail}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-shrink-0 items-center gap-1 self-end sm:gap-2 sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => void handleDownload(informe)}
-                    disabled={informe.estado !== "COMPLETADO" || downloadingId === informe.id}
-                    className="flex items-center gap-0.5 rounded-md bg-[#3eafd4] px-2 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#2f9fc2] disabled:cursor-not-allowed disabled:opacity-50 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-sm"
-                  >
-                    <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-                    {downloadingId === informe.id ? "Descargando…" : "Descargar"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(informe.id)}
-                    className="flex-shrink-0 rounded-md border border-slate-200 p-1 text-slate-400 transition-colors hover:border-red-300 hover:text-red-500 sm:p-2"
-                    title="Eliminar informe"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      </div>
 
-      {showModal && (
-        <ReportModal
-          onClose={() => setShowModal(false)}
-          onSubmit={(p) => void handleGenerate(p)}
-          users={users}
-          secretarias={secretarias}
-          enableAi={Boolean(entity?.enable_ai_reports)}
-          isAdmin={isAdmin}
-          submitting={submitting}
-          defaultAnio={filtroAnio}
-        />
-      )}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {PDM_INFORME_TYPES.map((tipo) => {
+          const Icon = tipo.icon;
+          const card = (
+            <div
+              className={`flex h-full flex-col rounded-xl border bg-white p-5 shadow-sm transition-colors ${
+                tipo.enabled
+                  ? "border-slate-200 hover:border-[#3eafd4] hover:shadow-md"
+                  : "border-slate-100 opacity-75"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700">
+                  <Icon className="h-5 w-5" />
+                </div>
+                {tipo.badge && (
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+                    {tipo.badge}
+                  </span>
+                )}
+              </div>
+              <h3 className="mt-4 text-base font-semibold text-slate-900">{tipo.title}</h3>
+              <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{tipo.description}</p>
+              {tipo.enabled ? (
+                <div className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#0e7490]">
+                  Abrir
+                  <ChevronRight className="h-4 w-4" />
+                </div>
+              ) : (
+                <p className="mt-4 text-sm font-medium text-slate-400">Disponible próximamente</p>
+              )}
+            </div>
+          );
+
+          if (tipo.enabled) {
+            return (
+              <Link key={tipo.id} to={tipo.route} className="block h-full">
+                {card}
+              </Link>
+            );
+          }
+
+          return (
+            <div key={tipo.id} className="h-full cursor-not-allowed" aria-disabled="true">
+              {card}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

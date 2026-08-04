@@ -139,7 +139,7 @@ class PdmReportGenerator:
         now = datetime.now()
         mes_gen = _MESES[now.month - 1]
 
-        self._p("INFORME DE GESTIÓN DEL PLAN DE DESARROLLO MUNICIPAL", title)
+        self._p("INFORME DE AVANCE DEL PLAN DE DESARROLLO MUNICIPAL", title)
         self._p(_esc(self.entity.name), ParagraphStyle("Entity", parent=title, fontSize=14))
         self._p(f"Vigencia {self.anio}", center)
         if self.secretaria_nombre:
