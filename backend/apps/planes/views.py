@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from apps.accounts.models import UserEntityMembership
@@ -24,7 +24,7 @@ from .access import (
     user_can_access_plan,
 )
 from .evidencia_storage import sync_evidencia_archivos_from_request
-from .evidencia_sync import reset_actividad_ejecucion, sync_actividad_from_evidencia
+from .evidencia_sync import reset_actividad_ejecucion, sync_actividad_from_evidencias
 from .export import build_trimestral_excel
 from .filters import PlanActividadFilterSet, PlanCatalogoFilterSet, PlanFilterSet
 from .models import PlanActividad, PlanCatalogo, PlanEvidencia, PlanInstitucional
@@ -316,7 +316,7 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
     pagination_class = StandardPageNumberPagination
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (JSONParser, FormParser, MultiPartParser)
 
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
@@ -458,89 +458,104 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
             }
         )
 
+    def _parse_cantidad_ejecutada(self, request) -> "Decimal":
+        from decimal import Decimal, InvalidOperation
+
+        raw = request.data.get("cantidad_ejecutada")
+        if raw in (None, "") and "meta_ejecutada" in request.data:
+            raw = request.data.get("meta_ejecutada")
+        if raw in (None, ""):
+            raise ValidationError({"cantidad_ejecutada": "Indique cuánto se ejecutó en esta evidencia."})
+        try:
+            cantidad = Decimal(str(raw).replace(",", "."))
+        except InvalidOperation as exc:
+            raise ValidationError({"cantidad_ejecutada": "Cantidad ejecutada inválida."}) from exc
+        if cantidad < 0:
+            raise ValidationError({"cantidad_ejecutada": "La cantidad ejecutada no puede ser negativa."})
+        return cantidad
+
+    def _validate_evidencia_payload(self, evidencia: PlanEvidencia) -> None:
+        if not (evidencia.url_evidencia or evidencia.archivos.exists()):
+            raise ValidationError({"archivos": "Debe adjuntar al menos un archivo o una URL externa."})
+
     @action(
         detail=True,
-        methods=["get", "post", "put", "delete"],
+        methods=["get", "post"],
         url_path="evidencia",
         parser_classes=[MultiPartParser, FormParser],
     )
     def evidencia(self, request, pk=None):
         actividad = self.get_object()
         if request.method == "GET":
-            try:
-                evidencia = actividad.evidencia
-            except PlanEvidencia.DoesNotExist:
-                return Response(None)
-            if evidencia is None:
-                return Response(None)
-            return Response(PlanEvidenciaSerializer(evidencia, context={"request": request}).data)
+            qs = (
+                PlanEvidencia.objects.filter(actividad=actividad, entity=self.entity)
+                .prefetch_related("archivos")
+                .order_by("created_at", "id")
+            )
+            return Response(PlanEvidenciaSerializer(qs, many=True, context={"request": request}).data)
+
+        descripcion = str(request.data.get("descripcion") or "").strip()
+        url_evidencia = str(request.data.get("url_evidencia") or "").strip() or None
+        cantidad_ejecutada = self._parse_cantidad_ejecutada(request)
+        if not descripcion:
+            raise ValidationError({"descripcion": "Este campo es requerido."})
+
+        evidencia = PlanEvidencia.objects.create(
+            actividad=actividad,
+            entity=self.entity,
+            descripcion=descripcion,
+            cantidad_ejecutada=cantidad_ejecutada,
+            url_evidencia=url_evidencia,
+        )
+        sync_evidencia_archivos_from_request(evidencia, request, request.user)
+        evidencia.refresh_from_db()
+        try:
+            self._validate_evidencia_payload(evidencia)
+        except ValidationError:
+            evidencia.delete()
+            raise
+        sync_actividad_from_evidencias(actividad)
+        actividad.refresh_from_db()
+        return Response(
+            PlanEvidenciaSerializer(evidencia, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=["put", "delete"],
+        url_path=r"evidencia/(?P<evidencia_id>[^/.]+)",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def evidencia_item(self, request, pk=None, evidencia_id=None):
+        actividad = self.get_object()
+        evidencia = get_object_or_404(
+            PlanEvidencia.objects.prefetch_related("archivos"),
+            pk=evidencia_id,
+            actividad=actividad,
+            entity=self.entity,
+        )
 
         if request.method == "DELETE":
             if not _is_admin(request.user):
                 raise PermissionDenied("Solo admin puede eliminar evidencias.")
-            evidencia = getattr(actividad, "evidencia", None)
-            if evidencia:
-                evidencia.delete()
-            reset_actividad_ejecucion(actividad)
+            evidencia.delete()
+            sync_actividad_from_evidencias(actividad)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         descripcion = str(request.data.get("descripcion") or "").strip()
         url_evidencia = str(request.data.get("url_evidencia") or "").strip() or None
-        meta_ejecutada = str(request.data.get("meta_ejecutada") or "").strip()
-        avance_raw = request.data.get("avance")
-        try:
-            avance = int(avance_raw) if avance_raw not in (None, "") else 0
-        except (TypeError, ValueError):
-            raise ValidationError({"avance": "Avance inválido (0-100)."})
-        if avance < 0 or avance > 100:
-            raise ValidationError({"avance": "El avance debe estar entre 0 y 100."})
-
-        if request.method == "POST":
-            try:
-                if actividad.evidencia is not None:
-                    raise ValidationError({"detail": "La actividad ya tiene evidencia. Use PUT para actualizar."})
-            except PlanEvidencia.DoesNotExist:
-                pass
-            if not descripcion:
-                raise ValidationError({"descripcion": "Este campo es requerido."})
-            evidencia = PlanEvidencia.objects.create(
-                actividad=actividad,
-                entity=self.entity,
-                descripcion=descripcion,
-                meta_ejecutada=meta_ejecutada,
-                avance=avance,
-                url_evidencia=url_evidencia,
-            )
-            sync_evidencia_archivos_from_request(evidencia, request, request.user)
-            evidencia.refresh_from_db()
-            if not (evidencia.url_evidencia or evidencia.archivos.exists()):
-                evidencia.delete()
-                raise ValidationError({"archivos": "Debe adjuntar al menos un archivo o una URL externa."})
-            sync_actividad_from_evidencia(actividad, evidencia)
-            return Response(
-                PlanEvidenciaSerializer(evidencia, context={"request": request}).data,
-                status=status.HTTP_201_CREATED,
-            )
-
-        evidencia = get_object_or_404(
-            PlanEvidencia.objects.prefetch_related("archivos"),
-            actividad=actividad,
-            entity=self.entity,
-        )
         if "descripcion" in request.data:
             if not descripcion:
                 raise ValidationError({"descripcion": "Este campo es requerido."})
             evidencia.descripcion = descripcion
-        if "meta_ejecutada" in request.data:
-            evidencia.meta_ejecutada = meta_ejecutada
-        if "avance" in request.data:
-            evidencia.avance = avance
+        if "cantidad_ejecutada" in request.data or "meta_ejecutada" in request.data:
+            evidencia.cantidad_ejecutada = self._parse_cantidad_ejecutada(request)
         if "url_evidencia" in request.data:
             evidencia.url_evidencia = url_evidencia
         evidencia.save()
         sync_evidencia_archivos_from_request(evidencia, request, request.user)
         evidencia.refresh_from_db()
-        if not (evidencia.url_evidencia or evidencia.archivos.exists()):
-            raise ValidationError({"archivos": "Debe conservar al menos un archivo o una URL externa."})
-        sync_actividad_from_evidencia(actividad, evidencia)
+        self._validate_evidencia_payload(evidencia)
+        sync_actividad_from_evidencias(actividad)
         return Response(PlanEvidenciaSerializer(evidencia, context={"request": request}).data)

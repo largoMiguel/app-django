@@ -60,6 +60,10 @@ export default function ActividadFormModal({ open, onClose, plan, actividad, onS
       setError("El nombre es requerido.");
       return;
     }
+    if (!meta.trim()) {
+      setError("La meta programada es requerida para calcular el avance.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -120,8 +124,14 @@ export default function ActividadFormModal({ open, onClose, plan, actividad, onS
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Meta programada</label>
-            <input value={meta} onChange={(e) => setMeta(e.target.value)} className={inputClass} />
+            <label className="mb-1 block text-sm font-medium text-slate-700">Meta programada *</label>
+            <input
+              value={meta}
+              onChange={(e) => setMeta(e.target.value)}
+              className={inputClass}
+              placeholder="Ej. 30 (cantidad objetivo del trimestre)"
+              required
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Indicador</label>

@@ -65,7 +65,7 @@ def actividades_queryset_for_user(user, entity: Entity) -> QuerySet[PlanActivida
     qs = (
         PlanActividad.objects.filter(entity=entity)
         .select_related("plan", "plan__catalogo", "responsable_secretaria", "responsable_usuario")
-        .prefetch_related("evidencia", "evidencia__archivos")
+        .prefetch_related("evidencias", "evidencias__archivos")
     )
     if _is_admin(user):
         return qs

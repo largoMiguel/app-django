@@ -7,6 +7,7 @@ import {
   TRIMESTRE_OPTIONS,
   type PlanActividad,
   type PlanDetail,
+  type PlanEvidencia,
 } from "@/core/api/planes";
 import { formatApiError } from "@/core/api/errors";
 import { primaryRole, useAuthStore } from "@/core/auth/store";
@@ -63,6 +64,7 @@ export default function PlanDetailPage() {
   const byTrimestre = TRIMESTRE_OPTIONS.map((t) => ({
     ...t,
     actividades: plan.actividades.filter((a) => a.trimestre === t.value),
+    resumen: plan.resumen_por_trimestre?.find((r) => r.trimestre === t.value),
   }));
 
   return (
@@ -99,8 +101,15 @@ export default function PlanDetailPage() {
         </PlanesCard>
       )}
 
-      {byTrimestre.map(({ value, label, actividades }) => (
-        <PlanesCard key={value} title={label}>
+      {byTrimestre.map(({ value, label, actividades, resumen }) => (
+        <PlanesCard
+          key={value}
+          title={
+            resumen
+              ? `${label} · ${resumen.completadas}/${resumen.total} completadas · Avance ${resumen.avance_promedio}%`
+              : label
+          }
+        >
           {actividades.length === 0 ? (
             <p className="text-sm text-slate-500">Sin actividades en este trimestre.</p>
           ) : (
@@ -114,7 +123,7 @@ export default function PlanDetailPage() {
                     setEditActividad(act);
                     setActividadModalOpen(true);
                   }}
-                  onEvidencia={() => {
+                  onAgregarEvidencia={() => {
                     setEvidenciaActividad(act);
                     setEvidenciaModalOpen(true);
                   }}
@@ -163,15 +172,16 @@ function ActividadRow({
   act,
   canCreate,
   onEditActividad,
-  onEvidencia,
+  onAgregarEvidencia,
 }: {
   act: PlanActividad;
   canCreate: boolean;
   onEditActividad: () => void;
-  onEvidencia: () => void;
+  onAgregarEvidencia: () => void;
 }) {
   const estadoTone =
     act.estado === "COMPLETADA" ? "success" : act.estado === "EN_PROGRESO" ? "info" : "slate";
+  const evidencias = act.evidencias ?? [];
 
   return (
     <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
@@ -182,7 +192,7 @@ function ActividadRow({
             {act.tiene_evidencia && (
               <PlanesBadge tone="success">
                 <CheckCircle2 className="mr-1 inline h-3 w-3" />
-                Con evidencia
+                {evidencias.length} evidencia{evidencias.length === 1 ? "" : "s"}
               </PlanesBadge>
             )}
           </div>
@@ -191,12 +201,8 @@ function ActividadRow({
             <PlanesBadge tone={estadoTone}>{act.estado_label}</PlanesBadge>
             <span>Avance: {act.avance}%</span>
             {act.meta && <span>· Meta: {act.meta}</span>}
+            {(act.total_ejecutado ?? 0) > 0 && <span>· Ejecutado: {act.total_ejecutado}</span>}
             {act.responsable_secretaria_nombre && <span>· {act.responsable_secretaria_nombre}</span>}
-            {act.fecha_inicio && act.fecha_fin && (
-              <span>
-                · {act.fecha_inicio} → {act.fecha_fin}
-              </span>
-            )}
           </div>
         </div>
         {canCreate && (
@@ -204,48 +210,54 @@ function ActividadRow({
             <button type="button" onClick={onEditActividad} className={btnSecondary}>
               Editar actividad
             </button>
-            <button type="button" onClick={onEvidencia} className={btnPrimary}>
+            <button type="button" onClick={onAgregarEvidencia} className={btnPrimary}>
               <ClipboardCheck className="mr-1 inline h-4 w-4" />
-              {act.tiene_evidencia ? "Editar evidencia" : "Registrar evidencia"}
+              Agregar evidencia
             </button>
           </div>
         )}
       </div>
-      {act.evidencia && (
-        <div className="mt-3 border-t border-slate-200 pt-3 text-sm">
-          <div className="font-medium text-slate-700">Evidencia de ejecución</div>
-          <p className="text-slate-600">{act.evidencia.descripcion}</p>
-          {act.evidencia.meta_ejecutada && (
-            <p className="mt-1 text-slate-600">
-              <strong>Ejecutado:</strong> {act.evidencia.meta_ejecutada}
-            </p>
-          )}
-          {act.evidencia.url_evidencia && (
-            <a
-              href={act.evidencia.url_evidencia}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 inline-block text-[#0e7490] hover:underline"
-            >
-              URL externa
-            </a>
-          )}
-          {act.evidencia.archivos?.length > 0 && (
-            <ul className="mt-2 space-y-1">
-              {act.evidencia.archivos.map((arch) => (
-                <li key={arch.id}>
-                  <button
-                    type="button"
-                    onClick={() => arch.url && openAuthenticatedFile(arch.url)}
-                    className="text-[#0e7490] hover:underline"
-                  >
-                    {arch.nombre}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+      {evidencias.length > 0 && (
+        <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
+          {evidencias.map((ev) => (
+            <EvidenciaItem key={ev.id} ev={ev} />
+          ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function EvidenciaItem({ ev }: { ev: PlanEvidencia }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-3 text-sm">
+      <div className="font-medium text-slate-800">
+        +{ev.cantidad_ejecutada} ejecutado · {ev.descripcion}
+      </div>
+      {ev.url_evidencia && (
+        <a
+          href={ev.url_evidencia}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-block text-[#0e7490] hover:underline"
+        >
+          URL externa
+        </a>
+      )}
+      {ev.archivos?.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {ev.archivos.map((arch) => (
+            <li key={arch.id}>
+              <button
+                type="button"
+                onClick={() => arch.url && openAuthenticatedFile(arch.url)}
+                className="text-[#0e7490] hover:underline"
+              >
+                {arch.nombre}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

@@ -59,8 +59,7 @@ class PlanEvidenciaSerializer(serializers.ModelSerializer):
             "actividad",
             "entity",
             "descripcion",
-            "meta_ejecutada",
-            "avance",
+            "cantidad_ejecutada",
             "url_evidencia",
             "archivos",
             "fecha_registro",
@@ -77,6 +76,7 @@ class PlanActividadSerializer(serializers.ModelSerializer):
     )
     responsable_usuario_nombre = serializers.SerializerMethodField()
     tiene_evidencia = serializers.SerializerMethodField()
+    total_ejecutado = serializers.SerializerMethodField()
     trimestre_label = serializers.SerializerMethodField()
     estado_label = serializers.CharField(source="get_estado_display", read_only=True)
 
@@ -103,6 +103,7 @@ class PlanActividadSerializer(serializers.ModelSerializer):
             "estado_label",
             "avance",
             "tiene_evidencia",
+            "total_ejecutado",
             "created_at",
             "updated_at",
         )
@@ -115,10 +116,14 @@ class PlanActividadSerializer(serializers.ModelSerializer):
         return user.full_name or user.email
 
     def get_tiene_evidencia(self, obj) -> bool:
-        try:
-            return obj.evidencia is not None
-        except PlanEvidencia.DoesNotExist:
-            return False
+        if hasattr(obj, "_prefetched_objects_cache") and "evidencias" in obj._prefetched_objects_cache:
+            return bool(obj._prefetched_objects_cache["evidencias"])
+        return obj.evidencias.exists()
+
+    def get_total_ejecutado(self, obj) -> float:
+        from .evidencia_sync import total_ejecutado
+
+        return float(total_ejecutado(obj))
 
     def get_trimestre_label(self, obj) -> str:
         try:
@@ -128,19 +133,17 @@ class PlanActividadSerializer(serializers.ModelSerializer):
 
 
 class PlanActividadDetailSerializer(PlanActividadSerializer):
-    evidencia = serializers.SerializerMethodField()
+    evidencias = serializers.SerializerMethodField()
 
     class Meta(PlanActividadSerializer.Meta):
-        fields = PlanActividadSerializer.Meta.fields + ("evidencia",)
+        fields = PlanActividadSerializer.Meta.fields + ("evidencias",)
 
-    def get_evidencia(self, obj):
-        try:
-            ev = obj.evidencia
-        except PlanEvidencia.DoesNotExist:
-            return None
-        if ev is None:
-            return None
-        return PlanEvidenciaSerializer(ev, context=self.context).data
+    def get_evidencias(self, obj):
+        if hasattr(obj, "_prefetched_objects_cache") and "evidencias" in obj._prefetched_objects_cache:
+            qs = obj._prefetched_objects_cache["evidencias"]
+        else:
+            qs = obj.evidencias.prefetch_related("archivos").order_by("created_at", "id")
+        return PlanEvidenciaSerializer(qs, many=True, context=self.context).data
 
 
 class PlanListSerializer(serializers.ModelSerializer):

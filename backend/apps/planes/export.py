@@ -52,7 +52,8 @@ def build_trimestral_excel(
     act_qs = (
         actividades_queryset_for_user(user, entity)
         .filter(anio=anio)
-        .select_related("plan", "plan__catalogo", "responsable_secretaria", "evidencia")
+        .select_related("plan", "plan__catalogo", "responsable_secretaria")
+        .prefetch_related("evidencias")
         .order_by("plan__catalogo__orden", "plan_id", "trimestre", "id")
     )
     if trimestre:
@@ -75,10 +76,11 @@ def build_trimestral_excel(
 
     row_idx = 2
     for act in act_qs:
-        try:
-            evidencia = act.evidencia
-        except PlanEvidencia.DoesNotExist:
-            evidencia = None
+        from .evidencia_sync import total_ejecutado
+
+        ejecutado = float(total_ejecutado(act))
+        evidencias = list(act.evidencias.all())
+        ultima = evidencias[-1] if evidencias else None
         tri_label = Trimestre(act.trimestre).label if act.trimestre in Trimestre.values else str(act.trimestre)
         values = [
             act.plan.catalogo.nombre,
@@ -91,11 +93,11 @@ def build_trimestral_excel(
             act.responsable_secretaria.nombre if act.responsable_secretaria_id else "",
             act.get_estado_display(),
             act.avance,
-            evidencia.meta_ejecutada if evidencia else "",
+            ejecutado,
             act.fecha_inicio.isoformat() if act.fecha_inicio else "",
             act.fecha_fin.isoformat() if act.fecha_fin else "",
-            evidencia.url_evidencia if evidencia else "",
-            evidencia.descripcion if evidencia else "",
+            ultima.url_evidencia if ultima else "",
+            ultima.descripcion if ultima else "",
         ]
         for col_idx, val in enumerate(values, start=1):
             cell = ws.cell(row=row_idx, column=col_idx, value=val)

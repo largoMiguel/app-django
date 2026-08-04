@@ -213,10 +213,10 @@ def plan_evidencia_archivo_upload_path(instance, filename: str) -> str:
 class PlanEvidencia(models.Model):
     """Evidencia de cumplimiento asociada a una actividad."""
 
-    actividad = models.OneToOneField(
+    actividad = models.ForeignKey(
         PlanActividad,
         on_delete=models.CASCADE,
-        related_name="evidencia",
+        related_name="evidencias",
         db_column="actividad_id",
     )
     entity = models.ForeignKey(
@@ -226,8 +226,7 @@ class PlanEvidencia(models.Model):
         db_column="entity_id",
     )
     descripcion = models.TextField()
-    meta_ejecutada = models.CharField(max_length=512, blank=True, default="")
-    avance = models.PositiveSmallIntegerField(default=0)
+    cantidad_ejecutada = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     url_evidencia = models.CharField(max_length=1024, blank=True, null=True)
     fecha_registro = models.DateTimeField(auto_now_add=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)

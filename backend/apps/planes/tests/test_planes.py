@@ -89,12 +89,29 @@ class PlanesAccessTests(TestCase):
         self.assertIn(self.plan_a.id, ids)
         self.assertNotIn(self.plan_b.id, ids)
 
+    def test_create_actividad_accepts_json(self):
+        payload = {
+            "plan": self.plan_a.id,
+            "anio": 2026,
+            "trimestre": 1,
+            "nombre": "Capacitación TH",
+            "meta": "30",
+            "descripcion": "Capacitación a talento humano",
+        }
+        request = self.factory.post("/api/v1/planes/actividades/", payload, format="json")
+        force_authenticate(request, user=self.admin_a)
+        view = PlanActividadViewSet.as_view({"post": "create"})
+        response = view(request)
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["nombre"], "Capacitación TH")
+
     def test_create_actividad_for_own_plan(self):
         payload = {
             "plan": self.plan_a.id,
             "anio": 2026,
             "trimestre": 1,
             "nombre": "Actividad trimestre I",
+            "meta": "10",
             "responsable_secretaria": self.secretaria_a.id,
         }
         request = self.factory.post("/api/v1/planes/actividades/", payload, format="json")
@@ -117,7 +134,7 @@ class PlanesAccessTests(TestCase):
         )
         request = self.factory.post(
             f"/api/v1/planes/actividades/{actividad.id}/evidencia/",
-            {"descripcion": "Evidencia vacía"},
+            {"descripcion": "Evidencia vacía", "cantidad_ejecutada": "5"},
             format="multipart",
         )
         force_authenticate(request, user=self.admin_a)
@@ -132,23 +149,22 @@ class PlanesAccessTests(TestCase):
             anio=2026,
             trimestre=2,
             nombre="Con evidencia",
+            meta="30",
             responsable_secretaria=self.secretaria_a,
         )
         pdf = SimpleUploadedFile("informe.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         request = self.factory.post(
             f"/api/v1/planes/actividades/{actividad.id}/evidencia/",
-            {"descripcion": "Informe trimestral", "avance": "100", "meta_ejecutada": "Informe entregado", "archivos": pdf},
+            {"descripcion": "Informe trimestral", "cantidad_ejecutada": "10", "archivos": pdf},
             format="multipart",
         )
         force_authenticate(request, user=self.admin_a)
         view = PlanActividadViewSet.as_view({"post": "evidencia"})
         response = view(request, pk=actividad.id)
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["descripcion"], "Informe trimestral")
-        self.assertEqual(response.data["avance"], 100)
         actividad.refresh_from_db()
-        self.assertEqual(actividad.avance, 100)
-        self.assertEqual(actividad.estado, "COMPLETADA")
+        self.assertEqual(actividad.avance, 33)
+        self.assertEqual(actividad.estado, "EN_PROGRESO")
 
     def test_admin_can_create_custom_catalogo(self):
         payload = {
@@ -201,7 +217,7 @@ class PlanesAccessTests(TestCase):
             },
         ).data
         self.assertEqual(len(data["actividades"]), 1)
-        self.assertIsNone(data["actividades"][0]["evidencia"])
+        self.assertEqual(data["actividades"][0]["evidencias"], [])
         self.assertFalse(data["actividades"][0]["tiene_evidencia"])
 
     def test_admin_can_retrieve_plan_detail(self):
@@ -231,7 +247,7 @@ class PlanesAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         actividades = response.data["actividades"]
         self.assertEqual(len(actividades), 1)
-        self.assertIsNone(actividades[0]["evidencia"])
+        self.assertEqual(actividades[0]["evidencias"], [])
         self.assertFalse(actividades[0]["tiene_evidencia"])
 
     def test_actividad_retrieve_without_evidencia(self):
@@ -248,7 +264,7 @@ class PlanesAccessTests(TestCase):
         view = PlanActividadViewSet.as_view({"get": "retrieve"})
         response = view(request, pk=actividad.id)
         self.assertEqual(response.status_code, 200)
-        self.assertIsNone(response.data["evidencia"])
+        self.assertEqual(response.data["evidencias"], [])
         self.assertFalse(response.data["tiene_evidencia"])
 
     def test_attach_metrics_on_list_not_queryset(self):

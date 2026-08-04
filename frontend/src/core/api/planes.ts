@@ -49,8 +49,7 @@ export interface PlanEvidencia {
   actividad: number;
   entity: number;
   descripcion: string;
-  meta_ejecutada: string;
-  avance: number;
+  cantidad_ejecutada: number;
   url_evidencia: string | null;
   archivos: PlanEvidenciaArchivo[];
   fecha_registro: string | null;
@@ -79,7 +78,8 @@ export interface PlanActividad {
   estado_label: string;
   avance: number;
   tiene_evidencia: boolean;
-  evidencia?: PlanEvidencia | null;
+  total_ejecutado?: number;
+  evidencias?: PlanEvidencia[];
   created_at: string;
   updated_at: string;
 }
@@ -264,23 +264,21 @@ export const planesApi = {
         .patch(`/planes/actividades/${id}/responsable-usuario/`, { responsable_usuario_id })
         .then((r) => r.data),
 
-    getEvidencia: (id: number) =>
-      api.get<PlanEvidencia | null>(`/planes/actividades/${id}/evidencia/`).then((r) => r.data),
+    listEvidencias: (id: number) =>
+      api.get<PlanEvidencia[]>(`/planes/actividades/${id}/evidencia/`).then((r) => r.data),
 
     registrarEvidencia: (
       id: number,
       payload: {
         descripcion: string;
-        meta_ejecutada?: string;
-        avance: number;
+        cantidad_ejecutada: number;
         url_evidencia?: string;
         archivos?: File[];
       },
     ) => {
       const form = new FormData();
       form.append("descripcion", payload.descripcion);
-      form.append("avance", String(payload.avance));
-      if (payload.meta_ejecutada) form.append("meta_ejecutada", payload.meta_ejecutada);
+      form.append("cantidad_ejecutada", String(payload.cantidad_ejecutada));
       if (payload.url_evidencia) form.append("url_evidencia", payload.url_evidencia);
       payload.archivos?.forEach((file) => form.append("archivos", file));
       return api
@@ -289,11 +287,11 @@ export const planesApi = {
     },
 
     actualizarEvidencia: (
-      id: number,
+      actividadId: number,
+      evidenciaId: number,
       payload: {
         descripcion?: string;
-        meta_ejecutada?: string;
-        avance?: number;
+        cantidad_ejecutada?: number;
         url_evidencia?: string;
         archivos?: File[];
         archivos_eliminar?: number[];
@@ -301,16 +299,22 @@ export const planesApi = {
     ) => {
       const form = new FormData();
       if (payload.descripcion !== undefined) form.append("descripcion", payload.descripcion);
-      if (payload.meta_ejecutada !== undefined) form.append("meta_ejecutada", payload.meta_ejecutada);
-      if (payload.avance !== undefined) form.append("avance", String(payload.avance));
+      if (payload.cantidad_ejecutada !== undefined) {
+        form.append("cantidad_ejecutada", String(payload.cantidad_ejecutada));
+      }
       if (payload.url_evidencia !== undefined) form.append("url_evidencia", payload.url_evidencia);
       payload.archivos?.forEach((file) => form.append("archivos", file));
       if (payload.archivos_eliminar?.length) {
         form.append("archivos_eliminar", payload.archivos_eliminar.join(","));
       }
       return api
-        .put<PlanEvidencia>(`/planes/actividades/${id}/evidencia/`, form, { timeout: 120_000 })
+        .put<PlanEvidencia>(`/planes/actividades/${actividadId}/evidencia/${evidenciaId}/`, form, {
+          timeout: 120_000,
+        })
         .then((r) => r.data);
     },
+
+    eliminarEvidencia: (actividadId: number, evidenciaId: number) =>
+      api.delete(`/planes/actividades/${actividadId}/evidencia/${evidenciaId}/`),
   },
 };
