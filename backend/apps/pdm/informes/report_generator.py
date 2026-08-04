@@ -27,8 +27,8 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Table, TableStyle,
-    Image as RLImage
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    PageBreak, Image as RLImage
 )
 from io import BytesIO
 from datetime import datetime
@@ -83,6 +83,7 @@ class PDMReportGenerator:
     MAX_CHART_HEIGHT = 9.0 * inch
     EVIDENCIA_IMG_INCH = 2.4 * inch
     FRAME_SAFETY_PT = 18
+    GRUPO_BLOCK_GAP = 0.15 * inch
 
     def _update_flowable_limits(self, top_margin: float, bottom_margin: float) -> None:
         usable_height = letter[1] - top_margin - bottom_margin - self.FRAME_SAFETY_PT
@@ -117,6 +118,124 @@ class PDMReportGenerator:
         """Tamaño fijo de evidencia (imagen ya normalizada en service)."""
         size = self.EVIDENCIA_IMG_INCH
         return RLImage(BytesIO(img_data), width=size, height=size)
+
+    def _meta_programada_producto(self, producto) -> float:
+        if self.anio == 0:
+            return sum(
+                float(getattr(producto, f"programacion_{y}", 0) or 0)
+                for y in (2024, 2025, 2026, 2027)
+            )
+        return float(getattr(producto, f"programacion_{self.anio}", 0) or 0)
+
+    def _aggregate_grupo_productos(self, productos: list) -> dict:
+        count = len(productos)
+        if not count:
+            return {
+                "count": 0,
+                "meta_total": 0.0,
+                "indicadores": 0,
+                "avance_fisico": 0.0,
+                "avance_financiero": 0.0,
+            }
+        meta_total = sum(self._meta_programada_producto(p) for p in productos)
+        avance_fisico = sum(self.calcular_avance_producto(p) for p in productos) / count
+        avance_financiero = sum(self.calcular_avance_financiero(p) for p in productos) / count
+        indicadores = len(
+            {
+                (p.indicador_producto_mga or p.personalizacion_indicador or p.codigo_producto or "").strip()
+                for p in productos
+            }
+        )
+        return {
+            "count": count,
+            "meta_total": meta_total,
+            "indicadores": indicadores,
+            "avance_fisico": avance_fisico,
+            "avance_financiero": avance_financiero,
+        }
+
+    def _append_grupo_resumen_table(
+        self,
+        *,
+        grupo_label: str,
+        grupo_nombre: str,
+        productos: list,
+    ) -> None:
+        """Tabla resumen consolidada por sector u ODS (sin detalle de productos)."""
+        agg = self._aggregate_grupo_productos(productos)
+        white_header = ParagraphStyle(
+            "WhiteHeader",
+            parent=self.styles["Normal"],
+            textColor=colors.white,
+            fontName="Helvetica-Bold",
+            fontSize=8,
+        )
+        center_cell = ParagraphStyle(
+            "CenterCell",
+            parent=self.styles["Normal"],
+            alignment=TA_CENTER,
+            fontSize=8,
+            leading=10,
+        )
+        justify_cell = ParagraphStyle(
+            "JustifyCell",
+            parent=self.styles["Normal"],
+            alignment=TA_JUSTIFY,
+            fontSize=8,
+            leading=10,
+        )
+
+        stats_text = (
+            f"<b>Productos:</b> {agg['count']}<br/>"
+            f"<b>Meta programada:</b> {agg['meta_total']:,.0f}<br/>"
+            f"<b>Indicadores:</b> {agg['indicadores']}"
+        )
+        nombre = (grupo_nombre or "Sin asignar").strip()
+        if len(nombre) > 120:
+            nombre = nombre[:117] + "..."
+
+        data = [
+            [
+                Paragraph(f"<b>{grupo_label}</b>", white_header),
+                Paragraph("<b>INFORMACIÓN ESTADÍSTICA</b>", white_header),
+                Paragraph("<b>PRODUCTO(S)</b>", white_header),
+                Paragraph("<b>INDICADOR DE PRODUCTO</b>", white_header),
+                Paragraph("<b>AVANCE DEL PRODUCTO</b>", white_header),
+                Paragraph("<b>AVANCE FINANCIERO</b>", white_header),
+            ],
+            [
+                Paragraph(nombre, justify_cell),
+                Paragraph(stats_text, center_cell),
+                Paragraph(f"<b>{agg['count']}</b>", center_cell),
+                Paragraph(f"<b>{agg['indicadores']}</b>", center_cell),
+                Paragraph(f"<b>{agg['avance_fisico']:.1f}%</b>", center_cell),
+                Paragraph(f"<b>{agg['avance_financiero']:.1f}%</b>", center_cell),
+            ],
+        ]
+        table = Table(
+            data,
+            colWidths=[1.35 * inch, 1.55 * inch, 0.85 * inch, 1.05 * inch, 1.05 * inch, 1.15 * inch],
+            splitByRow=True,
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4F9A54")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#E8F4F8")),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        self.story.append(table)
+        self.story.append(Spacer(1, self.GRUPO_BLOCK_GAP))
         
     def get_justify_style(self, fontSize=8):
         """Helper para crear estilos justificados reutilizables"""
@@ -276,7 +395,8 @@ class PDMReportGenerator:
         
         for cargo in equipo_info:
             self.story.append(Paragraph(cargo, equipo_style))
-        
+
+        self.story.append(PageBreak())
     
     def generate_introduccion(self):
         """Genera la introducción institucional del informe"""
@@ -1000,13 +1120,10 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         """
         
         self.story.append(Paragraph(concepto_lineas, justify_style))
+        self.story.append(Spacer(1, 0.1 * inch))
         
         # Generar gráfica moderna
         self.generate_grafica_moderna_lineas()
-        
-        # Generar tablas de productos por línea estratégica
-        self.generate_tabla_productos()
-        
     
     def generate_tabla_productos(self):
         """Genera tabla detallada de productos por línea estratégica"""
@@ -1141,235 +1258,64 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             self.story.append(table)
     
     def generate_tabla_productos_por_sector(self):
-        """Genera tabla detallada de productos por sector MGA"""
-        # Agrupar productos por sector
-        productos_por_sector = {}
+        """Genera tabla resumen consolidada por sector MGA (sin listar productos)."""
+        productos_por_sector: dict[str, list] = {}
         for prod in self.productos:
-            sector = prod.sector_mga or 'Sin Sector'
-            if sector not in productos_por_sector:
-                productos_por_sector[sector] = []
-            productos_por_sector[sector].append(prod)
-        
+            sector = prod.sector_mga or "Sin Sector"
+            productos_por_sector.setdefault(sector, []).append(prod)
+
         title_style = ParagraphStyle(
-            'SectionTitle',
-            parent=self.styles['Heading1'],
+            "SectionTitle",
+            parent=self.styles["Heading1"],
             fontSize=14,
-            textColor=colors.HexColor('#003366'),
-            spaceAfter=2,
-            fontName='Helvetica-Bold'
+            textColor=colors.HexColor("#003366"),
+            spaceAfter=6,
+            fontName="Helvetica-Bold",
         )
-        
-        self.story.append(Paragraph(
-            "DESCRIPCIÓN DE CUMPLIMIENTO DE METAS POR SECTORES MGA",
-            title_style
-        ))
-        
+
+        self.story.append(
+            Paragraph("DESCRIPCIÓN DE CUMPLIMIENTO DE METAS POR SECTORES MGA", title_style)
+        )
+        self.story.append(Spacer(1, 0.08 * inch))
+
         for sector, productos in productos_por_sector.items():
-            # Encabezado de sector
-            sector_style = ParagraphStyle(
-                'SectorTitle',
-                parent=self.styles['Heading2'],
-                fontSize=11,
-                textColor=colors.white,
-                backColor=colors.HexColor('#4F9A54'),
-                alignment=TA_CENTER,
-                fontName='Helvetica-Bold',
-                leftIndent=6,
-                rightIndent=6,
-                spaceAfter=2,
-                spaceBefore=6
+            self._append_grupo_resumen_table(
+                grupo_label="SECTOR MGA",
+                grupo_nombre=sector,
+                productos=productos,
             )
-            
-            header_data = [[Paragraph("SECTOR MGA", sector_style)]]
-            header_table = Table(header_data, colWidths=[7*inch], splitByRow=True)
-            header_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#4F9A54')),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ]))
-            
-            self.story.append(header_table)
-            
-            # Descripción del sector
-            desc_sector_style = ParagraphStyle(
-                'DescSector',
-                parent=self.styles['Normal'],
-                fontSize=10,
-                alignment=TA_CENTER,
-                fontName='Helvetica-Bold',
-                spaceAfter=2,
-                spaceBefore=6
-            )
-            desc_table = Table([[Paragraph(sector.upper(), desc_sector_style)]], colWidths=[7*inch], splitByRow=True)
-            desc_table.setStyle(TableStyle([
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ]))
-            
-            self.story.append(desc_table)
-            
-            # Tabla de productos
-            white_header = ParagraphStyle('WhiteHeader', parent=self.styles['Normal'], textColor=colors.white, fontName='Helvetica-Bold', fontSize=9)
-            
-            data = [[
-                Paragraph('<b>PRODUCTO(S)</b>', white_header),
-                Paragraph('<b>INDICADOR DE PRODUCTO</b>', white_header),
-                Paragraph('<b>AVANCE DEL PRODUCTO</b>', white_header),
-                Paragraph('<b>AVANCE FINANCIERO</b>', white_header)
-            ]]
-            
-            for prod in productos:
-                producto_text = prod.producto_mga or prod.codigo_producto
-                indicador_text = prod.indicador_producto_mga or prod.personalizacion_indicador or 'N/A'
-                avance_fisico_porcentaje = self.calcular_avance_producto(prod)
-                avance_financiero_porcentaje = self.calcular_avance_financiero(prod)
-                
-                data.append([
-                    Paragraph(producto_text, self.get_justify_style()),
-                    Paragraph(indicador_text, self.get_justify_style()),
-                    Paragraph(f"{avance_fisico_porcentaje:.1f}%", self.styles['Normal']),
-                    Paragraph(f"{avance_financiero_porcentaje:.1f}%", self.styles['Normal'])
-                ])
-            
-            table = Table(data, colWidths=[2.5*inch, 2.5*inch, 1*inch, 1*inch], splitByRow=True)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                ('TOPPADDING', (0, 0), (-1, 0), 4),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),
-                ('TOPPADDING', (0, 1), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
-            ]))
-            
-            self.story.append(table)
     
     def generate_tabla_productos_por_ods(self):
-        """Genera tabla detallada de productos por ODS"""
-        # Agrupar productos por ODS
-        productos_por_ods = {}
+        """Genera tabla resumen consolidada por ODS (sin listar productos)."""
+        productos_por_ods: dict[str, list] = {}
         for prod in self.productos:
-            ods = prod.ods or 'Sin ODS Asignado'
-            if ods not in productos_por_ods:
-                productos_por_ods[ods] = []
-            productos_por_ods[ods].append(prod)
-        
+            ods = prod.ods or "Sin ODS Asignado"
+            productos_por_ods.setdefault(ods, []).append(prod)
+
         title_style = ParagraphStyle(
-            'SectionTitle',
-            parent=self.styles['Heading1'],
+            "SectionTitle",
+            parent=self.styles["Heading1"],
             fontSize=14,
-            textColor=colors.HexColor('#003366'),
-            spaceAfter=2,
-            fontName='Helvetica-Bold'
+            textColor=colors.HexColor("#003366"),
+            spaceAfter=6,
+            fontName="Helvetica-Bold",
         )
-        
-        self.story.append(Paragraph(
-            "DESCRIPCIÓN DE CUMPLIMIENTO DE METAS POR OBJETIVOS DE DESARROLLO SOSTENIBLE",
-            title_style
-        ))
-        
+
+        self.story.append(
+            Paragraph(
+                "DESCRIPCIÓN DE CUMPLIMIENTO DE METAS POR OBJETIVOS DE DESARROLLO SOSTENIBLE",
+                title_style,
+            )
+        )
+        self.story.append(Spacer(1, 0.08 * inch))
+
         for ods, productos in productos_por_ods.items():
-            # Encabezado de ODS
-            ods_style = ParagraphStyle(
-                'ODSTitle',
-                parent=self.styles['Heading2'],
-                fontSize=11,
-                textColor=colors.white,
-                backColor=colors.HexColor('#4F9A54'),
-                alignment=TA_CENTER,
-                fontName='Helvetica-Bold',
-                leftIndent=6,
-                rightIndent=6,
-                spaceAfter=2,
-                spaceBefore=6
+            self._append_grupo_resumen_table(
+                grupo_label="OBJETIVO DE DESARROLLO SOSTENIBLE",
+                grupo_nombre=ods,
+                productos=productos,
             )
-            
-            header_data = [[Paragraph("OBJETIVO DE DESARROLLO SOSTENIBLE", ods_style)]]
-            header_table = Table(header_data, colWidths=[7*inch], splitByRow=True)
-            header_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#4F9A54')),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ]))
-            
-            self.story.append(header_table)
-            
-            # Descripción del ODS
-            desc_ods_style = ParagraphStyle(
-                'DescODS',
-                parent=self.styles['Normal'],
-                fontSize=10,
-                alignment=TA_CENTER,
-                fontName='Helvetica-Bold',
-                spaceAfter=2,
-                spaceBefore=6
-            )
-            desc_table = Table([[Paragraph(ods.upper(), desc_ods_style)]], colWidths=[7*inch], splitByRow=True)
-            desc_table.setStyle(TableStyle([
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ]))
-            
-            self.story.append(desc_table)
-            
-            # Tabla de productos
-            white_header = ParagraphStyle('WhiteHeader', parent=self.styles['Normal'], textColor=colors.white, fontName='Helvetica-Bold', fontSize=9)
-            
-            data = [[
-                Paragraph('<b>PRODUCTO(S)</b>', white_header),
-                Paragraph('<b>INDICADOR DE PRODUCTO</b>', white_header),
-                Paragraph('<b>AVANCE DEL PRODUCTO</b>', white_header),
-                Paragraph('<b>AVANCE FINANCIERO</b>', white_header)
-            ]]
-            
-            for prod in productos:
-                producto_text = prod.producto_mga or prod.codigo_producto
-                indicador_text = prod.indicador_producto_mga or prod.personalizacion_indicador or 'N/A'
-                avance_fisico_porcentaje = self.calcular_avance_producto(prod)
-                avance_financiero_porcentaje = self.calcular_avance_financiero(prod)
-                
-                data.append([
-                    Paragraph(producto_text, self.get_justify_style()),
-                    Paragraph(indicador_text, self.get_justify_style()),
-                    Paragraph(f"{avance_fisico_porcentaje:.1f}%", self.styles['Normal']),
-                    Paragraph(f"{avance_financiero_porcentaje:.1f}%", self.styles['Normal'])
-                ])
-            
-            table = Table(data, colWidths=[2.5*inch, 2.5*inch, 1*inch, 1*inch], splitByRow=True)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                ('TOPPADDING', (0, 0), (-1, 0), 4),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),
-                ('TOPPADDING', (0, 1), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
-            ]))
-            
-            self.story.append(table)
-    
+
     def generate_seccion_sectores(self):
         """Genera sección de avance por sectores MGA"""
         title_style = ParagraphStyle(
@@ -1408,6 +1354,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         )
         
         self.story.append(Paragraph(desc_text, justify_style))
+        self.story.append(Spacer(1, 0.1 * inch))
         
         # Generar gráfica moderna de sectores
         self.generate_grafica_moderna_sectores()
@@ -1457,6 +1404,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         )
         
         self.story.append(Paragraph(desc_text, justify_style))
+        self.story.append(Spacer(1, 0.1 * inch))
         
         # Generar gráfica moderna de ODS
         self.generate_grafica_moderna_ods()
@@ -1817,8 +1765,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         self.generate_seccion_sectores()
         print("  ├─ Objetivos de Desarrollo Sostenible")
         self.generate_seccion_ods()
-        print("  ├─ Tabla de Productos (Resumen)")
-        self.generate_tabla_productos()
         print("  ├─ Detalle de Productos con Actividades y Evidencias")
         self.generate_tabla_productos_detallada()
 

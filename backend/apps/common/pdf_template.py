@@ -80,19 +80,17 @@ def _word_rect(word) -> fitz.Rect:
     return fitz.Rect(word[0], word[1], word[2], word[3])
 
 
-def _redact_tight(page, rect: fitz.Rect) -> None:
-    pad = 0.5
-    tight = fitz.Rect(rect.x0 - pad, rect.y0 - pad, rect.x1 + pad, rect.y1 + pad)
-    page.add_redact_annot(tight)
-    page.apply_redactions()
+def _cover_rect_white(page, rect: fitz.Rect, pad: float = 4) -> None:
+    """Cubre un rectángulo con blanco sólido (evita artefactos de redacción)."""
+    cover = fitz.Rect(rect.x0 - pad, rect.y0 - pad, rect.x1 + pad, rect.y1 + pad)
+    page.draw_rect(cover, color=(1, 1, 1), fill=(1, 1, 1))
 
 
-def _insert_at_word(page, word, text: str) -> None:
-    rect = _word_rect(word)
-    fontsize = max(7, min(14, rect.height * 0.9))
+def _insert_page_number_text(page, rect: fitz.Rect, text: str) -> None:
+    fontsize = max(7, min(14, rect.height * 0.95))
     page.insert_text(
         (rect.x0, rect.y1 - 1),
-        str(text),
+        text,
         fontsize=fontsize,
         color=(0, 0, 0),
         fontname="helv",
@@ -100,17 +98,17 @@ def _insert_at_word(page, word, text: str) -> None:
 
 
 def replace_page_number(page, page_index: int, total_pages: int) -> None:
-    """Actualiza solo los dígitos de 'Página X de Y' en el membrete."""
+    """Reemplaza la frase completa 'Página X de Y' en el membrete."""
+    new_text = f"Página {page_index + 1} de {total_pages}"
     words = page.get_text("words")
     indices = _find_page_number_word_indices(words)
     if indices:
-        _, num_a_idx, _, num_b_idx = indices
-        num_word_a = words[num_a_idx]
-        num_word_b = words[num_b_idx]
-        _redact_tight(page, _word_rect(num_word_a))
-        _redact_tight(page, _word_rect(num_word_b))
-        _insert_at_word(page, num_word_a, page_index + 1)
-        _insert_at_word(page, num_word_b, total_pages)
+        start_idx, _, _, end_idx = indices
+        union = _word_rect(words[start_idx])
+        for i in range(start_idx + 1, end_idx + 1):
+            union |= _word_rect(words[i])
+        _cover_rect_white(page, union, pad=5)
+        _insert_page_number_text(page, union, new_text)
         return
 
     page_num_re = re.compile(r"P[aá]gina\s+\d+\s+de\s+\d+", re.IGNORECASE)
@@ -121,15 +119,8 @@ def replace_page_number(page, page_index: int, total_pages: int) -> None:
         if not page_num_re.search(text):
             continue
         rect = fitz.Rect(block[:4])
-        _redact_tight(page, rect)
-        fontsize = max(7, min(14, rect.height * 0.9))
-        page.insert_text(
-            (rect.x0, rect.y1 - 1),
-            f"Página {page_index + 1} de {total_pages}",
-            fontsize=fontsize,
-            color=(0, 0, 0),
-            fontname="helv",
-        )
+        _cover_rect_white(page, rect, pad=5)
+        _insert_page_number_text(page, rect, new_text)
         return
 
 
