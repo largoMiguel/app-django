@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { LayoutDashboard, List, CalendarRange, BarChart3, ClipboardList } from "lucide-react";
 import { PlanesYearProvider, usePlanesYear } from "./PlanesYearContext";
+import { PlanesDetailHeaderProvider, usePlanesDetailHeader } from "./PlanesDetailHeaderContext";
 
 const tabs = [
   { to: "/planes", end: true, label: "Resumen", icon: LayoutDashboard },
@@ -12,6 +13,7 @@ const tabs = [
 function PlanesLayoutInner() {
   const location = useLocation();
   const { anio, setAnio, aniosDisponibles } = usePlanesYear();
+  const { headerActions } = usePlanesDetailHeader();
   const isDetail = Boolean(location.pathname.match(/\/planes\/\d+/));
 
   const subtitle = location.pathname.includes("/lista")
@@ -36,7 +38,9 @@ function PlanesLayoutInner() {
             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">{subtitle}</p>
           </div>
         </div>
-        {!isDetail && (
+        {isDetail ? (
+          headerActions
+        ) : (
           <div className="flex flex-wrap items-center gap-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Vigencia</label>
             <select
@@ -82,7 +86,9 @@ function PlanesLayoutInner() {
 export default function PlanesLayout() {
   return (
     <PlanesYearProvider>
-      <PlanesLayoutInner />
+      <PlanesDetailHeaderProvider>
+        <PlanesLayoutInner />
+      </PlanesDetailHeaderProvider>
     </PlanesYearProvider>
   );
 }

@@ -17,6 +17,7 @@ import { primaryRole, useAuthStore } from "@/core/auth/store";
 import ActividadFormModal from "./ActividadFormModal";
 import EvidenciaFormModal from "./EvidenciaFormModal";
 import PlanFormModal from "./PlanFormModal";
+import { usePlanesDetailHeader } from "./PlanesDetailHeaderContext";
 import { PlanesBadge, PlanesCard, PlanesLoading, btnPrimary, btnSecondary } from "./components/PlanesUi";
 
 export default function PlanDetailPage() {
@@ -37,6 +38,7 @@ export default function PlanDetailPage() {
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [editActividad, setEditActividad] = useState<PlanActividad | null>(null);
   const [evidenciaActividad, setEvidenciaActividad] = useState<PlanActividad | null>(null);
+  const { setHeaderActions } = usePlanesDetailHeader();
 
   const load = useCallback(async () => {
     if (!planId) return;
@@ -61,16 +63,42 @@ export default function PlanDetailPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    setHeaderActions(
+      <div className="flex flex-wrap items-center gap-2">
+        <Link to="/planes/lista" className={btnSecondary}>
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Volver a planes
+        </Link>
+        {isAdmin && !loading && !error && plan && (
+          <button type="button" onClick={() => setPlanModalOpen(true)} className={btnSecondary}>
+            <Pencil className="mr-1 h-4 w-4" />
+            Editar plan
+          </button>
+        )}
+        {canCreate && !loading && !error && plan && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditActividad(null);
+              setActividadModalOpen(true);
+            }}
+            className={btnPrimary}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Nueva actividad
+          </button>
+        )}
+      </div>,
+    );
+    return () => setHeaderActions(null);
+  }, [isAdmin, canCreate, loading, error, plan, setHeaderActions]);
+
   if (loading) return <PlanesLoading />;
   if (error || !plan) {
     return (
-      <div className="space-y-4">
-        <Link to="/planes/lista" className="inline-flex items-center gap-1 text-sm text-[#0e7490]">
-          <ArrowLeft className="h-4 w-4" /> Volver
-        </Link>
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error || "Plan no encontrado"}
-        </div>
+      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {error || "Plan no encontrado"}
       </div>
     );
   }
@@ -83,53 +111,26 @@ export default function PlanDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">{plan.nombre}</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {plan.catalogo_codigo} · Vigencia {plan.anio} ·{" "}
-            {plan.responsable_secretaria_nombre || "Sin responsable"}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <PlanesBadge tone={planEstadoTone(plan.estado)}>{plan.estado_label}</PlanesBadge>
-            {plan.fecha_publicacion && (
-              <span className="text-xs text-slate-500">Publicado: {plan.fecha_publicacion}</span>
-            )}
-            {plan.url_publicacion && (
-              <a
-                href={plan.url_publicacion}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-[#0e7490] hover:underline"
-              >
-                Ver publicación
-              </a>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link to="/planes/lista" className={btnSecondary}>
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Volver a planes
-          </Link>
-          {isAdmin && (
-            <button type="button" onClick={() => setPlanModalOpen(true)} className={btnSecondary}>
-              <Pencil className="mr-1 h-4 w-4" />
-              Editar plan
-            </button>
+      <div>
+        <h2 className="text-xl font-bold text-slate-900">{plan.nombre}</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          {plan.catalogo_codigo} · Vigencia {plan.anio} ·{" "}
+          {plan.responsable_secretaria_nombre || "Sin responsable"}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <PlanesBadge tone={planEstadoTone(plan.estado)}>{plan.estado_label}</PlanesBadge>
+          {plan.fecha_publicacion && (
+            <span className="text-xs text-slate-500">Publicado: {plan.fecha_publicacion}</span>
           )}
-          {canCreate && (
-            <button
-              type="button"
-              onClick={() => {
-                setEditActividad(null);
-                setActividadModalOpen(true);
-              }}
-              className={btnPrimary}
+          {plan.url_publicacion && (
+            <a
+              href={plan.url_publicacion}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[#0e7490] hover:underline"
             >
-              <Plus className="mr-1 h-4 w-4" />
-              Nueva actividad
-            </button>
+              Ver publicación
+            </a>
           )}
         </div>
       </div>
