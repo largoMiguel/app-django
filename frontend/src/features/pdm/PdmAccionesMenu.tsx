@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Download, FolderKanban, MoreHorizontal, RefreshCw, Upload } from "lucide-react";
-import { pdmBtnPrimary } from "@/features/pdm/pdmLayout";
+import { pdmBtnPrimary } from "@/features/pdm/pdmStyles";
 
 interface PdmAccionesMenuProps {
   onProyectos: () => void;

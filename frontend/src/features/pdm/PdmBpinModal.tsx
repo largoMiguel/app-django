@@ -1,7 +1,7 @@
 import { Loader2, X } from "lucide-react";
 import type { ProyectoBpin } from "@/core/api/bpin";
 import { formatearMoneda } from "@/features/pdm/pdmUtils";
-import { pdmBtnSecondary, pdmCard } from "@/features/pdm/pdmLayout";
+import { pdmBtnSecondary, pdmCard } from "@/features/pdm/pdmStyles";
 
 interface PdmBpinModalProps {
   open: boolean;

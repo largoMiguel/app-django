@@ -40,12 +40,16 @@ import SecopResumen from "@/features/secop/SecopResumen";
 import SecopListPage from "@/features/secop/SecopListPage";
 import SecopAlertasPage from "@/features/secop/SecopAlertasPage";
 import SecopAnalisisIAPage from "@/features/secop/SecopAnalisisIAPage";
-import { PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
+import PdmLayout from "@/features/pdm/PdmLayout";
+import PdmDashboardPage from "@/features/pdm/PdmDashboardPage";
+import PdmProductosPage from "@/features/pdm/PdmProductosPage";
+import PdmProductoDetallePage from "@/features/pdm/PdmProductoDetallePage";
+import PdmAnalisisPage from "@/features/pdm/PdmAnalisisPage";
+import PdmProyectosPage from "@/features/pdm/PdmProyectosPage";
 import { firstAccessibleRoute, needsEntitySelection, useAuthStore } from "@/core/auth/store";
 
 const HomePage = lazy(() => import("@/features/showcase/HomePage"));
 const NosotrosPage = lazy(() => import("@/features/nosotros/NosotrosPage"));
-const PdmPage = lazy(() => import("@/features/pdm/PdmPage"));
 
 const suspenseFallback = (
   <div className="flex min-h-screen items-center justify-center text-slate-500">Cargando…</div>
@@ -144,14 +148,13 @@ export default function App(): ReactElement {
               </Route>
 
               <Route element={<ModuleRouteGuard moduleKey="pdm" />}>
-                <Route
-                  path="/pdm"
-                  element={
-                    <Suspense fallback={<PdmLoadingOverlay message="Cargando PDM..." />}>
-                      <PdmPage />
-                    </Suspense>
-                  }
-                />
+                <Route path="/pdm" element={<PdmLayout />}>
+                  <Route index element={<PdmDashboardPage />} />
+                  <Route path="productos" element={<PdmProductosPage />} />
+                  <Route path="productos/:codigo" element={<PdmProductoDetallePage />} />
+                  <Route path="analisis" element={<PdmAnalisisPage />} />
+                  <Route path="proyectos" element={<PdmProyectosPage />} />
+                </Route>
               </Route>
 
               <Route element={<ModuleRouteGuard moduleKey="reports_pdf" />}>

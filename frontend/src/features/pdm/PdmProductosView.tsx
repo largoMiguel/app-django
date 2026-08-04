@@ -18,7 +18,7 @@ import {
   type ResumenProducto,
 } from "@/features/pdm/pdmUtils";
 import { PdmBadge, PdmCard, PdmProgressBar, PdmSelect, PdmStatCard } from "@/features/pdm/components/PdmUi";
-import { pdmBtnSecondary, pdmInput, pdmSelect } from "@/features/pdm/pdmLayout";
+import { pdmBtnSecondary, pdmInput, pdmSelect } from "@/features/pdm/pdmStyles";
 
 interface PdmProductosViewProps {
   filtroAnio: number;

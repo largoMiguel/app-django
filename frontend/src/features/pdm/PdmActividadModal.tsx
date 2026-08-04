@@ -5,7 +5,7 @@ import { useAuthenticatedImage } from "@/features/pdm/useAuthenticatedImage";
 import type { Secretaria } from "@/core/api/entities";
 import type { AppUser } from "@/core/api/users";
 import { PdmAlert, PdmCard, PdmModal } from "@/features/pdm/components/PdmUi";
-import { pdmBtnPrimary, pdmBtnSecondary, pdmInput, pdmSelect } from "@/features/pdm/pdmLayout";
+import { pdmBtnPrimary, pdmBtnSecondary, pdmInput, pdmSelect } from "@/features/pdm/pdmStyles";
 import {
   calcularMetaDisponible,
   formatearNumero,
