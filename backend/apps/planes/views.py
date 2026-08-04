@@ -187,12 +187,10 @@ class PlanViewSet(viewsets.ModelViewSet):
         if ser.validated_data.get("responsable_secretaria_id") and secretaria is None:
             raise ValidationError({"responsable_secretaria_id": "Secretaría inválida."})
 
-        nombre = ser.validated_data.get("nombre") or catalogo.nombre
         plan = PlanInstitucional.objects.create(
             entity=self.entity,
             catalogo=catalogo,
             anio=ser.validated_data["anio"],
-            nombre=nombre,
             objetivo=ser.validated_data.get("objetivo", ""),
             responsable_secretaria=secretaria,
             responsable_secretaria_nombre=secretaria.nombre if secretaria else "",
@@ -217,8 +215,6 @@ class PlanViewSet(viewsets.ModelViewSet):
             plan.catalogo = get_object_or_404(PlanCatalogo, pk=ser.validated_data["catalogo_id"])
         if "anio" in ser.validated_data:
             plan.anio = ser.validated_data["anio"]
-        if "nombre" in ser.validated_data and ser.validated_data["nombre"]:
-            plan.nombre = ser.validated_data["nombre"]
         if "objetivo" in ser.validated_data:
             plan.objetivo = ser.validated_data["objetivo"]
         if "responsable_secretaria_id" in ser.validated_data:

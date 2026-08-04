@@ -71,7 +71,7 @@ export default function PlanDetailPage() {
           </Link>
           <h2 className="text-xl font-bold text-slate-900">{plan.nombre}</h2>
           <p className="mt-1 text-sm text-slate-500">
-            {plan.catalogo_nombre} · Vigencia {plan.anio} ·{" "}
+            {plan.catalogo_codigo} · Vigencia {plan.anio} ·{" "}
             {plan.responsable_secretaria_nombre || "Sin responsable"}
           </p>
         </div>

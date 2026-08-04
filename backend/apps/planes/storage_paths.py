@@ -16,7 +16,7 @@ def planes_evidencia_prefix(evidencia: PlanEvidencia) -> str:
     """Prefijo: entities/<entity_id>/planes/evidencias/<codigo>/<anio>/T<trimestre>."""
     actividad = evidencia.actividad
     plan = actividad.plan
-    codigo = _safe_path_segment(plan.catalogo.codigo if plan.catalogo_id else plan.nombre)
+    codigo = _safe_path_segment(plan.catalogo.codigo if plan.catalogo_id else "plan")
     return (
         f"entities/{evidencia.entity_id}/planes/evidencias/"
         f"{codigo}/{actividad.anio}/T{actividad.trimestre}"

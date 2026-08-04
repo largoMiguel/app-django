@@ -12,9 +12,9 @@ class PlanCatalogoAdmin(admin.ModelAdmin):
 
 @admin.register(PlanInstitucional)
 class PlanInstitucionalAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "entity", "anio", "estado", "responsable_secretaria")
+    list_display = ("catalogo", "entity", "anio", "estado", "responsable_secretaria")
     list_filter = ("anio", "estado")
-    search_fields = ("nombre", "catalogo__codigo")
+    search_fields = ("catalogo__nombre", "catalogo__codigo")
 
 
 @admin.register(PlanActividad)

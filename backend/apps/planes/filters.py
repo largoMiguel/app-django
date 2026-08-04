@@ -23,9 +23,7 @@ class PlanFilterSet(django_filters.FilterSet):
             return queryset
         term = value.strip()
         return queryset.filter(
-            Q(nombre__icontains=term)
-            | Q(catalogo__nombre__icontains=term)
-            | Q(catalogo__codigo__icontains=term)
+            Q(catalogo__nombre__icontains=term) | Q(catalogo__codigo__icontains=term)
         )
 
 

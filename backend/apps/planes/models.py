@@ -85,7 +85,6 @@ class PlanInstitucional(models.Model):
         db_column="catalogo_id",
     )
     anio = models.IntegerField(db_index=True)
-    nombre = models.CharField(max_length=512)
     objetivo = models.TextField(blank=True, default="")
     responsable_secretaria = models.ForeignKey(
         "entities.Secretaria",
@@ -126,7 +125,7 @@ class PlanInstitucional(models.Model):
         db_table = "planes_institucionales"
         verbose_name = "Plan institucional"
         verbose_name_plural = "Planes institucionales"
-        ordering = ["anio", "catalogo__orden", "nombre"]
+        ordering = ["anio", "catalogo__orden"]
         constraints = [
             models.UniqueConstraint(
                 fields=("entity", "catalogo", "anio"),
@@ -139,7 +138,7 @@ class PlanInstitucional(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.nombre} ({self.anio})"
+        return f"{self.catalogo.nombre} ({self.anio})"
 
 
 class PlanActividad(models.Model):

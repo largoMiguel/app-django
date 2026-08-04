@@ -128,7 +128,7 @@ def build_cronograma(user, entity: Entity, *, anio: int | None = None) -> list[d
             act.plan_id,
             {
                 "plan_id": act.plan_id,
-                "plan_nombre": act.plan.nombre,
+                "plan_nombre": act.plan.catalogo.nombre,
                 "catalogo_codigo": act.plan.catalogo.codigo,
                 "catalogo_nombre": act.plan.catalogo.nombre,
                 "actividades": [],

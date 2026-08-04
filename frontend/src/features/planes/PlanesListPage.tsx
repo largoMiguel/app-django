@@ -155,6 +155,7 @@ export default function PlanesListPage() {
         catalogo={catalogo}
         secretarias={secretarias}
         defaultAnio={anio}
+        onCatalogoCreated={(item) => setCatalogo((prev) => [...prev, item])}
         onSaved={() => {
           setModalOpen(false);
           load();

@@ -77,7 +77,7 @@ def build_trimestral_excel(
         evidencia = getattr(act, "evidencia", None)
         tri_label = Trimestre(act.trimestre).label if act.trimestre in Trimestre.values else str(act.trimestre)
         values = [
-            act.plan.nombre,
+            act.plan.catalogo.nombre,
             act.plan.catalogo.codigo,
             act.anio,
             tri_label,

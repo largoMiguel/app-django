@@ -61,7 +61,6 @@ class PlanesAccessTests(TestCase):
             entity=self.entity_a,
             catalogo=self.catalogo,
             anio=2026,
-            nombre="PINAR 2026",
             responsable_secretaria=self.secretaria_a,
             responsable_secretaria_nombre=self.secretaria_a.nombre,
             created_by=self.admin_a,
@@ -70,7 +69,6 @@ class PlanesAccessTests(TestCase):
             entity=self.entity_b,
             catalogo=self.catalogo,
             anio=2026,
-            nombre="PINAR 2026 B",
             created_by=self.admin_b,
         )
 
@@ -147,6 +145,23 @@ class PlanesAccessTests(TestCase):
         response = view(request, pk=actividad.id)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["descripcion"], "Informe trimestral")
+
+    def test_admin_can_create_custom_catalogo(self):
+        payload = {
+            "codigo": "plan_propio_test",
+            "nombre": "Plan estratégico interno",
+            "descripcion": "Plan propio de la entidad",
+        }
+        request = self.factory.post("/api/v1/planes/catalogo/", payload, format="json")
+        force_authenticate(request, user=self.admin_a)
+        from apps.planes.views import PlanCatalogoViewSet
+
+        view = PlanCatalogoViewSet.as_view({"post": "create"})
+        response = view(request)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["nombre"], "Plan estratégico interno")
+        self.assertFalse(response.data["es_decreto612"])
+        self.assertEqual(response.data["entity"], self.entity_a.id)
 
     def test_attach_metrics_on_list_not_queryset(self):
         actividad = PlanActividad.objects.create(

@@ -127,6 +127,7 @@ class PlanActividadDetailSerializer(PlanActividadSerializer):
 
 
 class PlanListSerializer(serializers.ModelSerializer):
+    nombre = serializers.CharField(source="catalogo.nombre", read_only=True)
     catalogo_codigo = serializers.CharField(source="catalogo.codigo", read_only=True)
     catalogo_nombre = serializers.CharField(source="catalogo.nombre", read_only=True)
     responsable_secretaria_nombre = serializers.CharField(
@@ -174,7 +175,6 @@ class PlanDetailSerializer(PlanListSerializer):
 class PlanWriteSerializer(serializers.Serializer):
     catalogo_id = serializers.IntegerField()
     anio = serializers.IntegerField(min_value=2000, max_value=2100)
-    nombre = serializers.CharField(max_length=512, required=False, allow_blank=True)
     objetivo = serializers.CharField(required=False, allow_blank=True, default="")
     responsable_secretaria_id = serializers.IntegerField(required=False, allow_null=True)
     fecha_publicacion = serializers.DateField(required=False, allow_null=True)

@@ -132,12 +132,18 @@ export interface CronogramaPlan {
 export interface PlanWritePayload {
   catalogo_id: number;
   anio: number;
-  nombre?: string;
   objetivo?: string;
   responsable_secretaria_id?: number | null;
   fecha_publicacion?: string | null;
   url_publicacion?: string;
   estado?: string;
+}
+
+export interface PlanCatalogoWritePayload {
+  codigo: string;
+  nombre: string;
+  descripcion?: string;
+  orden?: number;
 }
 
 export interface PlanActividadWritePayload {
@@ -189,6 +195,9 @@ export const planesApi = {
     api
       .get<PlanCatalogoItem[] | PaginatedResponse<PlanCatalogoItem>>("/planes/catalogo/", { params })
       .then((r) => parsePaginated(r.data)),
+
+  createCatalogo: (payload: PlanCatalogoWritePayload) =>
+    api.post<PlanCatalogoItem>("/planes/catalogo/", payload).then((r) => r.data),
 
   list: (params?: Record<string, string | number>) =>
     api
