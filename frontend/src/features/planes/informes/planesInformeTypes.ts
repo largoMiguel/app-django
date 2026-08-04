@@ -7,7 +7,6 @@ export interface PlanesInformeTypeDefinition {
   id: InformePlanTipo | "TRIMESTRAL_EXCEL";
   title: string;
   description: string;
-  route: string;
   icon: LucideIcon;
   enabled: boolean;
   badge?: string;
@@ -19,7 +18,6 @@ export const PLANES_INFORME_TYPES: PlanesInformeTypeDefinition[] = [
     title: "Informe de Seguimiento D612 (PDF)",
     description:
       "Informe de auditoría de control interno con actividades por plan, tablas de cumplimiento, gráficas y conclusiones con IA. Retención 7 días.",
-    route: "/planes/informes/seguimiento",
     icon: BarChart3,
     enabled: true,
   },
@@ -28,7 +26,6 @@ export const PLANES_INFORME_TYPES: PlanesInformeTypeDefinition[] = [
     title: "Informe trimestral (Excel)",
     description:
       "Exportación inmediata del seguimiento de actividades y evidencias por vigencia y trimestre, conforme al Decreto 612 de 2018.",
-    route: "/planes/informes/trimestral",
     icon: FileSpreadsheet,
     enabled: true,
   },

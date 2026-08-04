@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, Download } from "lucide-react";
 import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import { planesApi, TRIMESTRE_OPTIONS, type PlanListItem } from "@/core/api/planes";
 import { formatApiError } from "@/core/api/errors";
-import { PlanesCard, btnPrimary, inputClass } from "./components/PlanesUi";
+import { PlanesCard, btnPrimary, btnSecondary, inputClass } from "./components/PlanesUi";
 import { usePlanesYear } from "./PlanesYearContext";
 
 export default function PlanesInformeTrimestralPage() {
@@ -40,7 +41,11 @@ export default function PlanesInformeTrimestralPage() {
   }
 
   return (
-    <PlanesCard title="Informe trimestral (Excel)">
+    <div className="space-y-4">
+      <Link to="/planes/informes" className={btnSecondary}>
+        <ArrowLeft className="h-4 w-4" /> Volver a informes
+      </Link>
+      <PlanesCard title="Informe trimestral (Excel)">
       <p className="mb-4 text-sm text-slate-600">
         Exporte el seguimiento de actividades y evidencias por vigencia y trimestre, conforme al Decreto 612 de 2018.
         La descarga es inmediata y no se guarda historial en el servidor.
@@ -102,5 +107,6 @@ export default function PlanesInformeTrimestralPage() {
         </button>
       </div>
     </PlanesCard>
+    </div>
   );
 }

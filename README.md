@@ -325,15 +325,15 @@ Admin activa módulo → selecciona plan del catálogo + vigencia (año)
        └─→ Crea actividades/componentes por trimestre (I–IV)
             └─→ Secretario delega a contratista (opcional)
                  └─→ Registra avance + evidencia (archivos PDF/Office/imagen o URL)
-                      └─→ Informe trimestral Excel + cronograma Gantt
+                      └─→ Informes: seguimiento PDF (async, 7 días) + trimestral Excel + cronograma Gantt
 ```
 
 ### Roles
 
 | Rol | Permisos |
 |---|---|
-| `admin` | CRUD planes y actividades, asignar secretaría, exportar informe, eliminar |
-| `secretario` | Planes/actividades de su secretaría, crear/editar actividades, evidencia, delegar contratistas |
+| `admin` | CRUD planes y actividades, asignar secretaría, exportar informes (Excel y PDF), eliminar |
+| `secretario` | Planes/actividades de su secretaría, crear/editar actividades, evidencia, delegar contratistas, generar informes de su dependencia |
 | `contratista` | Actividades asignadas, registrar avance y evidencia |
 | `superadmin` | Activa `enable_planes_institucionales`; no opera el módulo |
 
@@ -346,18 +346,28 @@ Admin activa módulo → selecciona plan del catálogo + vigencia (año)
 | `GET/PATCH/DELETE` | `/planes/{id}/` | Detalle / editar / eliminar |
 | `GET` | `/planes/stats/?anio=` | Dashboard (avance por trimestre, vencidas…) |
 | `GET` | `/planes/cronograma/?anio=` | Datos para vista Gantt |
-| `GET` | `/planes/export/?anio=&trimestre=` | Informe trimestral Excel |
+| `GET` | `/planes/export/?anio=&trimestre=` | Informe trimestral Excel (descarga inmediata) |
+| `GET/POST` | `/planes/informes/` | Historial / encolar informe seguimiento PDF (ver abajo) |
+| `GET` | `/planes/informes/firmantes/` | Usuarios candidatos a firmar informe PDF |
+| `GET` | `/planes/informes/{id}/download/` | Descarga PDF generado |
+| `DELETE` | `/planes/informes/{id}/` | Elimina informe PDF y archivo en B2 |
 | `POST` | `/planes/{id}/responsable/` | Asignar secretaría responsable |
 | `GET/POST/PATCH/DELETE` | `/planes/actividades/` · `/{id}/` | CRUD actividades |
 | `PATCH` | `/planes/actividades/{id}/responsable-usuario/` | Delegar contratista |
 | `GET/POST/PUT/DELETE` | `/planes/actividades/{id}/evidencia/` | Evidencia multipart |
 
-### Almacenamiento evidencias
+### Almacenamiento evidencias e informes
 
-Ruta B2 (`softone-planes-612` en prod; `storage-demo` en demo):
+Ruta B2 evidencias (`softone-planes-612` en prod; `storage-demo` en demo):
 
 ```
 entities/<entity_id>/planes/evidencias/<codigo_plan>/<anio>/T<trimestre>/<nombre_seguro>
+```
+
+Ruta B2 informes PDF seguimiento (mismo bucket):
+
+```
+informes/<entity_id>/seguimiento/informe_seguimiento_d612_<anio>_T<trimestre>_<timestamp>.pdf
 ```
 
 - Máximo **5 archivos** por evidencia, **20 MB** c/u.
@@ -370,12 +380,23 @@ Superadmin → Entidad → Módulos: activar **Planes Institucionales** (`enable
 
 Ruta frontend: `/planes` (Resumen · Planes · Cronograma · Informes).
 
+Rutas de informes:
+
+| Ruta | Descripción |
+|---|---|
+| `/planes/informes` | Lista de informes PDF generados + botón **Crear informe** (selector de tipo) |
+| `/planes/informes/trimestral` | Informe trimestral (Excel): filtros y descarga inmediata |
+
 ### Informes Planes Institucionales
 
-Pestaña **Informes** en el módulo Planes (roles `admin` y `secretario`). Botón **Crear informe** con selector de tipo:
+Pestaña **Informes** en el módulo Planes (roles `admin` y `secretario`; contratista **no** tiene acceso). Botón **Crear informe** con selector de tipo:
 
-- **Informe de Seguimiento D612 (PDF)** — generación asíncrona con Celery (membrete institucional, tablas por plan, gráficas, conclusiones con IA opcional).
-- **Informe trimestral (Excel)** — descarga inmediata (sin historial en servidor).
+| Tipo | Formato | Comportamiento |
+|---|---|---|
+| **Informe de Seguimiento D612** | PDF | Generación **asíncrona** con Celery: membrete institucional, secciones legales, tablas por plan (6 columnas), gráficas de avance, resultados/conclusiones con IA opcional. Historial con retención **7 días**. |
+| **Informe trimestral** | Excel | Descarga **inmediata** vía `GET /planes/export/`; no se guarda en servidor ni hay historial. |
+
+Estructura del PDF de seguimiento (Decreto 612 / Control Interno): portada, introducción, objetivo, alcance, fecha de auditoría, criterios, tipo de auditoría, actividades desarrolladas por plan, resultados de la auditoría (IA o fallback), firma.
 
 | Método | Endpoint | Descripción |
 |---|---|---|
@@ -387,9 +408,18 @@ Pestaña **Informes** en el módulo Planes (roles `admin` y `secretario`). Botó
 
 **Body POST (PDF):** `tipo` (`SEGUIMIENTO_D612`), `anio`, `trimestre` (1–4, obligatorio), `plan_id` (opcional), `responsable_secretaria_id` (opcional; admin filtra dependencia), `usuario_firmante_id` (obligatorio), `cargo_firmante` (opcional), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
 
-**Retención:** 7 días (`expires_at`); purga automática Celery Beat `03:50` (`purge_expired_informes_planes`) y al listar. Requiere `celery-worker` y `celery-beat` activos.
+**Tipos:** `SEGUIMIENTO_D612` = Informe de Seguimiento Decreto 612 (PDF).
 
-**Variables IA:** `PLANES_REPORTS_OPENAI_API_KEY` (opcional; fallback a `PQRS_REPORTS_OPENAI_API_KEY` o `OPENAI_API_KEY`).
+**Roles:** `admin` puede filtrar por dependencia, plan o toda la entidad; `secretario` queda forzado a su secretaría. Retención **7 días** (`expires_at`); purga automática Celery Beat `03:50` (`purge_expired_informes_planes`) y al listar. Requiere `celery-worker` y `celery-beat` activos.
+
+**Variables IA:**
+
+```
+PLANES_REPORTS_OPENAI_API_KEY=sk-...   # opcional; fallback PQRS_REPORTS / OPENAI
+PLANES_REPORTS_OPENAI_MODEL=gpt-4o-mini   # opcional
+```
+
+**Demo:** agregar `PLANES_REPORTS_OPENAI_API_KEY` en `/opt/softone-demo/.env` y redeploy. Activar `enable_ai_reports` en la entidad para usar IA en conclusiones.
 
 ---
 
@@ -932,12 +962,13 @@ CLERK_SECRET_KEY=sk_live_...
 CLERK_AUTHORIZED_PARTIES=https://app.softone360.com
 CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
 
-# OpenAI (PQRS, informes PDF, chat PDM)
+# OpenAI (PQRS, informes PDF PDM/Planes, chat PDM)
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini
 PDM_CHAT_OPENAI_API_KEY=
 PQRS_REPORTS_OPENAI_API_KEY=
 PLANES_REPORTS_OPENAI_API_KEY=
+# PLANES_REPORTS_OPENAI_MODEL=gpt-4o-mini   # opcional; fallback OPENAI_MODEL
 
 # ZeptoMail — correos PQRS (radicación + respuesta)
 PQRS_EMAIL_ENABLED=true
