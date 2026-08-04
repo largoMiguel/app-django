@@ -157,18 +157,21 @@ class PDMReportGenerator:
                 meta_ejec += float(act.meta_ejecutar or 0)
         return min(100.0, (meta_ejec / meta_prog) * 100)
 
-    def _fecha_ejecucion_producto(self, actividades: list) -> str:
-        fechas = []
-        for act in actividades:
-            evidencia = getattr(act, "evidencia", None)
-            if evidencia and getattr(evidencia, "fecha_registro", None):
-                fechas.append(evidencia.fecha_registro)
-            elif act.fecha_fin:
-                fechas.append(act.fecha_fin)
-        if not fechas:
-            return "Sin registro"
-        latest = max(fechas)
-        return latest.strftime("%d/%m/%Y") if hasattr(latest, "strftime") else str(latest)[:10]
+    def _meta_resumen_producto(self, producto) -> str:
+        """Retorna meta ejecutada / programada para el año o cuatrienio filtrado."""
+        if self.anio == 0:
+            anios = (2024, 2025, 2026, 2027)
+        else:
+            anios = (self.anio,)
+        meta_prog = sum(float(getattr(producto, f"programacion_{a}", 0) or 0) for a in anios)
+        meta_ejec = 0.0
+        for anio in anios:
+            for act in self.actividades:
+                if act.codigo_producto != producto.codigo_producto or act.anio != anio:
+                    continue
+                if getattr(act, "tiene_evidencia", False):
+                    meta_ejec += float(act.meta_ejecutar or 0)
+        return f"{meta_ejec:g} / {meta_prog:g}"
 
     def _append_bar_chart(
         self,
@@ -687,14 +690,6 @@ class PDMReportGenerator:
                 suma_financiero += self.calcular_avance_financiero(prod)
             avance_financiero_promedio = suma_financiero / total_productos if total_productos > 0 else 0
             
-            # Actividades por estado (según año filtrado o todas si anio=0)
-            estados_count = {}
-            for act in self.actividades:
-                # Si anio es 0, incluir todas las actividades
-                if self.anio == 0 or act.anio == self.anio:
-                    estado = act.estado
-                    estados_count[estado] = estados_count.get(estado, 0) + 1
-            
             # Total presupuesto según año seleccionado
             total_presupuesto = 0
             for prod in self.productos:
@@ -750,37 +745,6 @@ class PDMReportGenerator:
             ]))
             
             self.story.append(kpis_table)
-            
-            # TABLA DE ACTIVIDADES POR ESTADO
-            if estados_count:
-                actividades_data = [
-                    [Paragraph('Estado de Actividades', white_bold), 
-                     Paragraph('Cantidad', white_bold),
-                     Paragraph('Porcentaje', white_bold)]
-                ]
-                
-                total_act_anio = sum(estados_count.values())
-                for estado, count in sorted(estados_count.items()):
-                    porcentaje = (count / total_act_anio * 100) if total_act_anio > 0 else 0
-                    actividades_data.append([
-                        Paragraph(estado, self.styles['Normal']),
-                        Paragraph(f'{count}', center_style),
-                        Paragraph(f'{porcentaje:.1f}%', center_style)
-                    ])
-                
-                act_table = Table(actividades_data, colWidths=[3*inch, 2*inch, 2*inch], splitByRow=True)
-                act_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                    ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F5F5F5')),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                    ('TOPPADDING', (0, 0), (-1, -1), 6),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-                ]))
-                
-                self.story.append(act_table)
             
             print("✅ Resumen ejecutivo generado")
             
@@ -1381,26 +1345,26 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]))
             self.story.append(linea_table)
             
-            # 2. PRODUCTO(S), INDICADOR, AVANCES Y FECHA DE EJECUCIÓN
+            # 2. PRODUCTO(S), INDICADOR, AVANCES Y META EJECUTADA
             producto_nombre = prod.producto_mga or prod.codigo_producto
             indicador_nombre = prod.indicador_producto_mga or prod.personalizacion_indicador or 'N/A'
             avance_fisico = self.calcular_avance_producto(prod)
             avance_financiero = self.calcular_avance_financiero(prod)
             actividades = actividades_por_producto.get(prod.codigo_producto, [])
-            fecha_ejecucion = self._fecha_ejecucion_producto(actividades)
+            meta_resumen = self._meta_resumen_producto(prod)
             
             producto_data = [[
                 Paragraph('<b>PRODUCTO(S)</b>', white_style),
                 Paragraph('<b>INDICADOR DE PRODUCTO</b>', white_style),
                 Paragraph('<b>AVANCE DEL PRODUCTO</b>', white_style),
                 Paragraph('<b>AVANCE FINANCIERO</b>', white_style),
-                Paragraph('<b>FECHA DE EJECUCIÓN</b>', white_style),
+                Paragraph('<b>META EJECUTADA /<br/>PROGRAMADA</b>', white_style),
             ], [
                 Paragraph(producto_nombre, self.styles['Normal']),
                 Paragraph(indicador_nombre, self.styles['Normal']),
                 Paragraph(f'<b>{avance_fisico:.0f}%</b>', self.styles['Normal']),
                 Paragraph(f'<b>{avance_financiero:.0f}%</b>', self.styles['Normal']),
-                Paragraph(f'<b>{fecha_ejecucion}</b>', self.styles['Normal']),
+                Paragraph(f'<b>{meta_resumen}</b>', self.styles['Normal']),
             ]]
             
             producto_table = Table(
@@ -1436,38 +1400,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]))
             self.story.append(ejecucion_table)
             
-            # 4. META Y/O ACTIVIDADES | INFORME DE EJECUCIÓN
-            if actividades:
-                total_actividades = len(actividades)
-                completadas = sum(1 for act in actividades if act.estado == 'COMPLETADA')
-                
-                # Mostrar hasta 8 actividades (reducido de 10 para evitar tablas muy altas)
-                meta_text = f"La Meta No. <b>{total_actividades}</b> cuenta con la(s) siguiente(s) Actividades:<br/>"
-                actividades_mostrar = actividades[:8]
-                for idx, act in enumerate(actividades_mostrar, 1):
-                    # Truncar nombre a máximo 120 caracteres para evitar celdas muy altas
-                    nombre_actividad = act.nombre
-                    if len(nombre_actividad) > 120:
-                        nombre_actividad = nombre_actividad[:117] + "..."
-                    meta_text += f"<b>{idx}.</b> {nombre_actividad}<br/>"
-                
-                if len(actividades) > 8:
-                    meta_text += f"<i>... y {len(actividades) - 8} actividades más</i><br/>"
-                
-                informe_text = f"Se da cumplimiento a la meta con la ejecución de la siguiente contratación:<br/>"
-                informe_text += f"<b>Total actividades:</b> {total_actividades}<br/>"
-                informe_text += f"<b>Completadas:</b> {completadas}<br/>"
-                if actividades[0].descripcion:
-                    # Truncar descripción también para evitar celdas muy altas
-                    descripcion = actividades[0].descripcion
-                    if len(descripcion) > 500:
-                        descripcion = descripcion[:497] + "..."
-                    informe_text += f"{descripcion}"
-            else:
-                meta_text = "Sin actividades registradas"
-                informe_text = "No hay información de ejecución disponible"
-            
-            # Crear estilos justificados para contenido
+            # 4. ACTIVIDADES — una fila por actividad
             justify_style = ParagraphStyle(
                 'JustifyContent',
                 parent=self.styles['Normal'],
@@ -1475,17 +1408,39 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 fontSize=9,
                 leading=12
             )
-            
+
             actividades_data = [[
                 Paragraph('<b>Meta y/o Actividades</b>', white_style),
-                Paragraph('<b>Informe de Ejecución</b>', white_style)
-            ], [
-                Paragraph(meta_text, justify_style),  # Texto justificado
-                Paragraph(informe_text, justify_style)  # Texto justificado
+                Paragraph('<b>Descripción</b>', white_style),
+                Paragraph('<b>Ejecutado</b>', white_style),
             ]]
-            
-            # splitByRow=True permite que la tabla se divida entre páginas
-            actividades_table = Table(actividades_data, colWidths=[3.5*inch, 3.5*inch], splitByRow=True)
+
+            if actividades:
+                for act in actividades:
+                    nombre_actividad = act.nombre or "Sin nombre"
+                    if len(nombre_actividad) > 200:
+                        nombre_actividad = nombre_actividad[:197] + "..."
+                    descripcion = (act.descripcion or "").strip()
+                    if len(descripcion) > 800:
+                        descripcion = descripcion[:797] + "..."
+                    meta_ejecutada = float(act.meta_ejecutar or 0)
+                    actividades_data.append([
+                        Paragraph(f"<b>{nombre_actividad}</b>", justify_style),
+                        Paragraph(descripcion or "—", justify_style),
+                        Paragraph(f"<b>{meta_ejecutada:g}</b>", self.styles['Normal']),
+                    ])
+            else:
+                actividades_data.append([
+                    Paragraph("Sin actividades registradas", justify_style),
+                    Paragraph("—", justify_style),
+                    Paragraph("—", self.styles['Normal']),
+                ])
+
+            actividades_table = Table(
+                actividades_data,
+                colWidths=[2.5 * inch, 3.25 * inch, 1.25 * inch],
+                splitByRow=True,
+            )
             actividades_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1746,7 +1701,11 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
 
         if template_pdf_bytes:
             try:
-                return apply_template_overlay(pdf_bytes, template_pdf_bytes)
+                return apply_template_overlay(
+                    pdf_bytes,
+                    template_pdf_bytes,
+                    report_title=self.REPORT_TITLE,
+                )
             except Exception as exc:
                 print(f"⚠️ Error aplicando plantilla institucional: {exc}")
 

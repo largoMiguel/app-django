@@ -158,6 +158,49 @@ def replace_page_number(page, page_index: int, total_pages: int) -> None:
         return
 
 
+def replace_report_title(page, new_title: str) -> None:
+    """Reemplaza el título del membrete (p. ej. INFORME DE GESTIÓN INSTITUCIONAL)."""
+    old_title_re = re.compile(
+        r"INFORME\s+DE\s+GESTI[ÓO]N\s+INSTITUCIONAL",
+        re.IGNORECASE,
+    )
+    data = page.get_text("dict")
+    for block in data.get("blocks", []):
+        for line in block.get("lines", []):
+            line_text = "".join(span["text"] for span in line.get("spans", [])).strip()
+            if not old_title_re.search(line_text):
+                continue
+            rect = fitz.Rect(line["bbox"])
+            _cover_rect_white(page, rect, pad_x=10, pad_y=3)
+            fontsize = max(7, min(10, rect.height * 0.82))
+            page.insert_textbox(
+                rect,
+                new_title,
+                fontsize=fontsize,
+                fontname="helv",
+                color=(0, 0, 0),
+                align=fitz.TEXT_ALIGN_CENTER,
+            )
+            return
+
+    for old_text in (
+        "INFORME DE GESTIÓN INSTITUCIONAL",
+        "INFORME DE GESTION INSTITUCIONAL",
+    ):
+        for rect in page.search_for(old_text):
+            _cover_rect_white(page, rect, pad_x=10, pad_y=3)
+            fontsize = max(7, min(10, rect.height * 0.82))
+            page.insert_textbox(
+                rect,
+                new_title,
+                fontsize=fontsize,
+                fontname="helv",
+                color=(0, 0, 0),
+                align=fitz.TEXT_ALIGN_CENTER,
+            )
+            return
+
+
 def load_entity_template(entity) -> bytes | None:
     """Descarga el membrete institucional desde B2 (bucket PQRS)."""
     if not getattr(entity, "pdf_template_url", None):
@@ -172,7 +215,12 @@ def load_entity_template(entity) -> bytes | None:
         return None
 
 
-def apply_template_overlay(content_bytes: bytes, template_bytes: bytes) -> BytesIO:
+def apply_template_overlay(
+    content_bytes: bytes,
+    template_bytes: bytes,
+    *,
+    report_title: str | None = None,
+) -> BytesIO:
     """Superpone el membrete institucional sobre el PDF de contenido."""
     content_doc = fitz.open(stream=content_bytes, filetype="pdf")
     total_pages = len(content_doc)
@@ -180,6 +228,8 @@ def apply_template_overlay(content_bytes: bytes, template_bytes: bytes) -> Bytes
     for i, page in enumerate(content_doc):
         tpl_doc = fitz.open(stream=template_bytes, filetype="pdf")
         tpl_page = tpl_doc[0]
+        if report_title:
+            replace_report_title(tpl_page, report_title)
         replace_page_number(tpl_page, i, total_pages)
         page.show_pdf_page(page.rect, tpl_doc, 0, overlay=False)
         tpl_doc.close()
