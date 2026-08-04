@@ -950,20 +950,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             
             self.story.append(Paragraph(f"<i>{resumen_ia}</i>", ia_style))
             
-            # Nota al pie
-            nota_style = ParagraphStyle(
-                'NotaIA',
-                parent=self.styles['Normal'],
-                fontSize=8,
-                textColor=colors.HexColor('#666666'),
-                alignment=TA_CENTER
-            )
-            self.story.append(Paragraph(
-                "<i>* Análisis generado con Inteligencia Artificial (OpenAI GPT-4). "
-                "Este resumen es orientativo y debe ser validado por el equipo técnico.</i>",
-                nota_style
-            ))
-            
             print("✅ Resumen con IA generado exitosamente")
             
         except ImportError:
@@ -1471,13 +1457,13 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             
             resumen_rows = [
                 [
-                    Paragraph("<b>PRODUCTO(S)</b>", st["col_header"]),
                     Paragraph("<b>INDICADOR DE PRODUCTO</b>", st["col_header"]),
+                    Paragraph("<b>PRODUCTO(S)</b>", st["col_header"]),
                     Paragraph("", st["col_header"]),
                 ],
                 [
-                    Paragraph(producto_nombre, st["cell_left"]),
                     Paragraph(indicador_nombre, st["cell_left"]),
+                    Paragraph(producto_nombre, st["cell_left"]),
                     Paragraph("", st["cell_left"]),
                 ],
                 [
@@ -1502,7 +1488,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 ],
                 [
                     Paragraph("<b>RESPONSABLE</b>", st["col_header"]),
-                    Paragraph(f"<b>{responsable.upper()}</b>", st["cell_left"]),
+                    Paragraph(f"<b>{responsable.upper()}</b>", st["cell_bold"]),
                     Paragraph("", st["cell_left"]),
                 ],
             ]
@@ -1528,7 +1514,9 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                         ("BACKGROUND", (0, 1), (-1, 1), self.COLOR_ROW_ALT),
                         ("BACKGROUND", (0, 3), (-1, 3), colors.white),
                         ("BACKGROUND", (0, 5), (-1, 5), self.COLOR_ROW_ALT),
-                        ("BACKGROUND", (0, 6), (-1, 6), colors.white),
+                        ("BACKGROUND", (0, 6), (0, 6), self.COLOR_HEADER),
+                        ("BACKGROUND", (1, 6), (2, 6), colors.white),
+                        ("TEXTCOLOR", (1, 6), (2, 6), colors.black),
                         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
