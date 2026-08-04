@@ -49,6 +49,8 @@ app_django/
 │   │   │   ├── services/
 │   │   │   │   └── ai.py          # Extracción de texto (PDF/DOCX/TXT) + llamada OpenAI
 │   │   │   └── migrations/
+│   │   ├── secop/                  # Módulo Contratación SECOP I/II
+│   │   ├── planes/                 # Planes Institucionales (Decreto 612)
 │   │   └── common/
 │   │       └── management/commands/bootstrap_app.py
 │   ├── requirements.txt · pyproject.toml
@@ -274,6 +276,78 @@ SECOP_CACHE_TTL=21600             # 6h caché consultas datos.gov.co
 ```
 
 **Demo:** agregar `SECOP_OPENAI_API_KEY` en `/opt/softone-demo/.env` y redeploy (`development`).
+
+---
+
+## Módulo Planes Institucionales (Decreto 612 de 2018)
+
+Seguimiento trimestral a los **12 planes institucionales y estratégicos** que las entidades del Estado deben integrar al Plan de Acción y publicar en su web a más tardar el **31 de enero** de cada año (Decreto 612 de 2018):
+
+1. Plan Institucional de Archivos (PINAR)
+2. Plan Anual de Adquisiciones
+3. Plan Anual de Vacantes
+4. Plan de Previsión de Recursos Humanos
+5. Plan Estratégico de Talento Humano
+6. Plan Institucional de Capacitación
+7. Plan de Incentivos Institucionales
+8. Plan de Trabajo Anual en Seguridad y Salud en el Trabajo
+9. Plan Anticorrupción y de Atención al Ciudadano
+10. Plan Estratégico de TIC (PETI)
+11. Plan de Tratamiento de Riesgos de Seguridad y Privacidad de la Información
+12. Plan de Seguridad y Privacidad de la Información
+
+### Flujo
+
+```
+Admin activa módulo → selecciona plan del catálogo + vigencia (año)
+  └─→ Asigna secretaría responsable (plan y actividades)
+       └─→ Crea actividades/componentes por trimestre (I–IV)
+            └─→ Secretario delega a contratista (opcional)
+                 └─→ Registra avance + evidencia (archivos PDF/Office/imagen o URL)
+                      └─→ Informe trimestral Excel + cronograma Gantt
+```
+
+### Roles
+
+| Rol | Permisos |
+|---|---|
+| `admin` | CRUD planes y actividades, asignar secretaría, exportar informe, eliminar |
+| `secretario` | Planes/actividades de su secretaría, crear/editar actividades, evidencia, delegar contratistas |
+| `contratista` | Actividades asignadas, registrar avance y evidencia |
+| `superadmin` | Activa `enable_planes_institucionales`; no opera el módulo |
+
+### Endpoints (`/api/v1/planes/`)
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET/POST` | `/planes/catalogo/` | Catálogo Decreto 612 + planes propios de la entidad |
+| `GET/POST` | `/planes/` | Listar / crear plan por vigencia |
+| `GET/PATCH/DELETE` | `/planes/{id}/` | Detalle / editar / eliminar |
+| `GET` | `/planes/stats/?anio=` | Dashboard (avance por trimestre, vencidas…) |
+| `GET` | `/planes/cronograma/?anio=` | Datos para vista Gantt |
+| `GET` | `/planes/export/?anio=&trimestre=` | Informe trimestral Excel |
+| `POST` | `/planes/{id}/responsable/` | Asignar secretaría responsable |
+| `GET/POST/PATCH/DELETE` | `/planes/actividades/` · `/{id}/` | CRUD actividades |
+| `PATCH` | `/planes/actividades/{id}/responsable-usuario/` | Delegar contratista |
+| `GET/POST/PUT/DELETE` | `/planes/actividades/{id}/evidencia/` | Evidencia multipart |
+
+### Almacenamiento evidencias
+
+Ruta B2 (`softone-planes-612` en prod; `storage-demo` en demo):
+
+```
+entities/<entity_id>/planes/evidencias/<codigo_plan>/<anio>/T<trimestre>/<nombre_seguro>
+```
+
+- Máximo **5 archivos** por evidencia, **20 MB** c/u.
+- Formatos: PDF, Word, Excel, PNG/JPG/WebP.
+- URLs firmadas vía `files.softone360.com` (prod) o `files-demo.softone360.com` (demo).
+
+### Activación
+
+Superadmin → Entidad → Módulos: activar **Planes Institucionales** (`enable_planes_institucionales`).
+
+Ruta frontend: `/planes` (Resumen · Planes · Cronograma · Informes).
 
 ---
 
@@ -503,7 +577,7 @@ Archivos firmados:
 
 | Entorno | Worker | Bucket(s) B2 |
 |---|---|---|
-| Prod | https://files.softone360.com | `softone-pqrs`, `softone-pdm`, `softone-th`, `softone-correspondence` |
+| Prod | https://files.softone360.com | `softone-pqrs`, `softone-pdm`, `softone-th`, `softone-correspondence`, `softone-planes-612` |
 | Demo | https://files-demo.softone360.com | `storage-demo` (todos los módulos) |
 
 Demo y prod comparten el **mismo servidor** (`192.168.1.2`) y el **mismo par B2** (`B2_KEY_ID` / `B2_APP_KEY`); solo cambian bucket y signing key. Merge `development` → `main` no migra archivos entre buckets.
@@ -841,6 +915,7 @@ B2_BUCKET_ASISTENCIA=softone-th
 # Reconocimiento facial asistencia (distancia L2 face-api.js; default 0.6)
 # ASISTENCIA_FACE_MATCH_THRESHOLD=0.6
 B2_BUCKET_CORRESPONDENCIA=softone-correspondence
+B2_BUCKET_PLANES=softone-planes-612
 B2_BUCKET_DB=softone-db
 
 # Entrega firmada vía Cloudflare Worker

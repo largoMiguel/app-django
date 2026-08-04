@@ -40,7 +40,7 @@ function SecopLayoutInner() {
             <FileSearch className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-[#111827] sm:text-2xl">Contratación (SECOP)</h1>
+            <h1 className="text-xl font-bold text-[#111827] sm:text-2xl">Contratación</h1>
             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
               Análisis de contratos y procesos — datos abiertos Colombia
             </p>

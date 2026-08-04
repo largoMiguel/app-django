@@ -2,11 +2,11 @@
 
 Documento de referencia para **cuándo aplicar migraciones** y **qué hacer el día que se decida subir a producción** todo lo que hoy solo está en demo.
 
-> **Estado al 28 jul 2026 (noche, actualizado)**
+> **Estado al 3 ago 2026 (actualizado)**
 >
 > | Rama | Commit destacado | URL | Qué incluye |
 > |------|------------------|-----|-------------|
-> | `development` | (SECOP) | https://demo.softone360.com | Multi-entidad + **módulo Contratación SECOP I/II** (análisis, alertas, IA) |
+> | `development` | (Planes D612) | https://demo.softone360.com | Multi-entidad + SECOP + **Planes Institucionales (Decreto 612)** |
 > | `main` | `d25474c` | https://app.softone360.com | **Solo** fix asistencia (token kiosk estable, sin desvincular en kiosco) |
 
 Prod y demo **no están alineados en funcionalidad**. Eso es intencional hasta validar en demo.
@@ -48,6 +48,8 @@ $COMPOSE exec demo-backend python manage.py showmigrations accounts pqrs pdm ent
 #   pdm       0006_multi_entity_delegation
 #   entities  0005_multi_entity_delegation   (cambio menor de campo id)
 #   entities  0006_entity_secop_nits         (NIT SECOP I/II — aditiva, sin riesgo)
+#   planes    0001_initial                   (5 tablas Planes Institucionales D612)
+#   planes    0002_seed_catalogo_decreto612  (siembra idempotente 12 planes globales)
 ```
 
 Si alguna sale `[ ]` (pendiente), forzar una vez:
@@ -78,8 +80,12 @@ Prod **no necesita** esas migraciones todavía: el código en `main` no las usa.
 | `pdm` | `0006_multi_entity_delegation` | FK `responsable_usuario` en producto y actividad |
 | `entities` | `0005_multi_entity_delegation` | Ajuste de campo (sin datos nuevos relevantes) |
 | `entities` | `0006_entity_secop_nits` | Campos opcionales `nit_secop_i`, `nit_secop_ii` para consulta SECOP |
+| `planes` | `0001_initial` | Tablas: catálogo, planes, actividades, evidencias, archivos (aditivo, sin riesgo) |
+| `planes` | `0002_seed_catalogo_decreto612` | Siembra idempotente de los 12 planes del Decreto 612 (globales, `entity=NULL`) |
 
 La `0010` es **idempotente en espíritu**: solo inserta membresías donde no existen. Los usuarios actuales siguen con `User.entity` como caché de la membresía por defecto.
+
+**Nota:** `enable_planes_institucionales` ya existe en `entities/0001_initial`; **no** requiere migración adicional de entidades.
 
 **Sin migración nueva** en los fixes de jul 2026 posteriores (delegación por secretaría, listado contratistas, modal entidad): solo cambios de API/UI/permisos sobre tablas ya existentes.
 
@@ -105,6 +111,7 @@ Hacer en https://demo.softone360.com con usuarios reales de prueba:
 - [ ] Kiosco asistencia: emparejar, marcar, **no** desvincular desde el kiosco; token persiste tras recarga
 - [ ] Responsive básico en móvil (menú, PQRS/usuarios en tarjetas)
 - [ ] **SECOP:** activar `enable_contratacion`, configurar NIT SECOP I/II, dashboard `/contratacion`, alertas, export Excel, análisis IA (requiere `SECOP_OPENAI_API_KEY` en demo)
+- [ ] **Planes Institucionales (D612):** activar `enable_planes_institucionales`, crear plan del catálogo por vigencia, asignar secretaría, actividades por trimestre, subir evidencia PDF/imagen (URL firmada), delegar contratista, cronograma `/planes/cronograma`, export informe trimestral, prueba cross-entity (usuario entidad A no ve plan entidad B)
 
 Si algo falla, corregir en `development` y volver a push (demo se redeploya solo).
 
@@ -207,6 +214,17 @@ Al merge a prod **no cambies** las claves de Clerk de producción. Los usuarios 
 
 **SECOP en prod:** cuando se mergee, agregar `SECOP_OPENAI_API_KEY` en `/opt/softone-app/.env` (clave dedicada; rotar si estuvo expuesta).
 
+**Planes Institucionales en prod:** cuando se mergee el módulo D612:
+
+1. Agregar `B2_BUCKET_PLANES=softone-planes-612` en `/opt/softone-app/.env`.
+2. Confirmar bucket `softone-planes-612` en B2 (privado, endpoint `s3.us-east-005.backblazeb2.com`).
+3. Redeploy Cloudflare Worker: `bash deploy/scripts/deploy-cloudflare-worker-from-prod.sh` (incluye `softone-planes-612` en `ALLOWED_BUCKETS`).
+4. Verificar regex nginx en `main`: `softone-(pqrs|pdm|th|correspondence|planes-612)` (si falta, evidencias 404).
+5. Tras deploy: `$COMPOSE exec backend python manage.py showmigrations planes` → `[X] 0001_initial` y `[X] 0002_seed_catalogo_decreto612`.
+6. Activar `enable_planes_institucionales` por entidad en superadmin.
+
+Rollback Planes: tablas nuevas y aisladas; revertir código no rompe otros módulos, pero las tablas `planes_*` permanecen en PostgreSQL hasta drop manual.
+
 ---
 
 ## Rollback (si algo sale mal en prod)
@@ -254,11 +272,11 @@ Cuando cambie el commit de referencia en `main`/`development` o el procedimiento
 
 ## Jerarquía de delegación (referencia funcional)
 
-| Rol | Usuarios | PQRS | PDM |
-|-----|----------|------|-----|
-| **Admin** | Crea admin/secretario/contratista/ciudadano; contratista → elige **secretaría** | Asigna **secretaría** | Asigna **secretaría** |
-| **Secretario** | Ve y gestiona **contratistas de su secretaría** | Delega a contratistas bajo su secretaría | Asigna o quita contratista en productos de su secretaría |
-| **Contratista** | — | Responde PQRS delegadas | Ejecuta productos/actividades asignados |
+| Rol | Usuarios | PQRS | PDM | Planes D612 |
+|-----|----------|------|-----|-------------|
+| **Admin** | Crea admin/secretario/contratista/ciudadano; contratista → elige **secretaría** | Asigna **secretaría** | Asigna **secretaría** | Crea plan por vigencia, asigna secretaría |
+| **Secretario** | Ve y gestiona **contratistas de su secretaría** | Delega a contratistas bajo su secretaría | Asigna o quita contratista en productos de su secretaría | Actividades de su secretaría, evidencia, delega contratista |
+| **Contratista** | — | Responde PQRS delegadas | Ejecuta productos/actividades asignados | Actividades asignadas, avance y evidencia |
 
 ---
 

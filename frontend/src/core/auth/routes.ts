@@ -9,7 +9,15 @@ import {
 import { canAccess, PERM, type AccessOptions } from "./permissions";
 import type { AuthUser } from "./store";
 
-export type AppModuleKey = "pqrs" | "pdm" | "users_admin" | "reports_pdf" | "asistencia" | "correspondencia" | "contratacion";
+export type AppModuleKey =
+  | "pqrs"
+  | "pdm"
+  | "planes_institucionales"
+  | "users_admin"
+  | "reports_pdf"
+  | "asistencia"
+  | "correspondencia"
+  | "contratacion";
 
 export interface AppModuleRoute {
   moduleKey: AppModuleKey;
@@ -49,6 +57,16 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     navSection: "main",
   },
   {
+    moduleKey: "planes_institucionales",
+    path: "/planes",
+    paths: ["/planes"],
+    label: "Planes Institucionales",
+    module: "enable_planes_institucionales",
+    access: { roles: ["admin", "secretario", "contratista"] },
+    showInNav: true,
+    navSection: "main",
+  },
+  {
     moduleKey: "asistencia",
     path: "/asistencia",
     paths: ["/asistencia"],
@@ -72,7 +90,7 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     moduleKey: "contratacion",
     path: "/contratacion",
     paths: ["/contratacion"],
-    label: "Contratación (SECOP)",
+    label: "Contratación",
     module: "enable_contratacion",
     access: { roles: ["admin", "secretario"] },
     showInNav: true,

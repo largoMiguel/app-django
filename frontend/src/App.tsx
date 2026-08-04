@@ -29,6 +29,12 @@ import CorrespondenciaDashboard from "@/features/correspondencia/Correspondencia
 import CorrespondenciaListPage from "@/features/correspondencia/CorrespondenciaListPage";
 import CorrespondenciaDetailPage from "@/features/correspondencia/CorrespondenciaDetailPage";
 import CorrespondenciaInformesPage from "@/features/correspondencia/CorrespondenciaInformesPage";
+import PlanesLayout from "@/features/planes/PlanesLayout";
+import PlanesDashboard from "@/features/planes/PlanesDashboard";
+import PlanesListPage from "@/features/planes/PlanesListPage";
+import PlanDetailPage from "@/features/planes/PlanDetailPage";
+import PlanesCronogramaPage from "@/features/planes/PlanesCronogramaPage";
+import PlanesInformesPage from "@/features/planes/PlanesInformesPage";
 import SecopLayout from "@/features/secop/SecopLayout";
 import SecopResumen from "@/features/secop/SecopResumen";
 import SecopListPage from "@/features/secop/SecopListPage";
@@ -169,6 +175,16 @@ export default function App(): ReactElement {
                   <Route path="todas" element={<CorrespondenciaListPage />} />
                   <Route path="informes" element={<CorrespondenciaInformesPage />} />
                   <Route path=":id" element={<CorrespondenciaDetailPage />} />
+                </Route>
+              </Route>
+
+              <Route element={<ModuleRouteGuard moduleKey="planes_institucionales" />}>
+                <Route path="/planes" element={<PlanesLayout />}>
+                  <Route index element={<PlanesDashboard />} />
+                  <Route path="lista" element={<PlanesListPage />} />
+                  <Route path="cronograma" element={<PlanesCronogramaPage />} />
+                  <Route path="informes" element={<PlanesInformesPage />} />
+                  <Route path=":id" element={<PlanDetailPage />} />
                 </Route>
               </Route>
 
