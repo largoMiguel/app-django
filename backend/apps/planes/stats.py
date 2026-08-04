@@ -61,10 +61,20 @@ def compute_plan_stats(user, entity: Entity, *, anio: int | None = None) -> dict
     }
 
 
-def attach_plan_list_metrics(queryset, user, entity: Entity, *, trimestre: int | None = None):
-    plan_ids = list(queryset.values_list("id", flat=True))
+def attach_plan_list_metrics(plans, user, entity: Entity, *, trimestre: int | None = None):
+    """Adjunta conteos/avance a instancias de plan (lista paginada o queryset)."""
+    if not plans:
+        return plans
+
+    if hasattr(plans, "values_list"):
+        plan_ids = list(plans.values_list("id", flat=True))
+        plan_iter = list(plans)
+    else:
+        plan_iter = list(plans)
+        plan_ids = [p.id for p in plan_iter]
+
     if not plan_ids:
-        return queryset
+        return plans
 
     act_filter = Q(plan_id__in=plan_ids)
     if trimestre:
@@ -74,10 +84,10 @@ def attach_plan_list_metrics(queryset, user, entity: Entity, *, trimestre: int |
     counts = dict(act_qs.values("plan_id").annotate(c=Count("id")).values_list("plan_id", "c"))
     avances = dict(act_qs.values("plan_id").annotate(a=Avg("avance")).values_list("plan_id", "a"))
 
-    for plan in queryset:
+    for plan in plan_iter:
         plan.actividades_count = counts.get(plan.id, 0)
         plan.avance_promedio = round(float(avances.get(plan.id) or 0), 1)
-    return queryset
+    return plans
 
 
 def build_resumen_por_trimestre(plan: PlanInstitucional, actividades) -> list[dict]:

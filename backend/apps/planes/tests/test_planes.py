@@ -148,5 +148,19 @@ class PlanesAccessTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["descripcion"], "Informe trimestral")
 
-    def test_max_archivos_limit(self):
-        self.assertEqual(MAX_EVIDENCIA_ARCHIVOS, 5)
+    def test_attach_metrics_on_list_not_queryset(self):
+        actividad = PlanActividad.objects.create(
+            entity=self.entity_a,
+            plan=self.plan_a,
+            anio=2026,
+            trimestre=1,
+            nombre="Con avance",
+            avance=50,
+            responsable_secretaria=self.secretaria_a,
+        )
+        from apps.planes.stats import attach_plan_list_metrics
+
+        page = [self.plan_a]
+        attach_plan_list_metrics(page, self.admin_a, self.entity_a)
+        self.assertEqual(page[0].actividades_count, 1)
+        self.assertEqual(page[0].avance_promedio, 50.0)

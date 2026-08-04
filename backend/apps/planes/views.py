@@ -148,9 +148,13 @@ class PlanViewSet(viewsets.ModelViewSet):
         trimestre = request.query_params.get("trimestre")
         tri_int = int(trimestre) if trimestre and trimestre.isdigit() else None
         page = self.paginate_queryset(qs)
-        attach_plan_list_metrics(page, request.user, self.entity, trimestre=tri_int)
-        ser = PlanListSerializer(page, many=True)
-        return self.get_paginated_response(ser.data)
+        if page is not None:
+            attach_plan_list_metrics(page, request.user, self.entity, trimestre=tri_int)
+            ser = PlanListSerializer(page, many=True)
+            return self.get_paginated_response(ser.data)
+        attach_plan_list_metrics(qs, request.user, self.entity, trimestre=tri_int)
+        ser = PlanListSerializer(qs, many=True)
+        return Response(ser.data)
 
     def retrieve(self, request, *args, **kwargs):
         obj = self.get_object()

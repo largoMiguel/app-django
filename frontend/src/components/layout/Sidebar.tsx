@@ -66,7 +66,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
         <Icon className="h-5 w-5 flex-shrink-0" />
         <span
           className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
-            isExpanded || mobileOpen ? "max-w-[120px] opacity-100" : "max-w-0 opacity-0"
+            isExpanded || mobileOpen ? "max-w-[200px] opacity-100" : "max-w-0 opacity-0"
           }`}
         >
           {item.label}
@@ -78,7 +78,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
   const asideClasses = `${
     mobileOpen ? "translate-x-0" : "-translate-x-full"
   } md:translate-x-0 fixed left-0 top-0 z-40 flex min-h-0 flex-col border-r border-[#e3e6ea] bg-[#1c2536] transition-all duration-300 h-screen ${
-    isExpanded || mobileOpen ? "w-56" : "w-16"
+    isExpanded || mobileOpen ? "w-64" : "w-16"
   }`;
 
   return (
@@ -106,7 +106,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
 
           <div
             className={`transition-all duration-300 overflow-hidden ${
-              isExpanded || mobileOpen ? "w-40 opacity-100" : "w-0 opacity-0"
+              isExpanded || mobileOpen ? "w-48 opacity-100" : "w-0 opacity-0"
             }`}
           >
             <div className="text-sm font-bold text-white leading-tight whitespace-nowrap">SoftOne360</div>
