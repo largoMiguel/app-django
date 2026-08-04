@@ -6,6 +6,7 @@ import logging
 
 from django.http import HttpResponse
 from django.utils import timezone
+from django.contrib.auth import get_user_model
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -21,6 +22,27 @@ from .serializers import GenerarInformePdmSerializer, InformePdmSerializer
 from .service import delete_informe, get_informe_file_bytes, has_active_informe, mark_stale_processing_informes
 
 logger = logging.getLogger(__name__)
+User = get_user_model()
+
+
+def _firmantes_queryset(entity: Entity, secretaria_id: int | None):
+    from apps.accounts.models import UserEntityMembership
+
+    mem = UserEntityMembership.objects.filter(entity_id=entity.id, is_active=True)
+    if secretaria_id:
+        mem = mem.filter(secretaria_id=secretaria_id)
+    return User.objects.filter(id__in=mem.values_list("user_id", flat=True)).order_by("full_name", "email")
+
+
+def _firmante_belongs_to_secretaria(firmante, entity_id: int, secretaria_id: int) -> bool:
+    from apps.accounts.models import UserEntityMembership
+
+    return UserEntityMembership.objects.filter(
+        user_id=firmante.id,
+        entity_id=entity_id,
+        secretaria_id=secretaria_id,
+        is_active=True,
+    ).exists()
 
 
 def _can_view_informes(user) -> bool:
@@ -88,9 +110,6 @@ class InformePdmViewSet(viewsets.GenericViewSet):
         if not data.get("usuario_firmante_id"):
             raise ValidationError({"usuario_firmante_id": "El firmante es obligatorio."})
 
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
         firmante = User.objects.filter(pk=data["usuario_firmante_id"], entity_id=entity.id).first()
         if not firmante:
             raise ValidationError({"usuario_firmante_id": "Usuario firmante no válido."})
@@ -100,9 +119,17 @@ class InformePdmViewSet(viewsets.GenericViewSet):
             if not user.secretaria_id:
                 raise PermissionDenied("Su usuario no tiene secretaría asignada.")
             secretaria_id = user.secretaria_id
+            if not _firmante_belongs_to_secretaria(firmante, entity.id, secretaria_id):
+                raise ValidationError(
+                    {"usuario_firmante_id": "El firmante debe pertenecer a su dependencia."}
+                )
         elif secretaria_id:
             if not Secretaria.objects.filter(pk=secretaria_id, entity_id=entity.id).exists():
                 raise ValidationError({"responsable_secretaria_id": "Dependencia no válida."})
+            if not _firmante_belongs_to_secretaria(firmante, entity.id, secretaria_id):
+                raise ValidationError(
+                    {"usuario_firmante_id": "El firmante debe pertenecer a la dependencia seleccionada."}
+                )
 
         tipo = data.get("tipo", InformePdmTipo.AVANCE)
 
@@ -136,6 +163,32 @@ class InformePdmViewSet(viewsets.GenericViewSet):
         informe.save(update_fields=["celery_task_id"])
 
         return Response(self.get_serializer(informe).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"], url_path="firmantes")
+    def firmantes(self, request, slug=None):
+        self._authorize_view(request.user)
+        entity = self._entity()
+        user = request.user
+
+        secretaria_id = request.query_params.get("secretaria_id")
+        if _is_secretario(user) and not _is_admin(user):
+            if not user.secretaria_id:
+                raise PermissionDenied("Su usuario no tiene secretaría asignada.")
+            secretaria_id = user.secretaria_id
+        elif secretaria_id:
+            try:
+                secretaria_id = int(secretaria_id)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"secretaria_id": "Identificador inválido."}) from exc
+            if not Secretaria.objects.filter(pk=secretaria_id, entity_id=entity.id).exists():
+                raise ValidationError({"secretaria_id": "Dependencia no válida."})
+        else:
+            secretaria_id = None
+
+        rows = _firmantes_queryset(entity, secretaria_id)
+        return Response(
+            [{"id": u.id, "full_name": u.full_name or u.email, "email": u.email} for u in rows]
+        )
 
     def destroy(self, request, slug=None, pk=None):
         self._authorize_view(request.user)

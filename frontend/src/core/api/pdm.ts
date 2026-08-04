@@ -464,11 +464,23 @@ export interface GenerarInformePdmPayload {
   usar_ia?: boolean;
 }
 
+export interface InformePdmFirmante {
+  id: number;
+  full_name: string;
+  email: string;
+}
+
 export const pdmInformesApi = {
   list: (slug: string, tipo?: InformePdmTipo) =>
     api
       .get<InformePDM[]>(`/pdm/v2/${encodeURIComponent(slug)}/informes/`, {
         params: tipo ? { tipo } : undefined,
+      })
+      .then((r) => r.data),
+  firmantes: (slug: string, secretariaId?: number) =>
+    api
+      .get<InformePdmFirmante[]>(`/pdm/v2/${encodeURIComponent(slug)}/informes/firmantes/`, {
+        params: secretariaId ? { secretaria_id: secretariaId } : undefined,
       })
       .then((r) => r.data),
   create: (slug: string, payload: GenerarInformePdmPayload) =>

@@ -9,6 +9,7 @@ from io import BytesIO
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from PIL import Image, ImageOps
 
 from apps.common.b2_client import get_b2_client
 from apps.common.storages import pdm_storage_for_paths
@@ -26,6 +27,19 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 STALE_PROCESSING_MINUTES = 30
+EVIDENCIA_IMG_PX = (480, 480)
+EVIDENCIA_JPEG_QUALITY = 82
+
+
+def _normalize_evidencia_image(raw: bytes) -> str:
+    """Redimensiona cualquier evidencia a un tamaño fijo (cuadrado)."""
+    out = BytesIO()
+    with Image.open(BytesIO(raw)) as img:
+        img = img.convert("RGB")
+        img = ImageOps.fit(img, EVIDENCIA_IMG_PX, method=Image.Resampling.LANCZOS)
+        img.save(out, format="JPEG", quality=EVIDENCIA_JPEG_QUALITY, optimize=True)
+    encoded = base64.b64encode(out.getvalue()).decode("ascii")
+    return f"data:image/jpeg;base64,{encoded}"
 
 
 def mark_stale_processing_informes(entity_id: int) -> int:
@@ -95,9 +109,7 @@ def _prepare_actividades(
             for arch in act.evidencia.archivos.all():
                 try:
                     with arch.archivo.open("rb") as fh:
-                        raw = fh.read()
-                    encoded = base64.b64encode(raw).decode("ascii")
-                    imagenes.append(f"data:image/jpeg;base64,{encoded}")
+                        imagenes.append(_normalize_evidencia_image(fh.read()))
                 except Exception:
                     logger.warning("No se pudo cargar evidencia para actividad %s", act.id)
             act.evidencia.imagenes = imagenes

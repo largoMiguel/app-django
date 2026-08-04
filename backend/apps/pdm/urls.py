@@ -53,6 +53,10 @@ urlpatterns = [
     path("pdm/contratos/<slug:slug>/upload", PdmContratosUploadView.as_view()),
     path("pdm/contratos/<slug:slug>/contratos", PdmContratosView.as_view()),
     path(
+        "pdm/v2/<slug:slug>/informes/firmantes/",
+        InformePdmViewSet.as_view({"get": "firmantes"}),
+    ),
+    path(
         "pdm/v2/<slug:slug>/informes/",
         InformePdmViewSet.as_view({"get": "list", "post": "create"}),
     ),

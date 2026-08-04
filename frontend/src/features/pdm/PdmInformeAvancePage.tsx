@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -23,7 +23,6 @@ import {
 } from "@/core/api/pdm";
 import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import { formatFechaHoraCO } from "@/core/datetime";
-import { usersApi, type AppUser } from "@/core/api/users";
 import { useAuthStore } from "@/core/auth/store";
 import { formatApiError } from "@/core/api/errors";
 import { usePdm } from "@/features/pdm/PdmContext";
@@ -47,23 +46,27 @@ const ESTADO_BADGE: Record<InformePdmEstado, { label: string; className: string 
 };
 
 interface ModalProps {
+  slug: string;
   onClose: () => void;
   onSubmit: (payload: GenerarInformePdmPayload) => void;
-  users: AppUser[];
   secretarias: Secretaria[];
   enableAi: boolean;
   isAdmin: boolean;
+  isSecretario: boolean;
+  secretariaUsuarioId?: number;
   submitting: boolean;
   defaultAnio: number;
 }
 
 function ReportModal({
+  slug,
   onClose,
   onSubmit,
-  users,
   secretarias,
   enableAi,
   isAdmin,
+  isSecretario,
+  secretariaUsuarioId,
   submitting,
   defaultAnio,
 }: ModalProps) {
@@ -73,6 +76,22 @@ function ReportModal({
   const [incluirEvidencias, setIncluirEvidencias] = useState(true);
   const [usarIa, setUsarIa] = useState(enableAi);
   const [tried, setTried] = useState(false);
+
+  const firmantesSecretariaId = useMemo(() => {
+    if (isSecretario && secretariaUsuarioId) return secretariaUsuarioId;
+    if (isAdmin && secretariaId) return Number(secretariaId);
+    return undefined;
+  }, [isAdmin, isSecretario, secretariaId, secretariaUsuarioId]);
+
+  const { data: firmantes = [], isLoading: firmantesLoading } = useQuery({
+    queryKey: ["pdm-informe-firmantes", slug, firmantesSecretariaId ?? "all"],
+    queryFn: () => pdmInformesApi.firmantes(slug, firmantesSecretariaId),
+    enabled: Boolean(slug),
+  });
+
+  useEffect(() => {
+    setFirmanteId("");
+  }, [firmantesSecretariaId]);
 
   function handleGenerate() {
     setTried(true);
@@ -145,14 +164,18 @@ function ReportModal({
           <div>
             <label className="mb-1.5 flex items-center gap-1 text-sm font-semibold text-slate-700">
               <User className="h-4 w-4 text-slate-400" /> Usuario firmante
+              {firmantesSecretariaId ? " (dependencia seleccionada)" : ""}
             </label>
             <select
               value={firmanteId}
               onChange={(e) => setFirmanteId(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#0e7490] focus:outline-none"
+              disabled={firmantesLoading}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#0e7490] focus:outline-none disabled:bg-slate-50"
             >
-              <option value="">Seleccionar firmante…</option>
-              {users.map((u) => (
+              <option value="">
+                {firmantesLoading ? "Cargando usuarios…" : "Seleccionar firmante…"}
+              </option>
+              {firmantes.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.full_name || u.email}
                 </option>
@@ -166,6 +189,11 @@ function ReportModal({
                 </span>
               </div>
             )}
+            {!firmantesLoading && firmantes.length === 0 && (
+              <p className="mt-1 text-xs text-slate-500">
+                No hay usuarios activos{firmantesSecretariaId ? " en esta dependencia" : ""}.
+              </p>
+            )}
           </div>
 
           <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -175,7 +203,7 @@ function ReportModal({
               onChange={(e) => setIncluirEvidencias(e.target.checked)}
               className="h-4 w-4 accent-[#0e7490]"
             />
-            Incluir evidencias fotográficas (máx. 2 por actividad)
+            Incluir evidencias fotográficas
           </label>
 
           {enableAi && (
@@ -201,7 +229,7 @@ function ReportModal({
           </button>
           <button
             onClick={handleGenerate}
-            disabled={submitting}
+            disabled={submitting || firmantesLoading}
             className="flex items-center gap-2 rounded-md bg-[#0e7490] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#0c6178] disabled:opacity-60"
           >
             {submitting ? (
@@ -221,7 +249,7 @@ function ReportModal({
 }
 
 export default function PdmInformeAvancePage() {
-  const { slug, isAdmin, isSecretario, filtroAnio, entityId } = usePdm();
+  const { slug, isAdmin, isSecretario, filtroAnio, entityId, secretariaUsuarioId } = usePdm();
   const entity = useAuthStore((s) => s.user?.entity);
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
@@ -252,19 +280,13 @@ export default function PdmInformeAvancePage() {
     [informes],
   );
 
-  const { data: users = [], isLoading: usersLoading } = useQuery({
-    queryKey: ["users", "pdm-informes", entityId],
-    queryFn: () => usersApi.list({ entity: entityId! }),
-    enabled: canView && Boolean(entityId),
-  });
-
   const { data: secretarias = [], isLoading: secretariasLoading } = useQuery({
     queryKey: ["secretarias", entityId],
     queryFn: () => secretariasApi.list(entityId),
     enabled: isAdmin && Boolean(entityId),
   });
 
-  const loading = informesLoading || usersLoading || (isAdmin && secretariasLoading);
+  const loading = informesLoading || (isAdmin && secretariasLoading);
   const loadError = informesError
     ? formatApiError(informesErr, "No se pudieron cargar los informes.")
     : null;
@@ -477,12 +499,14 @@ export default function PdmInformeAvancePage() {
 
       {showModal && (
         <ReportModal
+          slug={slug}
           onClose={() => setShowModal(false)}
           onSubmit={(p) => void handleGenerate(p)}
-          users={users}
           secretarias={secretarias}
           enableAi={Boolean(entity?.enable_ai_reports)}
           isAdmin={isAdmin}
+          isSecretario={isSecretario}
+          secretariaUsuarioId={secretariaUsuarioId}
           submitting={submitting}
           defaultAnio={filtroAnio}
         />

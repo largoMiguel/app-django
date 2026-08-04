@@ -27,8 +27,8 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, Image as RLImage, KeepTogether
+    SimpleDocTemplate, Paragraph, Table, TableStyle,
+    Image as RLImage
 )
 from io import BytesIO
 from datetime import datetime
@@ -81,7 +81,7 @@ class PDMReportGenerator:
     MAX_FLOWABLE_WIDTH = 7.0 * inch
     MAX_FLOWABLE_HEIGHT = 9.0 * inch
     MAX_CHART_HEIGHT = 9.0 * inch
-    MAX_EVIDENCIA_CELL = 2.6 * inch
+    EVIDENCIA_IMG_INCH = 2.4 * inch
     FRAME_SAFETY_PT = 18
 
     def _update_flowable_limits(self, top_margin: float, bottom_margin: float) -> None:
@@ -112,6 +112,11 @@ class PDMReportGenerator:
         if kind:
             kwargs["kind"] = kind
         return RLImage(img_buffer, width=width, height=height, **kwargs)
+
+    def _evidencia_image(self, img_data: bytes) -> RLImage:
+        """Tamaño fijo de evidencia (imagen ya normalizada en service)."""
+        size = self.EVIDENCIA_IMG_INCH
+        return RLImage(BytesIO(img_data), width=size, height=size)
         
     def get_justify_style(self, fontSize=8):
         """Helper para crear estilos justificados reutilizables"""
@@ -157,13 +162,11 @@ class PDMReportGenerator:
             fontSize=24,
             textColor=colors.HexColor('#003366'),
             alignment=TA_CENTER,
-            spaceAfter=6,
+            spaceAfter=2,
             fontName='Helvetica-Bold'
         )
         
-        self.story.append(Spacer(1, 0.7*inch))
         self.story.append(Paragraph("INFORME DE GESTIÓN INSTITUCIONAL", title_style))
-        self.story.append(Spacer(1, 0.1*inch))
         
         # Año de vigencia
         anio_texto = "Vigencia 2024-2027" if self.anio == 0 else f"Vigencia {self.anio}"
@@ -176,7 +179,6 @@ class PDMReportGenerator:
             spaceAfter=20
         )
         self.story.append(Paragraph(anio_texto, anio_style))
-        self.story.append(Spacer(1, 0.12*inch))
         
         # Nombre del plan
         plan_style = ParagraphStyle(
@@ -185,12 +187,11 @@ class PDMReportGenerator:
             fontSize=16,
             textColor=colors.HexColor('#003366'),
             alignment=TA_CENTER,
-            spaceAfter=6
+            spaceAfter=2
         )
         
         plan_name = getattr(self.entity, 'plan_name', None) or "PLAN DE DESARROLLO MUNICIPAL"
         self.story.append(Paragraph(plan_name, plan_style))
-        self.story.append(Spacer(1, 0.08*inch))
         
         # Tipo de informe
         tipo_style = ParagraphStyle(
@@ -199,10 +200,9 @@ class PDMReportGenerator:
             fontSize=12,
             alignment=TA_CENTER,
             textColor=colors.HexColor('#666666'),
-            spaceAfter=6
+            spaceAfter=2
         )
         self.story.append(Paragraph("Informe de Gestión / Rendición de Cuentas", tipo_style))
-        self.story.append(Spacer(1, 0.15*inch))
         
         # Entidad - Municipio
         entity_style = ParagraphStyle(
@@ -221,10 +221,9 @@ class PDMReportGenerator:
             fontSize=14,
             alignment=TA_CENTER,
             textColor=colors.HexColor('#666666'),
-            spaceAfter=6
+            spaceAfter=2
         )
         self.story.append(Paragraph("Alcaldía Municipal", alcaldia_style))
-        self.story.append(Spacer(1, 0.15*inch))
         
         # Información de filtros si existen
         if self.filtros:
@@ -247,9 +246,8 @@ class PDMReportGenerator:
                     fontSize=10,
                     alignment=TA_CENTER,
                     textColor=colors.HexColor('#666666'),
-                    spaceAfter=6
+                    spaceAfter=2
                 )
-                self.story.append(Spacer(1, 0.12*inch))
                 for info in filter_info:
                     self.story.append(Paragraph(info, filter_style))
         
@@ -264,7 +262,6 @@ class PDMReportGenerator:
             leading=14
         )
         
-        self.story.append(Spacer(1, 0.12*inch))
         self.story.append(Paragraph("<b>Equipo de Gobierno Municipal</b>", equipo_style))
         
         # Información del equipo (placeholder - puede venir de la entidad)
@@ -280,7 +277,6 @@ class PDMReportGenerator:
         for cargo in equipo_info:
             self.story.append(Paragraph(cargo, equipo_style))
         
-        self.story.append(PageBreak())
     
     def generate_introduccion(self):
         """Genera la introducción institucional del informe"""
@@ -290,7 +286,7 @@ class PDMReportGenerator:
             fontSize=16,
             textColor=colors.HexColor('#003366'),
             spaceAfter=16,
-            spaceBefore=12,
+            spaceBefore=4,
             fontName='Helvetica-Bold'
         )
         
@@ -342,7 +338,6 @@ class PDMReportGenerator:
         if self.usar_ia:
             self.generar_resumen_ia()
         
-        self.story.append(PageBreak())
     
     def generar_resumen_ejecutivo(self):
         """Genera resumen ejecutivo con indicadores clave al inicio del informe"""
@@ -352,11 +347,10 @@ class PDMReportGenerator:
                 parent=self.styles['Heading1'],
                 fontSize=14,
                 textColor=colors.HexColor('#003366'),
-                spaceAfter=6,
+                spaceAfter=2,
                 fontName='Helvetica-Bold'
             )
             
-            self.story.append(Spacer(1, 0.08*inch))
             self.story.append(Paragraph("RESUMEN EJECUTIVO", title_style))
             
             # Calcular KPIs generales
@@ -449,7 +443,7 @@ class PDMReportGenerator:
                 ]
             ]
             
-            kpis_table = Table(kpis_data, colWidths=[1.75*inch, 1.75*inch, 1.75*inch, 1.75*inch])
+            kpis_table = Table(kpis_data, colWidths=[1.75*inch, 1.75*inch, 1.75*inch, 1.75*inch], splitByRow=True)
             kpis_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -463,7 +457,6 @@ class PDMReportGenerator:
             ]))
             
             self.story.append(kpis_table)
-            self.story.append(Spacer(1, 0.06*inch))
             
             # TABLA DE ACTIVIDADES POR ESTADO
             if estados_count:
@@ -482,7 +475,7 @@ class PDMReportGenerator:
                         Paragraph(f'{porcentaje:.1f}%', center_style)
                     ])
                 
-                act_table = Table(actividades_data, colWidths=[3*inch, 2*inch, 2*inch])
+                act_table = Table(actividades_data, colWidths=[3*inch, 2*inch, 2*inch], splitByRow=True)
                 act_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -516,11 +509,10 @@ class PDMReportGenerator:
                 parent=self.styles['Heading1'],
                 fontSize=14,
                 textColor=colors.HexColor('#003366'),
-                spaceAfter=6,
+                spaceAfter=2,
                 fontName='Helvetica-Bold'
             )
             
-            self.story.append(Spacer(1, 0.08*inch))
             self.story.append(Paragraph("ANÁLISIS NARRATIVO CON INTELIGENCIA ARTIFICIAL", title_style))
 
             resumen_ia = self._build_ai_narrative()
@@ -590,7 +582,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 parent=self.styles['BodyText'],
                 alignment=TA_JUSTIFY,
                 fontSize=10,
-                spaceAfter=6,
+                spaceAfter=2,
                 leftIndent=12,
                 rightIndent=12,
                 backColor=colors.HexColor('#F0F8FF'),
@@ -598,7 +590,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             )
             
             self.story.append(Paragraph(f"<i>{resumen_ia}</i>", ia_style))
-            self.story.append(Spacer(1, 0.06*inch))
             
             # Nota al pie
             nota_style = ParagraphStyle(
@@ -741,7 +732,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         if cache_key in self._cache_graficas:
             print(f"   ⚡ Usando gráfica en caché: {cache_key}")
             self.story.append(self._cache_graficas[cache_key])
-            self.story.append(Spacer(1, 0.12*inch))
             return
         
         # Calcular avance por línea (ya respeta self.anio por calcular_avance_producto)
@@ -814,7 +804,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             print(f"   💾 Gráfica guardada en caché: {cache_key}")
             
             self.story.append(img)
-            self.story.append(Spacer(1, 0.12*inch))
             
         except Exception as e:
             print(f"   ❌ Error generando gráfica de líneas: {str(e)}")
@@ -827,7 +816,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         if cache_key in self._cache_graficas:
             print(f"   ⚡ Usando gráfica en caché: {cache_key}")
             self.story.append(self._cache_graficas[cache_key])
-            self.story.append(Spacer(1, 0.12*inch))
             return
 
         sectores_data = defaultdict(lambda: {'total': 0, 'suma_avance': 0})
@@ -894,7 +882,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             print(f"   💾 Gráfica guardada en caché: {cache_key}")
             
             self.story.append(img)
-            self.story.append(Spacer(1, 0.12*inch))
             
         except Exception as e:
             print(f"   ❌ Error generando gráfica de sectores: {str(e)}")
@@ -908,7 +895,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         if cache_key in self._cache_graficas:
             print(f"   ⚡ Usando gráfica en caché: {cache_key}")
             self.story.append(self._cache_graficas[cache_key])
-            self.story.append(Spacer(1, 0.12*inch))
             return
         
         ods_data = defaultdict(lambda: {'total': 0, 'suma_avance': 0})
@@ -975,7 +961,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             print(f"   💾 Gráfica guardada en caché: {cache_key}")
             
             self.story.append(img)
-            self.story.append(Spacer(1, 0.12*inch))
             
         except Exception as e:
             print(f"   ❌ Error generando gráfica de ODS: {str(e)}")
@@ -989,7 +974,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             parent=self.styles['Heading1'],
             fontSize=14,
             textColor=colors.HexColor('#003366'),
-            spaceAfter=6,
+            spaceAfter=2,
             fontName='Helvetica-Bold'
         )
         
@@ -1004,7 +989,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             parent=self.styles['BodyText'],
             alignment=TA_JUSTIFY,
             fontSize=10,
-            spaceAfter=6
+            spaceAfter=2
         )
         
         concepto_lineas = """
@@ -1015,7 +1000,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         """
         
         self.story.append(Paragraph(concepto_lineas, justify_style))
-        self.story.append(Spacer(1, 0.08*inch))
         
         # Generar gráfica moderna
         self.generate_grafica_moderna_lineas()
@@ -1023,7 +1007,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         # Generar tablas de productos por línea estratégica
         self.generate_tabla_productos()
         
-        self.story.append(PageBreak())
     
     def generate_tabla_productos(self):
         """Genera tabla detallada de productos por línea estratégica"""
@@ -1040,7 +1023,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             parent=self.styles['Heading1'],
             fontSize=14,
             textColor=colors.HexColor('#003366'),
-            spaceAfter=6,
+            spaceAfter=2,
             fontName='Helvetica-Bold'
         )
         
@@ -1048,7 +1031,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             "DESCRIPCIÓN DE CUMPLIMIENTO DE METAS PLAN DE DESARROLLO POR LÍNEAS ESTRATÉGICAS",
             title_style
         ))
-        self.story.append(Spacer(1, 0.08*inch))
         
         for linea, productos in productos_por_linea.items():
             # Encabezado de línea con texto blanco y fondo verde institucional
@@ -1062,13 +1044,13 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 fontName='Helvetica-Bold',
                 leftIndent=6,
                 rightIndent=6,
-                spaceAfter=6,
+                spaceAfter=2,
                 spaceBefore=6
             )
             
             # Tabla de encabezado de línea (cell merged)
             header_data = [[Paragraph("LÍNEA ESTRATÉGICA", linea_style)]]
-            header_table = Table(header_data, colWidths=[7*inch])
+            header_table = Table(header_data, colWidths=[7*inch], splitByRow=True)
             header_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#4F9A54')),
                 ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
@@ -1087,10 +1069,10 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 fontSize=10,
                 alignment=TA_CENTER,
                 fontName='Helvetica-Bold',
-                spaceAfter=6,
+                spaceAfter=2,
                 spaceBefore=6
             )
-            desc_table = Table([[Paragraph(linea.upper(), desc_linea_style)]], colWidths=[7*inch])
+            desc_table = Table([[Paragraph(linea.upper(), desc_linea_style)]], colWidths=[7*inch], splitByRow=True)
             desc_table.setStyle(TableStyle([
                 ('GRID', (0, 0), (-1, -1), 1, colors.grey),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -1100,7 +1082,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]))
             
             self.story.append(desc_table)
-            self.story.append(Spacer(1, 0.04*inch))
             
             # Estilo para encabezados con texto blanco
             white_header = ParagraphStyle('WhiteHeader', parent=self.styles['Normal'], textColor=colors.white, fontName='Helvetica-Bold', fontSize=9)
@@ -1141,7 +1122,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                     Paragraph(avance_financiero, self.styles['Normal'])
                 ])
             
-            table = Table(data, colWidths=[2.5*inch, 2.5*inch, 1*inch, 1*inch])
+            table = Table(data, colWidths=[2.5*inch, 2.5*inch, 1*inch, 1*inch], splitByRow=True)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1158,7 +1139,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]))
             
             self.story.append(table)
-            self.story.append(Spacer(1, 0.06*inch))
     
     def generate_tabla_productos_por_sector(self):
         """Genera tabla detallada de productos por sector MGA"""
@@ -1175,7 +1155,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             parent=self.styles['Heading1'],
             fontSize=14,
             textColor=colors.HexColor('#003366'),
-            spaceAfter=6,
+            spaceAfter=2,
             fontName='Helvetica-Bold'
         )
         
@@ -1183,7 +1163,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             "DESCRIPCIÓN DE CUMPLIMIENTO DE METAS POR SECTORES MGA",
             title_style
         ))
-        self.story.append(Spacer(1, 0.08*inch))
         
         for sector, productos in productos_por_sector.items():
             # Encabezado de sector
@@ -1197,12 +1176,12 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 fontName='Helvetica-Bold',
                 leftIndent=6,
                 rightIndent=6,
-                spaceAfter=6,
+                spaceAfter=2,
                 spaceBefore=6
             )
             
             header_data = [[Paragraph("SECTOR MGA", sector_style)]]
-            header_table = Table(header_data, colWidths=[7*inch])
+            header_table = Table(header_data, colWidths=[7*inch], splitByRow=True)
             header_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#4F9A54')),
                 ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
@@ -1221,10 +1200,10 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 fontSize=10,
                 alignment=TA_CENTER,
                 fontName='Helvetica-Bold',
-                spaceAfter=6,
+                spaceAfter=2,
                 spaceBefore=6
             )
-            desc_table = Table([[Paragraph(sector.upper(), desc_sector_style)]], colWidths=[7*inch])
+            desc_table = Table([[Paragraph(sector.upper(), desc_sector_style)]], colWidths=[7*inch], splitByRow=True)
             desc_table.setStyle(TableStyle([
                 ('GRID', (0, 0), (-1, -1), 1, colors.grey),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -1234,7 +1213,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]))
             
             self.story.append(desc_table)
-            self.story.append(Spacer(1, 0.04*inch))
             
             # Tabla de productos
             white_header = ParagraphStyle('WhiteHeader', parent=self.styles['Normal'], textColor=colors.white, fontName='Helvetica-Bold', fontSize=9)
@@ -1259,7 +1237,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                     Paragraph(f"{avance_financiero_porcentaje:.1f}%", self.styles['Normal'])
                 ])
             
-            table = Table(data, colWidths=[2.5*inch, 2.5*inch, 1*inch, 1*inch])
+            table = Table(data, colWidths=[2.5*inch, 2.5*inch, 1*inch, 1*inch], splitByRow=True)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1276,7 +1254,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]))
             
             self.story.append(table)
-            self.story.append(Spacer(1, 0.06*inch))
     
     def generate_tabla_productos_por_ods(self):
         """Genera tabla detallada de productos por ODS"""
@@ -1293,7 +1270,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             parent=self.styles['Heading1'],
             fontSize=14,
             textColor=colors.HexColor('#003366'),
-            spaceAfter=6,
+            spaceAfter=2,
             fontName='Helvetica-Bold'
         )
         
@@ -1301,7 +1278,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             "DESCRIPCIÓN DE CUMPLIMIENTO DE METAS POR OBJETIVOS DE DESARROLLO SOSTENIBLE",
             title_style
         ))
-        self.story.append(Spacer(1, 0.08*inch))
         
         for ods, productos in productos_por_ods.items():
             # Encabezado de ODS
@@ -1315,12 +1291,12 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 fontName='Helvetica-Bold',
                 leftIndent=6,
                 rightIndent=6,
-                spaceAfter=6,
+                spaceAfter=2,
                 spaceBefore=6
             )
             
             header_data = [[Paragraph("OBJETIVO DE DESARROLLO SOSTENIBLE", ods_style)]]
-            header_table = Table(header_data, colWidths=[7*inch])
+            header_table = Table(header_data, colWidths=[7*inch], splitByRow=True)
             header_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#4F9A54')),
                 ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
@@ -1339,10 +1315,10 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 fontSize=10,
                 alignment=TA_CENTER,
                 fontName='Helvetica-Bold',
-                spaceAfter=6,
+                spaceAfter=2,
                 spaceBefore=6
             )
-            desc_table = Table([[Paragraph(ods.upper(), desc_ods_style)]], colWidths=[7*inch])
+            desc_table = Table([[Paragraph(ods.upper(), desc_ods_style)]], colWidths=[7*inch], splitByRow=True)
             desc_table.setStyle(TableStyle([
                 ('GRID', (0, 0), (-1, -1), 1, colors.grey),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -1352,7 +1328,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]))
             
             self.story.append(desc_table)
-            self.story.append(Spacer(1, 0.04*inch))
             
             # Tabla de productos
             white_header = ParagraphStyle('WhiteHeader', parent=self.styles['Normal'], textColor=colors.white, fontName='Helvetica-Bold', fontSize=9)
@@ -1377,7 +1352,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                     Paragraph(f"{avance_financiero_porcentaje:.1f}%", self.styles['Normal'])
                 ])
             
-            table = Table(data, colWidths=[2.5*inch, 2.5*inch, 1*inch, 1*inch])
+            table = Table(data, colWidths=[2.5*inch, 2.5*inch, 1*inch, 1*inch], splitByRow=True)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1394,7 +1369,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]))
             
             self.story.append(table)
-            self.story.append(Spacer(1, 0.06*inch))
     
     def generate_seccion_sectores(self):
         """Genera sección de avance por sectores MGA"""
@@ -1403,8 +1377,8 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             parent=self.styles['Heading1'],
             fontSize=14,
             textColor=colors.HexColor('#003366'),
-            spaceAfter=6,
-            spaceBefore=12,
+            spaceAfter=2,
+            spaceBefore=4,
             fontName='Helvetica-Bold'
         )
         
@@ -1430,11 +1404,10 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             parent=self.styles['BodyText'],
             alignment=TA_JUSTIFY,
             fontSize=10,
-            spaceAfter=6
+            spaceAfter=2
         )
         
         self.story.append(Paragraph(desc_text, justify_style))
-        self.story.append(Spacer(1, 0.1*inch))
         
         # Generar gráfica moderna de sectores
         self.generate_grafica_moderna_sectores()
@@ -1442,7 +1415,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         # Generar tablas de productos por sector
         self.generate_tabla_productos_por_sector()
         
-        self.story.append(PageBreak())
     
     def generate_seccion_ods(self):
         """Genera sección de avance por Objetivos de Desarrollo Sostenible"""
@@ -1451,7 +1423,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             parent=self.styles['Heading1'],
             fontSize=14,
             textColor=colors.HexColor('#003366'),
-            spaceAfter=6,
+            spaceAfter=2,
             fontName='Helvetica-Bold'
         )
         
@@ -1481,11 +1453,10 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             parent=self.styles['BodyText'],
             alignment=TA_JUSTIFY,
             fontSize=10,
-            spaceAfter=6
+            spaceAfter=2
         )
         
         self.story.append(Paragraph(desc_text, justify_style))
-        self.story.append(Spacer(1, 0.08*inch))
         
         # Generar gráfica moderna de ODS
         self.generate_grafica_moderna_ods()
@@ -1493,7 +1464,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         # Generar tablas de productos por ODS
         self.generate_tabla_productos_por_ods()
         
-        self.story.append(PageBreak())
     
     def _build_ai_narrative(self) -> str:
         conclusiones = (self.ai_analysis or {}).get("conclusiones", "").strip()
@@ -1513,18 +1483,16 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             parent=self.styles['Heading1'],
             fontSize=14,
             textColor=colors.HexColor('#003366'),
-            spaceAfter=6,
+            spaceAfter=2,
             fontName='Helvetica-Bold'
         )
         
         anio_vigencia = "EL CUATRIENIO 2024-2027" if self.anio == 0 else f"LA VIGENCIA {self.anio}"
         
-        self.story.append(PageBreak())
         self.story.append(Paragraph(
             f"EJECUCIÓN DEL PLAN DE ACCIÓN - {anio_vigencia}",
             title_style
         ))
-        self.story.append(Spacer(1, 0.12*inch))
         
         # Agrupar actividades por producto
         actividades_por_producto = defaultdict(list)
@@ -1546,7 +1514,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             linea_nombre = prod.linea_estrategica or 'SIN LÍNEA'
             linea_header.append([Paragraph(f'<b>{linea_nombre.upper()}</b>', self.styles['Normal'])])
             
-            linea_table = Table(linea_header, colWidths=[7*inch])
+            linea_table = Table(linea_header, colWidths=[7*inch], splitByRow=True)
             linea_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1557,7 +1525,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
             ]))
             self.story.append(linea_table)
-            self.story.append(Spacer(1, 0.02*inch))
             
             # 2. PRODUCTO(S), INDICADOR, AVANCE DEL PRODUCTO, AVANCE FINANCIERO
             producto_nombre = prod.producto_mga or prod.codigo_producto
@@ -1577,7 +1544,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 Paragraph(f'<b>{avance_financiero:.0f}%</b>', self.styles['Normal'])
             ]]
             
-            producto_table = Table(producto_data, colWidths=[2*inch, 2.5*inch, 1.25*inch, 1.25*inch])
+            producto_table = Table(producto_data, colWidths=[2*inch, 2.5*inch, 1.25*inch, 1.25*inch], splitByRow=True)
             producto_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#C6EBBE')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
@@ -1589,14 +1556,13 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ]))
             self.story.append(producto_table)
-            self.story.append(Spacer(1, 0.02*inch))
             
             # 3. EJECUCIÓN PLAN DE ACCIÓN VIGENCIA
             actividades = actividades_por_producto.get(prod.codigo_producto, [])
             anio_vigencia = "2025" if self.anio == 2025 else str(self.anio) if self.anio > 0 else "2024-2027"
             
             ejecucion_header = [[Paragraph(f'<b>EJECUCIÓN PLAN DE ACCIÓN VIGENCIA {anio_vigencia}</b>', white_style)]]
-            ejecucion_table = Table(ejecucion_header, colWidths=[7*inch])
+            ejecucion_table = Table(ejecucion_header, colWidths=[7*inch], splitByRow=True)
             ejecucion_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#C6EBBE')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
@@ -1607,7 +1573,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ]))
             self.story.append(ejecucion_table)
-            self.story.append(Spacer(1, 0.02*inch))
             
             # 4. META Y/O ACTIVIDADES | INFORME DE EJECUCIÓN
             if actividades:
@@ -1673,7 +1638,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 ('RIGHTPADDING', (0, 0), (-1, -1), 8),
             ]))
             self.story.append(actividades_table)
-            self.story.append(Spacer(1, 0.02*inch))
             
             # 5. CANTIDAD META FÍSICA | RECURSOS | RESPONSABLE
             if self.anio == 0:
@@ -1704,7 +1668,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 Paragraph(f'<b>{responsable.upper()}</b>', ParagraphStyle('Small', parent=self.styles['Normal'], fontSize=7))
             ]]
             
-            recursos_table = Table(recursos_data, colWidths=[2.33*inch, 2.33*inch, 2.34*inch])
+            recursos_table = Table(recursos_data, colWidths=[2.33*inch, 2.33*inch, 2.34*inch], splitByRow=True)
             recursos_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1716,7 +1680,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ]))
             self.story.append(recursos_table)
-            self.story.append(Spacer(1, 0.02*inch))
             
             # 6. REGISTRO DE EVIDENCIA + IMÁGENES (OPTIMIZADO - carga bajo demanda)
             evidencias_encontradas = False
@@ -1740,7 +1703,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 if evidencias_con_imagenes:
                     evidencias_encontradas = True
                     evidencia_header = [[Paragraph('<b>REGISTRO DE EVIDENCIAS</b>', white_style)]]
-                    evidencia_table = Table(evidencia_header, colWidths=[7*inch])
+                    evidencia_table = Table(evidencia_header, colWidths=[7*inch], splitByRow=True)
                     evidencia_table.setStyle(TableStyle([
                         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1752,7 +1715,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                         ('LEFTPADDING', (0, 0), (-1, -1), 10),
                     ]))
                     self.story.append(evidencia_table)
-                    self.story.append(Spacer(1, 0.03*inch))
                     
                     # Procesar TODAS las evidencias
                     for num_evidencia, actividad in enumerate(evidencias_con_imagenes, 1):
@@ -1764,7 +1726,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                             f"<b>Actividad {num_evidencia}:</b> {actividad_nombre}",
                             ParagraphStyle('EvidenciaTitle', parent=self.styles['Normal'], fontSize=9, textColor=colors.HexColor('#003366'))
                         ))
-                        self.story.append(Spacer(1, 0.03*inch))
                         
                         # Imágenes en grid 2x2 (sin límite de 4, pero paginadas)
                         if evidencia.imagenes and isinstance(evidencia.imagenes, list):
@@ -1775,14 +1736,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                                         img_base64 = img_base64.split(',')[1]
                                     
                                     img_data = base64.b64decode(img_base64)
-                                    
-                                    # Tamaño optimizado: 3.3x3.3 pulgadas para grid 2x2
-                                    img = self._rl_image(
-                                        BytesIO(img_data),
-                                        self.MAX_EVIDENCIA_CELL,
-                                        self.MAX_EVIDENCIA_CELL,
-                                        kind="proportional",
-                                    )
+                                    img = self._evidencia_image(img_data)
                                     imagenes_cargadas.append(img)
                                     print(f"      ✅ Evidencia {num_evidencia} - Imagen {idx+1} agregada")
                                 except Exception as e:
@@ -1799,7 +1753,11 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                                     row.append('')
                                 grid_data.append(row)
                             
-                            img_table = Table(grid_data, colWidths=[3.5*inch, 3.5*inch], splitByRow=True)
+                            img_table = Table(
+                                grid_data,
+                                colWidths=[self.EVIDENCIA_IMG_INCH + 0.1 * inch, self.EVIDENCIA_IMG_INCH + 0.1 * inch],
+                                splitByRow=True,
+                            )
                             img_table.setStyle(TableStyle([
                                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -1808,11 +1766,10 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                             ]))
                             
                             self.story.append(img_table)
-                            self.story.append(Spacer(1, 0.04*inch))
             
             if not evidencias_encontradas:
                 evidencia_header = [[Paragraph('<b>REGISTRO DE EVIDENCIA</b>', white_style)]]
-                evidencia_table = Table(evidencia_header, colWidths=[7*inch])
+                evidencia_table = Table(evidencia_header, colWidths=[7*inch], splitByRow=True)
                 evidencia_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F9A54')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1825,7 +1782,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 self.story.append(evidencia_table)
             
             # Separador entre productos (flujo continuo, sin salto forzado)
-            self.story.append(Spacer(1, 0.06*inch))
     
     def _build_content_pdf(
         self,
