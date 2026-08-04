@@ -246,13 +246,20 @@ export function accessibleNavRoutes(user: AuthUser | null): NavRouteItem[] {
     ];
   }
 
-  return APP_MODULE_ROUTES.filter((route) => route.showInNav && canAccessModuleRoute(user, route.moduleKey)).map(
-    (route) => ({
-      moduleKey: route.moduleKey,
-      path: route.path,
-      label: route.label,
-      matchPaths: route.paths ?? [route.path],
-      navSection: route.navSection ?? "main",
-    }),
-  );
+  const routes = APP_MODULE_ROUTES.filter(
+    (route) => route.showInNav && canAccessModuleRoute(user, route.moduleKey),
+  ).map((route) => ({
+    moduleKey: route.moduleKey,
+    path: route.path,
+    label: route.label,
+    matchPaths: route.paths ?? [route.path],
+    navSection: route.navSection ?? "main",
+  }));
+
+  const byLabel = (a: NavRouteItem, b: NavRouteItem) =>
+    a.label.localeCompare(b.label, "es", { sensitivity: "base" });
+
+  const main = routes.filter((r) => r.navSection === "main").sort(byLabel);
+  const secondary = routes.filter((r) => r.navSection === "secondary").sort(byLabel);
+  return [...main, ...secondary];
 }

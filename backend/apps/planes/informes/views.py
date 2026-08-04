@@ -47,10 +47,23 @@ def _entity_for_user(user) -> Entity:
 
 
 def _firmantes_queryset(entity: Entity, secretaria_id: int | None):
-    mem = UserEntityMembership.objects.filter(entity_id=entity.id, is_active=True)
+    mem = UserEntityMembership.objects.filter(
+        entity_id=entity.id,
+        is_active=True,
+        role__in=["admin", "secretario"],
+    )
     if secretaria_id:
         mem = mem.filter(secretaria_id=secretaria_id)
     return User.objects.filter(id__in=mem.values_list("user_id", flat=True)).order_by("full_name", "email")
+
+
+def _firmante_has_allowed_role(firmante, entity_id: int) -> bool:
+    return UserEntityMembership.objects.filter(
+        user_id=firmante.id,
+        entity_id=entity_id,
+        is_active=True,
+        role__in=["admin", "secretario"],
+    ).exists()
 
 
 def _firmante_belongs_to_secretaria(firmante, entity_id: int, secretaria_id: int) -> bool:
@@ -122,6 +135,10 @@ class InformePlanViewSet(viewsets.GenericViewSet):
         firmante = User.objects.filter(pk=data["usuario_firmante_id"], entity_id=entity.id).first()
         if not firmante:
             raise ValidationError({"usuario_firmante_id": "Usuario firmante no válido."})
+        if not _firmante_has_allowed_role(firmante, entity.id):
+            raise ValidationError(
+                {"usuario_firmante_id": "El firmante debe ser administrador o secretario."}
+            )
 
         secretaria_id = data.get("responsable_secretaria_id")
         plan_id = data.get("plan_id")

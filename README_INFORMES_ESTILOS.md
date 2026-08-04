@@ -1,8 +1,8 @@
 # Guía de estilos para informes PDF institucionales
 
-Esta guía define la paleta de colores, estructura de portada, tablas y gráficas para los informes PDF generados en los módulos **Planes Institucionales** y **PDM**.
+Esta guía define la paleta de colores, estructura de portada, tablas y gráficas para los informes PDF generados en los módulos **Planes Institucionales**, **PDM** y **PQRS**.
 
-> **Alcance:** aplica a PDM y Planes Institucionales. El módulo PQRS conserva su paleta verde institucional por ahora.
+> **Alcance:** aplica a PDM, Planes Institucionales y PQRS con la misma paleta gris institucional.
 
 ## Paleta de colores
 
@@ -109,11 +109,12 @@ table.setStyle(TableStyle(banner_style_cmds()))
 | `backend/apps/common/report_cover.py` | `build_cover_flowables()` para portada estándar |
 | `backend/apps/planes/informes/report_generator.py` | Generador Planes Institucionales |
 | `backend/apps/pdm/informes/report_generator.py` | Generador PDM |
+| `backend/apps/pqrs/services/report_generator.py` | Generador PQRS |
 
 ## Reglas generales
 
 - Usar **únicamente** los cuatro colores de la paleta (más `#94A3B8` solo para contraste en gráficas)
 - Mantener fondo de página blanco
-- Evitar colores saturados (verde, azul, rojo, naranja) en informes nuevos de PDM y Planes
+- Evitar colores saturados (verde, azul, rojo, naranja) en informes institucionales
 - Las gráficas matplotlib deben usar escala de grises, sin semáforo de colores
 - El membrete institucional (plantilla PDF de entidad) se superpone por detrás; el contenido respeta los márgenes detectados automáticamente
