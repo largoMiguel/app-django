@@ -544,8 +544,8 @@ class PDMReportGenerator:
             fontSize=10,
             alignment=TA_CENTER,
             textColor=TEXT_DARK,
-            spaceAfter=4,
-            leading=14,
+            spaceAfter=3,
+            leading=11,
         )
         filter_style = ParagraphStyle(
             "FilterInfo",
@@ -553,7 +553,7 @@ class PDMReportGenerator:
             fontSize=10,
             alignment=TA_CENTER,
             textColor=TEXT_DARK,
-            spaceAfter=6,
+            spaceAfter=4,
         )
         alcaldia_style = ParagraphStyle(
             "Alcaldia",
@@ -561,14 +561,14 @@ class PDMReportGenerator:
             fontSize=14,
             alignment=TA_CENTER,
             textColor=TEXT_DARK,
-            spaceAfter=8,
+            spaceAfter=6,
         )
 
         anio_texto = "Vigencia 2024-2027" if self.anio == 0 else f"Vigencia {self.anio}"
         plan_name = self._resolve_plan_name().upper()
 
         extra: list = []
-        extra.append(Spacer(1, 0.15 * inch))
+        extra.append(Spacer(1, 0.1 * inch))
         extra.append(Paragraph("Alcaldía Municipal", alcaldia_style))
 
         if self.filtros:
@@ -586,7 +586,7 @@ class PDMReportGenerator:
             for info in filter_info:
                 extra.append(Paragraph(info, filter_style))
 
-        extra.append(Spacer(1, 0.25 * inch))
+        extra.append(Spacer(1, 0.15 * inch))
         extra.append(Paragraph("<b>Equipo de Gobierno Municipal</b>", equipo_style))
         for cargo in [
             "Alcalde Municipal",
@@ -598,10 +598,7 @@ class PDMReportGenerator:
         ]:
             extra.append(Paragraph(cargo, equipo_style))
 
-        if self.use_template:
-            extra.append(Spacer(1, 0.6 * inch))
-
-        top_spacer = 1.4 if self.use_template else 0.5
+        top_spacer = 0.2 if self.use_template else 0.5
         cover = build_cover_flowables(
             title_line="Informe de Seguimiento",
             subtitle_line=f"Informe de Gestión / Rendición de Cuentas<br/>{plan_name}",
@@ -1686,7 +1683,6 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 return apply_template_overlay(
                     pdf_bytes,
                     template_pdf_bytes,
-                    report_title=self.REPORT_TITLE,
                 )
             except Exception as exc:
                 print(f"⚠️ Error aplicando plantilla institucional: {exc}")

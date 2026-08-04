@@ -101,13 +101,13 @@ def build_cover_flowables(
     entity_table = Table(entity_data, colWidths=[6.5 * inch])
     entity_table.setStyle(TableStyle(light_box_style_cmds(align="CENTER")))
     flowables.append(entity_table)
-    flowables.append(Spacer(1, 0.5 * inch))
+    flowables.append(Spacer(1, 0.35 * inch))
 
     period_data = [[Paragraph(f"<b>{period_text}</b>", period_style)]]
     period_table = Table(period_data, colWidths=[6.5 * inch])
     period_table.setStyle(TableStyle(light_box_style_cmds(align="RIGHT", right_padding=30)))
     flowables.append(period_table)
-    flowables.append(Spacer(1, 0.5 * inch))
+    flowables.append(Spacer(1, 0.25 * inch))
 
     hoy = datetime.now()
     mes_generacion = f"{_MESES_ES[hoy.month]} {hoy.year}"

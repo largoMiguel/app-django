@@ -74,6 +74,7 @@ class PlanesReportGenerator:
         self.firmante_nombre = firmante_nombre
         self.cargo_firmante = cargo_firmante
         self.incluir_evidencias = incluir_evidencias
+        self.use_template = False
         self.narrativa_ctx = narrativa.build_narrativa_context(
             entity_name=entity.name,
             anio=anio,
@@ -136,6 +137,33 @@ class PlanesReportGenerator:
                 fontSize=8,
                 alignment=TA_RIGHT,
                 leading=10,
+            ),
+            "cell_header_left": ParagraphStyle(
+                "PlanesCellHeaderLeft",
+                parent=self.styles["Normal"],
+                fontSize=7,
+                textColor=colors.white,
+                fontName="Helvetica-Bold",
+                alignment=TA_LEFT,
+                leading=9,
+            ),
+            "cell_header_center": ParagraphStyle(
+                "PlanesCellHeaderCenter",
+                parent=self.styles["Normal"],
+                fontSize=7,
+                textColor=colors.white,
+                fontName="Helvetica-Bold",
+                alignment=TA_CENTER,
+                leading=9,
+            ),
+            "cell_header_right": ParagraphStyle(
+                "PlanesCellHeaderRight",
+                parent=self.styles["Normal"],
+                fontSize=7,
+                textColor=colors.white,
+                fontName="Helvetica-Bold",
+                alignment=TA_RIGHT,
+                leading=9,
             ),
         }
         return self._inst_styles_cache
@@ -218,7 +246,7 @@ class PlanesReportGenerator:
 
         extra: list = []
         sec_text = self.secretaria_nombre or "Dependencia con funciones de Control Interno"
-        extra.append(Spacer(1, 0.4 * inch))
+        extra.append(Spacer(1, 0.25 * inch))
         extra.append(
             Paragraph(
                 sec_text.upper(),
@@ -232,13 +260,15 @@ class PlanesReportGenerator:
             )
         )
 
+        use_template = getattr(self, "use_template", False)
+        top_spacer = 0.2 if use_template else 0.5
         cover = build_cover_flowables(
             title_line="Informe de Seguimiento",
             subtitle_line="Planes Institucionales decreto 612 de 2018",
             entity_name=self.narrativa_ctx["entity_upper"],
             period_text=period_text,
             normal_style=normal_style,
-            top_spacer=1.5,
+            top_spacer=top_spacer,
             extra_flowables=extra,
         )
         self.story.extend(cover)
@@ -286,14 +316,14 @@ class PlanesReportGenerator:
     def generate_actividades_desarrolladas(self) -> None:
         self._append_heading("ACTIVIDADES DESARROLLADAS")
         st = self._institutional_styles()
-        col_widths = [0.35 * inch, 1.5 * inch, 1.2 * inch, 0.65 * inch, 1.0 * inch, 1.3 * inch]
+        col_widths = [0.5 * inch, 1.5 * inch, 1.25 * inch, 1.0 * inch, 1.0 * inch, 1.75 * inch]
         headers = [
-            "ITEM",
-            "ACTIVIDAD PROGRAMADA",
-            "ACTIVIDAD EJECUTADA",
-            "% DE CUMPLIMIENTO",
-            "PLAZO DE EJECUCIÓN",
-            "RESPONSABLE",
+            ("ITEM", "cell_header_right"),
+            ("ACTIVIDAD PROGRAMADA", "cell_header_left"),
+            ("ACTIVIDAD EJECUTADA", "cell_header_left"),
+            ("% DE CUMPLIMIENTO", "cell_header_center"),
+            ("PLAZO DE EJECUCIÓN", "cell_header_center"),
+            ("RESPONSABLE", "cell_header_left"),
         ]
 
         for plan in self.planes:
@@ -304,14 +334,14 @@ class PlanesReportGenerator:
             self._append_banner(f"{plan.catalogo.codigo} — {plan.catalogo.nombre}")
 
             rows = [
-                [Paragraph(f"<b>{h}</b>", st["cell_center" if i in (0, 3) else "cell_left"]) for i, h in enumerate(headers)],
+                [Paragraph(f"<b>{label}</b>", st[style_key]) for label, style_key in headers],
             ]
             for idx, act in enumerate(acts, start=1):
                 ejecutado = getattr(act, "total_ejecutado_val", 0)
                 avance = getattr(act, "avance_calculado", act.avance)
                 plazo = ""
                 if act.fecha_inicio and act.fecha_fin:
-                    plazo = f"{act.fecha_inicio.strftime('%d/%m/%Y')} — {act.fecha_fin.strftime('%d/%m/%Y')}"
+                    plazo = f"{act.fecha_inicio.strftime('%d/%m/%Y')} - {act.fecha_fin.strftime('%d/%m/%Y')}"
                 elif act.fecha_fin:
                     plazo = act.fecha_fin.strftime("%d/%m/%Y")
                 resp = act.responsable_secretaria.nombre if act.responsable_secretaria_id else (
@@ -395,6 +425,7 @@ class PlanesReportGenerator:
             )
 
     def _build_content_pdf(self, *, top_margin: float, bottom_margin: float, use_template: bool) -> bytes:
+        self.use_template = use_template
         self.buffer = BytesIO()
         self.doc = SimpleDocTemplate(
             self.buffer,
@@ -463,7 +494,6 @@ class PlanesReportGenerator:
                 return apply_template_overlay(
                     pdf_bytes,
                     template_pdf_bytes,
-                    report_title=self.REPORT_TITLE,
                 )
             except Exception:
                 pass
