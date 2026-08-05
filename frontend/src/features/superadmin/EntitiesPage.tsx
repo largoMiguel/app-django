@@ -283,6 +283,22 @@ function NewEntityModal({
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
                   />
                 </Field>
+                <Field label="NIT SECOP I">
+                  <input
+                    value={form.nit_secop_i || ""}
+                    onChange={(e) => set("nit_secop_i", e.target.value)}
+                    placeholder="Varios NIT separados por coma"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+                  />
+                </Field>
+                <Field label="NIT SECOP II">
+                  <input
+                    value={form.nit_secop_ii || ""}
+                    onChange={(e) => set("nit_secop_ii", e.target.value)}
+                    placeholder="Varios NIT separados por coma"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+                  />
+                </Field>
                 <Field label="Email">
                   <input
                     value={form.email || ""}

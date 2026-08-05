@@ -12,6 +12,28 @@ from .b2_client import delete_prefix, get_b2_client, purge_bucket
 logger = logging.getLogger(__name__)
 
 
+def delete_planes_storage_key(key: str | None) -> None:
+    """Elimina un objeto del cubo Planes (p. ej. informes PDF)."""
+    if not key or not settings.USE_B2_STORAGE:
+        return
+    client = get_b2_client()
+    try:
+        client.delete_object(Bucket=settings.B2_BUCKET_PLANES, Key=key.lstrip("/"))
+    except ClientError as exc:
+        logger.warning("No se pudo borrar %s en %s: %s", key, settings.B2_BUCKET_PLANES, exc)
+
+
+def delete_pdm_storage_key(key: str | None) -> None:
+    """Elimina un objeto del cubo PDM (p. ej. informes PDF)."""
+    if not key or not settings.USE_B2_STORAGE:
+        return
+    client = get_b2_client()
+    try:
+        client.delete_object(Bucket=settings.B2_BUCKET_PDM, Key=key.lstrip("/"))
+    except ClientError as exc:
+        logger.warning("No se pudo borrar %s en %s: %s", key, settings.B2_BUCKET_PDM, exc)
+
+
 def delete_pqrs_storage_key(key: str | None) -> None:
     """Elimina un objeto del cubo PQRS (p. ej. archivo_respuesta)."""
     if not key or not settings.USE_B2_STORAGE:
@@ -64,6 +86,26 @@ def cleanup_pqrs_files(pqrs) -> None:
             shutil.rmtree(folder, ignore_errors=True)
 
 
+def cleanup_planes_evidencia_files(evidencia) -> None:
+    """Borra archivos de evidencia Planes Institucionales."""
+    from apps.planes.storage_paths import planes_evidencia_prefix
+
+    for arch in evidencia.archivos.all():
+        if arch.archivo:
+            arch.archivo.delete(save=False)
+
+    if settings.USE_B2_STORAGE:
+        delete_prefix(settings.B2_BUCKET_PLANES, f"{planes_evidencia_prefix(evidencia)}/")
+        return
+
+    media_root = Path(settings.MEDIA_ROOT)
+    folder = media_root / planes_evidencia_prefix(evidencia)
+    if folder.exists():
+        import shutil
+
+        shutil.rmtree(folder, ignore_errors=True)
+
+
 def cleanup_pdm_evidencia_files(evidencia) -> None:
     """Borra archivos de evidencia PDM y sus carpetas (nueva ruta y legacy)."""
     from apps.pdm.storage_paths import pdm_evidencia_legacy_prefix, pdm_evidencia_prefix
@@ -109,6 +151,7 @@ def cleanup_entity_storage(entity_id: int, *, pqrs_ids: list[int] | None = None)
     prefix = f"entities/{entity_id}/"
     delete_prefix(settings.B2_BUCKET_PQRS, prefix)
     delete_prefix(settings.B2_BUCKET_PDM, prefix)
+    delete_prefix(settings.B2_BUCKET_PLANES, prefix)
 
 
 def purge_all_buckets(*, include_db_backups: bool = True) -> dict[str, int]:

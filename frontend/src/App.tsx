@@ -1,9 +1,11 @@
 import { lazy, Suspense, useEffect, type ReactElement } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { useAuth } from "@clerk/react";
 import ScrollToTop from "@/core/routing/ScrollToTop";
 import { isMarketingHost, redirectToApp } from "@/core/host";
 import LoginPage from "@/features/auth/LoginPage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
+import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
 import PQRSPage from "@/features/pqrs/PQRSPage";
 import PQRSInformesPage from "@/features/pqrs/PQRSInformesPage";
@@ -27,12 +29,29 @@ import CorrespondenciaDashboard from "@/features/correspondencia/Correspondencia
 import CorrespondenciaListPage from "@/features/correspondencia/CorrespondenciaListPage";
 import CorrespondenciaDetailPage from "@/features/correspondencia/CorrespondenciaDetailPage";
 import CorrespondenciaInformesPage from "@/features/correspondencia/CorrespondenciaInformesPage";
-import { PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
-import { firstAccessibleRoute, useAuthStore } from "@/core/auth/store";
+import PlanesLayout from "@/features/planes/PlanesLayout";
+import PlanesDashboard from "@/features/planes/PlanesDashboard";
+import PlanesListPage from "@/features/planes/PlanesListPage";
+import PlanDetailPage from "@/features/planes/PlanDetailPage";
+import PlanesCronogramaPage from "@/features/planes/PlanesCronogramaPage";
+import PlanesInformesPage from "@/features/planes/PlanesInformesPage";
+import PlanesInformeTrimestralPage from "@/features/planes/PlanesInformeTrimestralPage";
+import SecopLayout from "@/features/secop/SecopLayout";
+import SecopResumen from "@/features/secop/SecopResumen";
+import SecopListPage from "@/features/secop/SecopListPage";
+import SecopAlertasPage from "@/features/secop/SecopAlertasPage";
+import SecopAnalisisIAPage from "@/features/secop/SecopAnalisisIAPage";
+import PdmLayout from "@/features/pdm/PdmLayout";
+import PdmDashboardPage from "@/features/pdm/PdmDashboardPage";
+import PdmProductosPage from "@/features/pdm/PdmProductosPage";
+import PdmProductoDetallePage from "@/features/pdm/PdmProductoDetallePage";
+import PdmAnalisisPage from "@/features/pdm/PdmAnalisisPage";
+import PdmProyectosPage from "@/features/pdm/PdmProyectosPage";
+import PdmInformesPage from "@/features/pdm/PdmInformesPage";
+import { firstAccessibleRoute, needsEntitySelection, useAuthStore } from "@/core/auth/store";
 
 const HomePage = lazy(() => import("@/features/showcase/HomePage"));
 const NosotrosPage = lazy(() => import("@/features/nosotros/NosotrosPage"));
-const PdmPage = lazy(() => import("@/features/pdm/PdmPage"));
 
 const suspenseFallback = (
   <div className="flex min-h-screen items-center justify-center text-slate-500">Cargando…</div>
@@ -40,6 +59,10 @@ const suspenseFallback = (
 
 function AppHomeRedirect() {
   const user = useAuthStore((s) => s.user);
+  const activeEntityId = useAuthStore((s) => s.activeEntityId);
+  if (needsEntitySelection(user, activeEntityId)) {
+    return <SessionLoadingScreen message="Seleccione una entidad…" />;
+  }
   return <Navigate to={firstAccessibleRoute(user)} replace />;
 }
 
@@ -54,8 +77,20 @@ function RedirectToAppHost() {
 
 /** En app.* no hay showcase: / → login (o dashboard si ya hay sesión). */
 function AppRootEntry() {
+  const { isLoaded, isSignedIn } = useAuth();
   const user = useAuthStore((s) => s.user);
-  if (user) return <Navigate to={firstAccessibleRoute(user)} replace />;
+  const activeEntityId = useAuthStore((s) => s.activeEntityId);
+
+  if (!isLoaded || (isSignedIn && !user)) {
+    return <SessionLoadingScreen />;
+  }
+
+  if (user) {
+    if (needsEntitySelection(user, activeEntityId)) {
+      return <Navigate to="/app" replace />;
+    }
+    return <Navigate to={firstAccessibleRoute(user)} replace />;
+  }
   return <Navigate to="/login" replace />;
 }
 
@@ -115,14 +150,15 @@ export default function App(): ReactElement {
               </Route>
 
               <Route element={<ModuleRouteGuard moduleKey="pdm" />}>
-                <Route
-                  path="/pdm"
-                  element={
-                    <Suspense fallback={<PdmLoadingOverlay message="Cargando PDM..." />}>
-                      <PdmPage />
-                    </Suspense>
-                  }
-                />
+                <Route path="/pdm" element={<PdmLayout />}>
+                  <Route index element={<PdmDashboardPage />} />
+                  <Route path="productos" element={<PdmProductosPage />} />
+                  <Route path="productos/:codigo" element={<PdmProductoDetallePage />} />
+                  <Route path="analisis" element={<PdmAnalisisPage />} />
+                  <Route path="proyectos" element={<PdmProyectosPage />} />
+                  <Route path="informes" element={<PdmInformesPage />} />
+                  <Route path="informes/avance" element={<Navigate to="/pdm/informes" replace />} />
+                </Route>
               </Route>
 
               <Route element={<ModuleRouteGuard moduleKey="reports_pdf" />}>
@@ -146,6 +182,28 @@ export default function App(): ReactElement {
                   <Route path="todas" element={<CorrespondenciaListPage />} />
                   <Route path="informes" element={<CorrespondenciaInformesPage />} />
                   <Route path=":id" element={<CorrespondenciaDetailPage />} />
+                </Route>
+              </Route>
+
+              <Route element={<ModuleRouteGuard moduleKey="planes_institucionales" />}>
+                <Route path="/planes" element={<PlanesLayout />}>
+                  <Route index element={<PlanesDashboard />} />
+                  <Route path="lista" element={<PlanesListPage />} />
+                  <Route path="cronograma" element={<PlanesCronogramaPage />} />
+                  <Route path="informes" element={<PlanesInformesPage />} />
+                  <Route path="informes/seguimiento" element={<Navigate to="/planes/informes" replace />} />
+                  <Route path="informes/trimestral" element={<PlanesInformeTrimestralPage />} />
+                  <Route path=":id" element={<PlanDetailPage />} />
+                </Route>
+              </Route>
+
+              <Route element={<ModuleRouteGuard moduleKey="contratacion" />}>
+                <Route path="/contratacion" element={<SecopLayout />}>
+                  <Route index element={<SecopResumen />} />
+                  <Route path="secop2" element={<SecopListPage fuente="secop2" />} />
+                  <Route path="secop1" element={<SecopListPage fuente="secop1" />} />
+                  <Route path="alertas" element={<SecopAlertasPage />} />
+                  <Route path="ia" element={<SecopAnalisisIAPage />} />
                 </Route>
               </Route>
 

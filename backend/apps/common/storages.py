@@ -34,10 +34,15 @@ class B2CorrespondenciaStorage(_B2Storage):
     bucket_name = settings.B2_BUCKET_CORRESPONDENCIA
 
 
+class B2PlanesStorage(_B2Storage):
+    bucket_name = settings.B2_BUCKET_PLANES
+
+
 b2_pqrs_storage = B2PqrsStorage()
 b2_pdm_storage = B2PdmStorage()
 b2_asistencia_storage = B2AsistenciaStorage()
 b2_correspondencia_storage = B2CorrespondenciaStorage()
+b2_planes_storage = B2PlanesStorage()
 
 
 def pqrs_file_storage():
@@ -62,6 +67,26 @@ def correspondencia_file_storage():
     if settings.USE_B2_STORAGE:
         return b2_correspondencia_storage
     return default_storage
+
+
+def planes_file_storage():
+    if settings.USE_B2_STORAGE:
+        return b2_planes_storage
+    return default_storage
+
+
+def pdm_storage_for_paths() -> B2PdmStorage | FileSystemStorage:
+    """Storage used for PDM paths stored as plain strings (informes PDF)."""
+    if settings.USE_B2_STORAGE:
+        return b2_pdm_storage
+    return FileSystemStorage(location=settings.MEDIA_ROOT)
+
+
+def planes_storage_for_paths() -> B2PlanesStorage | FileSystemStorage:
+    """Storage used for Planes paths stored as plain strings (informes PDF)."""
+    if settings.USE_B2_STORAGE:
+        return b2_planes_storage
+    return FileSystemStorage(location=settings.MEDIA_ROOT)
 
 
 def pqrs_storage_for_paths() -> B2PqrsStorage | FileSystemStorage:

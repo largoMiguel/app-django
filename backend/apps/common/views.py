@@ -14,6 +14,7 @@ from apps.common.b2_buckets import configured_b2_buckets
 from apps.common.b2_client import get_b2_client
 from apps.common.file_delivery import verify_signed_file_url
 from apps.pdm.access import user_can_access_pdm_media_path
+from apps.planes.access import user_can_access_planes_media_path
 from apps.pqrs.access import user_can_access_media_path as user_can_access_pqrs_media_path
 
 
@@ -59,8 +60,10 @@ class ProtectedMediaView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, path: str):
-        if not user_can_access_pqrs_media_path(request.user, path) and not user_can_access_pdm_media_path(
-            request.user, path
+        if (
+            not user_can_access_pqrs_media_path(request.user, path)
+            and not user_can_access_pdm_media_path(request.user, path)
+            and not user_can_access_planes_media_path(request.user, path)
         ):
             raise Http404("Archivo no encontrado.")
 

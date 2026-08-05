@@ -5,6 +5,11 @@ import { usersApi, type AppUser, type CreateUserPayload } from "@/core/api/users
 import { entitiesApi, secretariasApi, type Entity, type Secretaria } from "@/core/api/entities";
 import { useAuthStore, primaryRole } from "@/core/auth/store";
 import { modulesForEntity, type ModuleDef } from "@/core/modules";
+import {
+  modalContainerClass,
+  modalOverlayClass,
+  modalPanelSmClass,
+} from "@/components/ui/modalShell";
 
 interface Props {
   isSuperAdmin?: boolean;
@@ -14,6 +19,8 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
   const { user } = useAuthStore();
   const role = primaryRole(user);
   const superMode = isSuperAdmin || role === "superadmin";
+  const secretarioMode = role === "secretario" && !superMode;
+  const actorEntityId = user?.entity?.id ?? null;
 
   const [items, setItems] = useState<AppUser[]>([]);
   const [secretarias, setSecretarias] = useState<Secretaria[]>([]);
@@ -49,12 +56,21 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
   }, [superMode, page, search]);
 
   async function handleDeactivate(u: AppUser) {
-    if (!confirm(`¿Desactivar al usuario ${u.email}?\n\nNo podrá iniciar sesión hasta reactivarlo.`)) return;
+    const entityId = superMode ? u.entity : actorEntityId;
+    if (
+      !confirm(
+        entityId
+          ? `¿Desvincular a ${u.email} de esta entidad?\n\nSi no pertenece a otras entidades, tampoco podrá iniciar sesión.`
+          : `¿Desactivar al usuario ${u.email}?\n\nNo podrá iniciar sesión hasta reactivarlo.`,
+      )
+    ) {
+      return;
+    }
     try {
-      await usersApi.deactivate(u.id);
+      await usersApi.deactivate(u.id, entityId ? { entity: entityId } : undefined);
       load();
     } catch (err) {
-      alert(formatApiError(err, "No se pudo desactivar."));
+      alert(formatApiError(err, "No se pudo desvincular."));
     }
   }
 
@@ -81,19 +97,22 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-[#111827] sm:text-2xl flex items-center gap-2">
-            <Users className="h-6 w-6 text-[#3eafd4]" /> {superMode ? "Usuarios (todos)" : "Usuarios"}
+            <Users className="h-6 w-6 text-[#3eafd4]" />{" "}
+            {superMode ? "Usuarios (todos)" : secretarioMode ? "Contratistas" : "Usuarios"}
           </h1>
           <p className="mt-1 text-xs text-slate-600 sm:text-sm">
             {superMode
               ? "Vista global de usuarios del sistema."
-              : "Gestiona los usuarios de tu entidad."}
+              : secretarioMode
+                ? "Gestiona los contratistas de tu secretaría."
+                : "Gestiona los usuarios de tu entidad."}
           </p>
         </div>
         <button
           onClick={() => setShowNew(true)}
           className="flex items-center gap-2 rounded-md bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2] self-start sm:self-auto"
         >
-          <Plus className="h-4 w-4" /> Nuevo usuario
+          <Plus className="h-4 w-4" /> {secretarioMode ? "Nuevo contratista" : "Nuevo usuario"}
         </button>
       </div>
 
@@ -110,7 +129,49 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
       </div>
 
       <div className="rounded-[0.6rem] border border-[#e9ecef] bg-white">
-        <div className="overflow-x-auto">
+        {/* Vista móvil: tarjetas */}
+        <div className="divide-y divide-slate-100 md:hidden">
+          {loading && (
+            <div className="px-4 py-8 text-center text-slate-500">Cargando…</div>
+          )}
+          {!loading && items.length === 0 && (
+            <div className="px-4 py-8 text-center text-slate-500">No hay usuarios.</div>
+          )}
+          {items.map((u) => (
+            <div key={u.id} className="space-y-2 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-medium text-slate-800">{u.full_name || u.email}</div>
+                  <div className="text-xs text-slate-500">{u.email}</div>
+                </div>
+                <span className={`rounded px-2 py-0.5 text-[0.72rem] font-medium ${u.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                  {u.is_active ? "Activo" : "Inactivo"}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                <span className="rounded bg-[#f0fbff] px-1.5 py-0.5 text-[#0e7490]">{u.role || "—"}</span>
+                {superMode && u.entity_name && <span>{u.entity_name}</span>}
+                {u.secretaria_nombre && <span>{u.secretaria_nombre}</span>}
+              </div>
+              <div className="flex justify-end gap-1">
+                <button onClick={() => setEditing(u)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100">
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button onClick={() => handleDeactivate(u)} className="rounded p-1.5 text-slate-500 hover:bg-amber-50">
+                  <UserX className="h-4 w-4" />
+                </button>
+                {!secretarioMode && (
+                  <button onClick={() => handlePurge(u)} className="rounded p-1.5 text-slate-500 hover:bg-red-50">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Vista escritorio: tabla */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
@@ -125,10 +186,10 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={superMode ? 7 : 6} className="px-4 py-8 text-center text-slate-500">Cargando…</td></tr>
+                <tr><td colSpan={superMode ? 6 : 6} className="px-4 py-8 text-center text-slate-500">Cargando…</td></tr>
               )}
               {!loading && items.length === 0 && (
-                <tr><td colSpan={superMode ? 7 : 6} className="px-4 py-8 text-center text-slate-500">No hay usuarios.</td></tr>
+                <tr><td colSpan={superMode ? 6 : 6} className="px-4 py-8 text-center text-slate-500">No hay usuarios.</td></tr>
               )}
               {items.map((u) => (
                 <tr key={u.id} className="border-t border-slate-100 hover:bg-slate-50/60">
@@ -152,9 +213,11 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
                       <button onClick={() => handleDeactivate(u)} className="rounded p-1.5 text-slate-500 hover:bg-amber-50 hover:text-amber-700" title="Desactivar">
                         <UserX className="h-4 w-4" />
                       </button>
-                      <button onClick={() => handlePurge(u)} className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600" title="Eliminar definitivamente">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {!secretarioMode && (
+                        <button onClick={() => handlePurge(u)} className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600" title="Eliminar definitivamente">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -193,9 +256,11 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
         <UserModal
           initial={editing}
           superMode={superMode}
+          secretarioMode={secretarioMode}
           secretarias={secretarias}
           entities={entities}
           actorEntity={user?.entity ?? null}
+          actorSecretariaNombre={user?.secretaria?.nombre ?? null}
           onClose={() => {
             setShowNew(false);
             setEditing(null);
@@ -214,17 +279,21 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
 function UserModal({
   initial,
   superMode,
+  secretarioMode,
   secretarias,
   entities,
   actorEntity,
+  actorSecretariaNombre,
   onClose,
   onSaved,
 }: {
   initial: AppUser | null;
   superMode: boolean;
+  secretarioMode: boolean;
   secretarias: Secretaria[];
   entities: Entity[];
   actorEntity: import("@/core/auth/store").AuthEntity | null;
+  actorSecretariaNombre?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -235,14 +304,14 @@ function UserModal({
           full_name: initial.full_name,
           role: (initial.role || "secretario") as CreateUserPayload["role"],
           entity: initial.entity,
-          secretaria: initial.secretaria,
+          secretaria: initial.secretaria ?? null,
           is_active: initial.is_active,
           enabled_modules: initial.enabled_modules || [],
         }
       : {
           email: "",
           full_name: "",
-          role: "secretario",
+          role: secretarioMode ? "contratista" : "secretario",
           entity: superMode ? null : undefined,
           secretaria: null,
           password: "",
@@ -253,6 +322,13 @@ function UserModal({
   const [createNewSec, setCreateNewSec] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [membershipConfirm, setMembershipConfirm] = useState<{
+    entityName: string;
+    role: string;
+    payload: CreateUserPayload;
+  } | null>(null);
+
+  const targetEntityId = superMode ? form.entity : actorEntity?.id ?? null;
 
   const secretariasFiltradas = useMemo(() => {
     if (!superMode) return secretarias;
@@ -279,13 +355,27 @@ function UserModal({
     });
   }
 
+  async function submitPayload(payload: CreateUserPayload & { is_active?: boolean; nueva_secretaria_nombre?: string }) {
+    if (initial) {
+      delete payload.invite;
+      await usersApi.update(initial.id, payload);
+    } else {
+      if (payload.invite) delete payload.password;
+      const result = await usersApi.create(payload);
+      if (result.membership_added) {
+        alert(`Se agregó la membresía de ${result.email} en esta entidad.`);
+      }
+    }
+    onSaved();
+  }
+
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
     setSaving(true);
     setError(null);
     try {
       const payload: CreateUserPayload & { is_active?: boolean; nueva_secretaria_nombre?: string } = { ...form };
-      if (payload.role !== "secretario") {
+      if (payload.role !== "secretario" && payload.role !== "contratista") {
         delete payload.secretaria;
         delete payload.nueva_secretaria_nombre;
         payload.enabled_modules = [];
@@ -294,15 +384,28 @@ function UserModal({
       } else {
         delete payload.nueva_secretaria_nombre;
       }
+      delete payload.supervisor;
       if (!payload.password) delete payload.password;
-      if (initial) {
-        delete payload.invite;
-        await usersApi.update(initial.id, payload);
-      } else {
-        if (payload.invite) delete payload.password;
-        await usersApi.create(payload);
+
+      if (!initial && payload.email.trim()) {
+        const lookup = await usersApi.lookupEmail(payload.email.trim());
+        if (lookup.exists && lookup.memberships?.length) {
+          const alreadyHere = lookup.memberships.some((m) => m.entity_id === targetEntityId);
+          if (alreadyHere) {
+            setError("El usuario ya pertenece a esta entidad.");
+            return;
+          }
+          const other = lookup.memberships[0];
+          setMembershipConfirm({
+            entityName: other.entity_name,
+            role: payload.role,
+            payload,
+          });
+          return;
+        }
       }
-      onSaved();
+
+      await submitPayload(payload);
     } catch (err) {
       setError(formatApiError(err, "Error al guardar."));
     } finally {
@@ -310,14 +413,28 @@ function UserModal({
     }
   }
 
+  async function confirmMembershipAdd() {
+    if (!membershipConfirm) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await submitPayload(membershipConfirm.payload);
+      setMembershipConfirm(null);
+    } catch (err) {
+      setError(formatApiError(err, "Error al agregar membresía."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className={modalOverlayClass} onClick={onClose} />
+      <div className={modalContainerClass}>
         <form
           onSubmit={handleSubmit}
           onClick={(e) => e.stopPropagation()}
-          className="relative flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+          className={modalPanelSmClass}
         >
           <div className="flex items-center justify-between border-b border-slate-200 bg-[#1c2536] px-6 py-3 text-white">
             <div className="flex items-center gap-2">
@@ -329,7 +446,7 @@ function UserModal({
             </button>
           </div>
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">Email *</span>
                 <input
@@ -358,9 +475,11 @@ function UserModal({
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
                 >
                   {superMode && <option value="superadmin">Superadmin</option>}
-                  <option value="admin">Admin</option>
-                  <option value="secretario">Secretario</option>
-                  <option value="ciudadano">Ciudadano</option>
+                  {!secretarioMode && <option value="admin">Admin</option>}
+                  {!secretarioMode && <option value="secretario">Secretario</option>}
+                  {!secretarioMode && <option value="contratista">Contratista</option>}
+                  {secretarioMode && <option value="contratista">Contratista</option>}
+                  {!secretarioMode && <option value="ciudadano">Ciudadano</option>}
                 </select>
               </label>
               {!initial && (
@@ -415,7 +534,7 @@ function UserModal({
               )}
             </div>
 
-            {form.role === "secretario" && (
+            {form.role === "secretario" && !secretarioMode && (
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3 space-y-2">
                 <div className="flex items-center gap-3 text-sm">
                   <label className="flex items-center gap-1.5 cursor-pointer">
@@ -441,7 +560,7 @@ function UserModal({
                   <select
                     required
                     value={form.secretaria ?? ""}
-                    onChange={(e) => setForm((f) => ({ ...f, secretaria: Number(e.target.value) }))}
+                    onChange={(e) => setForm((f) => ({ ...f, secretaria: e.target.value ? Number(e.target.value) : null }))}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
                   >
                     <option value="">— Selecciona secretaría —</option>
@@ -461,9 +580,42 @@ function UserModal({
               </div>
             )}
 
-            {form.role === "secretario" && modulosDisponibles.length > 0 && (
+            {form.role === "contratista" && secretarioMode && actorSecretariaNombre && (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                Se asignará a su secretaría: <strong>{actorSecretariaNombre}</strong>
+              </div>
+            )}
+
+            {form.role === "contratista" && !secretarioMode && (
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Secretaría *</span>
+                <select
+                  required
+                  value={form.secretaria ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      secretaria: e.target.value ? Number(e.target.value) : null,
+                    }))
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+                >
+                  <option value="">— Selecciona secretaría —</option>
+                  {secretariasFiltradas.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre}
+                      {superMode ? ` (${s.entity_name})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {(form.role === "secretario" || form.role === "contratista") && modulosDisponibles.length > 0 && (
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                <div className="mb-2 text-xs font-semibold text-slate-600">Módulos asignados al secretario</div>
+                <div className="mb-2 text-xs font-semibold text-slate-600">
+                  Módulos asignados al {form.role}
+                </div>
                 <p className="mb-2 text-xs text-slate-500">
                   Solo se muestran los módulos activos en la entidad.
                 </p>
@@ -504,6 +656,39 @@ function UserModal({
           </div>
         </form>
       </div>
+
+      {membershipConfirm && (
+        <>
+          <div className={`${modalOverlayClass} z-[60]`} onClick={() => setMembershipConfirm(null)} />
+          <div className={`${modalContainerClass} z-[60]`}>
+            <div className={`${modalPanelSmClass} max-w-md p-6`}>
+              <h3 className="text-base font-semibold text-slate-900">Usuario existente</h3>
+              <p className="mt-2 text-sm text-slate-600">
+                <strong>{membershipConfirm.payload.email}</strong> ya existe en{" "}
+                <strong>{membershipConfirm.entityName}</strong>. ¿Agregarlo también a esta entidad como{" "}
+                <strong>{membershipConfirm.role}</strong>?
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMembershipConfirm(null)}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void confirmMembershipAdd()}
+                  className="rounded-md bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2] disabled:opacity-60"
+                >
+                  {saving ? "Agregando…" : "Agregar a esta entidad"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

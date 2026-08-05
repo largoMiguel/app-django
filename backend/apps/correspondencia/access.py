@@ -19,6 +19,10 @@ def _is_secretario(user) -> bool:
     return "secretario" in user_roles(user)
 
 
+def _is_contratista(user) -> bool:
+    return "contratista" in user_roles(user)
+
+
 def ensure_correspondencia_access(user, entity: Entity) -> None:
     if is_platform_superadmin(user):
         raise PermissionDenied("El superadministrador no opera el módulo de correspondencia.")
@@ -30,8 +34,8 @@ def ensure_correspondencia_access(user, entity: Entity) -> None:
         message="El módulo Correspondencia no está habilitado.",
     )
     roles = user_roles(user)
-    if not ({"admin", "secretario"} & roles):
-        raise PermissionDenied("Solo administradores y secretarios pueden operar correspondencia.")
+    if not ({"admin", "secretario", "contratista"} & roles):
+        raise PermissionDenied("Solo administradores, secretarios y contratistas pueden operar correspondencia.")
 
 
 def correspondencia_queryset(user, entity: Entity) -> QuerySet[Correspondencia]:
@@ -46,6 +50,8 @@ def correspondencia_queryset(user, entity: Entity) -> QuerySet[Correspondencia]:
         if not user.secretaria_id:
             return qs.none()
         return qs.filter(Q(secretaria_id=user.secretaria_id) | Q(assigned_to_id=user.id))
+    if _is_contratista(user):
+        return qs.filter(assigned_to_id=user.id)
     return qs.none()
 
 
@@ -58,4 +64,6 @@ def user_can_access_correspondencia(user, obj: Correspondencia) -> bool:
         return True
     if _is_secretario(user):
         return obj.secretaria_id == user.secretaria_id or obj.assigned_to_id == user.id
+    if _is_contratista(user):
+        return obj.assigned_to_id == user.id
     return False

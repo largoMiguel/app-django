@@ -101,6 +101,7 @@ export default function PQRSDashboard() {
   });
 
   const isAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_VIEW] });
+  const isSecretario = canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_VIEW] }) && !isAdmin;
   const canSeeInformes =
     canAccess(user, { roles: ["admin", "secretario"], permissions: [PERM.PQRS_VIEW] }) &&
     Boolean(user?.entity?.enable_reports_pdf);
@@ -122,6 +123,7 @@ export default function PQRSDashboard() {
   const thisMonth = stats?.this_month ?? 0;
   const sinAsignar = stats?.sin_asignar ?? 0;
   const secretaryStats = stats?.by_secretaria ?? [];
+  const contratistaStats = stats?.by_contratista ?? [];
 
   const donutData = useMemo(
     () => (Object.keys(estadoCounts) as EstadoPQRS[])
@@ -512,6 +514,62 @@ export default function PQRSDashboard() {
                       </tr>
                     );
                   })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Seguimiento por contratista (secretario) ── */}
+      {isSecretario && (
+        <div className="rounded-xl bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between bg-emerald-700 px-5 py-3 text-white">
+            <div className="flex items-center gap-2">
+              <UsersIcon className="h-4 w-4" />
+              <span className="font-semibold text-sm">Delegación a contratistas</span>
+            </div>
+          </div>
+
+          {contratistaStats.length === 0 ? (
+            <div className="flex h-24 items-center justify-center text-sm text-slate-400">
+              Aún no ha delegado PQRS a contratistas.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-3 text-left">Contratista</th>
+                    <th className="px-3 py-3 text-center">Total</th>
+                    <th className="px-3 py-3 text-center">Respondidas</th>
+                    <th className="px-3 py-3 text-center">En proceso</th>
+                    <th className="px-3 py-3 text-center">Pendientes</th>
+                    <th className="px-3 py-3 text-center">Vencidas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contratistaStats.map((s) => (
+                    <tr key={s.user_id} className="border-b border-slate-50 hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-800">{s.nombre}</div>
+                        <div className="text-xs text-slate-500">{s.email}</div>
+                      </td>
+                      <td className="px-3 py-3 text-center font-bold">{s.total}</td>
+                      <td className="px-3 py-3 text-center text-emerald-600">{s.respondidas + s.cerradas}</td>
+                      <td className="px-3 py-3 text-center text-amber-600">{s.en_proceso}</td>
+                      <td className="px-3 py-3 text-center text-blue-600">{s.pendientes}</td>
+                      <td className="px-3 py-3 text-center">
+                        {s.vencidas > 0 ? (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-600">
+                            {s.vencidas}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

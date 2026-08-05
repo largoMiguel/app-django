@@ -9,7 +9,15 @@ import {
 import { canAccess, PERM, type AccessOptions } from "./permissions";
 import type { AuthUser } from "./store";
 
-export type AppModuleKey = "pqrs" | "pdm" | "users_admin" | "reports_pdf" | "asistencia" | "correspondencia";
+export type AppModuleKey =
+  | "pqrs"
+  | "pdm"
+  | "planes_institucionales"
+  | "users_admin"
+  | "reports_pdf"
+  | "asistencia"
+  | "correspondencia"
+  | "contratacion";
 
 export interface AppModuleRoute {
   moduleKey: AppModuleKey;
@@ -33,7 +41,7 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     label: "PQRS",
     module: "enable_pqrs",
     access: {
-      roles: ["admin", "secretario", "ciudadano"],
+      roles: ["admin", "secretario", "contratista", "ciudadano"],
       permissions: [PERM.PQRS_VIEW],
     },
     showInNav: true,
@@ -42,9 +50,20 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
   {
     moduleKey: "pdm",
     path: "/pdm",
+    paths: ["/pdm"],
     label: "PDM",
     module: "enable_pdm",
-    access: { roles: ["admin", "secretario"] },
+    access: { roles: ["admin", "secretario", "contratista"] },
+    showInNav: true,
+    navSection: "main",
+  },
+  {
+    moduleKey: "planes_institucionales",
+    path: "/planes",
+    paths: ["/planes"],
+    label: "Planes Institucionales",
+    module: "enable_planes_institucionales",
+    access: { roles: ["admin", "secretario", "contratista"] },
     showInNav: true,
     navSection: "main",
   },
@@ -64,6 +83,16 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     paths: ["/correspondencia"],
     label: "Correspondencia",
     module: "enable_correspondencia",
+    access: { roles: ["admin", "secretario", "contratista"] },
+    showInNav: true,
+    navSection: "main",
+  },
+  {
+    moduleKey: "contratacion",
+    path: "/contratacion",
+    paths: ["/contratacion"],
+    label: "Contratación",
+    module: "enable_contratacion",
     access: { roles: ["admin", "secretario"] },
     showInNav: true,
     navSection: "main",
@@ -73,7 +102,7 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     path: "/users",
     label: "Usuarios",
     module: "enable_users_admin",
-    access: { roles: ["admin"], permissions: [PERM.USER_VIEW] },
+    access: { roles: ["admin", "secretario"], permissions: [PERM.USER_VIEW] },
     showInNav: true,
     navSection: "secondary",
   },
@@ -112,6 +141,15 @@ function modulesInOrder(user: AuthUser): string[] {
   if (role === "secretario") {
     if (userEnabled.length === 0) return [];
     const allowed = new Set(userEnabled);
+    if (isModuleEnabled(entity, "enable_users_admin")) {
+      allowed.add("users_admin");
+    }
+    return orderedKeys.filter((key) => allowed.has(key));
+  }
+
+  if (role === "contratista") {
+    if (userEnabled.length === 0) return [];
+    const allowed = new Set(userEnabled);
     return orderedKeys.filter((key) => allowed.has(key));
   }
 
@@ -139,7 +177,11 @@ export function canAccessModuleRoute(user: AuthUser | null, moduleKey: AppModule
   if (!entity) return false;
 
   const modules = [entry.module, ...(entry.alsoRequires ?? [])];
+  const role = primaryRole(user);
   for (const mod of modules) {
+    if (entry.moduleKey === "users_admin" && role === "secretario") {
+      continue;
+    }
     if (!isModuleEnabled(entity, mod) || !isUserModuleEnabled(user, mod)) {
       return false;
     }
@@ -204,13 +246,20 @@ export function accessibleNavRoutes(user: AuthUser | null): NavRouteItem[] {
     ];
   }
 
-  return APP_MODULE_ROUTES.filter((route) => route.showInNav && canAccessModuleRoute(user, route.moduleKey)).map(
-    (route) => ({
-      moduleKey: route.moduleKey,
-      path: route.path,
-      label: route.label,
-      matchPaths: route.paths ?? [route.path],
-      navSection: route.navSection ?? "main",
-    }),
-  );
+  const routes = APP_MODULE_ROUTES.filter(
+    (route) => route.showInNav && canAccessModuleRoute(user, route.moduleKey),
+  ).map((route) => ({
+    moduleKey: route.moduleKey,
+    path: route.path,
+    label: route.label,
+    matchPaths: route.paths ?? [route.path],
+    navSection: route.navSection ?? "main",
+  }));
+
+  const byLabel = (a: NavRouteItem, b: NavRouteItem) =>
+    a.label.localeCompare(b.label, "es", { sensitivity: "base" });
+
+  const main = routes.filter((r) => r.navSection === "main").sort(byLabel);
+  const secondary = routes.filter((r) => r.navSection === "secondary").sort(byLabel);
+  return [...main, ...secondary];
 }

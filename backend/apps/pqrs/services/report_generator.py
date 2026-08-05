@@ -39,6 +39,16 @@ import numpy as np
 from matplotlib import patches
 plt.rcParams['font.family'] = 'DejaVu Sans'
 
+from apps.common.report_cover import build_cover_flowables
+from apps.common.report_theme import (
+    MPL_BAR,
+    MPL_BAR_SOFT,
+    MPL_LINE,
+    MPL_TEXT,
+    TEXT_DARK,
+    table_style_cmds,
+)
+
 class PQRSReportGenerator:
     """Generador de informes PQRS con overlay de template institucional"""
     
@@ -161,10 +171,10 @@ class PQRSReportGenerator:
         
         # Obtener datos reales de analytics con colores profesionales
         data_estados = [
-            ('Pendientes', self.analytics.get('pendientes', 0), '#3498db'),
-            ('En Proceso', self.analytics.get('enProceso', 0), '#f39c12'),
-            ('Respondidas', self.analytics.get('resueltas', 0), '#2ecc71'),
-            ('Cerradas', self.analytics.get('cerradas', 0), '#95a5a6'),
+            ('Pendientes', self.analytics.get('pendientes', 0), '#2D3748'),
+            ('En Proceso', self.analytics.get('enProceso', 0), '#64748B'),
+            ('Respondidas', self.analytics.get('resueltas', 0), '#94A3B8'),
+            ('Cerradas', self.analytics.get('cerradas', 0), '#CBD5E1'),
         ]
         
         # Filtrar solo valores > 0 para mejor visualización
@@ -204,7 +214,7 @@ class PQRSReportGenerator:
                     fontsize=12, color='gray')
         
         ax1.set_title(f"Distribución por Estado (Total: {self.analytics.get('totalPqrs', 0)})", 
-                     fontsize=14, fontweight='bold', pad=25, color='#2c3e50')
+                     fontsize=14, fontweight='bold', pad=25, color=MPL_TEXT)
         
         buffer1 = BytesIO()
         plt.savefig(buffer1, format='png', dpi=150, bbox_inches='tight')
@@ -226,7 +236,7 @@ class PQRSReportGenerator:
             tipos_capitalizados = [t.replace('_', ' ').title() for t in tipos]
             
             # Paleta de colores profesional (azul a verde)
-            colores = ['#3498db', '#5dade2', '#48c9b0', '#52be80', '#58d68d', '#7dcea0']
+            colores = ['#2D3748', '#64748B', '#94A3B8', '#CBD5E1', '#475569', '#94A3B8']
             colores_chart = (colores * (len(tipos) // len(colores) + 1))[:len(tipos)]
             
             bars = ax2.barh(tipos_capitalizados, cantidades, color=colores_chart, 
@@ -236,8 +246,13 @@ class PQRSReportGenerator:
             for bar in bars:
                 bar.set_alpha(0.85)
             
-            ax2.set_xlabel('Cantidad de Solicitudes', fontsize=12, fontweight='bold', color='#2c3e50')
-            ax2.set_title('Distribución por Tipo de Solicitud', fontsize=14, fontweight='bold', pad=20, color='#2c3e50')
+            ax2.set_xlabel('Cantidad de Solicitudes', fontsize=12, fontweight='bold', color=MPL_TEXT)
+            ax2.set_title('Distribución por Tipo de Solicitud', fontsize=14, fontweight='bold', pad=20, color=MPL_TEXT)
+            ax2.spines['top'].set_visible(False)
+            ax2.spines['right'].set_visible(False)
+            ax2.spines['left'].set_color(MPL_LINE)
+            ax2.spines['bottom'].set_color(MPL_LINE)
+            ax2.tick_params(colors=MPL_TEXT)
             ax2.grid(axis='x', alpha=0.2, linestyle='--', linewidth=0.8)
             ax2.set_axisbelow(True)  # Grid detrás de las barras
             
@@ -248,7 +263,7 @@ class PQRSReportGenerator:
                 porcentaje = (cant / total_tipos * 100) if total_tipos > 0 else 0
                 ax2.text(width + max(cantidades)*0.02, bar.get_y() + bar.get_height()/2, 
                         f'{int(width)} ({porcentaje:.1f}%)', 
-                        ha='left', va='center', fontsize=10, fontweight='bold', color='#34495e')
+                        ha='left', va='center', fontsize=10, fontweight='bold', color=MPL_TEXT)
         
         buffer2 = BytesIO()
         plt.savefig(buffer2, format='png', dpi=150, bbox_inches='tight')
@@ -291,18 +306,15 @@ class PQRSReportGenerator:
             
             # Gráfica de línea elegante con gradiente
             ax3.plot(meses_labels, valores_meses, marker='o', linewidth=3, 
-                    color='#e74c3c', markersize=10, markerfacecolor='#e74c3c', 
+                    color=MPL_BAR, markersize=10, markerfacecolor=MPL_BAR, 
                     markeredgecolor='white', markeredgewidth=2.5, label='PQRS Recibidas',
-                    zorder=3)  # Línea al frente
-            
-            # Área sombreada con gradiente suave
+                    zorder=3)
             ax3.fill_between(range(len(meses_labels)), valores_meses, alpha=0.25, 
-                           color='#e74c3c', zorder=2)
-            
-            ax3.set_xlabel('Período', fontsize=12, fontweight='bold', color='#2c3e50')
-            ax3.set_ylabel('Cantidad de PQRS', fontsize=12, fontweight='bold', color='#2c3e50')
-            ax3.set_title('Evolución Temporal de PQRS', fontsize=14, fontweight='bold', pad=20, color='#2c3e50')
-            ax3.grid(True, alpha=0.2, linestyle='--', linewidth=0.8, zorder=1)
+                           color=MPL_BAR_SOFT, zorder=2)
+            ax3.set_xlabel('Período', fontsize=12, fontweight='bold', color=MPL_TEXT)
+            ax3.set_ylabel('Cantidad de PQRS', fontsize=12, fontweight='bold', color=MPL_TEXT)
+            ax3.set_title('Evolución Temporal de PQRS', fontsize=14, fontweight='bold', pad=20, color=MPL_TEXT)
+            ax3.grid(True, alpha=0.3, linestyle='--', linewidth=0.8, color=MPL_LINE, zorder=1)
             ax3.legend(loc='upper left', fontsize=11, framealpha=0.9, edgecolor='gray')
             ax3.set_axisbelow(True)
             
@@ -346,19 +358,23 @@ class PQRSReportGenerator:
             ]
             
             # Colores semafóricos profesionales
-            colores_tiempos = ['#27ae60', '#2ecc71', '#f39c12', '#e67e22', '#c0392b']
+            colores_tiempos = ['#2D3748', '#475569', '#64748B', '#94A3B8', '#CBD5E1']
             bars = ax4.bar(rangos, conteos, color=colores_tiempos, edgecolor='white', 
                           linewidth=2, width=0.7, alpha=0.85)
             
-            ax4.set_ylabel('Cantidad de PQRS', fontsize=12, fontweight='bold', color='#2c3e50')
+            ax4.set_ylabel('Cantidad de PQRS', fontsize=12, fontweight='bold', color=MPL_TEXT)
             ax4.set_title('Distribución de Tiempos de Respuesta', fontsize=14, fontweight='bold', 
-                         pad=20, color='#2c3e50')
-            ax4.grid(axis='y', alpha=0.2, linestyle='--', linewidth=0.8)
+                         pad=20, color=MPL_TEXT)
+            ax4.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.8, color=MPL_LINE)
             ax4.set_axisbelow(True)
+            ax4.spines['top'].set_visible(False)
+            ax4.spines['right'].set_visible(False)
+            ax4.spines['left'].set_color(MPL_LINE)
+            ax4.spines['bottom'].set_color(MPL_LINE)
+            ax4.tick_params(colors=MPL_TEXT)
             
-            # Línea de referencia legal elegante
             if max(conteos) > 0:
-                ax4.axhline(y=max(conteos)*0.5, color='#e74c3c', linestyle='--', 
+                ax4.axhline(y=max(conteos)*0.5, color=MPL_BAR_SOFT, linestyle='--', 
                            linewidth=2.5, alpha=0.6, label='Referencia legal: 15 días')
             
             # Añadir valores sobre barras con fondo
@@ -378,9 +394,9 @@ class PQRSReportGenerator:
             promedio = sum(tiempos) / len(tiempos)
             ax4.text(0.02, 0.98, f'⏱ Promedio: {promedio:.1f} días', 
                     transform=ax4.transAxes, fontsize=12, fontweight='bold',
-                    verticalalignment='top', color='#2c3e50',
-                    bbox=dict(boxstyle='round,pad=0.5', facecolor='#ecf0f1', 
-                            edgecolor='#34495e', alpha=0.9, linewidth=2))
+                    verticalalignment='top', color=MPL_TEXT,
+                    bbox=dict(boxstyle='round,pad=0.5', facecolor='white', 
+                            edgecolor=MPL_LINE, alpha=0.9, linewidth=2))
         else:
             ax4.text(0.5, 0.5, 'Datos de tiempos no disponibles', 
                     ha='center', va='center', transform=ax4.transAxes, 
@@ -412,8 +428,13 @@ class PQRSReportGenerator:
                     j = tipos_lista.index(tipo)
                     matriz[i, j] += 1
             
-            # Crear heatmap con paleta profesional
-            im = ax5.imshow(matriz, cmap='RdYlGn_r', aspect='auto', alpha=0.85)
+            # Crear heatmap con paleta en escala de grises
+            from matplotlib.colors import LinearSegmentedColormap
+            grey_cmap = LinearSegmentedColormap.from_list(
+                'institutional_grey',
+                ['#FFFFFF', '#CBD5E1', '#64748B', '#2D3748'],
+            )
+            im = ax5.imshow(matriz, cmap=grey_cmap, aspect='auto', alpha=0.9)
             
             # Etiquetas con mejor formato
             estados_labels = [e.replace('_', ' ').title() for e in estados_lista]
@@ -431,7 +452,7 @@ class PQRSReportGenerator:
                                    ha='center', va='center', color='black', 
                                    fontsize=10, fontweight='bold')
             
-            ax5.set_title('Matriz: Estado vs Tipo de Solicitud', fontsize=13, fontweight='bold', pad=15)
+            ax5.set_title('Matriz: Estado vs Tipo de Solicitud', fontsize=13, fontweight='bold', pad=15, color=MPL_TEXT)
             plt.colorbar(im, ax=ax5, label='Cantidad')
         
         buffer5 = BytesIO()
@@ -445,58 +466,9 @@ class PQRSReportGenerator:
     
     @staticmethod
     def _detect_template_margins(template_pdf_bytes: bytes):
-        """
-        Analiza el template PDF y detecta automáticamente el espacio
-        que ocupan el encabezado (arriba) y el pie de página (abajo),
-        sin importar la posición exacta en cada entidad.
-        Retorna (top_margin_inches, bottom_margin_inches).
-        """
-        import fitz
-        doc = fitz.open(stream=template_pdf_bytes, filetype="pdf")
-        page = doc[0]
-        page_height = page.rect.height   # puntos PDF
-        mid_y = page_height / 2
-        PADDING_PT = 14  # margen extra de seguridad en puntos
+        from apps.common.pdf_template import detect_template_margins
 
-        header_bottom = 0.0   # borde inferior del encabezado
-        footer_top    = page_height  # borde superior del pie
-
-        # Bloques de texto
-        for block in page.get_text("blocks"):
-            x0, y0, x1, y1 = block[:4]
-            if y1 < mid_y:
-                header_bottom = max(header_bottom, y1)
-            elif y0 > mid_y:
-                footer_top = min(footer_top, y0)
-
-        # Trazados vectoriales (líneas, rectángulos, etc.)
-        for draw in page.get_drawings():
-            r = draw.get("rect")
-            if r:
-                if r.y1 < mid_y:
-                    header_bottom = max(header_bottom, r.y1)
-                elif r.y0 > mid_y:
-                    footer_top = min(footer_top, r.y0)
-
-        # Imágenes incrustadas (p.ej. logo)
-        for img in page.get_image_info(xrefs=True):
-            bbox = img.get("bbox")
-            if bbox:
-                y0, y1 = bbox[1], bbox[3]
-                if y1 < mid_y:
-                    header_bottom = max(header_bottom, y1)
-                elif y0 > mid_y:
-                    footer_top = min(footer_top, y0)
-
-        doc.close()
-
-        top_in    = (header_bottom + PADDING_PT) / 72.0
-        bottom_in = (page_height - footer_top + PADDING_PT) / 72.0
-
-        # Límites razonables
-        top_in    = round(max(0.75, min(3.5, top_in)), 3)
-        bottom_in = round(max(0.5,  min(2.5, bottom_in)), 3)
-
+        top_in, bottom_in = detect_template_margins(template_pdf_bytes)
         print(f"📐 Márgenes detectados → top: {top_in}in  bottom: {bottom_in}in")
         return top_in, bottom_in
 
@@ -545,40 +517,9 @@ class PQRSReportGenerator:
 
     @staticmethod
     def _replace_page_number(page, page_index: int, total_pages: int) -> None:
-        """
-        Actualiza solo los dígitos de 'Página X de Y' en el membrete.
-        No toca el resto del template ni pinta cajas blancas grandes.
-        """
-        words = page.get_text("words")
-        indices = PQRSReportGenerator._find_page_number_word_indices(words)
-        if indices:
-            _, num_a_idx, _, num_b_idx = indices
-            num_word_a = words[num_a_idx]
-            num_word_b = words[num_b_idx]
-            PQRSReportGenerator._redact_tight(page, PQRSReportGenerator._word_rect(num_word_a))
-            PQRSReportGenerator._redact_tight(page, PQRSReportGenerator._word_rect(num_word_b))
-            PQRSReportGenerator._insert_at_word(page, num_word_a, page_index + 1)
-            PQRSReportGenerator._insert_at_word(page, num_word_b, total_pages)
-            return
+        from apps.common.pdf_template import replace_page_number
 
-        page_num_re = re.compile(r"P[aá]gina\s+\d+\s+de\s+\d+", re.IGNORECASE)
-        for block in page.get_text("blocks"):
-            if len(block) < 5:
-                continue
-            text = str(block[4]).strip()
-            if not page_num_re.search(text):
-                continue
-            rect = fitz.Rect(block[:4])
-            PQRSReportGenerator._redact_tight(page, rect)
-            fontsize = max(7, min(14, rect.height * 0.9))
-            page.insert_text(
-                (rect.x0, rect.y1 - 1),
-                f"Página {page_index + 1} de {total_pages}",
-                fontsize=fontsize,
-                color=(0, 0, 0),
-                fontname="helv",
-            )
-            return
+        replace_page_number(page, page_index, total_pages)
 
     def _create_content_pdf(self, top_margin: float = 1.6, bottom_margin: float = 1.0) -> BytesIO:
         """
@@ -601,7 +542,7 @@ class PQRSReportGenerator:
             'CustomTitle',
             parent=self.styles['Heading1'],
             fontSize=18,
-            textColor=colors.black,
+            textColor=TEXT_DARK,
             spaceAfter=12,
             alignment=TA_CENTER,
             fontName='Helvetica-Bold'
@@ -611,7 +552,7 @@ class PQRSReportGenerator:
             'CustomHeading',
             parent=self.styles['Heading2'],
             fontSize=14,
-            textColor=colors.black,
+            textColor=TEXT_DARK,
             spaceAfter=10,
             fontName='Helvetica-Bold'
         )
@@ -620,7 +561,7 @@ class PQRSReportGenerator:
             'CustomSubheading',
             parent=self.styles['Heading3'],
             fontSize=12,
-            textColor=colors.black,
+            textColor=TEXT_DARK,
             spaceAfter=8,
             fontName='Helvetica-Bold'
         )
@@ -642,94 +583,20 @@ class PQRSReportGenerator:
         )
         
         # ***** PORTADA PERSONALIZADA *****
-        # Calcular trimestre y mes de generación
         trimestre_info = self._calcular_trimestre()
-        _meses_es_portada = {
-            1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",5:"Mayo",6:"Junio",
-            7:"Julio",8:"Agosto",9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"
-        }
-        _hoy = datetime.now()
-        mes_generacion = f"{_meses_es_portada[_hoy.month]} {_hoy.year}"
-        
-        # Espaciado inicial
-        self.story.append(Spacer(1, 0.5*inch))
-        
-        # Encabezado verde oscuro con título principal
-        header_data = [[Paragraph("<b>Informe de Seguimiento</b><br/>Proceso de Peticiones, Quejas, Reclamos, Solicitudes,<br/>Denuncias y Felicitaciones (PQRSDF)", 
-                                 ParagraphStyle('HeaderText', 
-                                              parent=normal_style, 
-                                              alignment=TA_CENTER,
-                                              fontSize=14,
-                                              textColor=colors.white,
-                                              fontName='Helvetica-Bold',
-                                              leading=18))]]
-        
-        header_table = Table(header_data, colWidths=[6.5*inch])
-        header_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2d5016')),  # Verde oscuro
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 20),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 20),
-            ('LEFTPADDING', (0, 0), (-1, -1), 20),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 20),
-        ]))
-        self.story.append(header_table)
-        self.story.append(Spacer(1, 0.1*inch))
-        
-        # Nombre de la entidad en caja verde claro
-        entity_data = [[Paragraph(f"<b>{self.entity.name.upper()}</b>", 
-                                 ParagraphStyle('EntityText', 
-                                              parent=normal_style, 
-                                              alignment=TA_CENTER,
-                                              fontSize=16,
-                                              textColor=colors.black,
-                                              fontName='Helvetica-Bold'))]]
-        
-        entity_table = Table(entity_data, colWidths=[6.5*inch])
-        entity_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#c3d69b')),  # Verde claro
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 15),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
-        ]))
-        self.story.append(entity_table)
-        self.story.append(Spacer(1, 0.5*inch))
-        
-        # Periodo trimestral en caja verde claro
-        periodo_text = f"<b>{trimestre_info['texto_periodo']}<br/>{trimestre_info['año']}</b>"
-        periodo_data = [[Paragraph(periodo_text, 
-                                  ParagraphStyle('PeriodoText', 
-                                               parent=normal_style, 
-                                               alignment=TA_RIGHT,
-                                               fontSize=14,
-                                               textColor=colors.black,
-                                               fontName='Helvetica-Bold',
-                                               leading=20))]]
-        
-        periodo_table = Table(periodo_data, colWidths=[6.5*inch])
-        periodo_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#c3d69b')),  # Verde claro
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 15),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 30),
-        ]))
-        self.story.append(periodo_table)
-        self.story.append(Spacer(1, 0.5*inch))
-        
-        # Mes de generación (alineado a la derecha)
-        mes_style = ParagraphStyle(
-            'MesStyle',
-            parent=normal_style,
-            fontSize=14,
-            alignment=TA_RIGHT,
-            fontName='Helvetica'
+        top_spacer = 0.2 if top_margin > 1.2 else 0.5
+        cover = build_cover_flowables(
+            title_line="Informe de Seguimiento",
+            subtitle_line=(
+                "Proceso de Peticiones, Quejas, Reclamos, Solicitudes,<br/>"
+                "Denuncias y Felicitaciones (PQRSDF)"
+            ),
+            entity_name=self.entity.name,
+            period_text=f"{trimestre_info['texto_periodo']}<br/>{trimestre_info['año']}",
+            normal_style=normal_style,
+            top_spacer=top_spacer,
         )
-        self.story.append(Paragraph(mes_generacion, mes_style))
-        self.story.append(PageBreak())
+        self.story.extend(cover)
 
         # ---- Datos dinámicos de la entidad ----
         entity_name      = self.entity.name        # Ej: "Alcaldía Municipal de Sora"
@@ -765,7 +632,7 @@ class PQRSReportGenerator:
             'SectionHeading',
             parent=heading_style,
             fontSize=11,
-            textColor=colors.black,
+            textColor=TEXT_DARK,
             fontName='Helvetica-Bold',
             spaceAfter=6,
             spaceBefore=14
@@ -942,16 +809,10 @@ class PQRSReportGenerator:
             ["Despacho", phone_val],
         ]
         phone_table = Table(phone_data, colWidths=[3.5*inch, 3.0*inch])
-        phone_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d5016')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ]))
+        phone_table.setStyle(TableStyle(
+            table_style_cmds(n_rows=len(phone_data), left_cols=(0,), numeric_cols=(1,))
+            + [('FONTSIZE', (0, 0), (-1, -1), 9)]
+        ))
         self.story.append(phone_table)
         self.story.append(Spacer(1, 0.2*inch))
 
@@ -979,17 +840,13 @@ class PQRSReportGenerator:
              "Dentro de los cinco (5) días siguientes a su recepción"],
         ]
         terminos_table = Table(terminos_data, colWidths=[3.25*inch, 3.25*inch])
-        terminos_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d5016')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('TOPPADDING', (0, 0), (-1, -1), 5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ]))
+        terminos_table.setStyle(TableStyle(
+            table_style_cmds(n_rows=len(terminos_data), left_cols=(0, 1))
+            + [
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ]
+        ))
         self.story.append(terminos_table)
         self.story.append(Spacer(1, 0.2*inch))
         
@@ -1012,17 +869,17 @@ class PQRSReportGenerator:
         indicadores_data.append(['Tiempo Promedio de Respuesta', f"{tiempo} días" if tiempo > 0 else 'No registrado'])
         
         indicadores_table = Table(indicadores_data, colWidths=[4*inch, 2*inch])
-        indicadores_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d5016')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('ALIGN', (1, 1), (1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
-        ]))
+        indicadores_table.setStyle(TableStyle(
+            table_style_cmds(
+                n_rows=len(indicadores_data),
+                left_cols=(0,),
+                numeric_cols=(1,),
+            )
+            + [
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ]
+        ))
         
         self.story.append(indicadores_table)
         self.story.append(Spacer(1, 0.1*inch))
@@ -1127,16 +984,13 @@ class PQRSReportGenerator:
             ])
         
         pqrs_table = Table(pqrs_data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
-        pqrs_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d5016')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
-        ]))
+        pqrs_table.setStyle(TableStyle(
+            table_style_cmds(n_rows=len(pqrs_data), left_cols=(0, 1, 2, 3))
+            + [
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ]
+        ))
         
         self.story.append(pqrs_table)
         self.story.append(Spacer(1, 0.15*inch))
@@ -1176,7 +1030,7 @@ class PQRSReportGenerator:
             fontSize=11,
             alignment=TA_CENTER,
             spaceAfter=8,
-            textColor=colors.HexColor('#2c3e50')
+            textColor=TEXT_DARK
         )
         
         nombre_firma_style = ParagraphStyle(
@@ -1186,7 +1040,7 @@ class PQRSReportGenerator:
             alignment=TA_CENTER,
             fontName='Helvetica-Bold',
             spaceAfter=4,
-            textColor=colors.HexColor('#2c3e50')
+            textColor=TEXT_DARK
         )
         
         cargo_firma_style = ParagraphStyle(
@@ -1195,7 +1049,7 @@ class PQRSReportGenerator:
             fontSize=10,
             alignment=TA_CENTER,
             spaceAfter=15,
-            textColor=colors.HexColor('#34495e')
+            textColor=TEXT_DARK
         )
         
         # Línea de firma elegante
@@ -1210,7 +1064,7 @@ class PQRSReportGenerator:
             ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
             ('FONTNAME', (0, 1), (0, 1), 'Helvetica'),
             ('FONTSIZE', (0, 1), (0, 1), 10),
-            ('TEXTCOLOR', (0, 1), (0, 1), colors.HexColor('#7f8c8d')),
+            ('TEXTCOLOR', (0, 1), (0, 1), TEXT_DARK),
             ('TOPPADDING', (0, 0), (0, 0), 30),  # Espacio para firma manuscrita
         ]))
         
@@ -1258,27 +1112,22 @@ class PQRSReportGenerator:
         automáticamente, genera el contenido con esos márgenes y aplica
         el template vectorial como fondo en cada página.
         """
-        import fitz  # PyMuPDF
-        import traceback
+        from apps.common.pdf_template import (
+            apply_template_overlay,
+            detect_template_margins,
+            load_entity_template,
+            replace_page_number,
+        )
 
-        from django.conf import settings
-
-        from apps.common.b2_client import get_b2_client
-
-        template_pdf_bytes = None
-        top_margin    = 1.6
+        template_pdf_bytes = load_entity_template(self.entity)
+        top_margin = 1.6
         bottom_margin = 1.0
 
-        if self.entity.pdf_template_url:
+        if template_pdf_bytes:
             try:
-                key = self.entity.pdf_template_url.lstrip("/")
-                client = get_b2_client()
-                s3_resp = client.get_object(Bucket=settings.B2_BUCKET_PQRS, Key=key)
-                template_pdf_bytes = s3_resp["Body"].read()
-                top_margin, bottom_margin = self._detect_template_margins(template_pdf_bytes)
+                top_margin, bottom_margin = detect_template_margins(template_pdf_bytes)
             except Exception as e:
-                print(f"⚠️ Error descargando template: {e}")
-                traceback.print_exc()
+                print(f"⚠️ Error detectando márgenes del template: {e}")
                 template_pdf_bytes = None
 
         # Generar contenido con los márgenes correctos para este template
@@ -1292,26 +1141,13 @@ class PQRSReportGenerator:
 
         try:
             content_buffer.seek(0)
-            content_doc = fitz.open(stream=content_buffer.read(), filetype="pdf")
-            total_pages = len(content_doc)
-
-            for i, page in enumerate(content_doc):
-                tpl_doc = fitz.open(stream=template_pdf_bytes, filetype="pdf")
-                tpl_page = tpl_doc[0]
-                self._replace_page_number(tpl_page, i, total_pages)
-                page.show_pdf_page(page.rect, tpl_doc, 0, overlay=False)
-                tpl_doc.close()
-
-            final_buffer = BytesIO()
-            content_doc.save(final_buffer)
-            content_doc.close()
-            final_buffer.seek(0)
-
-            print(f"✅ PDF con membrete institucional generado ({total_pages} páginas)")
+            final_buffer = apply_template_overlay(content_buffer.read(), template_pdf_bytes)
+            print(f"✅ PDF con membrete institucional generado")
             return final_buffer
 
         except Exception as e:
             print(f"⚠️ Error aplicando template: {e}")
+            import traceback
             traceback.print_exc()
             content_buffer.seek(0)
             return content_buffer

@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.db.models import Avg, Count
 from django.db.models.functions import TruncDate
 from django.http import HttpResponse
@@ -33,6 +34,8 @@ from .access import (
     user_can_access_producto,
 )
 from .ejecucion_resumen import resumen_ejecucion_entidad
+
+User = get_user_model()
 from .producto_codigo import resolver_codigo_producto_pdm
 from .contratos_parser import parse_contratos_rps
 from .ejecucion_parser import _looks_like_codigo_fuente, parse_ejecucion_excel, rows_from_ejecucion_dataframe
@@ -441,6 +444,9 @@ class PdmActividadCreateView(APIView):
         payload = request.data.copy()
         payload["fecha_inicio"] = _parse_iso_dt(payload.get("fecha_inicio"))
         payload["fecha_fin"] = _parse_iso_dt(payload.get("fecha_fin"))
+        if not _is_secretario(request.user):
+            payload.pop("responsable_usuario", None)
+            payload.pop("responsable_usuario_id", None)
         ser = PdmActividadSerializer(data=payload)
         ser.is_valid(raise_exception=True)
         actividad = PdmActividad.objects.create(entity=entity, **ser.validated_data)
@@ -477,6 +483,9 @@ class PdmActividadDetailView(APIView):
             payload["fecha_inicio"] = _parse_iso_dt(payload.get("fecha_inicio"))
         if "fecha_fin" in payload:
             payload["fecha_fin"] = _parse_iso_dt(payload.get("fecha_fin"))
+        if not _is_secretario(request.user):
+            payload.pop("responsable_usuario", None)
+            payload.pop("responsable_usuario_id", None)
         ser = PdmActividadSerializer(actividad, data=payload, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
@@ -589,6 +598,59 @@ class PdmAsignarResponsableView(APIView):
         producto.responsable_secretaria_nombre = secretaria.nombre
         producto.save(update_fields=["responsable_secretaria", "responsable_secretaria_nombre", "updated_at"])
         return Response({"success": True, "producto_codigo": producto.codigo_producto, "responsable_secretaria_id": secretaria.id, "responsable_secretaria_nombre": secretaria.nombre})
+
+
+class PdmAsignarResponsableUsuarioView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, slug: str, codigo_producto: str):
+        from apps.accounts.models import UserEntityMembership
+
+        entity = _entity_or_404(slug)
+        _ensure_user_can_manage_entity(request.user, entity)
+        roles = user_roles(request.user)
+        if "secretario" not in roles:
+            raise PermissionDenied("Solo secretario puede asignar contratistas.")
+        usuario_id = request.query_params.get("responsable_usuario_id")
+        producto = get_object_or_404(
+            productos_queryset_for_user(request.user, entity),
+            codigo_producto=codigo_producto,
+        )
+        if not request.user.secretaria_id or producto.responsable_secretaria_id != request.user.secretaria_id:
+            raise PermissionDenied("Solo puede delegar productos de su secretaría.")
+
+        if usuario_id in (None, "", "null", "none", "0"):
+            producto.responsable_usuario = None
+            producto.save(update_fields=["responsable_usuario", "updated_at"])
+            return Response(
+                {
+                    "success": True,
+                    "producto_codigo": producto.codigo_producto,
+                    "responsable_usuario_id": None,
+                    "responsable_usuario_nombre": None,
+                }
+            )
+
+        target = get_object_or_404(User, pk=usuario_id)
+        membership = UserEntityMembership.objects.filter(
+            user=target, entity=entity, is_active=True
+        ).first()
+        if membership is None:
+            raise ValidationError({"responsable_usuario_id": "Usuario no pertenece a la entidad."})
+        if membership.role != "contratista":
+            raise PermissionDenied("Solo puede asignar contratistas.")
+        if membership.secretaria_id != request.user.secretaria_id:
+            raise PermissionDenied("Solo puede asignar contratistas de su secretaría.")
+        producto.responsable_usuario = target
+        producto.save(update_fields=["responsable_usuario", "updated_at"])
+        return Response(
+            {
+                "success": True,
+                "producto_codigo": producto.codigo_producto,
+                "responsable_usuario_id": target.id,
+                "responsable_usuario_nombre": target.full_name or target.email,
+            }
+        )
 
 
 class PdmEjecucionUploadView(APIView):

@@ -41,6 +41,11 @@ from .services import (
 User = get_user_model()
 
 
+def _contratista_only(user) -> bool:
+    roles = user_roles(user)
+    return "contratista" in roles and "admin" not in roles and "secretario" not in roles
+
+
 def _entity_for_user(user) -> Entity:
     if not user.entity_id:
         raise PermissionDenied("Usuario sin entidad asignada.")
@@ -94,6 +99,8 @@ class CorrespondenciaViewSet(viewsets.ModelViewSet):
         return Response(CorrespondenciaDetailSerializer(obj).data)
 
     def create(self, request, *args, **kwargs):
+        if _contratista_only(request.user):
+            raise PermissionDenied("Los contratistas no pueden radicar correspondencia.")
         ser = CorrespondenciaWriteSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         secretaria = ser.resolve_secretaria(self.entity)
@@ -126,6 +133,8 @@ class CorrespondenciaViewSet(viewsets.ModelViewSet):
         )
 
     def partial_update(self, request, *args, **kwargs):
+        if _contratista_only(request.user):
+            raise PermissionDenied("Los contratistas no pueden editar radicados.")
         obj = self.get_object()
         if "admin" not in user_roles(request.user):
             raise PermissionDenied("Solo administradores pueden editar radicados.")
@@ -194,6 +203,8 @@ class CorrespondenciaViewSet(viewsets.ModelViewSet):
         return Response(CorrespondenciaDetailSerializer(obj).data)
 
     def destroy(self, request, *args, **kwargs):
+        if _contratista_only(request.user):
+            raise PermissionDenied("Los contratistas no pueden eliminar radicados.")
         if "admin" not in user_roles(request.user):
             raise PermissionDenied("Solo administradores pueden eliminar radicados.")
         obj = self.get_object()
@@ -207,6 +218,8 @@ class CorrespondenciaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def asignar(self, request, pk=None):
+        if _contratista_only(request.user):
+            raise PermissionDenied("Los contratistas no pueden reasignar correspondencia.")
         obj = self.get_object()
         ser = AsignarSerializer(data=request.data)
         ser.is_valid(raise_exception=True)

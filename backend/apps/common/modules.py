@@ -40,6 +40,10 @@ def user_has_module(user, module_key: str) -> bool:
         if not user_modules:
             return False
         return module_key in user_modules
+    if role == "contratista":
+        if not user_modules:
+            return False
+        return module_key in user_modules
     if user_modules:
         return module_key in user_modules
     return True

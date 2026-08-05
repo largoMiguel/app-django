@@ -31,11 +31,18 @@ import {
 } from "@/core/api/pqrs";
 import { openAuthenticatedFile, downloadAuthenticatedFile } from "@/core/api/client";
 import { secretariasApi, type Secretaria } from "@/core/api/entities";
+import { usersApi, type AppUser } from "@/core/api/users";
 import { formatApiError } from "@/core/api/errors";
 import { useAuthStore, primaryRole, canAccess, PERM } from "@/core/auth/store";
 import { formatFechaHoraCO } from "@/core/datetime";
+import {
+  modalContainerClass,
+  modalOverlayClass,
+  modalPanelLgClass,
+} from "@/components/ui/modalShell";
 import EditPQRSModal from "./EditPQRSModal";
 import PQRSAssignmentPanel from "./PQRSAssignmentPanel";
+import PQRSUserAssignmentPanel from "./PQRSUserAssignmentPanel";
 import EmailFirmaPanel from "./EmailFirmaPanel";
 
 function formatBytes(bytes?: number): string {
@@ -57,6 +64,7 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
 
   const [data, setData] = useState<PQRS | null>(null);
   const [secretarias, setSecretarias] = useState<Secretaria[]>([]);
+  const [contratistas, setContratistas] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"detalle" | "correos" | "firma" | "historial">("detalle");
 
@@ -117,6 +125,17 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
   }
 
   const canAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_CHANGE] });
+  const isContratista = role === "contratista";
+  const contratistaAsignado = Boolean(
+    isContratista && data?.assigned_users?.some((u) => u.id === user?.id),
+  );
+  const canDelegateUsers =
+    canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] }) &&
+    Boolean(
+      user?.secretaria?.id &&
+        (data?.assigned_secretarias?.some((s) => s.id === user.secretaria?.id) ||
+          data?.assigned_to === user.secretaria.id),
+    );
   const usuarioAsignado =
     Boolean(
       user?.secretaria?.id &&
@@ -128,6 +147,7 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
     canAdmin || canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] });
   const canRespond =
     canAdmin ||
+    contratistaAsignado ||
     (canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] }) &&
       usuarioAsignado);
   const estadoFinal = data?.estado === "respondida" || data?.estado === "cerrada";
@@ -150,12 +170,25 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
   async function load() {
     setLoading(true);
     try {
-      const [d, secs] = await Promise.all([
-        pqrsApi.get(pqrsId),
-        role !== "secretario" ? secretariasApi.list() : Promise.resolve<Secretaria[]>([]),
-      ]);
+      const d = await pqrsApi.get(pqrsId);
       setData(d);
-      setSecretarias(secs);
+      const loads: Promise<unknown>[] = [];
+      if (role !== "secretario" && role !== "contratista") {
+        loads.push(secretariasApi.list().then(setSecretarias));
+      } else {
+        setSecretarias([]);
+      }
+      if (
+        role === "secretario" ||
+        canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_CHANGE] })
+      ) {
+        loads.push(
+          usersApi.list({ role: "contratista", page_size: 100 }).then(setContratistas),
+        );
+      } else {
+        setContratistas([]);
+      }
+      await Promise.all(loads);
     } finally {
       setLoading(false);
     }
@@ -196,10 +229,10 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className={modalOverlayClass} onClick={onClose} />
+      <div className={modalContainerClass}>
         <div
-          className="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+          className={modalPanelLgClass}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-slate-200 bg-[#1c2536] px-6 py-3 text-white">
@@ -395,6 +428,20 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                     busy={busy}
                     onSave={(ids, justificacion) =>
                       handleAction(() => pqrsApi.asignar(data.id, ids, justificacion))
+                    }
+                  />
+                )}
+
+                {canDelegateUsers && !estadoFinal && (
+                  <PQRSUserAssignmentPanel
+                    assignedIds={data.assigned_users?.map((u) => u.id) ?? []}
+                    assignedNames={
+                      data.assigned_users?.map((u) => u.full_name || u.email) ?? []
+                    }
+                    contratistas={contratistas}
+                    busy={busy}
+                    onSave={(ids, justificacion) =>
+                      handleAction(() => pqrsApi.asignarUsuario(data.id, ids, justificacion))
                     }
                   />
                 )}

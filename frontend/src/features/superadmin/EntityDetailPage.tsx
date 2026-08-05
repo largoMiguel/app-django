@@ -246,6 +246,22 @@ function InfoTab({
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
             />
           </Field>
+          <Field label="NIT SECOP I" hint="Opcional. Varios NIT separados por coma. Si vacío, usa el NIT general.">
+            <input
+              value={form.nit_secop_i || ""}
+              onChange={(e) => set("nit_secop_i", e.target.value)}
+              placeholder="891855735"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+            />
+          </Field>
+          <Field label="NIT SECOP II" hint="Opcional. Varios NIT separados por coma. Si vacío, usa el NIT general.">
+            <input
+              value={form.nit_secop_ii || ""}
+              onChange={(e) => set("nit_secop_ii", e.target.value)}
+              placeholder="891855735"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+            />
+          </Field>
           <Field label="Email">
             <input
               value={form.email || ""}
@@ -592,12 +608,18 @@ function UsersTab({ entity }: { entity: Entity }) {
   }, [entity.id]);
 
   async function handleDeactivate(u: AppUser) {
-    if (!confirm(`¿Desactivar al usuario ${u.email}?\n\nNo podrá iniciar sesión hasta reactivarlo.`)) return;
+    if (
+      !confirm(
+        `¿Desvincular a ${u.email} de ${entity.name}?\n\nSi no pertenece a otras entidades, tampoco podrá iniciar sesión.`,
+      )
+    ) {
+      return;
+    }
     try {
-      await usersApi.deactivate(u.id);
+      await usersApi.deactivate(u.id, { entity: entity.id });
       load();
     } catch (err) {
-      alert(formatApiError(err, "No se pudo desactivar."));
+      alert(formatApiError(err, "No se pudo desvincular."));
     }
   }
 
@@ -751,7 +773,7 @@ function UserModal({
           full_name: initial.full_name,
           role: (initial.role || "admin") as CreateUserPayload["role"],
           entity: entity.id,
-          secretaria: initial.secretaria,
+          secretaria: initial.secretaria ?? null,
           is_active: initial.is_active,
           enabled_modules: initial.enabled_modules || [],
         }
@@ -769,6 +791,12 @@ function UserModal({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailHint, setEmailHint] = useState<string | null>(null);
+  const [membershipConfirm, setMembershipConfirm] = useState<{
+    entityName: string;
+    role: string;
+    payload: CreateUserPayload & { is_active?: boolean };
+  } | null>(null);
 
   const modulosDisponibles = useMemo(
     () => modulesForEntity(entity).filter((m) => m.scope === "all"),
@@ -784,31 +812,106 @@ function UserModal({
     });
   }
 
+  async function submitPayload(payload: CreateUserPayload & { is_active?: boolean }) {
+    if (initial) {
+      delete payload.invite;
+      await usersApi.update(initial.id, payload);
+    } else {
+      if (payload.invite) delete payload.password;
+      const result = await usersApi.create(payload);
+      if (result.membership_added) {
+        alert(`Se agregó la membresía de ${result.email} en ${entity.name}.`);
+      }
+    }
+    onSaved();
+  }
+
+  async function handleEmailBlur() {
+    if (initial || !form.email.trim()) {
+      setEmailHint(null);
+      return;
+    }
+    try {
+      const lookup = await usersApi.lookupEmail(form.email.trim());
+      if (!lookup.exists) {
+        setEmailHint(null);
+        return;
+      }
+      const alreadyHere = lookup.memberships?.some((m) => m.entity_id === entity.id);
+      if (alreadyHere) {
+        setEmailHint("Este usuario ya pertenece a esta entidad.");
+        return;
+      }
+      const names = (lookup.memberships || []).map((m) => m.entity_name).join(", ");
+      setEmailHint(
+        `Usuario existente${lookup.full_name ? `: ${lookup.full_name}` : ""}. Ya pertenece a: ${names || "otra entidad"}. Se añadirá a ${entity.name} sin crear cuenta en Clerk.`,
+      );
+      if (lookup.full_name && !form.full_name.trim()) {
+        setForm((f) => ({ ...f, full_name: lookup.full_name || f.full_name }));
+      }
+    } catch {
+      setEmailHint(null);
+    }
+  }
+
   async function submit(ev: React.FormEvent) {
     ev.preventDefault();
     setSaving(true);
     setError(null);
     try {
       const payload: CreateUserPayload & { is_active?: boolean } = { ...form, entity: entity.id };
-      if (payload.role !== "secretario") {
+      if (payload.role !== "secretario" && payload.role !== "contratista") {
         delete payload.secretaria;
         payload.enabled_modules = [];
       }
       if (!payload.password) delete payload.password;
       if (initial) {
-        delete payload.invite;
-        await usersApi.update(initial.id, payload);
-      } else {
-        if (payload.invite) delete payload.password;
-        await usersApi.create(payload);
+        await submitPayload(payload);
+        return;
       }
-      onSaved();
+      if (payload.invite) delete payload.password;
+
+      if (payload.email.trim()) {
+        const lookup = await usersApi.lookupEmail(payload.email.trim());
+        if (lookup.exists && lookup.memberships?.length) {
+          const alreadyHere = lookup.memberships.some((m) => m.entity_id === entity.id);
+          if (alreadyHere) {
+            setError("El usuario ya pertenece a esta entidad.");
+            return;
+          }
+          const other = lookup.memberships[0];
+          setMembershipConfirm({
+            entityName: other.entity_name,
+            role: payload.role,
+            payload,
+          });
+          return;
+        }
+      }
+
+      await submitPayload(payload);
     } catch (err) {
       setError(formatApiError(err, "Error al guardar."));
     } finally {
       setSaving(false);
     }
   }
+
+  async function confirmMembershipAdd() {
+    if (!membershipConfirm) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await submitPayload(membershipConfirm.payload);
+      setMembershipConfirm(null);
+    } catch (err) {
+      setError(formatApiError(err, "Error al agregar membresía."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const existingUserFlow = Boolean(emailHint && !initial);
 
   return (
     <>
@@ -842,10 +945,19 @@ function UserModal({
                   required
                   type="email"
                   value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, email: e.target.value }));
+                    setEmailHint(null);
+                  }}
+                  onBlur={() => void handleEmailBlur()}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
                 />
               </Field>
+              {emailHint && (
+                <div className="col-span-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  {emailHint}
+                </div>
+              )}
               <Field label="Rol *">
                 <select
                   value={form.role}
@@ -856,9 +968,10 @@ function UserModal({
                 >
                   <option value="admin">Admin</option>
                   <option value="secretario">Secretario</option>
+                  <option value="contratista">Contratista</option>
                 </select>
               </Field>
-              {!initial && (
+              {!initial && !existingUserFlow && (
                 <label className="col-span-2 flex items-center gap-2 text-sm text-slate-700">
                   <input
                     type="checkbox"
@@ -870,35 +983,40 @@ function UserModal({
                   Enviar invitación por email (el usuario define su contraseña)
                 </label>
               )}
-              <Field
-                label={
-                  initial
-                    ? "Nueva contraseña (opcional)"
-                    : form.invite
+              {!initial && !existingUserFlow && (
+                <Field
+                  label={
+                    form.invite
                       ? "Contraseña (no aplica con invitación)"
                       : "Contraseña *"
-                }
-              >
-                <input
-                  type="password"
-                  required={!initial && !form.invite}
-                  disabled={!initial && Boolean(form.invite)}
-                  minLength={initial || form.invite ? undefined : 8}
-                  value={form.password || ""}
-                  placeholder={
-                    initial
-                      ? "Dejar vacío para no cambiar"
-                      : form.invite
-                        ? "Se enviará invitación por email"
-                        : undefined
                   }
-                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4] disabled:bg-slate-100"
-                />
-              </Field>
+                >
+                  <input
+                    type="password"
+                    required={!form.invite}
+                    disabled={Boolean(form.invite)}
+                    minLength={form.invite ? undefined : 8}
+                    value={form.password || ""}
+                    placeholder={form.invite ? "Se enviará invitación por email" : undefined}
+                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4] disabled:bg-slate-100"
+                  />
+                </Field>
+              )}
+              {initial && (
+                <Field label="Nueva contraseña (opcional)">
+                  <input
+                    type="password"
+                    value={form.password || ""}
+                    placeholder="Dejar vacío para no cambiar"
+                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+                  />
+                </Field>
+              )}
             </div>
 
-            {form.role === "secretario" && (
+            {(form.role === "secretario" || form.role === "contratista") && (
               <>
                 <Field label="Secretaría *">
                   <select
@@ -917,7 +1035,7 @@ function UserModal({
                     ))}
                   </select>
                 </Field>
-                {modulosDisponibles.length > 0 && (
+                {form.role === "secretario" && modulosDisponibles.length > 0 && (
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                     <div className="mb-2 text-xs font-semibold text-slate-600">
                       Módulos asignados al secretario
@@ -972,11 +1090,45 @@ function UserModal({
               disabled={saving}
               className="flex items-center gap-1.5 rounded-md bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2] disabled:opacity-60"
             >
-              <Save className="h-4 w-4" /> {saving ? "Guardando…" : "Guardar"}
+              <Save className="h-4 w-4" />{" "}
+              {saving ? "Guardando…" : existingUserFlow ? "Añadir a esta entidad" : "Guardar"}
             </button>
           </div>
         </form>
       </div>
+
+      {membershipConfirm && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/50" onClick={() => setMembershipConfirm(null)} />
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+              <h3 className="text-base font-semibold text-slate-900">Usuario existente</h3>
+              <p className="mt-2 text-sm text-slate-600">
+                Este email ya está registrado en <strong>{membershipConfirm.entityName}</strong>.
+                ¿Desea añadirlo a <strong>{entity.name}</strong> como{" "}
+                <strong>{membershipConfirm.role}</strong>?
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMembershipConfirm(null)}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void confirmMembershipAdd()}
+                  className="rounded-md bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2] disabled:opacity-60"
+                >
+                  {saving ? "Guardando…" : "Confirmar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

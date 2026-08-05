@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@clerk/react";
-import { authApi } from "@/core/auth/api";
 import { isClerkConfigured } from "@/core/auth/clerkConfig";
 import { useAuthStore } from "@/core/auth/store";
 import {
@@ -10,6 +9,8 @@ import {
 } from "@/core/auth/authErrors";
 import { isPublicAppPath } from "@/core/auth/publicPaths";
 import { clearClientSession } from "@/core/auth/session";
+import { loadAuthProfile } from "@/core/auth/loadAuthProfile";
+import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
 
 function AuthBootstrapWithClerk({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
@@ -17,10 +18,8 @@ function AuthBootstrapWithClerk({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
   const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
-  const cachedUser = useAuthStore((s) => s.user);
   const [profileReady, setProfileReady] = useState(!isSignedIn);
 
-  // Revocación de sesión / cierre en todos los dispositivos (Clerk rota token ~cada 20s).
   useEffect(() => {
     const clerk = window.Clerk;
     if (!clerk?.addListener) return;
@@ -31,7 +30,7 @@ function AuthBootstrapWithClerk({ children }: { children: React.ReactNode }) {
       if (!signedIn) {
         clearClientSession();
         if (!isPublicAppPath(window.location.pathname)) {
-          window.location.href = "/";
+          window.location.href = "/login";
         }
       }
     });
@@ -52,8 +51,8 @@ function AuthBootstrapWithClerk({ children }: { children: React.ReactNode }) {
 
     let cancelled = false;
     setProfileReady(false);
-    authApi
-      .me()
+
+    loadAuthProfile()
       .then((user) => {
         if (!cancelled) setUser(user);
       })
@@ -61,7 +60,11 @@ function AuthBootstrapWithClerk({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         const blockCode = parseAuthErrorCode(err);
         logout();
-        await forceClerkSignOut(blockCode);
+        if (blockCode) {
+          await forceClerkSignOut(blockCode);
+        } else {
+          await forceClerkSignOut();
+        }
       })
       .finally(() => {
         if (!cancelled) setProfileReady(true);
@@ -72,14 +75,18 @@ function AuthBootstrapWithClerk({ children }: { children: React.ReactNode }) {
     };
   }, [isLoaded, isSignedIn, setUser, logout]);
 
-  const waitingProfile = isSignedIn && !profileReady && !cachedUser;
+  if (!isLoaded) {
+    return <SessionLoadingScreen message="Iniciando…" />;
+  }
 
-  if (!isPublic && (!isLoaded || waitingProfile)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-slate-500">
-        Cargando sesión…
-      </div>
-    );
+  // Tras login Clerk: esperar perfil Django en TODAS las rutas (incl. /login y /).
+  if (isSignedIn && !profileReady) {
+    return <SessionLoadingScreen />;
+  }
+
+  // Visitante anónimo en ruta protegida: RequireAuth redirige; no bloquear aquí.
+  if (!isSignedIn && !isPublic && !profileReady) {
+    return <SessionLoadingScreen message="Iniciando…" />;
   }
 
   return <>{children}</>;

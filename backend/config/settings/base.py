@@ -55,6 +55,8 @@ INSTALLED_APPS = [
     "apps.asistencia",
     "apps.correspondencia",
     "apps.ai",
+    "apps.secop",
+    "apps.planes",
 ]
 
 MIDDLEWARE = [
@@ -142,6 +144,7 @@ B2_BUCKET_PQRS = os.getenv("B2_BUCKET_PQRS", "softone-pqrs")
 B2_BUCKET_PDM = os.getenv("B2_BUCKET_PDM", "softone-pdm")
 B2_BUCKET_ASISTENCIA = os.getenv("B2_BUCKET_ASISTENCIA", "softone-th")
 B2_BUCKET_CORRESPONDENCIA = os.getenv("B2_BUCKET_CORRESPONDENCIA", "softone-correspondence")
+B2_BUCKET_PLANES = os.getenv("B2_BUCKET_PLANES", "softone-planes-612")
 B2_BUCKET_DB = os.getenv("B2_BUCKET_DB", "softone-db")
 USE_B2_STORAGE = env_bool("USE_B2_STORAGE", bool(B2_KEY_ID and B2_APP_KEY))
 
@@ -199,6 +202,8 @@ REST_FRAMEWORK = {
         "pdm_chat_public": "60/hour",
         "asistencia_kiosk_pair": "20/hour",
         "asistencia_kiosk_punch": "30/min",
+        "secop_datos_gov": "120/hour",
+        "secop_ai": "30/hour",
     },
 }
 
@@ -228,6 +233,18 @@ CORS_ALLOWED_ORIGINS = env_list(
     "http://localhost:5173,http://127.0.0.1:5173",
 )
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = (
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-entity-id",
+)
 
 # Security defaults (overridden in prod)
 SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -259,6 +276,17 @@ PDM_CHAT_MODEL = os.getenv("PDM_CHAT_MODEL", "") or OPENAI_MODEL
 # Informes PQRS PDF — API key dedicada (narrativa IA del reporte institucional)
 PQRS_REPORTS_OPENAI_API_KEY = os.getenv("PQRS_REPORTS_OPENAI_API_KEY", "")
 PQRS_REPORTS_OPENAI_MODEL = os.getenv("PQRS_REPORTS_OPENAI_MODEL", "") or OPENAI_MODEL
+
+PLANES_REPORTS_OPENAI_API_KEY = (
+    os.getenv("PLANES_REPORTS_OPENAI_API_KEY", "")
+    or PQRS_REPORTS_OPENAI_API_KEY
+    or OPENAI_API_KEY
+)
+PLANES_REPORTS_OPENAI_MODEL = os.getenv("PLANES_REPORTS_OPENAI_MODEL", "") or OPENAI_MODEL
+# Módulo SECOP — análisis de contratación pública
+SECOP_OPENAI_API_KEY = os.getenv("SECOP_OPENAI_API_KEY", "")
+SECOP_OPENAI_MODEL = os.getenv("SECOP_OPENAI_MODEL", "") or OPENAI_MODEL
+SECOP_CACHE_TTL = int(os.getenv("SECOP_CACHE_TTL", "21600"))
 
 # Celery (broker Redis)
 CELERY_BROKER_URL = _redis_url or "redis://localhost:6379/1"

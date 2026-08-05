@@ -27,6 +27,8 @@ export interface PdmActividad {
   descripcion?: string | null;
   responsable_secretaria?: number | null;
   responsable_secretaria_nombre?: string | null;
+  responsable_usuario?: number | null;
+  responsable_usuario_nombre?: string | null;
   fecha_inicio?: string | null;
   fecha_fin?: string | null;
   meta_ejecutar: number;
@@ -60,6 +62,8 @@ export interface PdmProducto {
   total_2027: number;
   responsable_secretaria?: number | null;
   responsable_secretaria_nombre?: string | null;
+  responsable_usuario?: number | null;
+  responsable_usuario_nombre?: string | null;
   porcentaje_ejecucion?: number;
   avance_anio?: number;
   estado_anio?: string;
@@ -373,6 +377,14 @@ export const pdmApi = {
         { params: { responsable_secretaria_id: secretariaId } },
       )
       .then((r) => r.data),
+  asignarResponsableUsuario: (slug: string, codigoProducto: string, usuarioId: number | null) =>
+    api
+      .patch(
+        `/pdm/v2/${slug}/productos/${encodeURIComponent(codigoProducto)}/responsable-usuario`,
+        {},
+        { params: { responsable_usuario_id: usuarioId ?? "" } },
+      )
+      .then((r) => r.data),
   uploadEjecucion: (file: File, anio?: number) => {
     const form = new FormData();
     form.append("file", file);
@@ -411,4 +423,73 @@ export const pdmApi = {
     api
       .get<PdmChatAnalytics>(`/pdm/v2/${encodeURIComponent(slug)}/chat/analytics/`)
       .then((r) => r.data),
+};
+
+export type InformePdmEstado = "PENDIENTE" | "PROCESANDO" | "COMPLETADO" | "ERROR";
+
+export type InformePdmTipo = "AVANCE" | "GESTION";
+
+export interface InformePDM {
+  id: number;
+  filename: string;
+  tipo: InformePdmTipo;
+  tipo_label: string;
+  anio: number;
+  responsable_secretaria: number | null;
+  responsable_secretaria_nombre: string;
+  incluir_evidencias: boolean;
+  usar_ia: boolean;
+  usuario_firmante: number;
+  usuario_firmante_nombre: string;
+  estado: InformePdmEstado;
+  error_detail: string;
+  total_productos: number;
+  avance_fisico: number;
+  avance_financiero: number;
+  file_size: number;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  expires_at: string;
+  expires_in_days: number;
+  created_by_nombre: string;
+}
+
+export interface GenerarInformePdmPayload {
+  tipo?: InformePdmTipo;
+  anio: number;
+  usuario_firmante_id: number;
+  responsable_secretaria_id?: number | null;
+  incluir_evidencias?: boolean;
+  usar_ia?: boolean;
+}
+
+export interface InformePdmFirmante {
+  id: number;
+  full_name: string;
+  email: string;
+}
+
+export const pdmInformesApi = {
+  list: (slug: string, tipo?: InformePdmTipo) =>
+    api
+      .get<InformePDM[]>(`/pdm/v2/${encodeURIComponent(slug)}/informes/`, {
+        params: tipo ? { tipo } : undefined,
+      })
+      .then((r) => r.data),
+  firmantes: (slug: string, secretariaId?: number) =>
+    api
+      .get<InformePdmFirmante[]>(`/pdm/v2/${encodeURIComponent(slug)}/informes/firmantes/`, {
+        params: secretariaId ? { secretaria_id: secretariaId } : undefined,
+      })
+      .then((r) => r.data),
+  create: (slug: string, payload: GenerarInformePdmPayload) =>
+    api.post<InformePDM>(`/pdm/v2/${encodeURIComponent(slug)}/informes/`, payload).then((r) => r.data),
+  download: (slug: string, id: number, filename: string) =>
+    downloadAuthenticatedFile(
+      `/api/v1/pdm/v2/${encodeURIComponent(slug)}/informes/${id}/download/`,
+      filename,
+    ),
+  remove: (slug: string, id: number) =>
+    api.delete(`/pdm/v2/${encodeURIComponent(slug)}/informes/${id}/`),
 };

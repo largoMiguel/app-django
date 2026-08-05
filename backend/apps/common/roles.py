@@ -1,9 +1,12 @@
 """Helpers de roles compartidos entre apps."""
 
-ROLE_PRIORITY = ("superadmin", "admin", "secretario", "ciudadano")
+ROLE_PRIORITY = ("superadmin", "admin", "secretario", "contratista", "ciudadano")
 
 
 def user_roles(user) -> set[str]:
+    active = getattr(user, "_active_role", None)
+    if active:
+        return {active.lower()}
     return {r.lower() for r in user.role_names}
 
 
@@ -17,6 +20,9 @@ def is_platform_superadmin(user) -> bool:
 def primary_role(user) -> str:
     if not user:
         return ""
+    active = getattr(user, "_active_role", None)
+    if active:
+        return active.lower()
     roles = list(getattr(user, "role_names", None) or [])
     if not roles and hasattr(user, "groups"):
         roles = list(user.groups.values_list("name", flat=True))

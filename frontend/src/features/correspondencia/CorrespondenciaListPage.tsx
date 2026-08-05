@@ -101,7 +101,35 @@ export default function CorrespondenciaListPage({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="divide-y divide-slate-100 md:hidden">
+          {loading && <div className="px-4 py-8 text-center text-slate-500">Cargando…</div>}
+          {!loading && items.length === 0 && (
+            <div className="px-4 py-8 text-center text-slate-500">Sin radicados.</div>
+          )}
+          {items.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => navigate(`/correspondencia/${r.id}`)}
+              className="block w-full space-y-2 p-4 text-left hover:bg-slate-50"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="font-mono text-xs text-[#0e7490]">{r.numero_radicado}</div>
+                {slaBadge(r.sla_status)}
+              </div>
+              <div className="font-medium text-slate-800">{r.asunto}</div>
+              <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                {!sentido && <span className="capitalize">{r.sentido}</span>}
+                <span>{new Date(r.fecha_radicacion).toLocaleDateString("es-CO")}</span>
+                <span>{r.secretaria_nombre}</span>
+                <span>{r.estado_label}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
@@ -162,6 +190,7 @@ export default function CorrespondenciaListPage({
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {showForm && (

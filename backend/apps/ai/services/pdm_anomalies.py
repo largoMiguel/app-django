@@ -70,9 +70,9 @@ def detect_pdm_anomalies(
             codigo_producto=producto.codigo_producto,
             anio=anio,
         )
-        total_pagos = sum(e.pagos or 0 for e in ejecucion)
-        total_definitivo = sum(e.pto_definitivo or 0 for e in ejecucion)
-        avance_financiero = (total_pagos / total_definitivo * 100) if total_definitivo > 0 else 0
+        total_pagos = float(sum(e.pagos or 0 for e in ejecucion))
+        total_definitivo = float(sum(e.pto_definitivo or 0 for e in ejecucion))
+        avance_financiero = (total_pagos / total_definitivo * 100) if total_definitivo > 0 else 0.0
 
         if avance_fisico > 0 and avance_financiero > 0:
             diff = abs(avance_fisico - avance_financiero)

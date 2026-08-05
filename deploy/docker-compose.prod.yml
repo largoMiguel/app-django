@@ -106,10 +106,22 @@ services:
       PDM_CHAT_MODEL: ${PDM_CHAT_MODEL:-}
       PQRS_REPORTS_OPENAI_API_KEY: ${PQRS_REPORTS_OPENAI_API_KEY}
       PQRS_REPORTS_OPENAI_MODEL: ${PQRS_REPORTS_OPENAI_MODEL:-}
+      USE_B2_STORAGE: ${USE_B2_STORAGE:-true}
+      B2_ENDPOINT_URL: ${B2_ENDPOINT_URL:-https://s3.us-east-005.backblazeb2.com}
+      B2_REGION: ${B2_REGION:-us-east-005}
+      B2_KEY_ID: ${B2_KEY_ID:-}
+      B2_APP_KEY: ${B2_APP_KEY:-}
+      B2_BUCKET_PQRS: ${B2_BUCKET_PQRS:-softone-pqrs}
+      B2_BUCKET_PDM: ${B2_BUCKET_PDM:-softone-pdm}
+      B2_BUCKET_ASISTENCIA: ${B2_BUCKET_ASISTENCIA:-softone-th}
+      B2_BUCKET_CORRESPONDENCIA: ${B2_BUCKET_CORRESPONDENCIA:-softone-correspondence}
+      B2_BUCKET_PLANES: ${B2_BUCKET_PLANES:-softone-planes-612}
+      B2_BUCKET_DB: ${B2_BUCKET_DB:-softone-db}
     volumes:
       - media_data:/app/media
     networks:
       - internal
+      - edge
     deploy:
       resources:
         limits:
@@ -208,6 +220,7 @@ services:
       B2_BUCKET_PDM: ${B2_BUCKET_PDM:-softone-pdm}
       B2_BUCKET_ASISTENCIA: ${B2_BUCKET_ASISTENCIA:-softone-th}
       B2_BUCKET_CORRESPONDENCIA: ${B2_BUCKET_CORRESPONDENCIA:-softone-correspondence}
+      B2_BUCKET_PLANES: ${B2_BUCKET_PLANES:-softone-planes-612}
       B2_BUCKET_DB: ${B2_BUCKET_DB:-softone-db}
       FILE_DELIVERY_BASE_URL: ${FILE_DELIVERY_BASE_URL:-https://files.softone360.com}
       FILE_DELIVERY_SIGNING_KEY: ${FILE_DELIVERY_SIGNING_KEY:-}

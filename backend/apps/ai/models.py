@@ -22,6 +22,9 @@ class AIInteraction(models.Model):
         REPORT = "report", "Reporte narrativo"
         ANOMALY = "anomaly", "Detección anomalías"
         SEMANTIC_SEARCH = "semantic_search", "Búsqueda semántica"
+        SECOP_ANALISIS = "secop_analisis", "SECOP análisis vigencia"
+        SECOP_COPILOT = "secop_copilot", "SECOP copiloto"
+        SECOP_CONTRATO = "secop_contrato", "SECOP resumen contrato"
 
     entity = models.ForeignKey(
         "entities.Entity",

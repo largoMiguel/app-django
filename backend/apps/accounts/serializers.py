@@ -10,6 +10,26 @@ from apps.common.roles import user_roles
 User = get_user_model()
 
 
+class MembershipSerializer(serializers.Serializer):
+    entity_id = serializers.IntegerField()
+    name = serializers.CharField(source="entity.name")
+    slug = serializers.CharField(source="entity.slug")
+    logo_url = serializers.SerializerMethodField()
+    role = serializers.CharField()
+    secretaria_id = serializers.SerializerMethodField()
+    secretaria_nombre = serializers.SerializerMethodField()
+    is_default = serializers.BooleanField()
+
+    def get_logo_url(self, obj) -> str | None:
+        return getattr(obj.entity, "logo_url", None)
+
+    def get_secretaria_id(self, obj):
+        return obj.secretaria_id
+
+    def get_secretaria_nombre(self, obj):
+        return obj.secretaria.nombre if obj.secretaria_id else None
+
+
 class UserMeSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
@@ -102,6 +122,7 @@ class UserMeSerializer(serializers.ModelSerializer):
         roles = {r.lower() for r in user_roles(obj)}
         is_admin = "admin" in roles
         is_secretario = "secretario" in roles
+        is_contratista = "contratista" in roles
         is_ciudadano = "ciudadano" in roles
         return {
             "pqrs": {
@@ -110,7 +131,8 @@ class UserMeSerializer(serializers.ModelSerializer):
                 "change": "pqrs.change_pqrs" in perms,
                 "delete": "pqrs.delete_pqrs" in perms,
                 "assign": is_admin and "pqrs.change_pqrs" in perms,
-                "respond": (is_admin or is_secretario) and "pqrs.change_pqrs" in perms,
+                "delegate": (is_admin or is_secretario) and "pqrs.change_pqrs" in perms,
+                "respond": (is_admin or is_secretario or is_contratista) and "pqrs.change_pqrs" in perms,
                 "close": is_admin and "pqrs.change_pqrs" in perms,
                 "reopen": is_admin and "pqrs.change_pqrs" in perms,
             },

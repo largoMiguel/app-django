@@ -8,6 +8,8 @@ Aplicación full-stack lista para producción.
 - **Auth:** Clerk en español (login, invitaciones, revocación de sesión en vivo) + Django RBAC (roles, permisos, módulos por entidad)
 - **RBAC:** roles sobre `django.contrib.auth.Group` + `Permission` — listo para proteger vistas DRF, URLs y consultas
 - **Multi-tenancy:** entidades (municipios/organismos) + secretarías + módulos habilitables por entidad
+- **Multi-entidad:** un usuario puede pertenecer a varias entidades (`UserEntityMembership`); la entidad activa se envía con la cabecera `X-Entity-Id` (selector al iniciar sesión si tiene más de una)
+- **Jerarquía de delegación:** admin → secretario → contratista (supervisor en membresía, sub-asignación PQRS/PDM, módulos en cascada)
 - **Módulo PQRS:** Gestión de Peticiones, Quejas, Reclamos, Sugerencias y Denuncias (Ley 1755 de 2015)
 - **Portal ciudadano:** formulario público por entidad (`/portal/:slug`) sin autenticación
 - **IA:** OpenAI (`gpt-4o-mini` por defecto) para extracción y clasificación automática de PQRS a partir de texto o documentos adjuntos
@@ -47,6 +49,8 @@ app_django/
 │   │   │   ├── services/
 │   │   │   │   └── ai.py          # Extracción de texto (PDF/DOCX/TXT) + llamada OpenAI
 │   │   │   └── migrations/
+│   │   ├── secop/                  # Módulo Contratación SECOP I/II
+│   │   ├── planes/                 # Planes Institucionales (Decreto 612)
 │   │   └── common/
 │   │       └── management/commands/bootstrap_app.py
 │   ├── requirements.txt · pyproject.toml
@@ -106,10 +110,11 @@ Ciudadano crea PQRS (manual, portal público o vía IA)
 |---|---|
 | `superadmin` | Gestión de entidades (crear/editar); **no opera PQRS** |
 | `admin` | CRUD PQRS de su entidad, asignar/reasignar, cerrar, reabrir, eliminar adjuntos, usuarios |
-| `secretario` | Ver PQRS asignadas a su secretaría, responder, rechazar asignación |
+| `secretario` | Ver PQRS asignadas a su secretaría, responder, rechazar asignación, delegar a contratistas |
+| `contratista` | Ver y responder PQRS delegadas a su usuario; productos PDM asignados |
 | `ciudadano` | Crear y consultar sus PQRS (si el módulo está habilitado) |
 
-Otros roles del sistema (`contratista`, `auditor`) se crean en bootstrap pero aún no tienen flujos PQRS asignados.
+La jerarquía **secretario → contratista** permite crear contratistas supervisados, limitar módulos y delegar PQRS (`POST .../asignar-usuario/`) o productos PDM (`PATCH .../responsable-usuario`).
 
 ### Endpoints PQRS (autenticados)
 
@@ -120,7 +125,8 @@ Otros roles del sistema (`contratista`, `auditor`) se crean en bootstrap pero a�
 | `POST` | `/api/v1/pqrs/` | Crear PQRS manual (soporta multipart con `archivos`) |
 | `GET/PATCH` | `/api/v1/pqrs/{id}/` | Detalle / editar |
 | `DELETE` | `/api/v1/pqrs/{id}/` | Eliminar (admin) |
-| `POST` | `/api/v1/pqrs/{id}/asignar/` | Asignar a secretaría `{secretaria_id, justificacion}` |
+| `POST` | `/api/v1/pqrs/{id}/asignar/` | Asignar a secretaría `{secretaria_ids, justificacion}` |
+| `POST` | `/api/v1/pqrs/{id}/asignar-usuario/` | Delegar a contratistas `{user_ids, justificacion}` |
 | `POST` | `/api/v1/pqrs/{id}/rechazar-asignacion/` | Rechazar asignación `{motivo}` |
 | `POST` | `/api/v1/pqrs/{id}/responder/` | Responder PQRS (multipart: `respuesta` + `archivo_respuesta`; opcional `enviar_email`) |
 | `POST` | `/api/v1/pqrs/{id}/cerrar/` | Cerrar PQRS |
@@ -210,6 +216,210 @@ Desde el menú **Acciones** del PDM (rol `admin`), la opción **Exportar PIIP** 
 | `GET` | `/api/v1/pdm/v2/{slug}/export-piip?anio=2026` | Descarga `PIIP_{slug}_{anio}.xlsx` (encabezados verde `#6AA84F`, texto blanco) |
 
 Query param `anio` (opcional): año de seguimiento; por defecto el año actual. El frontend usa el año del filtro de productos (`filtroAnio`) cuando está en la vista de productos; en dashboard usa el año por defecto del estado (año actual).
+
+---
+
+## Informes PDM
+
+Pestaña **Informes** en el módulo PDM (roles `admin` y `secretario`). La sección agrupa varios tipos de informe PDF; hoy está habilitado el **Informe de Avance de PDM** (`tipo=AVANCE`). El **Informe de Gestión** (`tipo=GESTION`) queda reservado para una fase posterior.
+
+Generación **asíncrona** con Celery (membrete institucional, gráficas matplotlib, ejecución por producto y evidencias opcionales).
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/pdm/v2/{slug}/informes/?tipo=AVANCE` | Historial por tipo (purga perezosa de expirados) |
+| `POST` | `/api/v1/pdm/v2/{slug}/informes/` | Encola generación → `201` con estado `PENDIENTE`; `409` si ya hay uno del mismo tipo en cola/proceso |
+| `GET` | `/api/v1/pdm/v2/{slug}/informes/{id}/download/` | Descarga PDF desde B2 (bucket PDM) |
+| `DELETE` | `/api/v1/pdm/v2/{slug}/informes/{id}/` | Elimina registro y archivo en B2 |
+
+**Body POST:** `tipo` (`AVANCE`; `GESTION` rechazado hasta implementación), `anio`, `usuario_firmante_id` (obligatorio), `responsable_secretaria_id` (opcional; admin filtra dependencia), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
+
+**Tipos:** `AVANCE` = Informe de Avance de PDM · `GESTION` = Informe de Gestión (próximamente).
+
+**Roles:** `admin` puede filtrar por dependencia o toda la entidad; `secretario` queda forzado a su secretaría. Retención **7 días** (`expires_at`); purga automática Celery Beat `03:45` (`purge_expired_informes_pdm`) y al listar. Requiere `celery-worker` y `celery-beat` activos.
+
+---
+
+## Módulo Contratación (SECOP I y SECOP II)
+
+Análisis de contratación pública de la entidad a partir de **datos abiertos** ([datos.gov.co](https://www.datos.gov.co)). Consulta **en vivo por vigencia (año)** con caché Redis; no replica contratos en PostgreSQL.
+
+### Activación
+
+1. **Superadmin → Entidad → Módulos:** activar **Contratación (SECOP)** (`enable_contratacion`).
+2. Configurar **NIT SECOP I** y/o **NIT SECOP II** (opcional; varios NIT separados por coma). Si están vacíos, se usa el NIT general de la entidad.
+3. En demo/prod, agregar `SECOP_OPENAI_API_KEY` en `.env` del servidor (API key dedicada; **no** commitear al repo).
+
+### Fuentes de datos
+
+| Dataset | ID datos.gov.co | Contenido |
+|---|---|---|
+| SECOP II contratos | `jbjy-vk9h` | Procesos **con** contrato firmado |
+| SECOP II procesos | `p6dx-8zbt` | Procesos **sin** contrato |
+| SECOP I | `f789-7hwg` | Contratos históricos SECOP I |
+
+SECOP II unifica contratos + procesos sin duplicar: enlace por `proceso_de_compra` ↔ `id_del_portafolio` (respaldo: `noticeUID` en URL). Duplicados SECOP I se eliminan por `uid`.
+
+### Frontend
+
+Ruta: `/contratacion` — pestañas **Resumen**, **SECOP II**, **SECOP I**, **Alertas**, **Análisis IA**. Selector de vigencia (año) global.
+
+### Endpoints (`/api/v1/secop/`)
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/config/` | NITs, años disponibles, tendencias |
+| `GET` | `/resumen/?anio=` | KPIs consolidados + comparativo año anterior |
+| `GET` | `/secop2/?anio=&page=&search=&…` | Lista unificada SECOP II (contratos + procesos sin contrato) |
+| `GET` | `/secop2/analitica/?anio=` | Gráficos y distribuciones SECOP II |
+| `GET` | `/secop1/?anio=&…` | Contratos SECOP I |
+| `GET` | `/secop1/analitica/?anio=` | Analítica SECOP I |
+| `GET` | `/alertas/?anio=` | Alertas de riesgo (vencimientos, financieras, transparencia) |
+| `GET` | `/detalle/?fuente=&id=&anio=` | Ficha de contrato/proceso |
+| `GET` | `/export/?anio=&fuente=` | Excel (unificado, secop1, secop2, alertas) |
+| `POST` | `/refrescar/` | Invalida caché Redis de la entidad |
+| `POST` | `/ai/analisis/` | Análisis narrativo IA de la vigencia |
+| `POST` | `/ai/copilot/` | Chat copiloto de contratación |
+| `POST` | `/ai/contrato/` | Resumen IA de un contrato |
+
+Roles: `admin`, `secretario`. Throttle: `secop_datos_gov` 120/h, `secop_ai` 30/h.
+
+### Alertas automáticas (reglas)
+
+Vencidos en ejecución, por vencer (7/15/30 días), sin liquidar (+4 meses), saldo pendiente, sobrepago, adiciones >50 % (SECOP I), concentración de proveedores, contratación directa elevada, procesos desiertos, firmas en diciembre, posible fraccionamiento, etc.
+
+### Variables de entorno
+
+```
+SECOP_OPENAI_API_KEY=sk-...       # obligatoria para IA SECOP
+SECOP_OPENAI_MODEL=gpt-4o-mini    # opcional
+SECOP_CACHE_TTL=21600             # 6h caché consultas datos.gov.co
+```
+
+**Demo:** agregar `SECOP_OPENAI_API_KEY` en `/opt/softone-demo/.env` y redeploy (`development`).
+
+---
+
+## Módulo Planes Institucionales (Decreto 612 de 2018)
+
+Seguimiento trimestral a los **12 planes institucionales y estratégicos** que las entidades del Estado deben integrar al Plan de Acción y publicar en su web a más tardar el **31 de enero** de cada año (Decreto 612 de 2018):
+
+1. Plan Institucional de Archivos (PINAR)
+2. Plan Anual de Adquisiciones
+3. Plan Anual de Vacantes
+4. Plan de Previsión de Recursos Humanos
+5. Plan Estratégico de Talento Humano
+6. Plan Institucional de Capacitación
+7. Plan de Incentivos Institucionales
+8. Plan de Trabajo Anual en Seguridad y Salud en el Trabajo
+9. Plan Anticorrupción y de Atención al Ciudadano
+10. Plan Estratégico de TIC (PETI)
+11. Plan de Tratamiento de Riesgos de Seguridad y Privacidad de la Información
+12. Plan de Seguridad y Privacidad de la Información
+
+### Flujo
+
+```
+Admin activa módulo → selecciona plan del catálogo + vigencia (año)
+  └─→ Asigna secretaría responsable (plan y actividades)
+       └─→ Crea actividades/componentes por trimestre (I–IV)
+            └─→ Secretario delega a contratista (opcional)
+                 └─→ Registra avance + evidencia (archivos PDF/Office/imagen o URL)
+                      └─→ Informes: seguimiento PDF (async, 7 días) + trimestral Excel + cronograma Gantt
+```
+
+### Roles
+
+| Rol | Permisos |
+|---|---|
+| `admin` | CRUD planes y actividades, asignar secretaría, exportar informes (Excel y PDF), eliminar |
+| `secretario` | Planes/actividades de su secretaría, crear/editar actividades, evidencia, delegar contratistas, generar informes de su dependencia |
+| `contratista` | Actividades asignadas, registrar avance y evidencia |
+| `superadmin` | Activa `enable_planes_institucionales`; no opera el módulo |
+
+### Endpoints (`/api/v1/planes/`)
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET/POST` | `/planes/catalogo/` | Catálogo Decreto 612 + planes propios de la entidad |
+| `GET/POST` | `/planes/` | Listar / crear plan por vigencia |
+| `GET/PATCH/DELETE` | `/planes/{id}/` | Detalle / editar / eliminar |
+| `GET` | `/planes/stats/?anio=` | Dashboard (avance por trimestre, vencidas…) |
+| `GET` | `/planes/cronograma/?anio=` | Datos para vista Gantt |
+| `GET` | `/planes/export/?anio=&trimestre=` | Informe trimestral Excel (descarga inmediata) |
+| `GET/POST` | `/planes/informes/` | Historial / encolar informe seguimiento PDF (ver abajo) |
+| `GET` | `/planes/informes/firmantes/` | Usuarios candidatos a firmar informe PDF |
+| `GET` | `/planes/informes/{id}/download/` | Descarga PDF generado |
+| `DELETE` | `/planes/informes/{id}/` | Elimina informe PDF y archivo en B2 |
+| `POST` | `/planes/{id}/responsable/` | Asignar secretaría responsable |
+| `GET/POST/PATCH/DELETE` | `/planes/actividades/` · `/{id}/` | CRUD actividades |
+| `PATCH` | `/planes/actividades/{id}/responsable-usuario/` | Delegar contratista |
+| `GET/POST/PUT/DELETE` | `/planes/actividades/{id}/evidencia/` | Evidencia multipart |
+
+### Almacenamiento evidencias e informes
+
+Ruta B2 evidencias (`softone-planes-612` en prod; `storage-demo` en demo):
+
+```
+entities/<entity_id>/planes/evidencias/<codigo_plan>/<anio>/T<trimestre>/<nombre_seguro>
+```
+
+Ruta B2 informes PDF seguimiento (mismo bucket):
+
+```
+informes/<entity_id>/seguimiento/informe_seguimiento_d612_<anio>_T<trimestre>_<timestamp>.pdf
+```
+
+- Máximo **5 archivos** por evidencia, **20 MB** c/u.
+- Formatos: PDF, Word, Excel, PNG/JPG/WebP.
+- URLs firmadas vía `files.softone360.com` (prod) o `files-demo.softone360.com` (demo).
+
+### Activación
+
+Superadmin → Entidad → Módulos: activar **Planes Institucionales** (`enable_planes_institucionales`).
+
+Ruta frontend: `/planes` (Resumen · Planes · Cronograma · Informes).
+
+Rutas de informes:
+
+| Ruta | Descripción |
+|---|---|
+| `/planes/informes` | Lista de informes PDF generados + botón **Crear informe** (selector de tipo) |
+| `/planes/informes/trimestral` | Informe trimestral (Excel): filtros y descarga inmediata |
+
+### Informes Planes Institucionales
+
+Pestaña **Informes** en el módulo Planes (roles `admin` y `secretario`; contratista **no** tiene acceso). Botón **Crear informe** con selector de tipo:
+
+| Tipo | Formato | Comportamiento |
+|---|---|---|
+| **Informe de Seguimiento D612** | PDF | Generación **asíncrona** con Celery: membrete institucional, secciones legales, tablas por plan (6 columnas), gráficas de avance, resultados/conclusiones con IA opcional. Historial con retención **7 días**. |
+| **Informe trimestral** | Excel | Descarga **inmediata** vía `GET /planes/export/`; no se guarda en servidor ni hay historial. |
+
+Estructura del PDF de seguimiento (Decreto 612 / Control Interno): portada, introducción, objetivo, alcance, fecha de auditoría, criterios, tipo de auditoría, actividades desarrolladas por plan, resultados de la auditoría (IA o fallback), firma.
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/planes/informes/?tipo=SEGUIMIENTO_D612` | Historial PDF (purga perezosa de expirados) |
+| `POST` | `/api/v1/planes/informes/` | Encola generación PDF → `201`; `409` si ya hay uno del mismo tipo en cola/proceso |
+| `GET` | `/api/v1/planes/informes/firmantes/` | Usuarios candidatos a firmar (`?secretaria_id=`) |
+| `GET` | `/api/v1/planes/informes/{id}/download/` | Descarga PDF desde B2 (`B2_BUCKET_PLANES`) |
+| `DELETE` | `/api/v1/planes/informes/{id}/` | Elimina registro y archivo en B2 |
+
+**Body POST (PDF):** `tipo` (`SEGUIMIENTO_D612`), `anio`, `trimestre` (1–4, obligatorio), `plan_id` (opcional), `responsable_secretaria_id` (opcional; admin filtra dependencia), `usuario_firmante_id` (obligatorio), `cargo_firmante` (opcional), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
+
+**Tipos:** `SEGUIMIENTO_D612` = Informe de Seguimiento Decreto 612 (PDF).
+
+**Roles:** `admin` puede filtrar por dependencia, plan o toda la entidad; `secretario` queda forzado a su secretaría. Retención **7 días** (`expires_at`); purga automática Celery Beat `03:50` (`purge_expired_informes_planes`) y al listar. Requiere `celery-worker` y `celery-beat` activos.
+
+**Variables IA:**
+
+```
+PLANES_REPORTS_OPENAI_API_KEY=sk-...   # opcional; fallback PQRS_REPORTS / OPENAI
+PLANES_REPORTS_OPENAI_MODEL=gpt-4o-mini   # opcional
+```
+
+**Demo:** agregar `PLANES_REPORTS_OPENAI_API_KEY` en `/opt/softone-demo/.env` y redeploy. Activar `enable_ai_reports` en la entidad para usar IA en conclusiones.
 
 ---
 
@@ -393,7 +603,12 @@ El login, logout y cambio de contraseña los gestiona **Clerk** (`<SignIn>` en e
 
 | Método | Endpoint | Descripción |
 |---|---|---|
-| `GET` | `/api/v1/auth/me` | Usuario actual (requiere token de sesión Clerk en `Authorization: Bearer`) |
+| `GET` | `/api/v1/auth/me` | Usuario actual + `memberships[]` y `active_entity_id` (cabecera opcional `X-Entity-Id`) |
+| `GET` | `/api/v1/auth/memberships/` | Entidades del usuario con rol por entidad |
+
+El frontend persiste `activeEntityId` y envía `X-Entity-Id` en cada petición API. Si hay varias membresías y ninguna elegida, redirige a `/seleccionar-entidad`.
+
+**Kiosco de asistencia:** el token del equipo ya no rota en cada marcación; se almacena de forma redundante (localStorage + cookie + IndexedDB). La desvinculación solo está disponible en el panel admin (Revocar), no en el kiosco.
 
 Webhook Clerk (público, verificado con firma Svix):
 
@@ -408,6 +623,7 @@ Desactivar o eliminar usuarios:
 | Método | Endpoint | Descripción |
 |---|---|---|
 | `DELETE` | `/api/v1/users/{id}/` | Desactiva en Django y banea en Clerk (reversible) |
+| `GET` | `/api/v1/users/lookup-email/?email=` | Comprueba si el email ya existe y en qué entidades |
 | `DELETE` | `/api/v1/users/{id}/?purge=true` | Elimina permanentemente en Django y Clerk |
 
 ### Configuración requerida en Clerk Dashboard
@@ -433,7 +649,7 @@ Archivos firmados:
 
 | Entorno | Worker | Bucket(s) B2 |
 |---|---|---|
-| Prod | https://files.softone360.com | `softone-pqrs`, `softone-pdm`, `softone-th`, `softone-correspondence` |
+| Prod | https://files.softone360.com | `softone-pqrs`, `softone-pdm`, `softone-th`, `softone-correspondence`, `softone-planes-612` |
 | Demo | https://files-demo.softone360.com | `storage-demo` (todos los módulos) |
 
 Demo y prod comparten el **mismo servidor** (`192.168.1.2`) y el **mismo par B2** (`B2_KEY_ID` / `B2_APP_KEY`); solo cambian bucket y signing key. Merge `development` → `main` no migra archivos entre buckets.
@@ -452,6 +668,8 @@ Clerk demo: usar `pk_test_` / `sk_test_` de la instancia development. `CLERK_JWT
 ```
 development (push → deploy demo) → merge → main (deploy prod)
 ```
+
+**Estado actual demo vs prod y checklist para el merge a producción:** [README_MAIN.md](README_MAIN.md)
 
 ### Bootstrap demo (una vez en el servidor)
 
@@ -744,11 +962,13 @@ CLERK_SECRET_KEY=sk_live_...
 CLERK_AUTHORIZED_PARTIES=https://app.softone360.com
 CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
 
-# OpenAI (PQRS, informes PDF, chat PDM)
+# OpenAI (PQRS, informes PDF PDM/Planes, chat PDM)
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini
 PDM_CHAT_OPENAI_API_KEY=
 PQRS_REPORTS_OPENAI_API_KEY=
+PLANES_REPORTS_OPENAI_API_KEY=
+# PLANES_REPORTS_OPENAI_MODEL=gpt-4o-mini   # opcional; fallback OPENAI_MODEL
 
 # ZeptoMail — correos PQRS (radicación + respuesta)
 PQRS_EMAIL_ENABLED=true
@@ -769,6 +989,7 @@ B2_BUCKET_ASISTENCIA=softone-th
 # Reconocimiento facial asistencia (distancia L2 face-api.js; default 0.6)
 # ASISTENCIA_FACE_MATCH_THRESHOLD=0.6
 B2_BUCKET_CORRESPONDENCIA=softone-correspondence
+B2_BUCKET_PLANES=softone-planes-612
 B2_BUCKET_DB=softone-db
 
 # Entrega firmada vía Cloudflare Worker

@@ -41,6 +41,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ("superadmin", "Superadmin"),
         ("admin", "Admin"),
         ("secretario", "Secretario"),
+        ("contratista", "Contratista"),
         ("ciudadano", "Ciudadano"),
     )
 
@@ -98,8 +99,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name_plural = "Usuarios"
         constraints = [
             models.CheckConstraint(
-                check=~models.Q(role="secretario") | models.Q(secretaria__isnull=False),
+                condition=~models.Q(role="secretario") | models.Q(secretaria__isnull=False),
                 name="user_secretario_requires_secretaria",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(role="contratista") | models.Q(secretaria__isnull=False),
+                name="user_contratista_requires_secretaria",
             ),
         ]
 
@@ -117,7 +122,80 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def role_names(self) -> list[str]:
+        active = getattr(self, "_active_role", None)
+        if active:
+            return [active]
         names = list(self.groups.values_list("name", flat=True))
         if self.role and self.role not in names:
             names.append(self.role)
         return names
+
+
+class UserEntityMembership(models.Model):
+    """Membresía de un usuario en una entidad (rol, secretaría y módulos por entidad)."""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+        db_column="user_id",
+    )
+    entity = models.ForeignKey(
+        "entities.Entity",
+        on_delete=models.CASCADE,
+        related_name="memberships",
+        db_column="entity_id",
+    )
+    role = models.CharField(max_length=20, choices=User.ROLE_CHOICES, blank=True, default="")
+    secretaria = models.ForeignKey(
+        "entities.Secretaria",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="memberships",
+        db_column="secretaria_id",
+    )
+    enabled_modules = models.JSONField(default=list, blank=True)
+    supervisor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="supervised_memberships",
+        db_column="supervisor_id",
+        help_text="Supervisor directo (p. ej. secretario del contratista).",
+    )
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["entity__name", "user__email"]
+        verbose_name = "Membresía de entidad"
+        verbose_name_plural = "Membresías de entidad"
+        constraints = [
+            models.UniqueConstraint(fields=("user", "entity"), name="unique_user_entity_membership"),
+            models.CheckConstraint(
+                condition=~models.Q(role="secretario") | models.Q(secretaria__isnull=False),
+                name="membership_secretario_requires_secretaria",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(role="contratista") | models.Q(secretaria__isnull=False),
+                name="membership_contratista_requires_secretaria",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user.email} @ {self.entity.name} ({self.role})"
+
+    def clean(self):
+        super().clean()
+        if self.secretaria_id and self.entity_id:
+            sec_entity = getattr(self.secretaria, "entity_id", None)
+            if sec_entity and sec_entity != self.entity_id:
+                raise ValidationError(
+                    {"secretaria": "La secretaría no pertenece a la entidad de la membresía."}
+                )
+        if self.supervisor_id and self.supervisor_id == self.user_id:
+            raise ValidationError({"supervisor": "Un usuario no puede ser su propio supervisor."})

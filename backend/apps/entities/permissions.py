@@ -36,3 +36,18 @@ class IsAdminOrSecretario(BasePermission):
             return False
         roles = user_roles(user)
         return bool({"admin", "secretario"} & roles) and bool(user.entity_id)
+
+
+class IsUserManager(BasePermission):
+    """Admin de entidad, superadmin, o secretario gestionando contratistas."""
+
+    message = "No tiene permisos para gestionar usuarios."
+
+    def has_permission(self, request, view) -> bool:
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if is_platform_superadmin(user) or is_entity_admin(user):
+            return True
+        roles = user_roles(user)
+        return "secretario" in roles and bool(user.entity_id)

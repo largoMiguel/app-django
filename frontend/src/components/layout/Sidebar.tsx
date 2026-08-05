@@ -1,4 +1,4 @@
-import { FileText, Building2, Users, BarChart3, LogOut, Clock, Mail, type LucideIcon } from "lucide-react";
+import { FileText, Building2, Users, BarChart3, LogOut, Clock, Mail, FileSearch, ClipboardList, type LucideIcon } from "lucide-react";
 import { useClerk } from "@clerk/react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
@@ -9,12 +9,19 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   superadmin: Building2,
   pqrs: FileText,
   pdm: BarChart3,
+  planes_institucionales: ClipboardList,
   asistencia: Clock,
   correspondencia: Mail,
+  contratacion: FileSearch,
   users_admin: Users,
 };
 
-export default function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { user } = useAuthStore();
   const location = useLocation();
@@ -47,6 +54,7 @@ export default function Sidebar() {
       <NavLink
         key={item.path}
         to={item.path}
+        onClick={() => onMobileClose?.()}
         className={() =>
           `group flex items-center gap-3 rounded-[0.3rem] px-3 py-2.5 text-sm transition-all ${
             isNavActive(item)
@@ -58,7 +66,7 @@ export default function Sidebar() {
         <Icon className="h-5 w-5 flex-shrink-0" />
         <span
           className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
-            isExpanded ? "max-w-[120px] opacity-100" : "max-w-0 opacity-0"
+            isExpanded || mobileOpen ? "max-w-[200px] opacity-100" : "max-w-0 opacity-0"
           }`}
         >
           {item.label}
@@ -67,17 +75,21 @@ export default function Sidebar() {
     );
   }
 
+  const asideClasses = `${
+    mobileOpen ? "translate-x-0" : "-translate-x-full"
+  } md:translate-x-0 fixed left-0 top-0 z-40 flex min-h-0 flex-col border-r border-[#e3e6ea] bg-[#1c2536] transition-all duration-300 h-screen ${
+    isExpanded || mobileOpen ? "w-64" : "w-16"
+  }`;
+
   return (
     <aside
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
-      className={`fixed left-0 top-0 z-20 flex min-h-0 flex-col border-r border-[#e3e6ea] bg-[#1c2536] transition-all duration-300 h-screen ${
-        isExpanded ? "w-56" : "w-16"
-      }`}
+      className={asideClasses}
     >
       <div
         className={`flex flex-shrink-0 items-center border-b border-[rgba(255,255,255,0.07)] px-3 transition-all duration-300 overflow-hidden ${
-          isExpanded ? "h-[62px]" : "h-[52px]"
+          isExpanded || mobileOpen ? "h-[62px]" : "h-[52px]"
         }`}
       >
         <div className="flex items-center gap-2">
@@ -94,7 +106,7 @@ export default function Sidebar() {
 
           <div
             className={`transition-all duration-300 overflow-hidden ${
-              isExpanded ? "w-40 opacity-100" : "w-0 opacity-0"
+              isExpanded || mobileOpen ? "w-48 opacity-100" : "w-0 opacity-0"
             }`}
           >
             <div className="text-sm font-bold text-white leading-tight whitespace-nowrap">SoftOne360</div>
@@ -117,19 +129,19 @@ export default function Sidebar() {
       <div className="flex-shrink-0 border-t border-[rgba(255,255,255,0.07)] p-2">
         <div
           className={`flex w-full min-w-0 items-center rounded-[0.3rem] px-1 py-1 transition-colors hover:bg-[rgba(255,255,255,0.07)] ${
-            isExpanded ? "gap-1" : "justify-center"
+            isExpanded || mobileOpen ? "gap-1" : "justify-center"
           }`}
         >
           <button
             type="button"
             onClick={() => clerk.openUserProfile()}
             title={user?.full_name || "Mi cuenta"}
-            className={`flex min-w-0 items-center ${isExpanded ? "min-w-0 flex-1 gap-2" : ""}`}
+            className={`flex min-w-0 items-center ${isExpanded || mobileOpen ? "min-w-0 flex-1 gap-2" : ""}`}
           >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3eafd4] text-sm font-bold text-white">
               {userInitial}
             </div>
-            {isExpanded && (
+            {(isExpanded || mobileOpen) && (
               <div className="min-w-0 flex-1 text-left">
                 <div className="text-[0.7rem] font-semibold text-white truncate">
                   {user?.full_name || "Usuario"}
@@ -140,7 +152,7 @@ export default function Sidebar() {
               </div>
             )}
           </button>
-          {isExpanded && (
+          {(isExpanded || mobileOpen) && (
             <button
               type="button"
               onClick={handleSignOut}

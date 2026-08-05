@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .bpin_view import BpinDetailView
+from .informes.views import InformePdmViewSet
 from .views import (
     PdmActividadCreateView,
     PdmActividadDetailView,
@@ -9,6 +10,7 @@ from .views import (
     PdmChatAnalyticsView,
     PdmProyectosView,
     PdmAsignarResponsableView,
+    PdmAsignarResponsableUsuarioView,
     PdmContratosUploadView,
     PdmContratosView,
     PdmEjecucionProductoView,
@@ -40,10 +42,30 @@ urlpatterns = [
     path("pdm/v2/<slug:slug>/actividades/<int:actividad_id>", PdmActividadDetailView.as_view()),
     path("pdm/v2/<slug:slug>/actividades/<int:actividad_id>/evidencia", PdmEvidenciaView.as_view()),
     path("pdm/v2/<slug:slug>/productos/<str:codigo_producto>/responsable", PdmAsignarResponsableView.as_view()),
+    path(
+        "pdm/v2/<slug:slug>/productos/<str:codigo_producto>/responsable-usuario",
+        PdmAsignarResponsableUsuarioView.as_view(),
+    ),
     path("pdm/ejecucion/upload", PdmEjecucionUploadView.as_view()),
     path("pdm/ejecucion/resumen-anual-entidad", PdmEjecucionResumenAnualEntidadView.as_view()),
     path("pdm/ejecucion/<str:codigo_producto>", PdmEjecucionProductoView.as_view()),
     path("bpin/<str:bpin>", BpinDetailView.as_view()),
     path("pdm/contratos/<slug:slug>/upload", PdmContratosUploadView.as_view()),
     path("pdm/contratos/<slug:slug>/contratos", PdmContratosView.as_view()),
+    path(
+        "pdm/v2/<slug:slug>/informes/firmantes/",
+        InformePdmViewSet.as_view({"get": "firmantes"}),
+    ),
+    path(
+        "pdm/v2/<slug:slug>/informes/",
+        InformePdmViewSet.as_view({"get": "list", "post": "create"}),
+    ),
+    path(
+        "pdm/v2/<slug:slug>/informes/<int:pk>/",
+        InformePdmViewSet.as_view({"delete": "destroy"}),
+    ),
+    path(
+        "pdm/v2/<slug:slug>/informes/<int:pk>/download/",
+        InformePdmViewSet.as_view({"get": "download"}),
+    ),
 ]

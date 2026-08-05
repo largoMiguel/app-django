@@ -9,6 +9,7 @@ import {
 } from "@/core/auth/authErrors";
 import { getClerkToken } from "@/core/auth/clerkToken";
 import { clearClientSession } from "@/core/auth/session";
+import { useAuthStore } from "@/core/auth/store";
 import { isSignedDeliveryUrl } from "@/core/api/fileDelivery";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
@@ -21,12 +22,20 @@ export const api: AxiosInstance = axios.create({
 export const PUBLIC_API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "";
 
+function authRequestHeaders(token: string | null): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const entityId = useAuthStore.getState().activeEntityId;
+  if (entityId) headers["X-Entity-Id"] = String(entityId);
+  return headers;
+}
+
 async function fetchWithAuth(url: string): Promise<Response> {
   const absolute = url.startsWith("http") ? url : `${window.location.origin}${url}`;
   const token = await getClerkToken();
 
   const response = await fetch(absolute, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: authRequestHeaders(token),
   });
 
   if (response.status === 401 && token) {
@@ -85,6 +94,8 @@ export async function openAuthenticatedFile(url: string): Promise<void> {
 api.interceptors.request.use(async (cfg: InternalAxiosRequestConfig) => {
   const token = await getClerkToken();
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
+  const entityId = useAuthStore.getState().activeEntityId;
+  if (entityId) cfg.headers["X-Entity-Id"] = String(entityId);
   return cfg;
 });
 
@@ -92,6 +103,11 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     if (err.response?.status === 401) {
+      const hadToken = Boolean(err.config?.headers?.Authorization);
+      // Sin token (p. ej. Clerk aún no listo tras login): no cerrar sesión; dejar reintentar.
+      if (!hadToken) {
+        return Promise.reject(err);
+      }
       const blockCode = parseAuthErrorCode(err);
       clearClientSession();
       await forceClerkSignOut(blockCode);

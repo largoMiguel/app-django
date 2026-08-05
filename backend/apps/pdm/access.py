@@ -24,14 +24,24 @@ def _is_secretario(user) -> bool:
     return "secretario" in user_roles(user)
 
 
+def _is_contratista(user) -> bool:
+    return "contratista" in user_roles(user)
+
+
 def productos_queryset_for_user(user, entity: Entity) -> QuerySet[PdmProducto]:
-    """Productos visibles: admin ve todos de la entidad; secretario solo los asignados."""
-    qs = PdmProducto.objects.filter(entity=entity).select_related("responsable_secretaria")
-    if _is_secretario(user) and not _is_admin(user):
+    """Productos visibles según rol."""
+    qs = PdmProducto.objects.filter(entity=entity).select_related(
+        "responsable_secretaria", "responsable_usuario"
+    )
+    if _is_admin(user):
+        return qs
+    if _is_secretario(user):
         if not user.secretaria_id:
             return qs.none()
-        qs = qs.filter(responsable_secretaria_id=user.secretaria_id)
-    return qs
+        return qs.filter(responsable_secretaria_id=user.secretaria_id)
+    if _is_contratista(user):
+        return qs.filter(responsable_usuario_id=user.id)
+    return qs.none()
 
 
 def codigos_producto_for_user(user, entity: Entity) -> list[str]:
@@ -151,6 +161,10 @@ def user_can_access_actividad(user, entity: Entity, actividad: PdmActividad) -> 
         return True
     if _is_secretario(user):
         return user_can_access_producto(user, entity, actividad.codigo_producto)
+    if _is_contratista(user):
+        return actividad.responsable_usuario_id == user.id or user_can_access_producto(
+            user, entity, actividad.codigo_producto
+        )
     return False
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 
+from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.db.models import Count
 from django.db import transaction
@@ -20,7 +21,7 @@ from apps.entities.models import Secretaria
 from apps.rbac.permissions import HasPermOrRole
 
 from apps.common.roles import is_platform_superadmin, user_roles
-from .access import pqrs_queryset_for_user, usuario_asignado_a_pqrs
+from .access import pqrs_queryset_for_user, usuario_asignado_a_pqrs, usuario_delegado_en_pqrs
 from .models import (
     DIAS_RESPUESTA_LEY1755,
     EstadoPQRS,
@@ -31,6 +32,7 @@ from .models import (
 )
 from .serializers import (
     AsignarSerializer,
+    AsignarUsuarioSerializer,
     PQRSListSerializer,
     PQRSReportRowSerializer,
     PQRSArchivoSerializer,
@@ -58,6 +60,9 @@ logger = logging.getLogger(__name__)
 MAX_ARCHIVOS = PQRSArchivo.MAX_ARCHIVOS
 
 
+User = get_user_model()
+
+
 def _roles(user) -> set[str]:
     return user_roles(user)
 
@@ -67,6 +72,19 @@ def _can_manage_pqrs(user) -> bool:
         return False
     roles = _roles(user)
     return "admin" in roles
+
+
+def _can_delegate_pqrs_users(user) -> bool:
+    if is_platform_superadmin(user):
+        return False
+    roles = _roles(user)
+    return "secretario" in roles
+
+
+def _supervised_user_ids(user) -> set[int]:
+    from apps.accounts.memberships import contratista_user_ids_for_secretario
+
+    return set(contratista_user_ids_for_secretario(user))
 
 
 def _can_create_pqrs(user) -> bool:
@@ -99,6 +117,8 @@ def _can_upload_archivos(user, pqrs: PQRS) -> bool:
         return False
     if "secretario" in roles:
         return usuario_asignado_a_pqrs(user, pqrs)
+    if "contratista" in roles:
+        return usuario_delegado_en_pqrs(user, pqrs)
     if "ciudadano" in roles:
         return pqrs.created_by_id == user.id and pqrs.estado == EstadoPQRS.RECIBIDA
     return False
@@ -118,6 +138,10 @@ def _maybe_mark_en_proceso(pqrs: PQRS, user) -> None:
         "secretario" in roles
         and pqrs.estado == EstadoPQRS.ASIGNADA
         and usuario_asignado_a_pqrs(user, pqrs)
+    ) or (
+        "contratista" in roles
+        and pqrs.estado in (EstadoPQRS.ASIGNADA, EstadoPQRS.EN_PROCESO)
+        and usuario_delegado_en_pqrs(user, pqrs)
     ):
         pqrs.estado = EstadoPQRS.EN_PROCESO
         pqrs.save(update_fields=["estado", "updated_at"])
@@ -145,26 +169,27 @@ class PQRSViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         perm_map = {
-            "list": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "ciudadano"))],
-            "retrieve": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "ciudadano"))],
+            "list": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "contratista", "ciudadano"))],
+            "retrieve": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "contratista", "ciudadano"))],
             "create": [IsAuthenticated, HasPermOrRole(perms=("pqrs.add_pqrs",), roles=("admin", "secretario", "ciudadano"))],
             "update": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "partial_update": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "destroy": [IsAuthenticated, HasPermOrRole(perms=("pqrs.delete_pqrs",), roles=("admin",))],
             "asignar": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
+            "asignar_usuario": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("secretario",))],
             "rechazar_asignacion": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("secretario",))],
-            "responder": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
+            "responder": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario", "contratista"))],
             "reenviar_correo": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
             "reenviar_correo_action": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
             "descartar_alerta_correo": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
             "descartar_alerta_correo_action": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
             "cerrar": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
             "reabrir": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
-            "archivos": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "ciudadano"))],
+            "archivos": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "contratista", "ciudadano"))],
             "archivo_remove": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin",))],
-            "stats": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario"))],
+            "stats": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin", "secretario", "contratista"))],
             "auto_create": [IsAuthenticated, HasPermOrRole(perms=("pqrs.add_pqrs",), roles=("admin", "secretario", "ciudadano"))],
-            "draft_respuesta": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario"))],
+            "draft_respuesta": [IsAuthenticated, HasPermOrRole(perms=("pqrs.change_pqrs",), roles=("admin", "secretario", "contratista"))],
             "reports_preview": [IsAuthenticated, HasPermOrRole(perms=("pqrs.view_pqrs",), roles=("admin",))],
         }
         classes = perm_map.get(self.action, [IsAuthenticated])
@@ -369,6 +394,39 @@ class PQRSViewSet(viewsets.ModelViewSet):
         pqrs.refresh_from_db()
         return Response(PQRSSerializer(pqrs, context={"request": request}).data)
 
+    @action(detail=True, methods=["post"], url_path="asignar-usuario")
+    def asignar_usuario(self, request, pk=None):
+        pqrs = self.get_object()
+        user = request.user
+        if not _can_delegate_pqrs_users(user):
+            raise PermissionDenied("Sin permiso para delegar usuarios en PQRS.")
+
+        if not usuario_asignado_a_pqrs(user, pqrs):
+            raise PermissionDenied("No tienes esta PQRS asignada a tu secretaría.")
+
+        ser = AsignarUsuarioSerializer(data=request.data, context={"entity_id": pqrs.entity_id})
+        ser.is_valid(raise_exception=True)
+        user_ids = ser.validated_data["user_ids"]
+        target_users = list(User.objects.filter(pk__in=user_ids, entity_id=pqrs.entity_id))
+
+        allowed = _supervised_user_ids(user)
+        invalid = [u.id for u in target_users if u.id not in allowed]
+        if invalid:
+            raise ValidationError(
+                {"user_ids": "Solo puede asignar a contratistas bajo su supervisión."}
+            )
+
+        with transaction.atomic():
+            pqrs.assigned_users.set(target_users)
+            AsignacionAuditoria.objects.create(
+                pqrs=pqrs,
+                usuario_nuevo=user,
+                accion="delegacion_usuario",
+                justificacion=ser.validated_data.get("justificacion") or "",
+            )
+        pqrs.refresh_from_db()
+        return Response(PQRSSerializer(pqrs, context={"request": request}).data)
+
     # ── Secretario rechaza la asignación con justificación ────────────
     @action(detail=True, methods=["post"], url_path="rechazar-asignacion")
     def rechazar_asignacion(self, request, pk=None):
@@ -400,11 +458,14 @@ class PQRSViewSet(viewsets.ModelViewSet):
         pqrs = self.get_object()
         user = request.user
         roles = _roles(user)
-        if not ("admin" in roles or "secretario" in roles):
+        if not ("admin" in roles or "secretario" in roles or "contratista" in roles):
             raise PermissionDenied("Sin permiso para responder.")
         if "secretario" in roles and "admin" not in roles:
             if not usuario_asignado_a_pqrs(user, pqrs):
                 raise PermissionDenied("No tienes esta PQRS asignada.")
+        if "contratista" in roles and "admin" not in roles:
+            if not usuario_delegado_en_pqrs(user, pqrs):
+                raise PermissionDenied("No tienes esta PQRS delegada.")
 
         if pqrs.estado == EstadoPQRS.RESPONDIDA:
             raise ValidationError({"detail": "Esta PQRS ya fue respondida."})
