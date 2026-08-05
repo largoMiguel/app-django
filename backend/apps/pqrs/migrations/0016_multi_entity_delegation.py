@@ -4,6 +4,37 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+# Prod aplicó 0002_rename_* antes de este merge; demo puede tener nombres viejos o nuevos.
+_INDEX_RENAMES = (
+    ("asignacion_auditoria", "asig_audit_pqrs_idx", "asignacion__pqrs_id_3904e2_idx"),
+    ("asignacion_auditoria", "asig_audit_fecha_idx", "asignacion__fecha_a_d8fedf_idx"),
+    ("pqrs_correos_entrantes", "pqrs_ce_rem_fecha_idx", "pqrs_correo_remiten_bc86c9_idx"),
+    ("pqrs_correos_entrantes", "pqrs_ce_est_fecha_idx", "pqrs_correo_estado_d11756_idx"),
+    ("pqrs_informes", "pqrs_inf_entity_created_idx", "pqrs_inform_entity__aca10b_idx"),
+    ("pqrs_informes", "pqrs_inf_entity_exp_idx", "pqrs_inform_entity__08df17_idx"),
+    ("pqrs", "pqrs_estado_idx", "pqrs_estado_564554_idx"),
+    ("pqrs", "pqrs_tipo_sol_idx", "pqrs_tipo_so_2a9a6e_idx"),
+    ("pqrs", "pqrs_canal_idx", "pqrs_canal_l_eec35a_idx"),
+    ("pqrs_archivos", "pqrs_archiv_pqrs_id_idx", "pqrs_archiv_pqrs_id_b62b50_idx"),
+    ("pqrs_correos", "pqrs_correo_pqrs_created_idx", "pqrs_correo_pqrs_id_a19632_idx"),
+    ("pqrs_correos", "pqrs_correo_request_id_idx", "pqrs_correo_request_e1ce91_idx"),
+)
+
+
+def _rename_indexes_if_needed(apps, schema_editor):
+    if schema_editor.connection.vendor != "postgresql":
+        return
+    with schema_editor.connection.cursor() as cursor:
+        for _table, old_name, new_name in _INDEX_RENAMES:
+            cursor.execute("SELECT to_regclass(%s)", [old_name])
+            if cursor.fetchone()[0] is None:
+                continue
+            cursor.execute("SELECT to_regclass(%s)", [new_name])
+            if cursor.fetchone()[0] is not None:
+                continue
+            cursor.execute(f'ALTER INDEX "{old_name}" RENAME TO "{new_name}"')
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -12,66 +43,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='asignacionauditoria',
-            new_name='asignacion__pqrs_id_3904e2_idx',
-            old_name='asig_audit_pqrs_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='asignacionauditoria',
-            new_name='asignacion__fecha_a_d8fedf_idx',
-            old_name='asig_audit_fecha_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='correoentrantepqrs',
-            new_name='pqrs_correo_remiten_bc86c9_idx',
-            old_name='pqrs_ce_rem_fecha_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='correoentrantepqrs',
-            new_name='pqrs_correo_estado_d11756_idx',
-            old_name='pqrs_ce_est_fecha_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='informepqrs',
-            new_name='pqrs_inform_entity__aca10b_idx',
-            old_name='pqrs_inf_entity_created_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='informepqrs',
-            new_name='pqrs_inform_entity__08df17_idx',
-            old_name='pqrs_inf_entity_exp_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='pqrs',
-            new_name='pqrs_estado_564554_idx',
-            old_name='pqrs_estado_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='pqrs',
-            new_name='pqrs_tipo_so_2a9a6e_idx',
-            old_name='pqrs_tipo_sol_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='pqrs',
-            new_name='pqrs_canal_l_eec35a_idx',
-            old_name='pqrs_canal_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='pqrsarchivo',
-            new_name='pqrs_archiv_pqrs_id_b62b50_idx',
-            old_name='pqrs_archiv_pqrs_id_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='pqrscorreo',
-            new_name='pqrs_correo_pqrs_id_a19632_idx',
-            old_name='pqrs_correo_pqrs_created_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='pqrscorreo',
-            new_name='pqrs_correo_request_e1ce91_idx',
-            old_name='pqrs_correo_request_id_idx',
-        ),
+        migrations.RunPython(_rename_indexes_if_needed, migrations.RunPython.noop),
         migrations.AddField(
             model_name='pqrs',
             name='assigned_users',
