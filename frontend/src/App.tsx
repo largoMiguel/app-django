@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, type ReactElement } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import ScrollToTop from "@/core/routing/ScrollToTop";
-import { isMarketingHost, redirectToApp } from "@/core/host";
+import { isMarketingHost, isShowcaseHost, redirectToApp } from "@/core/host";
 import LoginPage from "@/features/auth/LoginPage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
 import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
@@ -103,36 +103,44 @@ function RedirectToMarketingHost() {
   return suspenseFallback;
 }
 
+const showcaseHome = (
+  <Suspense fallback={suspenseFallback}>
+    <HomePage />
+  </Suspense>
+);
+
+const nosotrosPage = (
+  <Suspense fallback={suspenseFallback}>
+    <NosotrosPage />
+  </Suspense>
+);
+
 export default function App(): ReactElement {
   const marketing = isMarketingHost();
+  const showcase = isShowcaseHost();
 
   return (
     <>
       <ScrollToTop />
       {marketing ? (
         <Routes>
-          <Route
-            path="/"
-            element={
-              <Suspense fallback={suspenseFallback}>
-                <HomePage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/nosotros"
-            element={
-              <Suspense fallback={suspenseFallback}>
-                <NosotrosPage />
-              </Suspense>
-            }
-          />
+          <Route path="/" element={showcaseHome} />
+          <Route path="/nosotros" element={nosotrosPage} />
           <Route path="*" element={<RedirectToAppHost />} />
         </Routes>
       ) : (
         <Routes>
-          <Route path="/" element={<AppRootEntry />} />
-          <Route path="/nosotros" element={<RedirectToMarketingHost />} />
+          {showcase ? (
+            <>
+              <Route path="/" element={showcaseHome} />
+              <Route path="/nosotros" element={nosotrosPage} />
+            </>
+          ) : (
+            <>
+              <Route path="/" element={<AppRootEntry />} />
+              <Route path="/nosotros" element={<RedirectToMarketingHost />} />
+            </>
+          )}
           <Route path="/login/*" element={<LoginPage />} />
 
           <Route path="/portal/:slug" element={<PublicPQRSPortal />} />

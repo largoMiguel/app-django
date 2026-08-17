@@ -1,4 +1,7 @@
 import { Link } from "react-router-dom";
+import { SplineScene } from "@/components/ui/splite";
+import { Spotlight } from "@/components/ui/spotlight";
+import { isDemoHost } from "@/core/host";
 import ShowcaseIcon from "./ShowcaseIcon";
 import ShowcaseLogo from "./ShowcaseLogo";
 import {
@@ -28,19 +31,37 @@ interface ShowcasePageProps {
 
 export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
   useScrollReveal();
+  const demoSpline = isDemoHost();
 
   const moduleTrack = [...modules, ...modules];
 
   return (
     <div className="showcase-main sc-fullbleed">
-      <section className="sc-hero sc-hero--bleed">
-        <div className="sc-hero-stage" aria-hidden="true">
-          <div className="sc-hero-photo" />
-          <div className="sc-hero-veil" />
-          <div className="sc-hero-glow sc-hero-glow--primary" />
-          <div className="sc-hero-glow sc-hero-glow--accent" />
-          <div className="sc-hero-grid" />
-          <div className="sc-hero-beam" />
+      {demoSpline && <Spotlight className="sc-page-spotlight" size={420} />}
+      <section className={`sc-hero sc-hero--bleed${demoSpline ? " sc-hero--demo-spline" : ""}`}>
+        <div className="sc-hero-stage" aria-hidden={demoSpline ? undefined : true}>
+          {demoSpline ? (
+            <>
+              <div className="sc-hero-spline-panel">
+                <div className="sc-hero-spline-shift">
+                  <SplineScene
+                    scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+                    className="sc-hero-spline-canvas"
+                  />
+                </div>
+              </div>
+              <div className="sc-hero-veil sc-hero-veil--spline" />
+            </>
+          ) : (
+            <>
+              <div className="sc-hero-photo" />
+              <div className="sc-hero-veil" />
+              <div className="sc-hero-glow sc-hero-glow--primary" />
+              <div className="sc-hero-glow sc-hero-glow--accent" />
+              <div className="sc-hero-grid" />
+              <div className="sc-hero-beam" />
+            </>
+          )}
         </div>
 
         <div className="sc-shell sc-hero-shell">
@@ -52,31 +73,35 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                 <small>Gestión estratégica, visión total</small>
               </span>
             </Link>
-            <nav className="sc-hero-toplinks" aria-label="Secciones">
-              <a href="#pdm-destacado">PDM 360°</a>
-              <a href="#modules">Módulos</a>
-              <a href="#contact">Contacto</a>
-              <Link to="/nosotros">Nosotros</Link>
-            </nav>
+            {!demoSpline && (
+              <nav className="sc-hero-toplinks" aria-label="Secciones">
+                <a href="#pdm-destacado">PDM 360°</a>
+                <a href="#modules">Módulos</a>
+                <a href="#contact">Contacto</a>
+                <Link to="/nosotros">Nosotros</Link>
+              </nav>
+            )}
           </header>
 
-          <div className={`sc-hero-copy ${reveal.clip}`} style={{ ["--hi" as string]: 0 }}>
-            <h1 className="sc-hero-title sc-hero-title--xl">
-              Gestión Pública <span className="sc-hero-highlight">360°</span>
-              <HeroAiAccent />
-            </h1>
-            <p className="sc-hero-lead sc-hero-lead--wide">
-              PDM, PQRS, contratación y planes institucionales en una plataforma multi-entidad
-              con informes, dashboards e IA integrada.
-            </p>
-            <div className="sc-hero-actions">
-              <button type="button" className="sc-btn sc-btn-primary sc-btn-lg" onClick={onLoginClick}>
-                <Si icon="fas fa-sign-in-alt" size={18} />
-                Ingresar al sistema
-              </button>
-              <Link to="/nosotros" className="sc-btn sc-btn-secondary sc-btn-lg">
-                Conocer la empresa
-              </Link>
+          <div className={`sc-hero-body${demoSpline ? " sc-hero-body--demo" : ""}`}>
+            <div className={`sc-hero-copy ${reveal.clip}`} style={{ ["--hi" as string]: 0 }}>
+              <h1 className="sc-hero-title sc-hero-title--xl">
+                Gestión Pública <span className="sc-hero-highlight">360°</span>
+                <HeroAiAccent />
+              </h1>
+              <p className="sc-hero-lead sc-hero-lead--wide">
+                PDM, PQRS, contratación y planes institucionales en una plataforma multi-entidad
+                con informes, dashboards e IA integrada.
+              </p>
+              <div className="sc-hero-actions">
+                <button type="button" className="sc-btn sc-btn-primary sc-btn-lg" onClick={onLoginClick}>
+                  <Si icon="fas fa-sign-in-alt" size={18} />
+                  Ingresar al sistema
+                </button>
+                <Link to="/nosotros" className="sc-btn sc-btn-secondary sc-btn-lg">
+                  Conocer la empresa
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -91,7 +116,7 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
         Ingresar
       </button>
 
-      <section className="sc-stats-band" id="stats">
+      <section className={`sc-stats-band${demoSpline ? " sc-stats-band--demo" : ""}`} id="stats">
         <div className="sc-shell">
           <div className={`sc-stats-row ${reveal.up}`}>
             {stats.map((stat, i) => (

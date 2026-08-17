@@ -23,6 +23,7 @@ $sc-ease: cubic-bezier(0.23, 1, 0.32, 1);
 // ── Base ────────────────────────────────────────────────────────────────────
 .showcase-main,
 .nos-page {
+    position: relative;
     width: 100%;
     min-height: 100vh;
     padding: 0;
@@ -2349,6 +2350,105 @@ $sc-ease: cubic-bezier(0.23, 1, 0.32, 1);
     color: #fff;
 }
 
+.sc-hero--demo-spline {
+    background: #030712;
+    position: relative;
+    overflow: hidden;
+}
+
+.sc-hero--demo-spline .sc-hero-ai-slot {
+    font-size: clamp(1.55rem, 4.2vw, 3rem);
+    min-height: 1.15em;
+
+    &::after {
+        width: min(100%, 280px);
+    }
+}
+
+.sc-hero--demo-spline .sc-hero-ai-text {
+    white-space: nowrap;
+}
+
+.sc-hero--demo-spline .sc-hero-stage {
+    pointer-events: auto;
+}
+
+.sc-page-spotlight {
+    z-index: 40;
+}
+
+.sc-hero--demo-spline .sc-hero-shell {
+    z-index: 3;
+    pointer-events: none;
+
+    a,
+    button {
+        pointer-events: auto;
+    }
+}
+
+.sc-hero--demo-spline .sc-hero-scroll {
+    pointer-events: auto;
+}
+
+.sc-hero-spline-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: auto;
+}
+
+.sc-hero-spline-shift {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 158%;
+    height: 100%;
+    pointer-events: auto;
+}
+
+.sc-hero-spline-canvas {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: transparent;
+
+    canvas {
+        display: block;
+        width: 100% !important;
+        height: 100% !important;
+        background: transparent !important;
+    }
+}
+
+.sc-hero-veil--spline {
+    z-index: 1;
+    background:
+        linear-gradient(180deg, rgba(3, 7, 18, 0.45) 0%, rgba(3, 7, 18, 0.72) 100%),
+        linear-gradient(90deg, rgba(3, 7, 18, 0.92) 0%, rgba(3, 7, 18, 0.35) 48%, rgba(3, 7, 18, 0.15) 100%);
+    pointer-events: none;
+}
+
+.sc-hero-body--demo {
+    position: relative;
+    z-index: 2;
+    max-width: min(100%, 640px);
+}
+
+.spline-loader {
+    width: 2rem;
+    height: 2rem;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-top-color: rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    animation: scSplineSpin 0.75s linear infinite;
+}
+
+@keyframes scSplineSpin {
+    to { transform: rotate(360deg); }
+}
+
 .sc-hero-stage {
     position: absolute;
     inset: 0;
@@ -2528,6 +2628,33 @@ $sc-ease: cubic-bezier(0.23, 1, 0.32, 1);
     z-index: 2;
     margin-top: -2.5rem;
     padding: 0 0 clamp(2rem, 4vw, 3rem);
+}
+
+.sc-stats-band--demo {
+    margin-top: 0;
+    padding: clamp(2rem, 4vw, 3rem) 0;
+    background: #030712;
+}
+
+.sc-stats-band--demo .sc-stats-row {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: none;
+    backdrop-filter: blur(12px);
+}
+
+.sc-stats-band--demo .sc-stat--band {
+    .sc-stat-value {
+        color: #7ec8e8;
+    }
+
+    .sc-stat-label {
+        color: rgba(255, 255, 255, 0.62);
+    }
+
+    @media (min-width: 720px) {
+        border-right-color: rgba(255, 255, 255, 0.12);
+    }
 }
 
 .sc-stats-row {

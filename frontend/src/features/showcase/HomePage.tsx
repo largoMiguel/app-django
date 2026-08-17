@@ -3,7 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import { firstAccessibleRoute } from "@/core/auth/routes";
 import { useAuthStore } from "@/core/auth/store";
-import { APP_ORIGIN, isMarketingHost, redirectToApp } from "@/core/host";
+import { getAppOrigin, isMarketingHost, redirectToApp } from "@/core/host";
 import LoginModal from "./LoginModal";
 import ShowcasePage from "./ShowcasePage";
 
@@ -25,7 +25,7 @@ export default function HomePage() {
     const from = (location.state as { from?: { pathname?: string } } | null)?.from;
     if (from?.pathname) {
       if (marketing) {
-        window.location.href = `${APP_ORIGIN}/login`;
+        window.location.href = `${getAppOrigin()}/login`;
         return;
       }
       setLoginOpen(true);
@@ -61,7 +61,7 @@ export default function HomePage() {
 
   const openLogin = () => {
     if (marketing) {
-      window.location.href = `${APP_ORIGIN}/login`;
+      window.location.href = `${getAppOrigin()}/login`;
       return;
     }
     setLoginOpen(true);

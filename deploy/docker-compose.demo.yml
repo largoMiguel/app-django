@@ -249,6 +249,7 @@ services:
         VITE_API_URL: /api/v1
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
         VITE_FILE_DELIVERY_HOST: ${VITE_FILE_DELIVERY_HOST:-files-demo.softone360.com}
+        VITE_SHOWCASE_ROOT: "true"
     image: softone-demo-frontend:latest
     container_name: softone-demo-frontend
     restart: unless-stopped
