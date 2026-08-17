@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { SplineScene } from "@/components/ui/splite";
 import { Spotlight } from "@/components/ui/spotlight";
-import { isDemoHost } from "@/core/host";
+import { isShowcaseHost } from "@/core/host";
 import ShowcaseIcon from "./ShowcaseIcon";
 import ShowcaseLogo from "./ShowcaseLogo";
 import {
@@ -31,7 +31,7 @@ interface ShowcasePageProps {
 
 export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
   useScrollReveal();
-  const demoSpline = isDemoHost();
+  const demoSpline = isShowcaseHost();
 
   const moduleTrack = [...modules, ...modules];
 

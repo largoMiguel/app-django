@@ -2356,19 +2356,6 @@ $sc-ease: cubic-bezier(0.23, 1, 0.32, 1);
     overflow: hidden;
 }
 
-.sc-hero--demo-spline .sc-hero-ai-slot {
-    font-size: clamp(1.55rem, 4.2vw, 3rem);
-    min-height: 1.15em;
-
-    &::after {
-        width: min(100%, 280px);
-    }
-}
-
-.sc-hero--demo-spline .sc-hero-ai-text {
-    white-space: nowrap;
-}
-
 .sc-hero--demo-spline .sc-hero-stage {
     pointer-events: auto;
 }

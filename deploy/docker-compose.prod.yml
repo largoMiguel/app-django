@@ -273,6 +273,7 @@ services:
       args:
         VITE_API_URL: /api/v1
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
+        VITE_SHOWCASE_ROOT: "true"
     image: softone-frontend:latest
     container_name: softone-frontend
     restart: unless-stopped
