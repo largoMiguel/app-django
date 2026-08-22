@@ -118,7 +118,6 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
 
             <div className="login-dialog-clerk">
               <SignIn
-                routing="virtual"
                 forceRedirectUrl="/app"
                 fallbackRedirectUrl="/app"
                 appearance={{
