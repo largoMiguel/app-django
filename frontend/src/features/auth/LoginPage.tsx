@@ -56,8 +56,8 @@ export default function LoginPage() {
       return <Navigate to="/app" replace />;
     }
     const destination =
-      from && canAccessPath(user, from) ? from : firstAccessibleRoute(user);
-    return <Navigate to={destination} replace />;
+      from && from !== "/" && canAccessPath(user, from) ? from : firstAccessibleRoute(user);
+    return <Navigate to={destination === "/" ? "/app" : destination} replace />;
   }
 
   return (

@@ -192,11 +192,11 @@ export function canAccessModuleRoute(user: AuthUser | null, moduleKey: AppModule
 
 /** Primera ruta del primer módulo activo al que el usuario tiene acceso. */
 export function firstAccessibleRoute(user: AuthUser | null): string {
-  if (!user) return "/";
+  if (!user) return "/app";
   if (isPlatformSuperadmin(user)) return "/superadmin/entities";
 
   const entity = user.entity;
-  if (!entity) return "/";
+  if (!entity) return "/app";
 
   for (const moduleKey of modulesInOrder(user)) {
     const key = moduleKey as AppModuleKey;

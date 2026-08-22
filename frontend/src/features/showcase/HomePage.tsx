@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@clerk/react";
 import { firstAccessibleRoute } from "@/core/auth/routes";
-import { useAuthStore } from "@/core/auth/store";
+import { needsEntitySelection, useAuthStore } from "@/core/auth/store";
 import { getAppOrigin, isMarketingHost, redirectToApp } from "@/core/host";
 import LoginModal from "./LoginModal";
 import ShowcasePage from "./ShowcasePage";
@@ -11,6 +11,7 @@ export default function HomePage() {
   const location = useLocation();
   const { isLoaded, isSignedIn } = useAuth();
   const user = useAuthStore((s) => s.user);
+  const activeEntityId = useAuthStore((s) => s.activeEntityId);
   const [loginOpen, setLoginOpen] = useState(false);
   const marketing = isMarketingHost();
 
@@ -48,15 +49,28 @@ export default function HomePage() {
         </div>
       );
     }
+    if (needsEntitySelection(user, activeEntityId)) {
+      if (marketing) {
+        redirectToApp("/app");
+        return (
+          <div className="flex min-h-screen items-center justify-center text-slate-500">
+            Redirigiendo a la app…
+          </div>
+        );
+      }
+      return <Navigate to="/app" replace />;
+    }
+    const dest = firstAccessibleRoute(user);
+    const path = !dest || dest === "/" ? "/app" : dest;
     if (marketing) {
-      redirectToApp(firstAccessibleRoute(user));
+      redirectToApp(path);
       return (
         <div className="flex min-h-screen items-center justify-center text-slate-500">
           Redirigiendo a la app…
         </div>
       );
     }
-    return <Navigate to={firstAccessibleRoute(user)} replace />;
+    return <Navigate to={path} replace />;
   }
 
   const openLogin = () => {

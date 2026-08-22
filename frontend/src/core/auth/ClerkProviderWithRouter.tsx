@@ -32,6 +32,8 @@ export default function ClerkProviderWithRouter({
       ui={ui}
       domain={getClerkDomain()}
       localization={esES}
+      signInForceRedirectUrl="/app"
+      signInFallbackRedirectUrl="/app"
       routerPush={(to) => navigate(to)}
       routerReplace={(to) => navigate(to, { replace: true })}
     >
