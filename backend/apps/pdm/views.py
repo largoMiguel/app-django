@@ -37,7 +37,15 @@ from .ejecucion_resumen import resumen_ejecucion_entidad
 
 User = get_user_model()
 from .clave_producto import calcular_claves_producto
-from .producto_codigo import resolver_codigo_producto_pdm
+from .armonizacion import (
+    ArmonizacionError,
+    aplicar_armonizacion,
+    codigo_efectivo,
+    codigos_armonizados_para_producto,
+    mapa_armonizacion,
+    revertir_armonizacion,
+    serializar_armonizacion,
+)
 from .contratos_parser import parse_contratos_rps
 from .ejecucion_parser import _looks_like_codigo_fuente, parse_ejecucion_excel, rows_from_ejecucion_dataframe
 from .evidencia_storage import (
@@ -65,6 +73,7 @@ from .models import (
     PDMEjecucionPresupuestal,
     PdmActividad,
     PdmActividadEvidencia,
+    PdmArmonizacionEjecucion,
     PdmChatConversation,
     PdmChatMessage,
     PdmIniciativaSGR,
@@ -411,6 +420,11 @@ class PdmProductoDetailView(APIView):
             producto,
             "resumen_por_anio",
             {str(y): resumen_anio(producto, y, aggs_map) for y in ANIOS_PDM},
+        )
+        setattr(
+            producto,
+            "codigos_armonizados",
+            codigos_armonizados_para_producto(entity.id, producto.codigo_producto),
         )
         return Response(PdmProductoSerializer(producto).data)
 
@@ -770,27 +784,32 @@ class PdmEjecucionUploadView(APIView):
         with transaction.atomic():
             deleted = PDMEjecucionPresupuestal.objects.filter(entity_id=request.user.entity_id, anio=target_year).delete()[0]
             entity = Entity.objects.filter(id=request.user.entity_id).first()
-            rows = [
-                PDMEjecucionPresupuestal(
-                    entity_id=request.user.entity_id,
-                    codigo_producto=resolver_codigo_producto_pdm(entity, item["codigo_producto"])
-                    if entity
-                    else item["codigo_producto"],
-                    descripcion_fte=item["descripcion_fte"],
-                    pto_inicial=item["pto_inicial"],
-                    adicion=item["adicion"],
-                    reduccion=item["reduccion"],
-                    credito=item["credito"],
-                    contracredito=item["contracredito"],
-                    pto_definitivo=item["pto_definitivo"],
-                    pagos=item["pagos"],
-                    sector=item.get("sector"),
-                    dependencia=item.get("dependencia"),
-                    bpin=item.get("bpin"),
-                    anio=target_year,
+            mapa = mapa_armonizacion(entity) if entity else {}
+            rows = []
+            for item in rows_data:
+                codigo_raw = str(item["codigo_producto"] or "").strip()
+                codigo_resuelto = (
+                    codigo_efectivo(entity, codigo_raw, mapa) if entity else codigo_raw
                 )
-                for item in rows_data
-            ]
+                rows.append(
+                    PDMEjecucionPresupuestal(
+                        entity_id=request.user.entity_id,
+                        codigo_producto_origen=codigo_raw,
+                        codigo_producto=codigo_resuelto,
+                        descripcion_fte=item["descripcion_fte"],
+                        pto_inicial=item["pto_inicial"],
+                        adicion=item["adicion"],
+                        reduccion=item["reduccion"],
+                        credito=item["credito"],
+                        contracredito=item["contracredito"],
+                        pto_definitivo=item["pto_definitivo"],
+                        pagos=item["pagos"],
+                        sector=item.get("sector"),
+                        dependencia=item.get("dependencia"),
+                        bpin=item.get("bpin"),
+                        anio=target_year,
+                    )
+                )
             if rows:
                 PDMEjecucionPresupuestal.objects.bulk_create(rows)
 
@@ -873,7 +892,101 @@ class PdmEjecucionProductoView(APIView):
         for f in fuentes_detalle:
             for key in sum_fields:
                 totales[key] += f[key]
-        return Response({"codigo_producto": codigo_producto, "fuentes": [f["nombre"] for f in fuentes_detalle], "fuentes_detalle": fuentes_detalle, "totales": dict(totales)})
+        codigos_armonizados = codigos_armonizados_para_producto(entity.id, codigo_producto)
+        return Response(
+            {
+                "codigo_producto": codigo_producto,
+                "codigos_armonizados": codigos_armonizados,
+                "fuentes": [f["nombre"] for f in fuentes_detalle],
+                "fuentes_detalle": fuentes_detalle,
+                "totales": dict(totales),
+            }
+        )
+
+
+def _require_pdm_admin(user) -> None:
+    require_user_module(user, "pdm", message="El módulo PDM no está habilitado para tu usuario.")
+    if not _is_admin(user):
+        raise PermissionDenied("Solo admin puede gestionar armonizaciones de ejecución.")
+
+
+class PdmArmonizacionListCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        _require_pdm_admin(request.user)
+        entity = get_object_or_404(Entity, id=request.user.entity_id)
+        items = [
+            serializar_armonizacion(arm)
+            for arm in PdmArmonizacionEjecucion.objects.filter(entity=entity).select_related("created_by").order_by(
+                "-created_at"
+            )
+        ]
+        return Response(items)
+
+    def post(self, request):
+        _require_pdm_admin(request.user)
+        entity = get_object_or_404(Entity, id=request.user.entity_id)
+        codigo_origen = str(request.data.get("codigo_origen") or "").strip()
+        codigo_destino = str(request.data.get("codigo_destino") or "").strip()
+        nota = str(request.data.get("nota") or "").strip()
+        try:
+            payload = aplicar_armonizacion(
+                entity,
+                codigo_origen,
+                codigo_destino,
+                nota=nota,
+                created_by=request.user,
+            )
+        except ArmonizacionError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class PdmArmonizacionDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, armonizacion_id: int):
+        _require_pdm_admin(request.user)
+        entity = get_object_or_404(Entity, id=request.user.entity_id)
+        try:
+            payload = revertir_armonizacion(entity, armonizacion_id)
+        except ArmonizacionError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        return Response(payload)
+
+
+class PdmArmonizacionCandidatosView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        _require_pdm_admin(request.user)
+        entity = get_object_or_404(Entity, id=request.user.entity_id)
+        search = str(request.query_params.get("search") or "").strip()
+        qs = productos_queryset_for_user(request.user, entity).order_by("codigo_producto", "clave_producto")
+        if search:
+            from django.db.models import Q
+
+            qs = qs.filter(
+                Q(codigo_producto__icontains=search)
+                | Q(clave_producto__icontains=search)
+                | Q(producto_mga__icontains=search)
+                | Q(indicador_producto_mga__icontains=search)
+                | Q(linea_estrategica__icontains=search)
+                | Q(codigo_indicador_producto__icontains=search)
+            )
+        qs = qs[:50]
+        results = [
+            {
+                "clave_producto": p.clave_producto,
+                "codigo_producto": p.codigo_producto,
+                "producto_mga": p.producto_mga or "",
+                "indicador_producto_mga": p.indicador_producto_mga or "",
+                "linea_estrategica": p.linea_estrategica or "",
+            }
+            for p in qs
+        ]
+        return Response(results)
 
 
 class PdmContratosUploadView(APIView):

@@ -139,6 +139,13 @@ interface PdmContextValue {
   setModalContratos: (v: boolean) => void;
   modalEjecucion: boolean;
   setModalEjecucion: (v: boolean) => void;
+  modalArmonizacion: boolean;
+  setModalArmonizacion: (v: boolean) => void;
+  armonizacionCodigoOrigen: string;
+  setArmonizacionCodigoOrigen: (v: string) => void;
+  armonizacionPtoDefinitivo: number | undefined;
+  setArmonizacionPtoDefinitivo: (v: number | undefined) => void;
+  abrirModalArmonizacion: (codigoOrigen?: string, ptoDefinitivo?: number) => void;
   anioContratos: number;
   setAnioContratos: (y: number) => void;
   anioEjecucion: number;
@@ -210,6 +217,9 @@ export function PdmProvider({ children }: { children: ReactNode }) {
 
   const [modalContratos, setModalContratos] = useState(false);
   const [modalEjecucion, setModalEjecucion] = useState(false);
+  const [modalArmonizacion, setModalArmonizacion] = useState(false);
+  const [armonizacionCodigoOrigen, setArmonizacionCodigoOrigen] = useState("");
+  const [armonizacionPtoDefinitivo, setArmonizacionPtoDefinitivo] = useState<number | undefined>(undefined);
   const [anioContratos, setAnioContratos] = useState(2026);
   const [anioEjecucion, setAnioEjecucion] = useState(2026);
   const [archivoContratos, setArchivoContratos] = useState<File | null>(null);
@@ -679,6 +689,12 @@ export function PdmProvider({ children }: { children: ReactNode }) {
     fileInputRef.current?.click();
   }, []);
 
+  const abrirModalArmonizacion = useCallback((codigoOrigen = "", ptoDefinitivo?: number) => {
+    setArmonizacionCodigoOrigen(codigoOrigen);
+    setArmonizacionPtoDefinitivo(ptoDefinitivo);
+    setModalArmonizacion(true);
+  }, []);
+
   const loading = loadingStatus || procesandoExcel;
   const cargandoDetalleUrl = detalleEnabled && (loadingProductoDetail || !productoSeleccionado);
 
@@ -764,6 +780,13 @@ export function PdmProvider({ children }: { children: ReactNode }) {
     setModalContratos,
     modalEjecucion,
     setModalEjecucion,
+    modalArmonizacion,
+    setModalArmonizacion,
+    armonizacionCodigoOrigen,
+    setArmonizacionCodigoOrigen,
+    armonizacionPtoDefinitivo,
+    setArmonizacionPtoDefinitivo,
+    abrirModalArmonizacion,
     anioContratos,
     setAnioContratos,
     anioEjecucion,

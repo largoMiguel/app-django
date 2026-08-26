@@ -6,8 +6,21 @@ Documento de referencia para migrar cambios validados en **demo** (`development`
 >
 > | Rama | URL | Notas |
 > |------|-----|-------|
-> | `development` | https://demo.softone360.com | Incluye soporte PDM multi-indicador (`clave_producto`) + **Plan de Acción Excel** en Informes PDM |
-> | `main` | https://app.softone360.com | Pendiente merge: Plan de Acción Excel PDM |
+> | `development` | https://demo.softone360.com | Incluye soporte PDM multi-indicador (`clave_producto`) + **Plan de Acción Excel** + **armonización presupuesto ↔ PDM** |
+> | `main` | https://app.softone360.com | Pendiente merge: Plan de Acción Excel PDM + armonización presupuesto ↔ PDM |
+
+---
+
+## Cambio PDM: armonización presupuesto ↔ PDM
+
+Permite asignar códigos de ejecución del Excel que no existen en el Plan Indicativo a un producto real del plan (suma ítem por ítem, sin borrar ejecución del destino).
+
+- Migración: `pdm.0010_pdm_armonizacion` (`codigo_producto_origen` en ejecución + tabla `pdm_armonizacion_ejecucion`).
+- Rol: solo **admin** de la entidad.
+- Endpoints: `GET/POST /api/v1/pdm/ejecucion/armonizaciones/`, `DELETE .../{id}/`, `GET .../candidatos/?search=`.
+- UI: PDM → Resumen → advertencia **Ejecución sin producto en el Plan Indicativo** → **Armonizar**.
+- Tras armonizar, la advertencia desaparece y el producto destino muestra badge *Incluye ejecución armonizada de: …*.
+- Las recargas del Excel respetan las armonizaciones guardadas.
 
 ---
 
@@ -56,7 +69,7 @@ No hace falta correr `migrate` a mano en el flujo normal. El contenedor `backend
 cd /opt/softone-demo
 export COMPOSE="docker compose -f deploy/docker-compose.demo.yml --env-file .env"
 $COMPOSE exec demo-backend python manage.py showmigrations pdm
-# Debe incluir [X] 0009_pdm_clave_producto
+# Debe incluir [X] 0009_pdm_clave_producto y [X] 0010_pdm_armonizacion
 ```
 
 Si queda pendiente:
@@ -85,6 +98,15 @@ $COMPOSE exec demo-backend python manage.py migrate pdm --noinput
 - [ ] Actividades y evidencias previas del producto `4003018` siguen visibles tras recargar Excel.
 - [ ] Productos no duplicados conservan URL `/pdm/productos/1702038`.
 - [ ] Dashboard/estadísticas no duplican ejecución presupuestal entre indicadores hermanos.
+
+### Armonización presupuesto ↔ PDM
+- [ ] Admin ve advertencia **Ejecución sin producto en el Plan Indicativo** con botón **Armonizar** por fila.
+- [ ] Modal permite buscar producto del plan y confirmar armonización (origen → destino).
+- [ ] Tras armonizar, el código desaparece de la advertencia y la ejecución se suma al producto destino.
+- [ ] Detalle del producto destino muestra *Incluye ejecución armonizada de: …*.
+- [ ] Recargar Excel de ejecución del año mantiene la armonización.
+- [ ] **Revertir** en el modal restaura el código huérfano en la advertencia.
+- [ ] Secretario **no** ve botón Armonizar ni puede llamar los endpoints.
 
 ---
 
@@ -146,8 +168,8 @@ git push origin development
 ## Rollback
 
 1. **Código:** revertir merge en `main` y push.
-2. **Base de datos:** restaurar dump de `pg_dump`. La migración `0009` no se revierte sola; los datos con `clave_producto` compuesto permanecen hasta restore.
-3. Si solo se despliega código anterior sin restore, productos con claves compuestas pueden quedar huérfanos hasta nueva carga del Excel.
+2. **Base de datos:** restaurar dump de `pg_dump`. Las migraciones `0009`/`0010` no se revierten solas; los datos con `clave_producto` compuesto o armonizaciones permanecen hasta restore.
+3. Si solo se despliega código anterior sin restore, productos con claves compuestas pueden quedar huérfanos hasta nueva carga del Excel. Revertir `0010` puede fallar si hay filas armonizadas con mismo producto/fuente/año → usar restore de dump.
 
 ---
 

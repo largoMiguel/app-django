@@ -3,6 +3,7 @@ import { pdmApi } from "@/core/api/pdm";
 import { formatApiError } from "@/core/api/errors";
 import { useInvalidatePdmQueries } from "@/core/api/hooks/usePdm";
 import PdmActividadModal from "@/features/pdm/PdmActividadModal";
+import PdmArmonizacionModal from "@/features/pdm/PdmArmonizacionModal";
 import PdmBpinModal from "@/features/pdm/PdmBpinModal";
 import { usePdm } from "@/features/pdm/PdmContext";
 import { ANIOS_PDM } from "@/features/pdm/pdmUtils";
@@ -26,6 +27,10 @@ export default function PdmSharedModals() {
     setModalContratos,
     modalEjecucion,
     setModalEjecucion,
+    modalArmonizacion,
+    setModalArmonizacion,
+    armonizacionCodigoOrigen,
+    armonizacionPtoDefinitivo,
     anioContratos,
     setAnioContratos,
     anioEjecucion,
@@ -132,6 +137,24 @@ export default function PdmSharedModals() {
           emptyLabel="Seleccionar Excel de ejecución"
         />
       </PdmModal>
+
+      <PdmArmonizacionModal
+        open={modalArmonizacion}
+        slug={slug}
+        codigoOrigen={armonizacionCodigoOrigen}
+        ptoDefinitivoOrigen={armonizacionPtoDefinitivo}
+        saving={saving}
+        setSaving={setSaving}
+        onClose={() => setModalArmonizacion(false)}
+        onSuccess={(detail) => {
+          setError(null);
+          setUploadFeedback({ tone: "success", title: "Armonización aplicada", detail });
+        }}
+        onError={(detail) => {
+          setError(detail);
+          setUploadFeedback({ tone: "error", title: "Error en armonización", detail });
+        }}
+      />
 
       <PdmModal
         open={modalContratos}

@@ -92,10 +92,15 @@ export function PdmStatCard({
     >
       <div className="flex items-start gap-3">
         {icon && <div className="shrink-0 rounded-lg bg-slate-50 p-2">{icon}</div>}
-        <div className="min-w-0 flex-1">
-          <p className="text-2xl font-bold text-slate-900">{value}</p>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <p
+            className="truncate text-lg font-bold leading-tight text-slate-900 sm:text-xl xl:text-2xl"
+            title={typeof value === "string" ? value : undefined}
+          >
+            {value}
+          </p>
           <p className="text-sm font-medium text-slate-600">{label}</p>
-          {hint && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
+          {hint && <p className="mt-0.5 truncate text-xs text-slate-400" title={hint}>{hint}</p>}
         </div>
       </div>
     </Tag>

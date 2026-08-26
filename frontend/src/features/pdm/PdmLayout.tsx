@@ -3,8 +3,7 @@ import { ArrowLeft, BarChart3, CheckCircle2, CloudUpload, FileBarChart2, FileSpr
 import PdmAccionesMenu from "@/features/pdm/PdmAccionesMenu";
 import { PdmProvider, usePdm } from "@/features/pdm/PdmContext";
 import PdmSharedModals from "@/features/pdm/PdmSharedModals";
-import { ANIOS_PDM } from "@/features/pdm/pdmUtils";
-import { pdmBtnPrimary, pdmBtnSecondary, pdmSelect } from "@/features/pdm/pdmStyles";
+import { pdmBtnPrimary, pdmBtnSecondary } from "@/features/pdm/pdmStyles";
 import { PdmAlert, PdmCard, PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
 
 const baseTabs: Array<{
@@ -33,8 +32,6 @@ function PdmLayoutInner() {
     error,
     uploadFeedback,
     setUploadFeedback,
-    filtroAnio,
-    setFiltroAnio,
     triggerRecargarPdm,
     handleExportarPiip,
     setModalContratos,
@@ -87,22 +84,6 @@ function PdmLayoutInner() {
             <button type="button" onClick={volverDesdeDetalle} className={pdmBtnSecondary}>
               <ArrowLeft className="h-4 w-4" /> Volver
             </button>
-          )}
-          {tieneDatos && route === "productos" && !isDetail && (
-            <>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Año</label>
-              <select
-                value={filtroAnio}
-                onChange={(e) => setFiltroAnio(Number(e.target.value))}
-                className={pdmSelect}
-              >
-                {ANIOS_PDM.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </>
           )}
           {tieneDatos && isAdmin && (
             <PdmAccionesMenu

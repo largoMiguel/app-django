@@ -222,6 +222,27 @@ Tras actualizar el backend, **recargar el Excel** del Plan Indicativo para mater
 
 ---
 
+## Módulo PDM — Armonización presupuesto ↔ PDM
+
+Cuando el Excel de **ejecución presupuestal** trae códigos que no existen en el Plan Indicativo (p. ej. `1906004`), el dashboard muestra la advertencia **Ejecución sin producto en el Plan Indicativo**. Un **admin** puede **armonizar** ese código asignándolo a un producto real del plan (p. ej. `0401105`).
+
+- La ejecución del código origen se **suma ítem por ítem** al producto destino (no se elimina la ejecución previa del destino).
+- La armonización es **global** (todos los años) y persiste en recargas futuras del Excel.
+- El código original del Excel se conserva en `codigo_producto_origen`; `codigo_producto` es el código efectivo usado en dashboard, análisis e informes.
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/pdm/ejecucion/armonizaciones/` | Lista armonizaciones vigentes (admin) |
+| `POST` | `/api/v1/pdm/ejecucion/armonizaciones/` | Crear armonización `{codigo_origen, codigo_destino, nota?}` |
+| `DELETE` | `/api/v1/pdm/ejecucion/armonizaciones/{id}/` | Revertir armonización |
+| `GET` | `/api/v1/pdm/ejecucion/armonizaciones/candidatos/?search=` | Productos del plan para el selector |
+
+UI: **PDM → Resumen** → tarjeta de advertencia → botón **Armonizar** (solo admin).
+
+Requiere migración `pdm.0010_pdm_armonizacion`.
+
+---
+
 ## Módulo PDM — Exportar PIIP
 
 Desde el menú **Acciones** del PDM (rol `admin`), la opción **Exportar PIIP** genera y descarga un Excel (`.xlsx`) con productos que tienen BPIN y meta programada en el año indicado. El archivo **no se guarda** en el servidor ni queda historial. Si un producto tiene varios BPIN (separados por coma), o varias fuentes presupuestales, se genera **una fila por cada BPIN y por cada fuente**. Las fuentes se normalizan al catálogo PIIP (Propios, SGP - Salud, …, Otros).

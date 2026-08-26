@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { AlertTriangle, BarChart3, Box, Calendar, DollarSign, GitBranch, Layers, PieChart } from "lucide-react";
+import { AlertTriangle, BarChart3, Box, Calendar, DollarSign, GitBranch, Layers, Link2, PieChart } from "lucide-react";
 import {
   ANIOS_PDM,
   formatearMoneda,
@@ -17,9 +17,17 @@ interface PdmDashboardProps {
   estadisticas: EstadisticasPdm;
   resumenEjecucion: ResumenEjecucionAnual | null;
   onVerProductos: () => void;
+  isAdmin?: boolean;
+  onArmonizar?: (codigoOrigen: string, ptoDefinitivo: number) => void;
 }
 
-export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProductos }: PdmDashboardProps) {
+export default function PdmDashboard({
+  estadisticas,
+  resumenEjecucion,
+  onVerProductos,
+  isAdmin = false,
+  onArmonizar,
+}: PdmDashboardProps) {
   const yearColors = ["blue", "info", "warning", "success"] as const;
   const ejecucionPorLinea = resumenEjecucion?.ejecucion_por_linea ?? [];
   const ejecucionPorSector = resumenEjecucion?.ejecucion_por_sector ?? [];
@@ -103,6 +111,12 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
         <PdmCard title="Ejecución sin producto en el Plan Indicativo" icon={<AlertTriangle size={16} className="text-amber-600" />}>
           <p className="mb-3 text-sm text-slate-600">
             Estos códigos tienen ejecución cargada pero <strong>no existen en el Plan Indicativo</strong>.
+            {isAdmin ? (
+              <>
+                {" "}
+                Puede <strong>armonizarlos</strong> asignándolos a un producto del plan para sumar su ejecución.
+              </>
+            ) : null}
           </p>
           <div className="overflow-x-auto rounded-lg border border-amber-100">
             <table className="min-w-full text-sm">
@@ -111,6 +125,7 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
                   <th className="px-4 py-2 font-semibold">Código producto (Excel)</th>
                   <th className="px-4 py-2 font-semibold">Años de ejecución</th>
                   <th className="px-4 py-2 text-right font-semibold">Pto. definitivo</th>
+                  {isAdmin ? <th className="px-4 py-2 text-right font-semibold">Acción</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-amber-50">
@@ -124,6 +139,17 @@ export default function PdmDashboard({ estadisticas, resumenEjecucion, onVerProd
                       <td className="px-4 py-2 text-right font-semibold text-slate-900">
                         {formatearMoneda(item.pto_definitivo)}
                       </td>
+                      {isAdmin ? (
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2.5 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-200"
+                            onClick={() => onArmonizar?.(item.codigo_producto, item.pto_definitivo)}
+                          >
+                            <Link2 size={12} /> Armonizar
+                          </button>
+                        </td>
+                      ) : null}
                     </tr>
                     {(item.detalle_anios ?? []).map((detalle) => (
                       <tr key={`${item.codigo_producto}-${detalle.anio}`} className="bg-amber-50/40 text-xs text-slate-600">

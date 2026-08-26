@@ -280,6 +280,7 @@ class PDMEjecucionPresupuestal(models.Model):
         db_column="entity_id",
     )
     codigo_producto = models.CharField(max_length=64, db_index=True)
+    codigo_producto_origen = models.CharField(max_length=64, blank=True, default="", db_index=True)
     descripcion_fte = models.CharField(max_length=500)
     pto_inicial = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     adicion = models.DecimalField(max_digits=18, decimal_places=2, default=0)
@@ -301,14 +302,54 @@ class PDMEjecucionPresupuestal(models.Model):
         verbose_name_plural = "Ejecuciones presupuestales PDM"
         constraints = [
             models.UniqueConstraint(
-                fields=("entity", "codigo_producto", "descripcion_fte", "anio"),
-                name="uq_pdm_ejec_entity_prod_fte_anio",
+                fields=("entity", "codigo_producto_origen", "descripcion_fte", "anio"),
+                name="uq_pdm_ejec_entity_origen_fte_anio",
             )
         ]
         indexes = [
             models.Index(fields=("entity", "codigo_producto", "anio"), name="pdm_ejec_entity_prod_anio_idx"),
             models.Index(fields=("entity", "anio"), name="pdm_ejec_entity_anio_idx"),
         ]
+
+
+class PdmArmonizacionEjecucion(models.Model):
+    """Mapeo manual de códigos de ejecución presupuestal huérfanos al plan indicativo."""
+
+    entity = models.ForeignKey(
+        "entities.Entity",
+        on_delete=models.CASCADE,
+        related_name="pdm_armonizaciones_ejecucion",
+        db_column="entity_id",
+    )
+    codigo_origen = models.CharField(max_length=64, db_index=True)
+    codigo_destino = models.CharField(max_length=64, db_index=True)
+    clave_producto_destino = models.CharField(max_length=96, blank=True, default="")
+    nota = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pdm_armonizaciones_creadas",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "pdm_armonizacion_ejecucion"
+        verbose_name = "Armonización ejecución PDM"
+        verbose_name_plural = "Armonizaciones ejecución PDM"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("entity", "codigo_origen"),
+                name="uq_pdm_armonizacion_entity_origen",
+            )
+        ]
+        indexes = [
+            models.Index(fields=("entity", "codigo_destino"), name="pdm_armon_entity_destino_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.codigo_origen} → {self.codigo_destino}"
 
 
 class PdmChatConversation(models.Model):

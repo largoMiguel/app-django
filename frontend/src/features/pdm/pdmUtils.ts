@@ -47,6 +47,7 @@ export interface ResumenProducto {
   responsable_usuario?: number | null;
   responsable_usuario_nombre?: string | null;
   resumen_por_anio?: Record<string, ResumenAnioBackend>;
+  codigos_armonizados?: string[];
   actividades: PdmActividad[];
 }
 
@@ -256,6 +257,7 @@ export function mapProductoToResumen(producto: PdmProducto): ResumenProducto {
     responsable_usuario: producto.responsable_usuario,
     responsable_usuario_nombre: producto.responsable_usuario_nombre,
     resumen_por_anio: producto.resumen_por_anio,
+    codigos_armonizados: producto.codigos_armonizados ?? [],
     actividades: producto.actividades || [],
   };
 }

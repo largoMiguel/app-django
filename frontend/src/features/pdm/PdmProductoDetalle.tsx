@@ -469,6 +469,14 @@ export default function PdmProductoDetalle({
                     del producto {producto.codigo}.
                   </PdmAlert>
                 )}
+                {(producto.codigos_armonizados?.length ?? ejecucionPresupuestal?.codigos_armonizados?.length) ? (
+                  <PdmAlert tone="warning">
+                    Incluye ejecución armonizada de:{" "}
+                    <strong>
+                      {(producto.codigos_armonizados ?? ejecucionPresupuestal?.codigos_armonizados ?? []).join(", ")}
+                    </strong>
+                  </PdmAlert>
+                ) : null}
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[320px] text-sm">
                     <thead>

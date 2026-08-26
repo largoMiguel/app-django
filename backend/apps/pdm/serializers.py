@@ -184,6 +184,7 @@ class PdmProductoSerializer(serializers.ModelSerializer):
     resumen_por_anio = serializers.JSONField(read_only=True, required=False)
     total_indicadores = serializers.IntegerField(read_only=True, required=False)
     indicadores_hermanos = serializers.JSONField(read_only=True, required=False)
+    codigos_armonizados = serializers.SerializerMethodField()
     responsable_usuario_nombre = serializers.SerializerMethodField()
 
     class Meta:
@@ -242,6 +243,7 @@ class PdmProductoSerializer(serializers.ModelSerializer):
             "resumen_por_anio",
             "total_indicadores",
             "indicadores_hermanos",
+            "codigos_armonizados",
             "created_at",
             "updated_at",
         )
@@ -252,6 +254,9 @@ class PdmProductoSerializer(serializers.ModelSerializer):
             return None
         user = obj.responsable_usuario
         return user.full_name or user.email
+
+    def get_codigos_armonizados(self, obj) -> list[str]:
+        return getattr(obj, "codigos_armonizados", [])
 
 
 class PdmProductoUploadSerializer(serializers.Serializer):

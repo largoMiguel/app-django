@@ -85,6 +85,7 @@ export interface PdmProducto {
   pagos_anio?: number;
   avance_financiero_anio?: number;
   resumen_por_anio?: Record<string, ResumenAnioBackend>;
+  codigos_armonizados?: string[];
   actividades?: PdmActividad[];
 }
 
@@ -285,6 +286,7 @@ export interface PdmEjecucionFuente {
 
 export interface PdmEjecucionProducto {
   codigo_producto: string;
+  codigos_armonizados?: string[];
   fuentes: string[];
   fuentes_detalle: PdmEjecucionFuente[];
   totales: {
@@ -303,6 +305,29 @@ export interface PdmContratosResumen {
   total_contratado: number;
   cantidad_contratos: number;
   anio: number;
+}
+
+export interface PdmProductoCandidato {
+  clave_producto: string;
+  codigo_producto: string;
+  producto_mga: string;
+  indicador_producto_mga: string;
+  linea_estrategica: string;
+}
+
+export interface PdmArmonizacion {
+  id: number;
+  codigo_origen: string;
+  codigo_destino: string;
+  clave_producto_destino: string;
+  producto_destino_nombre: string;
+  producto_destino_linea: string;
+  nota: string;
+  pto_definitivo: number;
+  pagos: number;
+  filas_afectadas?: number;
+  created_at: string | null;
+  created_by_nombre: string | null;
 }
 
 export const pdmApi = {
@@ -417,6 +442,19 @@ export const pdmApi = {
   },
   resumenEjecucionAnualEntidad: () =>
     api.get<PdmEjecucionResumenAnual>("/pdm/ejecucion/resumen-anual-entidad").then((r) => r.data),
+  listArmonizaciones: () => api.get<PdmArmonizacion[]>("/pdm/ejecucion/armonizaciones/").then((r) => r.data),
+  crearArmonizacion: (payload: { codigo_origen: string; codigo_destino: string; nota?: string }) =>
+    api.post<PdmArmonizacion>("/pdm/ejecucion/armonizaciones/", payload).then((r) => r.data),
+  eliminarArmonizacion: (id: number) =>
+    api.delete<{ success: boolean; codigo_origen: string; filas_afectadas: number }>(
+      `/pdm/ejecucion/armonizaciones/${id}/`,
+    ).then((r) => r.data),
+  candidatosArmonizacion: (search?: string) =>
+    api
+      .get<PdmProductoCandidato[]>("/pdm/ejecucion/armonizaciones/candidatos/", {
+        params: search ? { search } : undefined,
+      })
+      .then((r) => r.data),
   ejecucionPorProducto: (codigoProducto: string, anio?: number) =>
     api
       .get<PdmEjecucionProducto>(`/pdm/ejecucion/${encodeURIComponent(codigoProducto)}`, {

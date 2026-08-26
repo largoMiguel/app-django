@@ -172,6 +172,16 @@ export function useInvalidatePdmQueries() {
       void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "stats"] });
       void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "productos"] });
     },
+    afterArmonizacion: (slug?: string) => {
+      void qc.invalidateQueries({
+        queryKey: slug ? pdmKeys.ejecucionAnual(slug) : [...pdmKeys.all, "ejecucion-anual"],
+      });
+      void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "ejecucion-producto"] });
+      void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "analisis"] });
+      void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "stats"] });
+      void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "productos"] });
+      void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "armonizaciones"] });
+    },
     afterAsignarResponsable: (slug: string) => {
       void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "productos", slug] });
     },
