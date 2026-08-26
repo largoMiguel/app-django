@@ -74,11 +74,11 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.AddIndex(
-            model_name="pdmaromonizacionejecucion",
+            model_name="pdmarmonizacionejecucion",
             index=models.Index(fields=("entity", "codigo_destino"), name="pdm_armon_entity_destino_idx"),
         ),
         migrations.AddConstraint(
-            model_name="pdmaromonizacionejecucion",
+            model_name="pdmarmonizacionejecucion",
             constraint=models.UniqueConstraint(
                 fields=("entity", "codigo_origen"),
                 name="uq_pdm_armonizacion_entity_origen",
