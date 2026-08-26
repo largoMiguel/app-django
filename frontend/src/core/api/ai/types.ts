@@ -55,7 +55,15 @@ export interface AIInsight {
   severity: "low" | "medium" | "high";
   score?: number;
   source?: "ai" | "rule";
+  fingerprint?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface AIInsightIgnorado {
+  fingerprint: string;
+  module: AIModuleKey;
+  title: string;
+  created_at: string;
 }
 
 export interface SemanticSearchResult {

@@ -86,6 +86,10 @@ export interface PdmProductoDetalleProps {
 
 const PRESUPUESTO_ANIO_TONES = ["blue", "cyan", "amber", "emerald"] as const;
 
+function normalizeCompareText(text: string): string {
+  return text.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function FieldLabel({ children }: { children: ReactNode }) {
   return <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{children}</p>;
 }
@@ -863,8 +867,8 @@ const ActividadCard = memo(function ActividadCard({
                     Evidencia de Cumplimiento
                   </h6>
                   {actividad.evidencia.descripcion &&
-                    actividad.evidencia.descripcion.trim().toLowerCase() !==
-                      (actividad.descripcion || "").trim().toLowerCase() && (
+                    normalizeCompareText(actividad.evidencia.descripcion) !==
+                      normalizeCompareText(actividad.descripcion || "") && (
                       <p className="mb-2 text-sm text-slate-700">
                         <strong>Descripción evidencia:</strong> {actividad.evidencia.descripcion}
                       </p>

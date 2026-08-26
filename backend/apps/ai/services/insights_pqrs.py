@@ -5,6 +5,7 @@ import json
 from typing import Any
 
 from apps.ai.client import chat_completion
+from apps.ai.insight_fingerprint import attach_insight_fingerprints, filter_ignored_insights
 from apps.ai.services.pqrs_compliance import compute_compliance_stats, compute_sla_risk_scores
 
 
@@ -87,8 +88,10 @@ def generate_pqrs_insights(entity_id: int, user=None) -> dict[str, Any]:
         pass
 
     combined = rule_insights + ai_insights
+    enriched = attach_insight_fingerprints("pqrs", combined[:10])
+    visible = filter_ignored_insights(entity_id, "pqrs", enriched)
     return {
-        "insights": combined[:10],
+        "insights": visible,
         "stats": stats,
         "sla_risks_count": len([r for r in sla_risks if r["risk_score"] >= 50]),
     }

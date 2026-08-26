@@ -163,6 +163,44 @@ class AIAlert(models.Model):
         return f"{self.alert_type}: {self.title}"
 
 
+class AIInsightIgnorado(models.Model):
+    """Insights IA descartados por entidad (persisten entre sesiones)."""
+
+    class Module(models.TextChoices):
+        PQRS = "pqrs", "PQRS"
+        PDM = "pdm", "PDM"
+
+    entity = models.ForeignKey(
+        "entities.Entity",
+        on_delete=models.CASCADE,
+        related_name="ai_insights_ignorados",
+    )
+    module = models.CharField(max_length=20, choices=Module.choices, db_index=True)
+    fingerprint = models.CharField(max_length=40, db_index=True)
+    title = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_insights_ignorados",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "ai_insights_ignorados"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("entity", "module", "fingerprint"),
+                name="uq_ai_insight_ignorado_entity_module_fp",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.module}:{self.fingerprint[:8]}…"
+
+
 class CopilotConversation(models.Model):
     """Conversaciones del copiloto interno (PDM / global)."""
 

@@ -5,6 +5,7 @@ import type { AIModuleKey } from "@/core/api/ai/types";
 export const aiKeys = {
   alerts: (module?: AIModuleKey, unread?: boolean) => ["ai", "alerts", module, unread] as const,
   usage: () => ["ai", "usage"] as const,
+  ignoredInsights: (module: AIModuleKey) => ["ai", "insights", "ignored", module] as const,
 };
 
 export function useAIAlerts(opts?: { unread?: boolean; module?: AIModuleKey; enabled?: boolean }) {
@@ -24,6 +25,39 @@ export function useDismissAlert() {
       qc.invalidateQueries({ queryKey: ["ai", "alerts"] });
       qc.invalidateQueries({ queryKey: ["pqrs", "ai", "alerts"] });
       qc.invalidateQueries({ queryKey: ["pdm", "ai", "alerts"] });
+    },
+  });
+}
+
+export function useIgnoredInsights(module: AIModuleKey, enabled = true) {
+  return useQuery({
+    queryKey: aiKeys.ignoredInsights(module),
+    queryFn: () => sharedAiApi.ignoredInsights(module),
+    enabled,
+  });
+}
+
+export function useIgnoreInsight(module: AIModuleKey) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { fingerprint: string; title?: string }) =>
+      sharedAiApi.ignoreInsight({ module, ...payload }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: aiKeys.ignoredInsights(module) });
+      qc.invalidateQueries({ queryKey: ["pqrs", "ai", "insights"] });
+      qc.invalidateQueries({ queryKey: ["pdm", "ai", "insights"] });
+    },
+  });
+}
+
+export function useRestoreInsight(module: AIModuleKey) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fingerprint: string) => sharedAiApi.restoreInsight(module, fingerprint),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: aiKeys.ignoredInsights(module) });
+      qc.invalidateQueries({ queryKey: ["pqrs", "ai", "insights"] });
+      qc.invalidateQueries({ queryKey: ["pdm", "ai", "insights"] });
     },
   });
 }

@@ -1,7 +1,7 @@
 """Serializers para API de IA."""
 from rest_framework import serializers
 
-from .models import AIAlert, AIInteraction, CopilotConversation, CopilotMessage
+from .models import AIAlert, AIInsightIgnorado, AIInteraction, CopilotConversation, CopilotMessage
 
 
 class AIAlertSerializer(serializers.ModelSerializer):
@@ -56,3 +56,16 @@ class AIInteractionStatsSerializer(serializers.Serializer):
     total_tokens = serializers.IntegerField()
     total_interactions = serializers.IntegerField()
     by_feature = serializers.DictField()
+
+
+class AIInsightIgnoradoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIInsightIgnorado
+        fields = ["fingerprint", "module", "title", "created_at"]
+        read_only_fields = fields
+
+
+class AIInsightIgnoreRequestSerializer(serializers.Serializer):
+    module = serializers.ChoiceField(choices=AIInsightIgnorado.Module.choices)
+    fingerprint = serializers.CharField(max_length=40)
+    title = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")

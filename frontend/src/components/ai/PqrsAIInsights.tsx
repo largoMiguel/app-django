@@ -22,6 +22,7 @@ export default function PqrsAIInsights({
 
   return (
     <AIInsightsSection
+      module="pqrs"
       insights={data?.insights ?? []}
       loading={isLoading}
       title={title}

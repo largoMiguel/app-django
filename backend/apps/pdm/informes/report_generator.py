@@ -45,7 +45,7 @@ from matplotlib import patches
 import numpy as np
 plt.rcParams['font.family'] = 'DejaVu Sans'
 
-from apps.pdm.models import PDMEjecucionPresupuestal
+from apps.pdm.models import ActividadEstado, PDMEjecucionPresupuestal
 from apps.common.report_cover import build_cover_flowables
 from apps.common.report_theme import (
     BG_WHITE,
@@ -59,6 +59,20 @@ from apps.common.report_theme import (
     banner_style_cmds,
     table_style_cmds,
 )
+
+
+def _normalize_compare_text(text: str) -> str:
+    import re
+
+    return re.sub(r"\s+", " ", (text or "").strip()).lower()
+
+
+def _evidencia_descripcion_distinta(actividad, evidencia) -> bool:
+    ev_desc = (getattr(evidencia, "descripcion", None) or "").strip()
+    if not ev_desc:
+        return False
+    act_desc = (getattr(actividad, "descripcion", None) or "").strip()
+    return _normalize_compare_text(ev_desc) != _normalize_compare_text(act_desc)
 
 
 class PDMReportGenerator:
@@ -722,12 +736,14 @@ class PDMReportGenerator:
                     suma_avances += self.calcular_avance_producto(prod)
                 
             avance_promedio = suma_avances / productos_con_meta if productos_con_meta > 0 else 0
-            
-            # Avance financiero promedio (sobre todos los productos)
-            suma_financiero = 0
-            for prod in self.productos:
-                suma_financiero += self.calcular_avance_financiero(prod)
-            avance_financiero_promedio = suma_financiero / total_productos if total_productos > 0 else 0
+
+            pres = self.analytics.get("presupuesto", {})
+            if pres.get("pto_definitivo"):
+                avance_financiero_promedio = round(
+                    (pres.get("pagos", 0) / pres["pto_definitivo"]) * 100, 1
+                )
+            else:
+                avance_financiero_promedio = 0.0
             
             # Total presupuesto según año seleccionado
             total_presupuesto = 0
@@ -923,18 +939,17 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                     
                     print(f"   Año {anio}: meta_programada={meta_programada}, actividades={len(actividades_anio)}")
                     
-                    # Sumar meta_ejecutar de actividades que tienen evidencia
-                    # Usar el flag tiene_evidencia agregado en el router (optimización para no cargar objetos)
+                    # Sumar meta_ejecutar de actividades completadas (alineado con analytics)
                     meta_ejecutada = sum(
-                        act.meta_ejecutar for act in actividades_anio 
-                        if hasattr(act, 'tiene_evidencia') and act.tiene_evidencia
+                        act.meta_ejecutar for act in actividades_anio
+                        if getattr(act, "estado", None) == ActividadEstado.COMPLETADA
                     )
-                    
-                    actividades_con_evidencia = sum(
-                        1 for act in actividades_anio 
-                        if hasattr(act, 'tiene_evidencia') and act.tiene_evidencia
+
+                    actividades_completadas = sum(
+                        1 for act in actividades_anio
+                        if getattr(act, "estado", None) == ActividadEstado.COMPLETADA
                     )
-                    print(f"   Año {anio}: meta_ejecutada={meta_ejecutada}, actividades_con_evidencia={actividades_con_evidencia}")
+                    print(f"   Año {anio}: meta_ejecutada={meta_ejecutada}, actividades_completadas={actividades_completadas}")
                     
                     # Calcular porcentaje de avance (topar en 100%)
                     porcentaje_avance = min(100, (meta_ejecutada / meta_programada) * 100)
@@ -1463,11 +1478,11 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             if actividades:
                 for act in actividades:
                     nombre_actividad = act.nombre or "Sin nombre"
-                    if len(nombre_actividad) > 200:
-                        nombre_actividad = nombre_actividad[:197] + "..."
+                    if len(nombre_actividad) > 400:
+                        nombre_actividad = nombre_actividad[:397] + "..."
                     descripcion = (act.descripcion or "").strip()
-                    if len(descripcion) > 800:
-                        descripcion = descripcion[:797] + "..."
+                    if len(descripcion) > 4000:
+                        descripcion = descripcion[:3997] + "..."
                     meta_act = float(act.meta_ejecutar or 0)
                     actividades_rows.append([
                         Paragraph(f"<b>{nombre_actividad}</b>", st["cell_left"]),
@@ -1513,53 +1528,68 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                     if evidencia is not None:
                         evidencias_dict[act.id] = evidencia
 
-                evidencias_con_imagenes = [
+                evidencias_a_mostrar = [
                     act
                     for act in actividades_con_evidencia
-                    if act.id in evidencias_dict and getattr(evidencias_dict[act.id], "imagenes", None)
+                    if act.id in evidencias_dict
+                    and (
+                        getattr(evidencias_dict[act.id], "imagenes", None)
+                        or (getattr(evidencias_dict[act.id], "url_evidencia", None) or "").strip()
+                    )
                 ]
-                
-                if evidencias_con_imagenes:
+
+                if evidencias_a_mostrar:
                     evidencias_encontradas = True
                     self._append_banner_table("REGISTRO DE EVIDENCIAS")
-                    
-                    # Procesar TODAS las evidencias
-                    for num_evidencia, actividad in enumerate(evidencias_con_imagenes, 1):
-                        evidencia = evidencias_dict[actividad.id]  # Obtener evidencia del dict
-                        
-                        # Subtítulo por actividad
-                        actividad_nombre = actividad.nombre[:80] if len(actividad.nombre) > 80 else actividad.nombre
+
+                    for num_evidencia, actividad in enumerate(evidencias_a_mostrar, 1):
+                        evidencia = evidencias_dict[actividad.id]
+
+                        actividad_nombre = actividad.nombre[:400] if len(actividad.nombre) > 400 else actividad.nombre
                         self.story.append(Paragraph(
                             f"<b>Actividad {num_evidencia}:</b> {actividad_nombre}",
                             ParagraphStyle('EvidenciaTitle', parent=self.styles['Normal'], fontSize=9, textColor=TEXT_DARK)
                         ))
-                        
-                        # Imágenes en grid 2x2 (sin límite de 4, pero paginadas)
+
+                        if _evidencia_descripcion_distinta(actividad, evidencia):
+                            ev_desc = (evidencia.descripcion or "").strip()
+                            if len(ev_desc) > 4000:
+                                ev_desc = ev_desc[:3997] + "..."
+                            self.story.append(Paragraph(
+                                f"<i>Descripción evidencia:</i> {ev_desc}",
+                                ParagraphStyle('EvidenciaDesc', parent=self.styles['Normal'], fontSize=8, textColor=TEXT_DARK)
+                            ))
+
+                        url_ev = (getattr(evidencia, "url_evidencia", None) or "").strip()
+                        if url_ev:
+                            safe_url = url_ev.replace("&", "&amp;")
+                            self.story.append(Paragraph(
+                                f'<link href="{safe_url}" color="blue">Ver evidencia externa: {safe_url}</link>',
+                                ParagraphStyle('EvidenciaUrl', parent=self.styles['Normal'], fontSize=8, textColor=TEXT_DARK)
+                            ))
+
+                        imagenes_cargadas = []
                         if evidencia.imagenes and isinstance(evidencia.imagenes, list):
-                            imagenes_cargadas = []
-                            for idx, img_base64 in enumerate(evidencia.imagenes):  # SIN LÍMITE
+                            for idx, img_base64 in enumerate(evidencia.imagenes):
                                 try:
                                     if img_base64.startswith('data:image'):
                                         img_base64 = img_base64.split(',')[1]
-                                    
+
                                     img_data = base64.b64decode(img_base64)
                                     img = self._evidencia_image(img_data)
                                     imagenes_cargadas.append(img)
                                     print(f"      ✅ Evidencia {num_evidencia} - Imagen {idx+1} agregada")
                                 except Exception as e:
                                     print(f"      ⚠️ Error evidencia {num_evidencia} imagen {idx+1}: {e}")
-                        
-                        
-                        # Organizar imágenes en grid 2x2
+
                         if imagenes_cargadas:
                             grid_data = []
                             for i in range(0, len(imagenes_cargadas), 2):
                                 row = imagenes_cargadas[i:i+2]
-                                # Rellenar con celda vacía si es impar
                                 if len(row) == 1:
                                     row.append('')
                                 grid_data.append(row)
-                            
+
                             img_table = Table(
                                 grid_data,
                                 colWidths=[self.EVIDENCIA_IMG_INCH + 0.1 * inch, self.EVIDENCIA_IMG_INCH + 0.1 * inch],
@@ -1571,8 +1601,10 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                                 ('TOPPADDING', (0, 0), (-1, -1), 5),
                                 ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
                             ]))
-                            
+
                             self.story.append(img_table)
+
+                        self.story.append(Spacer(1, 0.15 * inch))
             
             if not evidencias_encontradas:
                 self._append_banner_table("REGISTRO DE EVIDENCIA")

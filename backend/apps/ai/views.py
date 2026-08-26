@@ -17,9 +17,11 @@ from apps.common.modules import require_user_module
 from apps.common.roles import is_platform_superadmin, user_roles
 from apps.entities.models import Entity
 
-from .models import AIAlert, AIInteraction, CopilotConversation, CopilotMessage
+from .models import AIAlert, AIInsightIgnorado, AIInteraction, CopilotConversation, CopilotMessage
 from .serializers import (
     AIAlertSerializer,
+    AIInsightIgnoradoSerializer,
+    AIInsightIgnoreRequestSerializer,
     CopilotChatRequestSerializer,
     PQRSDraftRequestSerializer,
     SemanticSearchSerializer,
@@ -95,6 +97,73 @@ class AIAlertViewSet(ReadOnlyModelViewSet):
         alert = self.get_object()
         alert.is_dismissed = True
         alert.save(update_fields=["is_dismissed"])
+        return Response({"ok": True})
+
+
+class AIInsightIgnoredView(APIView):
+    """Listar, ignorar y restaurar insights IA por entidad."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        _ensure_entity_user(user)
+        module = request.query_params.get("module")
+        if module not in ("pqrs", "pdm"):
+            raise ValidationError({"module": "Requerido: pqrs o pdm."})
+        if module == "pqrs":
+            require_user_module(user, "pqrs")
+        else:
+            require_user_module(user, "pdm")
+        qs = AIInsightIgnorado.objects.filter(entity_id=user.entity_id, module=module).order_by(
+            "-created_at"
+        )[:100]
+        return Response(AIInsightIgnoradoSerializer(qs, many=True).data)
+
+    def post(self, request):
+        user = request.user
+        _ensure_entity_user(user)
+        ser = AIInsightIgnoreRequestSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        module = ser.validated_data["module"]
+        if module == "pqrs":
+            require_user_module(user, "pqrs")
+        else:
+            require_user_module(user, "pdm")
+        AIInsightIgnorado.objects.update_or_create(
+            entity_id=user.entity_id,
+            module=module,
+            fingerprint=ser.validated_data["fingerprint"],
+            defaults={
+                "title": ser.validated_data.get("title") or "",
+                "created_by": user,
+            },
+        )
+        return Response({"ok": True}, status=status.HTTP_201_CREATED)
+
+
+class AIInsightIgnoredDetailView(APIView):
+    """Restaurar un insight ignorado."""
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, fingerprint: str):
+        user = request.user
+        _ensure_entity_user(user)
+        module = request.query_params.get("module")
+        if module not in ("pqrs", "pdm"):
+            raise ValidationError({"module": "Requerido: pqrs o pdm."})
+        if module == "pqrs":
+            require_user_module(user, "pqrs")
+        else:
+            require_user_module(user, "pdm")
+        deleted, _ = AIInsightIgnorado.objects.filter(
+            entity_id=user.entity_id,
+            module=module,
+            fingerprint=fingerprint,
+        ).delete()
+        if not deleted:
+            return Response({"detail": "No encontrado."}, status=status.HTTP_404_NOT_FOUND)
         return Response({"ok": True})
 
 

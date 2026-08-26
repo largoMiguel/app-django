@@ -26,6 +26,7 @@ export default function PdmAIInsights({
 
   return (
     <AIInsightsSection
+      module="pdm"
       insights={data?.insights ?? []}
       loading={isLoading}
       title={title}

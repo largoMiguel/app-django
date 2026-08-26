@@ -4,6 +4,8 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     AIAlertViewSet,
+    AIInsightIgnoredDetailView,
+    AIInsightIgnoredView,
     AIUsageView,
     GlobalCopilotView,
     PdmAnomaliesView,
@@ -23,6 +25,12 @@ urlpatterns = [
     path("ai/copilot/global/", GlobalCopilotView.as_view(), name="ai-copilot-global"),
     path("ai/pqrs/compliance/", PQRSComplianceView.as_view(), name="ai-pqrs-compliance"),
     path("ai/pqrs/insights/", PQRSInsightsView.as_view(), name="ai-pqrs-insights"),
+    path("ai/insights/ignored/", AIInsightIgnoredView.as_view(), name="ai-insights-ignored"),
+    path(
+        "ai/insights/ignored/<str:fingerprint>/",
+        AIInsightIgnoredDetailView.as_view(),
+        name="ai-insights-ignored-detail",
+    ),
     path("ai/pdm/<slug>/insights/", PdmInsightsView.as_view(), name="ai-pdm-insights"),
     path("ai/pdm/<slug>/anomalies/", PdmAnomaliesView.as_view(), name="ai-pdm-anomalies"),
     path("ai/pdm/<slug>/report/", PdmReportView.as_view(), name="ai-pdm-report"),

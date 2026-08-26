@@ -4,7 +4,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
+  Line,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -14,7 +16,6 @@ import {
 } from "recharts";
 import {
   AlertTriangle,
-  BarChart3,
   Box,
   DollarSign,
   Layers,
@@ -36,6 +37,21 @@ const ESTADO_COLORS = {
   COMPLETADO: "#28a745",
   POR_EJECUTAR: "#6c757d",
 } as const;
+
+const SECTOR_COLORS = [
+  "#0891b2",
+  "#059669",
+  "#d97706",
+  "#7c3aed",
+  "#dc2626",
+  "#2563eb",
+  "#db2777",
+  "#4d7c0f",
+  "#ea580c",
+  "#6366f1",
+  "#0d9488",
+  "#b45309",
+];
 
 const ODS_COLORS = [
   "#d4a017",
@@ -123,12 +139,19 @@ function AnalisisContent({
   );
 
   const sectorChartData = useMemo(
-    () =>
-      data.por_sector_estado.map((s) => ({
-        ...s,
-        sectorShort: truncateLabel(s.sector, 32),
-      })),
+    () => data.por_sector_estado.filter((s) => s.total > 0),
     [data.por_sector_estado],
+  );
+
+  const sectorPieData = useMemo(
+    () =>
+      sectorChartData.map((s, idx) => ({
+        name: truncateLabel(s.sector, 32),
+        fullName: s.sector,
+        value: s.total,
+        color: SECTOR_COLORS[idx % SECTOR_COLORS.length],
+      })),
+    [sectorChartData],
   );
 
   const metasChartData = useMemo(
@@ -138,6 +161,8 @@ function AnalisisContent({
         programada: m.programada,
         ejecutada: m.ejecutada,
         pct: m.pct,
+        meta_programada_total: m.meta_programada_total ?? 0,
+        meta_ejecutada_total: m.meta_ejecutada_total ?? 0,
       })),
     [data.metas_por_anio],
   );
@@ -158,13 +183,21 @@ function AnalisisContent({
       ? Math.round((data.presupuesto.pagos / data.presupuesto.pto_definitivo) * 1000) / 10
       : 0;
 
+  const productosConMeta = data.productos_con_meta ?? data.total_productos;
+  const totalEnPlan = data.total_productos_todos ?? data.total_productos;
+  const completados = data.estado_distribucion.completado;
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <PdmStatCard
-          label="Total Productos"
-          value={data.total_productos}
-          hint={anioLabel}
+          label="Productos con Meta"
+          value={productosConMeta}
+          hint={
+            filtroAnio === "all"
+              ? `${productosConMeta} con meta en cuatrienio · ${totalEnPlan} en el plan`
+              : `${productosConMeta} con meta en ${filtroAnio} · ${totalEnPlan} en el plan`
+          }
           icon={<Box size={24} className="text-cyan-600" />}
           accent="cyan"
         />
@@ -173,8 +206,8 @@ function AnalisisContent({
           value={`${data.avance_global}%`}
           hint={
             filtroAnio === "all"
-              ? `Promedio cuatrienio · ${data.productos_al_100 ?? 0} producto(s) al 100%`
-              : `Promedio del año · ${data.productos_al_100 ?? 0} producto(s) al 100%`
+              ? `Promedio de ${productosConMeta} productos · ${completados} completados`
+              : `Promedio de ${productosConMeta} productos · ${completados} completados`
           }
           icon={<TrendingUp size={24} className="text-emerald-600" />}
           accent="emerald"
@@ -189,7 +222,7 @@ function AnalisisContent({
         <PdmStatCard
           label="Presupuesto Pagado"
           value={formatearMoneda(data.presupuesto.pagos)}
-          hint={`${pctPagadoGlobal}% de la ejecución`}
+          hint={`${pctPagadoGlobal}% sobre pto. definitivo`}
           icon={<DollarSign size={24} className="text-amber-600" />}
           accent="amber"
         />
@@ -239,88 +272,164 @@ function AnalisisContent({
         </ChartCard>
 
         <ChartCard
-          title="Metas Totales vs Ejecutadas por Año"
+          title="Productos con Meta vs Completados por Año"
           icon={<Target size={16} className="text-emerald-700" />}
           headerClassName="border-b border-emerald-100 bg-emerald-50/90 text-emerald-900"
         >
           <p className="mb-4 text-center text-sm font-medium text-slate-600">
-            Metas Totales vs Ejecutadas por Año (2024-2027)
+            Conteo de productos y meta física acumulada (2024-2027)
           </p>
           {metasChartData.every((m) => m.programada === 0) ? (
             <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin datos</div>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={metasChartData} margin={{ top: 36, right: 12, left: 8, bottom: 12 }}>
+              <ComposedChart data={metasChartData} margin={{ top: 36, right: 12, left: 8, bottom: 12 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#64748b" }} allowDecimals={false} width={36} />
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fontSize: 10, fill: "#64748b" }}
+                  allowDecimals={false}
+                  width={36}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fontSize: 10, fill: "#64748b" }}
+                  width={48}
+                />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Legend verticalAlign="top" align="center" wrapperStyle={{ fontSize: 11, paddingBottom: 8 }} />
-                <Bar dataKey="programada" name="Meta Total Programada" fill="#87ceeb" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="ejecutada" name="Meta Ejecutada" fill="#20c997" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Bar
+                  yAxisId="left"
+                  dataKey="programada"
+                  name="Productos con meta"
+                  fill="#87ceeb"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Bar
+                  yAxisId="left"
+                  dataKey="ejecutada"
+                  name="Productos completados"
+                  fill="#20c997"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="meta_programada_total"
+                  name="Meta física programada"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="meta_ejecutada_total"
+                  name="Meta física ejecutada"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           )}
         </ChartCard>
       </div>
 
-      <ChartCard
-        title="Sectores — Estado de Productos"
-        icon={<BarChart3 size={16} className="text-cyan-600" />}
-        headerClassName="border-b border-cyan-100 bg-cyan-50/90"
-      >
-        <p className="mb-4 text-center text-sm font-medium text-slate-600">
-          Todos los sectores ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
-        </p>
-        {sectorChartData.length === 0 ? (
-          <div className="flex h-40 items-center justify-center text-sm text-slate-400">Sin datos</div>
-        ) : (
-          <div className="max-h-[28rem] overflow-auto">
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        <ChartCard
+          title="Sectores — Estado de Productos"
+          icon={<PieChartIcon size={16} className="text-cyan-600" />}
+          headerClassName="border-b border-cyan-100 bg-cyan-50/90"
+          bodyClassName="p-3 sm:p-4"
+        >
+          <p className="mb-3 text-center text-sm font-medium text-slate-600">
+            Distribución por sector ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+          </p>
+          {sectorPieData.length === 0 ? (
+            <div className="flex h-52 items-center justify-center text-sm text-slate-400">Sin datos</div>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <div className="mx-auto w-full max-w-[220px] shrink-0">
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={sectorPieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={82}
+                      dataKey="value"
+                    >
+                      {sectorPieData.map((entry, idx) => (
+                        <Cell key={entry.fullName} fill={SECTOR_COLORS[idx % SECTOR_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="min-h-0 max-h-[220px] flex-1 space-y-1 overflow-y-auto pr-1">
+                {sectorChartData.map((s, idx) => (
+                  <div key={s.sector} className="flex items-start gap-2 text-xs text-slate-600">
+                    <span
+                      className="mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm"
+                      style={{ backgroundColor: SECTOR_COLORS[idx % SECTOR_COLORS.length] }}
+                    />
+                    <span>
+                      {truncateLabel(s.sector, 36)} ({s.total})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </ChartCard>
+
+        <ChartCard
+          title="Detalle por Sector"
+          icon={<Table2 size={16} className="text-cyan-600" />}
+          headerClassName="border-b border-cyan-100 bg-cyan-50/90"
+          bodyClassName="p-3 sm:p-4"
+        >
+          <div className="max-h-[268px] overflow-auto rounded-lg border border-slate-100">
             <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <th className="sticky top-0 z-10 bg-slate-50 px-3 py-3 text-left">Sector</th>
-                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">Productos</th>
-                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">Completados</th>
-                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">En Progreso</th>
-                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">Pendientes</th>
-                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">Por Ejecutar</th>
-                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-center">Avance %</th>
-                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-right">Pto. Def.</th>
-                  <th className="sticky top-0 z-10 bg-slate-50 px-2 py-3 text-right">Pagado</th>
+              <thead className="sticky top-0 bg-cyan-50 text-left text-xs uppercase tracking-wide text-cyan-900">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">Sector</th>
+                  <th className="px-3 py-2 text-right font-semibold">Productos</th>
+                  <th className="px-3 py-2 text-right font-semibold">Avance %</th>
+                  <th className="px-3 py-2 text-right font-semibold">Avance Fin. %</th>
+                  <th className="px-3 py-2 text-right font-semibold">Pto. Def.</th>
                 </tr>
               </thead>
-              <tbody>
-                {sectorChartData.map((s) => (
-                  <tr key={s.sector} className="border-b border-slate-50 hover:bg-slate-50/80">
-                    <td className="max-w-[220px] truncate px-3 py-3 font-medium text-slate-800" title={s.sector}>
-                      {s.sector}
+              <tbody className="divide-y divide-slate-50">
+                {sectorChartData.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-8 text-center text-slate-400">
+                      Sin datos
                     </td>
-                    <td className="px-2 py-3 text-center font-bold">{s.total}</td>
-                    <td className="px-2 py-3 text-center text-emerald-600">{s.completados}</td>
-                    <td className="px-2 py-3 text-center text-cyan-600">{s.en_progreso}</td>
-                    <td className="px-2 py-3 text-center text-amber-600">{s.pendientes}</td>
-                    <td className="px-2 py-3 text-center text-slate-500">{s.por_ejecutar}</td>
-                    <td className="px-2 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className={`h-full rounded-full ${s.avance_pct >= 75 ? "bg-emerald-500" : s.avance_pct >= 40 ? "bg-amber-400" : "bg-red-400"}`}
-                            style={{ width: `${Math.min(100, s.avance_pct)}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-semibold">{s.avance_pct}%</span>
-                      </div>
-                    </td>
-                    <td className="px-2 py-3 text-right text-xs sm:text-sm">{formatearMoneda(s.pto_definitivo)}</td>
-                    <td className="px-2 py-3 text-right text-xs sm:text-sm">{formatearMoneda(s.pagos)}</td>
                   </tr>
-                ))}
+                ) : (
+                  sectorChartData.map((row, idx) => (
+                    <tr key={row.sector} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
+                      <td className="max-w-[200px] truncate px-3 py-2 text-slate-800" title={row.sector}>
+                        {row.sector}
+                      </td>
+                      <td className="px-3 py-2 text-right font-medium">{row.total}</td>
+                      <td className="px-3 py-2 text-right">{row.avance_pct.toFixed(1)}%</td>
+                      <td className="px-3 py-2 text-right">{row.avance_financiero_pct.toFixed(1)}%</td>
+                      <td className="px-3 py-2 text-right font-medium">{formatearMoneda(row.pto_definitivo)}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-        )}
-      </ChartCard>
+        </ChartCard>
+      </div>
 
       <PdmCard title="Por Línea Estratégica" icon={<Layers size={16} />}>
         <div className="max-h-96 space-y-4 overflow-y-auto pr-1">
@@ -508,6 +617,7 @@ function AnalisisContent({
                   <th className="px-2 py-3 text-center">Pendientes</th>
                   <th className="px-2 py-3 text-center">Por Ejecutar</th>
                   <th className="px-2 py-3 text-center">Avance %</th>
+                  <th className="px-2 py-3 text-center">Avance Fin. %</th>
                   <th className="px-2 py-3 text-right">Pto. Def.</th>
                   <th className="px-2 py-3 text-right">Pagado</th>
                 </tr>
@@ -533,6 +643,9 @@ function AnalisisContent({
                         </div>
                         <span className="text-xs font-semibold">{s.avance_pct}%</span>
                       </div>
+                    </td>
+                    <td className="px-2 py-3 text-center text-xs font-semibold">
+                      {(s.avance_financiero_pct ?? 0).toFixed(1)}%
                     </td>
                     <td className="px-2 py-3 text-right text-xs sm:text-sm">{formatearMoneda(s.pto_definitivo)}</td>
                     <td className="px-2 py-3 text-right text-xs sm:text-sm">{formatearMoneda(s.pagos)}</td>

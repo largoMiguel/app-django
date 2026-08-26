@@ -143,6 +143,8 @@ export interface PdmStatsResponse {
 export interface PdmAnalisisResponse {
   anio_filtro: number | null;
   total_productos: number;
+  productos_con_meta?: number;
+  total_productos_todos?: number;
   avance_global: number;
   productos_al_100?: number;
   presupuesto: { pto_definitivo: number; pagos: number };
@@ -153,7 +155,14 @@ export interface PdmAnalisisResponse {
     por_ejecutar: number;
     total: number;
   };
-  metas_por_anio: { anio: number; programada: number; ejecutada: number; pct: number }[];
+  metas_por_anio: {
+    anio: number;
+    programada: number;
+    ejecutada: number;
+    pct: number;
+    meta_programada_total?: number;
+    meta_ejecutada_total?: number;
+  }[];
   por_linea: { linea: string; productos: number; avance_pct: number }[];
   por_sector_estado: {
     sector: string;
@@ -162,7 +171,6 @@ export interface PdmAnalisisResponse {
     en_progreso: number;
     pendientes: number;
     por_ejecutar: number;
-    avance_fisico_pct: number;
     avance_financiero_pct: number;
     avance_pct: number;
     pto_definitivo: number;
@@ -185,6 +193,7 @@ export interface PdmAnalisisResponse {
     pendientes: number;
     por_ejecutar: number;
     avance_pct: number;
+    avance_financiero_pct?: number;
     pto_definitivo: number;
     pagos: number;
   }[];
@@ -346,13 +355,13 @@ export const pdmApi = {
     slug: string,
     actividadId: number,
     payload: {
-      descripcion: string;
+      descripcion?: string;
       url_evidencia?: string;
       archivos?: File[];
     },
   ) => {
     const form = new FormData();
-    form.append("descripcion", payload.descripcion);
+    if (payload.descripcion) form.append("descripcion", payload.descripcion);
     if (payload.url_evidencia) form.append("url_evidencia", payload.url_evidencia);
     payload.archivos?.forEach((file) => form.append("archivos", file));
     return api
@@ -365,14 +374,14 @@ export const pdmApi = {
     slug: string,
     actividadId: number,
     payload: {
-      descripcion: string;
+      descripcion?: string;
       url_evidencia?: string;
       archivos?: File[];
       archivos_eliminar?: number[];
     },
   ) => {
     const form = new FormData();
-    form.append("descripcion", payload.descripcion);
+    if (payload.descripcion !== undefined) form.append("descripcion", payload.descripcion);
     form.append("url_evidencia", payload.url_evidencia || "");
     payload.archivos?.forEach((file) => form.append("archivos", file));
     if (payload.archivos_eliminar?.length) {

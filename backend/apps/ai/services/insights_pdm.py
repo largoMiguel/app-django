@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from apps.ai.client import chat_completion
+from apps.ai.insight_fingerprint import attach_insight_fingerprints, filter_ignored_insights
 from apps.ai.services.pdm_anomalies import detect_pdm_anomalies
 
 
@@ -66,8 +67,10 @@ def generate_pdm_insights(entity_id: int, anio: int | None = None, user=None) ->
         pass
 
     combined = rule_insights + ai_insights
+    enriched = attach_insight_fingerprints("pdm", combined[:10])
+    visible = filter_ignored_insights(entity_id, "pdm", enriched)
     return {
-        "insights": combined[:10],
+        "insights": visible,
         "anomalies_count": len(anomalies),
         "anomalies": anomalies[:15],
         "anio": anio,

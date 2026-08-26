@@ -454,7 +454,6 @@ export function PdmProvider({ children }: { children: ReactNode }) {
           ? await pdmApi.actualizarActividad(slug, actividadEnEdicion.id, payload)
           : await pdmApi.crearActividad(slug, payload);
         const evidenciaPayload = {
-          descripcion: values.descripcion.trim(),
           url_evidencia: values.evidencia_url.trim() || undefined,
           archivos: values.imagenes_nuevas,
           archivos_eliminar: values.archivos_eliminar,

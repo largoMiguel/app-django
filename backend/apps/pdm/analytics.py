@@ -207,11 +207,7 @@ def compute_pdm_analytics(
         if _producto_cuenta_para_filtro(p, aggs, anio):
             productos_relevantes.append((p, aggs))
 
-    codigos_financieros = (
-        list({p.codigo_producto for p, _ in productos_relevantes})
-        if anio is not None
-        else list({p.codigo_producto for p in productos})
-    )
+    codigos_financieros = list({p.codigo_producto for p, _ in productos_relevantes})
     codigos_fin_set = set(codigos_financieros)
     ejecucion_map = ejecucion_por_codigo(entity_id, codigos_financieros, anio)
     ejecucion_anios = ejecucion_por_anio(entity_id, codigos_financieros)
@@ -221,7 +217,6 @@ def compute_pdm_analytics(
 
     estado_distribucion = {"pendiente": 0, "en_progreso": 0, "completado": 0, "por_ejecutar": 0, "total": 0}
     avance_sum = 0.0
-    completados = 0
 
     linea_agg: dict[str, dict] = defaultdict(lambda: {"productos": 0, "avance_sum": 0.0})
     sector_agg: dict[str, dict] = defaultdict(
@@ -253,25 +248,29 @@ def compute_pdm_analytics(
         }
     )
 
-    seen_codigos_ejec: set[str] = set()
-    for p in productos:
-        if p.codigo_producto not in codigos_fin_set:
+    codigo_filas: dict[str, list[PdmProducto]] = defaultdict(list)
+    for p, _ in productos_relevantes:
+        codigo_filas[p.codigo_producto].append(p)
+
+    for codigo, filas in codigo_filas.items():
+        if codigo not in codigos_fin_set:
             continue
-        if p.codigo_producto in seen_codigos_ejec:
-            continue
-        seen_codigos_ejec.add(p.codigo_producto)
-        ej = ejecucion_map.get(p.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
-        sector = p.sector_mga or "Sin sector"
-        sector_agg[sector]["pto_definitivo"] += ej["pto_definitivo"]
-        sector_agg[sector]["pagos"] += ej["pagos"]
-        ods = p.ods or "Sin ODS"
-        ods_agg[ods]["presupuesto"] += ej["pto_definitivo"]
-        if include_por_secretaria:
-            sid = p.responsable_secretaria_id or 0
-            sec = secretaria_agg[sid]
-            sec["secretaria"] = p.responsable_secretaria_nombre or "Sin asignar"
-            sec["pto_definitivo"] += ej["pto_definitivo"]
-            sec["pagos"] += ej["pagos"]
+        ej = ejecucion_map.get(codigo, {"pto_definitivo": 0.0, "pagos": 0.0})
+        n = len(filas) or 1
+        share_pto = ej["pto_definitivo"] / n
+        share_pagos = ej["pagos"] / n
+        for p in filas:
+            sector = p.sector_mga or "Sin sector"
+            sector_agg[sector]["pto_definitivo"] += share_pto
+            sector_agg[sector]["pagos"] += share_pagos
+            ods = p.ods or "Sin ODS"
+            ods_agg[ods]["presupuesto"] += share_pto
+            if include_por_secretaria:
+                sid = p.responsable_secretaria_id or 0
+                sec = secretaria_agg[sid]
+                sec["secretaria"] = p.responsable_secretaria_nombre or "Sin asignar"
+                sec["pto_definitivo"] += share_pto
+                sec["pagos"] += share_pagos
 
     for p, aggs in productos_relevantes:
         estado = _estado_producto(p, aggs, anio)
@@ -281,8 +280,6 @@ def compute_pdm_analytics(
             estado_distribucion[key] += 1
         estado_distribucion["total"] += 1
         avance_sum += avance
-        if _producto_al_100(p, aggs, anio):
-            completados += 1
 
         linea = p.linea_estrategica or "Sin línea"
         linea_agg[linea]["productos"] += 1
@@ -320,24 +317,44 @@ def compute_pdm_analytics(
 
     total = estado_distribucion["total"]
     avance_global = round(avance_sum / total, 1) if total else 0.0
-    productos_al_100 = completados
+    productos_al_100 = estado_distribucion["completado"]
 
     metas_por_anio = []
     for y in ANIOS_PDM:
         programada = 0
         ejecutada = 0
+        meta_programada_total = 0.0
+        meta_ejecutada_total = 0.0
         for p, aggs in productos_relevantes:
             if not _tiene_meta_anio(p, y, aggs):
                 continue
+            resumen = resumen_anio(p, y, aggs)
             programada += 1
+            meta_programada_total += resumen["meta_programada"]
+            meta_ejecutada_total += resumen["meta_ejecutada"]
             if estado_producto_anio(p, y, aggs) == "COMPLETADO":
                 ejecutada += 1
         pct = round((ejecutada / programada) * 100, 1) if programada else 0.0
-        metas_por_anio.append({"anio": y, "programada": programada, "ejecutada": ejecutada, "pct": pct})
+        metas_por_anio.append(
+            {
+                "anio": y,
+                "programada": programada,
+                "ejecutada": ejecutada,
+                "pct": pct,
+                "meta_programada_total": round(meta_programada_total, 2),
+                "meta_ejecutada_total": round(meta_ejecutada_total, 2),
+            }
+        )
 
+    seen_plan_por_anio: dict[int, set[str]] = {y: set() for y in ANIOS_PDM}
     presupuestal_por_anio = []
     for y in ANIOS_PDM:
-        plan = sum(_plan_anio(p, y) for p in productos if p.codigo_producto in codigos_fin_set)
+        plan = 0.0
+        for p, _ in productos_relevantes:
+            if p.codigo_producto in seen_plan_por_anio[y]:
+                continue
+            seen_plan_por_anio[y].add(p.codigo_producto)
+            plan += _plan_anio(p, y)
         ej_y = ejecucion_anios.get(y, {"pto_definitivo": 0.0, "pagos": 0.0})
         ejec = ej_y["pto_definitivo"]
         pagos = ej_y["pagos"]
@@ -369,7 +386,6 @@ def compute_pdm_analytics(
                 "pendientes": data["pendientes"],
                 "por_ejecutar": data["por_ejecutar"],
                 "avance_pct": round(data["avance_sum"] / data["total"], 1) if data["total"] else 0.0,
-                "avance_fisico_pct": round(data["avance_sum"] / data["total"], 1) if data["total"] else 0.0,
                 "avance_financiero_pct": round((data["pagos"] / data["pto_definitivo"]) * 100, 1)
                 if data["pto_definitivo"]
                 else 0.0,
@@ -411,6 +427,9 @@ def compute_pdm_analytics(
                     "pendientes": data["pendientes"],
                     "por_ejecutar": data["por_ejecutar"],
                     "avance_pct": round(data["avance_sum"] / data["productos"], 1) if data["productos"] else 0.0,
+                    "avance_financiero_pct": round((data["pagos"] / data["pto_definitivo"]) * 100, 1)
+                    if data["pto_definitivo"]
+                    else 0.0,
                     "pto_definitivo": data["pto_definitivo"],
                     "pagos": data["pagos"],
                 }
@@ -423,6 +442,8 @@ def compute_pdm_analytics(
     return {
         "anio_filtro": anio,
         "total_productos": total,
+        "productos_con_meta": total,
+        "total_productos_todos": len(productos),
         "avance_global": avance_global,
         "productos_al_100": productos_al_100,
         "presupuesto": {
