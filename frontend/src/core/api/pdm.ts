@@ -21,7 +21,7 @@ export interface PdmActividadEvidencia {
 
 export interface PdmActividad {
   id: number;
-  codigo_producto: string;
+  clave_producto: string;
   anio: number;
   nombre: string;
   descripcion?: string | null;
@@ -38,9 +38,21 @@ export interface PdmActividad {
   cargandoEvidencia?: boolean;
 }
 
+export interface PdmIndicadorHermano {
+  clave_producto: string;
+  codigo_indicador_producto_mga?: string | null;
+  indicador_producto_mga?: string | null;
+}
+
 export interface PdmProducto {
   id: number;
+  clave_producto: string;
   codigo_producto: string;
+  codigo_indicador_producto?: string | null;
+  codigo_indicador_producto_mga?: string | null;
+  principal?: string | null;
+  total_indicadores?: number;
+  indicadores_hermanos?: PdmIndicadorHermano[];
   producto_mga?: string | null;
   indicador_producto_mga?: string | null;
   personalizacion_indicador?: string | null;
@@ -186,7 +198,10 @@ export interface PdmStatusResponse {
 }
 
 export interface PdmProyectoProducto {
+  clave_producto: string;
   codigo_producto: string;
+  codigo_indicador_producto_mga?: string | null;
+  indicador_producto_mga?: string | null;
   nombre: string;
   linea_estrategica?: string | null;
   sector_mga?: string | null;
@@ -305,17 +320,17 @@ export const pdmApi = {
     api
       .get<PaginatedPdmProductos>(`/pdm/v2/${slug}/productos`, { params })
       .then((r) => r.data),
-  productoDetail: (slug: string, codigo: string, anio?: number) =>
+  productoDetail: (slug: string, clave: string, anio?: number) =>
     api
-      .get<PdmProducto>(`/pdm/v2/${slug}/productos/${encodeURIComponent(codigo)}`, {
+      .get<PdmProducto>(`/pdm/v2/${slug}/productos/${encodeURIComponent(clave)}`, {
         params: anio ? { anio } : undefined,
       })
       .then((r) => r.data),
   upload: (slug: string, payload: Record<string, unknown>) =>
     api.post(`/pdm/v2/${slug}/upload`, payload).then((r) => r.data),
-  actividadesByProducto: (slug: string, codigo: string, anio?: number) =>
+  actividadesByProducto: (slug: string, clave: string, anio?: number) =>
     api
-      .get<PdmActividad[]>(`/pdm/v2/${slug}/productos/${encodeURIComponent(codigo)}/actividades`, {
+      .get<PdmActividad[]>(`/pdm/v2/${slug}/productos/${encodeURIComponent(clave)}/actividades`, {
         params: anio ? { anio } : undefined,
       })
       .then((r) => r.data),
@@ -369,18 +384,18 @@ export const pdmApi = {
       })
       .then((r) => r.data);
   },
-  asignarResponsable: (slug: string, codigoProducto: string, secretariaId: number) =>
+  asignarResponsable: (slug: string, claveProducto: string, secretariaId: number) =>
     api
       .patch(
-        `/pdm/v2/${slug}/productos/${encodeURIComponent(codigoProducto)}/responsable`,
+        `/pdm/v2/${slug}/productos/${encodeURIComponent(claveProducto)}/responsable`,
         {},
         { params: { responsable_secretaria_id: secretariaId } },
       )
       .then((r) => r.data),
-  asignarResponsableUsuario: (slug: string, codigoProducto: string, usuarioId: number | null) =>
+  asignarResponsableUsuario: (slug: string, claveProducto: string, usuarioId: number | null) =>
     api
       .patch(
-        `/pdm/v2/${slug}/productos/${encodeURIComponent(codigoProducto)}/responsable-usuario`,
+        `/pdm/v2/${slug}/productos/${encodeURIComponent(claveProducto)}/responsable-usuario`,
         {},
         { params: { responsable_usuario_id: usuarioId ?? "" } },
       )

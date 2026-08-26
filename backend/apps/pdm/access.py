@@ -45,7 +45,15 @@ def productos_queryset_for_user(user, entity: Entity) -> QuerySet[PdmProducto]:
 
 
 def codigos_producto_for_user(user, entity: Entity) -> list[str]:
-    return list(productos_queryset_for_user(user, entity).values_list("codigo_producto", flat=True))
+    return list(
+        productos_queryset_for_user(user, entity)
+        .values_list("codigo_producto", flat=True)
+        .distinct()
+    )
+
+
+def claves_producto_for_user(user, entity: Entity) -> list[str]:
+    return list(productos_queryset_for_user(user, entity).values_list("clave_producto", flat=True))
 
 
 def ejecucion_queryset_for_user(user, entity: Entity) -> QuerySet[PDMEjecucionPresupuestal]:
@@ -145,13 +153,13 @@ def actividades_queryset_for_user(user, entity: Entity) -> QuerySet[PdmActividad
         .prefetch_related("evidencia")
     )
     if _is_secretario(user) and not _is_admin(user):
-        codigos = productos_queryset_for_user(user, entity).values_list("codigo_producto", flat=True)
-        qs = qs.filter(codigo_producto__in=codigos)
+        claves = claves_producto_for_user(user, entity)
+        qs = qs.filter(clave_producto__in=claves)
     return qs
 
 
-def user_can_access_producto(user, entity: Entity, codigo_producto: str) -> bool:
-    return productos_queryset_for_user(user, entity).filter(codigo_producto=codigo_producto).exists()
+def user_can_access_producto(user, entity: Entity, clave_producto: str) -> bool:
+    return productos_queryset_for_user(user, entity).filter(clave_producto=clave_producto).exists()
 
 
 def user_can_access_actividad(user, entity: Entity, actividad: PdmActividad) -> bool:
@@ -160,10 +168,10 @@ def user_can_access_actividad(user, entity: Entity, actividad: PdmActividad) -> 
     if _is_admin(user) or is_platform_superadmin(user):
         return True
     if _is_secretario(user):
-        return user_can_access_producto(user, entity, actividad.codigo_producto)
+        return user_can_access_producto(user, entity, actividad.clave_producto)
     if _is_contratista(user):
         return actividad.responsable_usuario_id == user.id or user_can_access_producto(
-            user, entity, actividad.codigo_producto
+            user, entity, actividad.clave_producto
         )
     return False
 
@@ -218,7 +226,7 @@ def user_can_access_pdm_media_path(user, path: str) -> bool:
     for actividad in PdmActividad.objects.filter(entity=entity, anio=anio):
         from .storage_paths import _safe_path_segment
 
-        if _safe_path_segment(actividad.codigo_producto) == codigo_path:
+        if _safe_path_segment(actividad.clave_producto) == codigo_path:
             if user_can_access_actividad(user, entity, actividad):
                 return True
     return False

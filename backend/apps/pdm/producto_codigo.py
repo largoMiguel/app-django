@@ -6,6 +6,7 @@ from apps.entities.models import Entity
 from .models import PdmProducto
 
 PRODUCTO_KEY_FIELDS = (
+    "clave_producto",
     "codigo_producto",
     "codigo_producto_mga",
     "codigo_indicador_producto",

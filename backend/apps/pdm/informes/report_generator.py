@@ -226,13 +226,13 @@ class PDMReportGenerator:
         return "Plan de Desarrollo Municipal"
 
     def _avance_fisico_meta_grupo(self, productos: list) -> float:
-        codigos = {p.codigo_producto for p in productos}
+        codigos = {p.clave_producto for p in productos}
         meta_prog = sum(self._meta_programada_producto(p) for p in productos)
         if meta_prog <= 0:
             return 0.0
         meta_ejec = 0.0
         for act in self.actividades:
-            if act.codigo_producto not in codigos:
+            if act.clave_producto not in codigos:
                 continue
             if self.anio != 0 and act.anio != self.anio:
                 continue
@@ -248,7 +248,7 @@ class PDMReportGenerator:
         meta_ejec = 0.0
         for anio in anios:
             for act in self.actividades:
-                if act.codigo_producto != producto.codigo_producto or act.anio != anio:
+                if act.clave_producto != producto.clave_producto or act.anio != anio:
                     continue
                 if getattr(act, "tiene_evidencia", False):
                     meta_ejec += float(act.meta_ejecutar or 0)
@@ -918,7 +918,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                     # Calcular meta ejecutada: suma de meta_ejecutar de actividades con evidencia
                     actividades_anio = [
                         act for act in self.actividades 
-                        if act.codigo_producto == producto.codigo_producto and act.anio == anio
+                        if act.clave_producto == producto.clave_producto and act.anio == anio
                     ]
                     
                     print(f"   Año {anio}: meta_programada={meta_programada}, actividades={len(actividades_anio)}")
@@ -1330,7 +1330,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         actividades_por_producto = defaultdict(list)
         for act in self.actividades:
             if self.anio == 0 or act.anio == self.anio:
-                actividades_por_producto[act.codigo_producto].append(act)
+                actividades_por_producto[act.clave_producto].append(act)
         
         # Procesar cada producto (SIN LÍMITE - mejora implementada)
         st = self._institutional_styles()
@@ -1340,7 +1340,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         for idx, prod in enumerate(self.productos, 1):
             print(f"   📦 Procesando producto {idx}/{total_productos}: {prod.codigo_producto}")
 
-            actividades = actividades_por_producto.get(prod.codigo_producto, [])
+            actividades = actividades_por_producto.get(prod.clave_producto, [])
             producto_nombre = prod.producto_mga or prod.codigo_producto
             indicador_nombre = prod.indicador_producto_mga or prod.personalizacion_indicador or "N/A"
             avance_fisico = self.calcular_avance_producto(prod)
@@ -1787,7 +1787,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             row = 4
             for act in self.actividades:
                 if self.anio == 0 or act.anio == self.anio:
-                    ws3[f'A{row}'] = act.codigo_producto
+                    ws3[f'A{row}'] = act.clave_producto
                     ws3[f'B{row}'] = act.nombre[:100]
                     ws3[f'C{row}'] = act.estado
                     ws3[f'D{row}'] = act.anio

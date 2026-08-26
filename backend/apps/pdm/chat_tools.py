@@ -95,12 +95,13 @@ def _producto_metrics_item(
     ejec_map: dict | None = None,
 ) -> dict:
     """Resumen estándar de producto con meta, avance y ejecución del año."""
-    aggs = (aggs_map or {}).get(p.codigo_producto, {})
+    aggs = (aggs_map or {}).get(p.clave_producto, {})
     metrics = producto_list_metrics(p, target_anio, aggs)
     ej = (ejec_map or {}).get(
         p.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0}
     )
     return {
+        "clave_producto": p.clave_producto,
         "codigo_producto": p.codigo_producto,
         "nombre": _producto_label(p),
         "linea_estrategica": p.linea_estrategica,
@@ -128,11 +129,16 @@ def _resolve_producto(
     if codigo_producto:
         codigo = codigo_producto.strip()
         try:
-            return _producto_base_qs(entity).get(codigo_producto=codigo), None
+            return _producto_base_qs(entity).get(clave_producto=codigo), None
         except PdmProducto.DoesNotExist:
-            partial = list(
-                _producto_base_qs(entity).filter(codigo_producto__icontains=codigo)[:2]
-            )
+            try:
+                return _producto_base_qs(entity).get(codigo_producto=codigo), None
+            except PdmProducto.DoesNotExist:
+                partial = list(
+                    _producto_base_qs(entity).filter(
+                        Q(clave_producto__icontains=codigo) | Q(codigo_producto__icontains=codigo)
+                    )[:2]
+                )
             if len(partial) == 1:
                 return partial[0], None
             if len(partial) > 1:
@@ -164,7 +170,9 @@ def _producto_search_qs(entity: Entity, query: str):
     """QuerySet de productos filtrado por texto libre."""
     q = query.strip()
     return _producto_base_qs(entity).filter(
-        Q(codigo_producto__icontains=q)
+        Q(clave_producto__icontains=q)
+        | Q(codigo_producto__icontains=q)
+        | Q(codigo_indicador_producto_mga__icontains=q)
         | Q(producto_mga__icontains=q)
         | Q(codigo_indicador_producto__icontains=q)
         | Q(indicador_producto_mga__icontains=q)
@@ -189,7 +197,8 @@ def resumen_pdm(entity: Entity) -> dict:
         return cached
 
     productos = list(_producto_base_qs(entity))
-    codigos = [p.codigo_producto for p in productos]
+    claves = [p.clave_producto for p in productos]
+    codigos = list({p.codigo_producto for p in productos})
     anio = _current_year()
 
     lineas = {p.linea_estrategica for p in productos if p.linea_estrategica}
@@ -216,12 +225,12 @@ def resumen_pdm(entity: Entity) -> dict:
             ) if rows["pto"] else 0.0,
         })
 
-    aggs_map = actividad_aggs_for_productos(entity.id, codigos) if codigos else {}
+    aggs_map = actividad_aggs_for_productos(entity.id, claves) if claves else {}
     avances_anio: list[dict] = []
     for y in ANIOS_PDM:
         avances = []
         for p in productos:
-            aggs = aggs_map.get(p.codigo_producto, {})
+            aggs = aggs_map.get(p.clave_producto, {})
             res = resumen_anio(p, y, aggs)
             if res["meta_programada"] > 0:
                 avances.append(res["porcentaje_avance"])
@@ -317,9 +326,10 @@ def buscar_productos(
             ),
         }
 
-    productos = list(qs.order_by("codigo_producto")[:limit])
-    codigos = [p.codigo_producto for p in productos]
-    aggs_map = actividad_aggs_for_productos(entity.id, codigos) if codigos else {}
+    productos = list(qs.order_by("codigo_producto", "clave_producto")[:limit])
+    claves = [p.clave_producto for p in productos]
+    codigos = list({p.codigo_producto for p in productos})
+    aggs_map = actividad_aggs_for_productos(entity.id, claves) if claves else {}
     ejec_map = ejecucion_for_productos(entity.id, codigos, target_anio) if codigos else {}
 
     items = [
@@ -388,8 +398,9 @@ def detalle_producto(
         }
 
     codigo_producto = p.codigo_producto
-    aggs_map = actividad_aggs_for_productos(entity.id, [codigo_producto])
-    aggs = aggs_map.get(codigo_producto, {})
+    clave_producto = p.clave_producto
+    aggs_map = actividad_aggs_for_productos(entity.id, [clave_producto])
+    aggs = aggs_map.get(clave_producto, {})
     metrics = producto_list_metrics(p, target_anio, aggs)
     ej = ejecucion_for_productos(entity.id, [codigo_producto], target_anio).get(
         codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0}
@@ -398,7 +409,7 @@ def detalle_producto(
     resumen_anios = {str(y): resumen_anio(p, y, aggs) for y in ANIOS_PDM}
 
     actividades = list(
-        PdmActividad.objects.filter(entity=entity, codigo_producto=codigo_producto)
+        PdmActividad.objects.filter(entity=entity, clave_producto=clave_producto)
         .select_related("responsable_secretaria")
         .prefetch_related("evidencia")
         .order_by("anio", "id")[:30]
@@ -438,7 +449,9 @@ def detalle_producto(
     bpines_vinculados = list(_parse_bpines(p.bpin)) if p.bpin else []
 
     result = {
+        "clave_producto": p.clave_producto,
         "codigo_producto": p.codigo_producto,
+        "codigo_indicador_producto_mga": p.codigo_indicador_producto_mga,
         "nombre": _producto_label(p),
         "linea_estrategica": p.linea_estrategica,
         "sector_mga": p.sector_mga,
@@ -685,20 +698,21 @@ def metas_cumplidas_anio(
             )
 
     productos = list(productos_qs)
-    codigos = [p.codigo_producto for p in productos]
-    aggs_map = actividad_aggs_for_productos(entity.id, codigos) if codigos else {}
+    claves = [p.clave_producto for p in productos]
+    aggs_map = actividad_aggs_for_productos(entity.id, claves) if claves else {}
 
     completados: list[dict] = []
     en_progreso: list[dict] = []
     pendientes: list[dict] = []
 
     for p in productos:
-        aggs = aggs_map.get(p.codigo_producto, {})
+        aggs = aggs_map.get(p.clave_producto, {})
         metrics = producto_list_metrics(p, target_anio, aggs)
         if metrics["meta_anio"] <= 0:
             continue
         estado = metrics["estado_anio"]
         item = {
+            "clave_producto": p.clave_producto,
             "codigo_producto": p.codigo_producto,
             "nombre": _producto_label(p),
             "meta_anio": metrics["meta_anio"],

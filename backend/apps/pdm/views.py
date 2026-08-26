@@ -36,6 +36,7 @@ from .access import (
 from .ejecucion_resumen import resumen_ejecucion_entidad
 
 User = get_user_model()
+from .clave_producto import calcular_claves_producto
 from .producto_codigo import resolver_codigo_producto_pdm
 from .contratos_parser import parse_contratos_rps
 from .ejecucion_parser import _looks_like_codigo_fuente, parse_ejecucion_excel, rows_from_ejecucion_dataframe
@@ -129,15 +130,25 @@ def _to_float(v):
 
 
 def _attach_list_metrics(productos: list, entity_id: int, anio: int) -> None:
+    from django.db.models import Count
+
     from .ejecucion_resumen import attach_ejecucion_anio_a_productos
 
-    codigos = [p.codigo_producto for p in productos]
-    aggs_map = actividad_aggs_for_productos(entity_id, codigos)
+    claves = [p.clave_producto for p in productos]
+    aggs_map = actividad_aggs_for_productos(entity_id, claves)
+    codigos = list({p.codigo_producto for p in productos})
+    counts = dict(
+        PdmProducto.objects.filter(entity_id=entity_id, codigo_producto__in=codigos)
+        .values("codigo_producto")
+        .annotate(total=Count("id"))
+        .values_list("codigo_producto", "total")
+    )
     for prod in productos:
-        aggs_anio = aggs_map.get(prod.codigo_producto, {})
+        aggs_anio = aggs_map.get(prod.clave_producto, {})
         metrics = producto_list_metrics(prod, anio, aggs_anio)
         for key, value in metrics.items():
             setattr(prod, key, value)
+        setattr(prod, "total_indicadores", counts.get(prod.codigo_producto, 1))
     attach_ejecucion_anio_a_productos(productos, entity_id, anio)
 
 
@@ -160,12 +171,12 @@ def _filter_productos_by_estado(qs, entity_id: int, anio: int, estado: str):
     productos = list(qs)
     if not productos or not estado:
         return qs
-    codigos = [p.codigo_producto for p in productos]
+    codigos = [p.clave_producto for p in productos]
     aggs_map = actividad_aggs_for_productos(entity_id, codigos)
     ids = [
         p.id
         for p in productos
-        if estado_producto_anio(p, anio, aggs_map.get(p.codigo_producto, {})) == estado
+        if estado_producto_anio(p, anio, aggs_map.get(p.clave_producto, {})) == estado
     ]
     return qs.filter(id__in=ids) if ids else qs.none()
 
@@ -230,7 +241,11 @@ class PdmStatsView(APIView):
         productos_estado = productos_for_stats(productos_qs)
         stats["estado_por_anio"] = compute_estado_stats(productos_estado, entity.id, anio)
         stats["anio_seguimiento"] = anio
-        codigos_meta = list(_filter_productos_con_meta_anio(productos_qs, anio).values_list("codigo_producto", flat=True))
+        codigos_meta = list(
+            _filter_productos_con_meta_anio(productos_qs, anio)
+            .values_list("codigo_producto", flat=True)
+            .distinct()
+        )
         from .ejecucion_resumen import ejecucion_totales_productos
 
         stats["ejecucion_anio"] = ejecucion_totales_productos(entity.id, codigos_meta, anio)
@@ -344,10 +359,10 @@ class PdmProductosListView(APIView):
 class PdmProductoDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request, slug: str, codigo_producto: str):
+    def get(self, request, slug: str, clave_producto: str):
         entity = _entity_or_404(slug)
         _ensure_user_can_manage_entity(request.user, entity)
-        if not user_can_access_producto(request.user, entity, codigo_producto):
+        if not user_can_access_producto(request.user, entity, clave_producto):
             raise PermissionDenied("No tiene permisos para ver este producto.")
         anio_param = request.query_params.get("anio")
         try:
@@ -357,18 +372,39 @@ class PdmProductoDetailView(APIView):
 
         producto = get_object_or_404(
             productos_queryset_for_user(request.user, entity),
-            codigo_producto=codigo_producto,
+            clave_producto=clave_producto,
         )
         actividades = (
             actividades_queryset_for_user(request.user, entity)
-            .filter(codigo_producto=codigo_producto)
+            .filter(clave_producto=clave_producto)
             .prefetch_related("evidencia__archivos")
             .order_by("anio", "id")
         )
         setattr(producto, "pdm_actividades_filtradas", list(actividades))
 
-        codigos = [producto.codigo_producto]
-        aggs_map = actividad_aggs_for_productos(entity.id, codigos).get(producto.codigo_producto, {})
+        claves = [producto.clave_producto]
+        aggs_map = actividad_aggs_for_productos(entity.id, claves).get(producto.clave_producto, {})
+        hermanos_qs = (
+            productos_queryset_for_user(request.user, entity)
+            .filter(codigo_producto=producto.codigo_producto)
+            .exclude(clave_producto=producto.clave_producto)
+        )
+        setattr(
+            producto,
+            "indicadores_hermanos",
+            list(
+                hermanos_qs.values(
+                    "clave_producto",
+                    "codigo_indicador_producto_mga",
+                    "indicador_producto_mga",
+                )
+            ),
+        )
+        setattr(
+            producto,
+            "total_indicadores",
+            PdmProducto.objects.filter(entity=entity, codigo_producto=producto.codigo_producto).count(),
+        )
         _attach_list_metrics([producto], entity.id, anio)
         setattr(
             producto,
@@ -391,29 +427,71 @@ class PdmUploadView(APIView):
         serializer = PdmDataUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
-        existing = {p.codigo_producto: p for p in PdmProducto.objects.filter(entity=entity)}
-        codigos_excel = set()
-        manual_fields = {"responsable_secretaria", "responsable_secretaria_nombre"}
+        rows = payload["productos_plan_indicativo"]
+        clave_map = calcular_claves_producto(rows)
+        existing_products = list(PdmProducto.objects.filter(entity=entity))
+        existing_by_clave = {p.clave_producto: p for p in existing_products}
+        existing_by_sispt: dict[str, PdmProducto] = {}
+        existing_by_legacy_codigo: dict[str, PdmProducto] = {}
+        for prod in existing_products:
+            sispt = str(prod.codigo_indicador_producto or "").strip()
+            if sispt:
+                existing_by_sispt[sispt] = prod
+            if prod.clave_producto == prod.codigo_producto:
+                existing_by_legacy_codigo[prod.codigo_producto] = prod
+
+        claves_excel: set[str] = set()
+        manual_fields = {"responsable_secretaria", "responsable_secretaria_nombre", "clave_producto"}
 
         with transaction.atomic():
-            for raw_item in payload["productos_plan_indicativo"]:
+            for idx, raw_item in enumerate(rows):
                 codigo = str(raw_item.get("codigo_producto") or "").strip()
                 if not codigo:
                     continue
-                item = {**raw_item, "codigo_producto": codigo}
-                codigos_excel.add(codigo)
-                if codigo in existing:
-                    prod = existing[codigo]
+                clave = clave_map.get(idx)
+                if not clave:
+                    continue
+                item = {**raw_item, "codigo_producto": codigo, "clave_producto": clave}
+                claves_excel.add(clave)
+
+                sispt = str(raw_item.get("codigo_indicador_producto") or "").strip()
+                prod = None
+                if sispt and sispt in existing_by_sispt:
+                    prod = existing_by_sispt[sispt]
+                elif clave in existing_by_clave:
+                    prod = existing_by_clave[clave]
+                elif clave == codigo and codigo in existing_by_legacy_codigo:
+                    prod = existing_by_legacy_codigo[codigo]
+
+                if prod:
+                    old_clave = prod.clave_producto
                     for field, value in item.items():
                         if field not in manual_fields:
                             setattr(prod, field, value)
+                    prod.clave_producto = clave
                     prod.save()
+                    if old_clave != clave:
+                        PdmActividad.objects.filter(entity=entity, clave_producto=old_clave).update(
+                            clave_producto=clave
+                        )
                 else:
-                    prod = PdmProducto.objects.create(entity=entity, **item)
-                    existing[codigo] = prod
-            for codigo, prod in existing.items():
-                if codigo not in codigos_excel:
+                    create_data = {k: v for k, v in item.items() if k not in manual_fields}
+                    prod = PdmProducto.objects.create(
+                        entity=entity,
+                        clave_producto=clave,
+                        **create_data,
+                    )
+
+                existing_by_clave[clave] = prod
+                if sispt:
+                    existing_by_sispt[sispt] = prod
+                if clave == codigo:
+                    existing_by_legacy_codigo[codigo] = prod
+
+            for clave, prod in existing_by_clave.items():
+                if clave not in claves_excel:
                     prod.delete()
+
             PdmIniciativaSGR.objects.filter(entity=entity).delete()
             iniciativas_por_consecutivo: dict[str, dict] = {}
             for raw_inic in payload.get("iniciativas_sgr") or []:
@@ -438,10 +516,12 @@ class PdmActividadCreateView(APIView):
         _ensure_user_can_manage_entity(request.user, entity)
         if not (_is_admin(request.user) or _is_secretario(request.user)):
             raise PermissionDenied("Sin permisos para crear actividades.")
-        codigo = str(request.data.get("codigo_producto") or "").strip()
-        if not user_can_access_producto(request.user, entity, codigo):
+        clave = str(request.data.get("clave_producto") or request.data.get("codigo_producto") or "").strip()
+        if not user_can_access_producto(request.user, entity, clave):
             raise PermissionDenied("No tiene permisos para este producto.")
         payload = request.data.copy()
+        payload["clave_producto"] = clave
+        payload.pop("codigo_producto", None)
         payload["fecha_inicio"] = _parse_iso_dt(payload.get("fecha_inicio"))
         payload["fecha_fin"] = _parse_iso_dt(payload.get("fecha_fin"))
         if not _is_secretario(request.user):
@@ -456,12 +536,12 @@ class PdmActividadCreateView(APIView):
 class PdmActividadesPorProductoView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request, slug: str, codigo_producto: str):
+    def get(self, request, slug: str, clave_producto: str):
         entity = _entity_or_404(slug)
         _ensure_user_can_manage_entity(request.user, entity)
-        if not user_can_access_producto(request.user, entity, codigo_producto):
+        if not user_can_access_producto(request.user, entity, clave_producto):
             raise PermissionDenied("No tiene permisos para este producto.")
-        qs = actividades_queryset_for_user(request.user, entity).filter(codigo_producto=codigo_producto)
+        qs = actividades_queryset_for_user(request.user, entity).filter(clave_producto=clave_producto)
         anio = request.query_params.get("anio")
         if anio:
             qs = qs.filter(anio=anio)
@@ -581,7 +661,7 @@ class PdmEvidenciaView(APIView):
 class PdmAsignarResponsableView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def patch(self, request, slug: str, codigo_producto: str):
+    def patch(self, request, slug: str, clave_producto: str):
         entity = _entity_or_404(slug)
         _ensure_user_can_manage_entity(request.user, entity)
         if not _is_admin(request.user):
@@ -591,19 +671,19 @@ class PdmAsignarResponsableView(APIView):
             raise ValidationError({"responsable_secretaria_id": "Parámetro requerido."})
         producto = get_object_or_404(
             productos_queryset_for_user(request.user, entity),
-            codigo_producto=codigo_producto,
+            clave_producto=clave_producto,
         )
         secretaria = get_object_or_404(Secretaria, id=secretaria_id, entity=entity)
         producto.responsable_secretaria = secretaria
         producto.responsable_secretaria_nombre = secretaria.nombre
         producto.save(update_fields=["responsable_secretaria", "responsable_secretaria_nombre", "updated_at"])
-        return Response({"success": True, "producto_codigo": producto.codigo_producto, "responsable_secretaria_id": secretaria.id, "responsable_secretaria_nombre": secretaria.nombre})
+        return Response({"success": True, "producto_codigo": producto.clave_producto, "responsable_secretaria_id": secretaria.id, "responsable_secretaria_nombre": secretaria.nombre})
 
 
 class PdmAsignarResponsableUsuarioView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def patch(self, request, slug: str, codigo_producto: str):
+    def patch(self, request, slug: str, clave_producto: str):
         from apps.accounts.models import UserEntityMembership
 
         entity = _entity_or_404(slug)
@@ -614,7 +694,7 @@ class PdmAsignarResponsableUsuarioView(APIView):
         usuario_id = request.query_params.get("responsable_usuario_id")
         producto = get_object_or_404(
             productos_queryset_for_user(request.user, entity),
-            codigo_producto=codigo_producto,
+            clave_producto=clave_producto,
         )
         if not request.user.secretaria_id or producto.responsable_secretaria_id != request.user.secretaria_id:
             raise PermissionDenied("Solo puede delegar productos de su secretaría.")
@@ -625,7 +705,7 @@ class PdmAsignarResponsableUsuarioView(APIView):
             return Response(
                 {
                     "success": True,
-                    "producto_codigo": producto.codigo_producto,
+                    "producto_codigo": producto.clave_producto,
                     "responsable_usuario_id": None,
                     "responsable_usuario_nombre": None,
                 }
@@ -646,7 +726,7 @@ class PdmAsignarResponsableUsuarioView(APIView):
         return Response(
             {
                 "success": True,
-                "producto_codigo": producto.codigo_producto,
+                "producto_codigo": producto.clave_producto,
                 "responsable_usuario_id": target.id,
                 "responsable_usuario_nombre": target.full_name or target.email,
             }

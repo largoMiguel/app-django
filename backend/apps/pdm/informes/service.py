@@ -88,15 +88,15 @@ def _resolve_ai_analysis(
 
 def _prepare_actividades(
     entity_id: int,
-    codigos: list[str],
+    claves: list[str],
     anio: int,
     incluir_evidencias: bool,
 ) -> list[PdmActividad]:
     actividades_qs = (
-        PdmActividad.objects.filter(entity_id=entity_id, codigo_producto__in=codigos)
+        PdmActividad.objects.filter(entity_id=entity_id, clave_producto__in=claves)
         .select_related("evidencia", "responsable_secretaria")
         .prefetch_related("evidencia__archivos")
-        .order_by("codigo_producto", "id")
+        .order_by("clave_producto", "id")
     )
     if anio != 0:
         actividades_qs = actividades_qs.filter(anio=anio)
@@ -124,12 +124,12 @@ def _gather_report_data(informe: InformePDM) -> dict:
     if informe.responsable_secretaria_id:
         productos_qs = productos_qs.filter(responsable_secretaria_id=informe.responsable_secretaria_id)
 
-    productos = list(productos_qs.order_by("codigo_producto"))
+    productos = list(productos_qs.order_by("codigo_producto", "clave_producto"))
     if not productos:
         raise ValueError("No hay productos PDM para generar el informe con los filtros seleccionados.")
 
-    codigos = [p.codigo_producto for p in productos]
-    actividades = _prepare_actividades(entity.id, codigos, anio, informe.incluir_evidencias)
+    claves = [p.clave_producto for p in productos]
+    actividades = _prepare_actividades(entity.id, claves, anio, informe.incluir_evidencias)
 
     lineas_count = productos_qs.values("linea_estrategica").distinct().count()
     iniciativas_count = 0

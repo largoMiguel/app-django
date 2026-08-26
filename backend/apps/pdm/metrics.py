@@ -48,13 +48,13 @@ def ejecucion_definitivo_for_productos(entity_id: int, codigos: list[str], anio:
     }
 
 
-def actividad_aggs_for_productos(entity_id: int, codigos: list[str]) -> dict[str, dict[int, dict]]:
-    """Agregados de actividades por codigo_producto y año."""
-    if not codigos:
+def actividad_aggs_for_productos(entity_id: int, claves: list[str]) -> dict[str, dict[int, dict]]:
+    """Agregados de actividades por clave_producto y año."""
+    if not claves:
         return {}
     rows = (
-        PdmActividad.objects.filter(entity_id=entity_id, codigo_producto__in=codigos, anio__in=ANIOS_PDM)
-        .values("codigo_producto", "anio")
+        PdmActividad.objects.filter(entity_id=entity_id, clave_producto__in=claves, anio__in=ANIOS_PDM)
+        .values("clave_producto", "anio")
         .annotate(
             meta_asignada=Sum("meta_ejecutar"),
             meta_ejecutada=Sum("meta_ejecutar", filter=Q(estado=ActividadEstado.COMPLETADA)),
@@ -64,7 +64,7 @@ def actividad_aggs_for_productos(entity_id: int, codigos: list[str]) -> dict[str
     )
     out: dict[str, dict[int, dict]] = {}
     for row in rows:
-        code = row["codigo_producto"]
+        code = row["clave_producto"]
         anio = int(row["anio"])
         out.setdefault(code, {})[anio] = {
             "meta_asignada": float(row["meta_asignada"] or 0),

@@ -118,11 +118,11 @@ def compute_pdm_stats(productos: list[PdmProducto], iniciativas_count: int, line
 
 
 def compute_estado_stats(productos: list[PdmProducto], entity_id: int, anio: int) -> dict:
-    codigos = [p.codigo_producto for p in productos]
+    codigos = [p.clave_producto for p in productos]
     aggs_map = actividad_aggs_for_productos(entity_id, codigos)
     stats = {"pendiente": 0, "en_progreso": 0, "completado": 0, "por_ejecutar": 0, "total": 0}
     for p in productos:
-        aggs_anio = aggs_map.get(p.codigo_producto, {})
+        aggs_anio = aggs_map.get(p.clave_producto, {})
         if resumen_anio(p, anio, aggs_anio).get("meta_programada", 0) <= 0:
             continue
         stats["total"] += 1

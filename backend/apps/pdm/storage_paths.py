@@ -15,7 +15,7 @@ def _safe_path_segment(value: str) -> str:
 def pdm_evidencia_prefix(evidencia: PdmActividadEvidencia) -> str:
     """Prefijo: entities/<entity_id>/pdm/evidencias/<codigo_producto>/<anio>."""
     actividad = evidencia.actividad
-    codigo = _safe_path_segment(actividad.codigo_producto)
+    codigo = _safe_path_segment(actividad.clave_producto)
     return f"entities/{evidencia.entity_id}/pdm/evidencias/{codigo}/{actividad.anio}"
 
 

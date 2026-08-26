@@ -314,16 +314,18 @@ export function PdmProvider({ children }: { children: ReactNode }) {
     anioDetalle,
     detalleEnabled,
   );
+  const codigoEjecucionDetalle =
+    productoDetailData?.codigo_producto ?? productoListPreview?.codigo ?? "";
   const { data: ejecucionPresupuestal = null, isLoading: cargandoEjecucion } = usePdmEjecucionProducto(
-    codigoDetalle,
+    codigoEjecucionDetalle,
     anioDetalle,
-    detalleEnabled,
+    detalleEnabled && Boolean(codigoEjecucionDetalle),
   );
   const { data: contratosRPS = null, isLoading: cargandoContratos } = usePdmContratos(
     slug,
     anioDetalle,
-    codigoDetalle,
-    detalleEnabled,
+    codigoEjecucionDetalle,
+    detalleEnabled && Boolean(codigoEjecucionDetalle),
   );
 
   const productoSeleccionado = useMemo(() => {
@@ -390,7 +392,7 @@ export function PdmProvider({ children }: { children: ReactNode }) {
     (producto: ResumenProducto, from?: PdmDetalleFrom) => {
       setProductoListPreview(producto);
       setAnioDetalle(filtroAnio);
-      navigate(`/pdm/productos/${encodeURIComponent(producto.codigo)}`, {
+      navigate(`/pdm/productos/${encodeURIComponent(producto.clave)}`, {
         state: from ? { from } : undefined,
       });
     },
@@ -437,7 +439,7 @@ export function PdmProvider({ children }: { children: ReactNode }) {
       setError(null);
       try {
         const payload = {
-          codigo_producto: productoSeleccionado.codigo,
+          clave_producto: productoSeleccionado.clave,
           anio: anioDetalle,
           nombre: values.nombre.trim(),
           descripcion: values.descripcion.trim(),
@@ -462,7 +464,7 @@ export function PdmProvider({ children }: { children: ReactNode }) {
         } else {
           await pdmApi.registrarEvidencia(slug, actividad.id, evidenciaPayload);
         }
-        invalidatePdm.afterActividadMutation(slug, productoSeleccionado.codigo, anioDetalle);
+        invalidatePdm.afterActividadMutation(slug, productoSeleccionado.clave, anioDetalle);
         setMostrarModalActividad(false);
         setActividadEnEdicion(null);
       } catch (e) {
@@ -524,7 +526,7 @@ export function PdmProvider({ children }: { children: ReactNode }) {
       if (!slug || !sid) return;
       setSaving(true);
       try {
-        await pdmApi.asignarResponsable(slug, p.codigo, sid);
+        await pdmApi.asignarResponsable(slug, p.clave, sid);
         invalidatePdm.afterAsignarResponsable(slug);
       } catch (e) {
         setError(formatApiError(e, "No se pudo asignar."));
@@ -540,7 +542,7 @@ export function PdmProvider({ children }: { children: ReactNode }) {
       if (!slug) return;
       setSaving(true);
       try {
-        await pdmApi.asignarResponsableUsuario(slug, p.codigo, uid);
+        await pdmApi.asignarResponsableUsuario(slug, p.clave, uid);
         invalidatePdm.afterAsignarResponsable(slug);
       } catch (e) {
         setError(formatApiError(e, "No se pudo asignar al contratista."));
@@ -557,7 +559,7 @@ export function PdmProvider({ children }: { children: ReactNode }) {
       setSaving(true);
       try {
         await pdmApi.eliminarActividad(slug, a.id);
-        invalidatePdm.afterActividadMutation(slug, productoSeleccionado.codigo, anioDetalle);
+        invalidatePdm.afterActividadMutation(slug, productoSeleccionado.clave, anioDetalle);
       } catch (e) {
         setError(formatApiError(e, "No se pudo eliminar."));
       } finally {
@@ -573,7 +575,7 @@ export function PdmProvider({ children }: { children: ReactNode }) {
       setCargandoEvidenciaIds((prev) => new Set(prev).add(a.id));
       try {
         const ev = await pdmApi.getEvidencia(slug, a.id);
-        const key = pdmKeys.producto(slug, productoSeleccionado.codigo, anioDetalle);
+        const key = pdmKeys.producto(slug, productoSeleccionado.clave, anioDetalle);
         queryClient.setQueryData<PdmProducto | undefined>(key, (old) => {
           if (!old?.actividades) return old;
           return {

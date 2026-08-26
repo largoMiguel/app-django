@@ -207,6 +207,21 @@ Log del cron: `logs/softone-pqrs-inbox.log` (en `/opt/softone-app/logs/`).
 
 ---
 
+## Módulo PDM — Productos con varios indicadores
+
+Un mismo **código de producto MGA** (7 dígitos, p. ej. `4003018`) puede tener **varias filas** en el Excel del Plan Indicativo, una por **indicador** (`400301802`, `400301807`, …), con metas y presupuesto PPI distintos.
+
+| Campo | Uso |
+|-------|-----|
+| `clave_producto` | Identificador único por entidad; URL de detalle `/pdm/productos/{clave}`. Si no hay repetidos, `clave = codigo_producto`. |
+| `codigo_producto` | Código MGA de 7 dígitos; une ejecución presupuestal y contratos RPS (compartidos entre indicadores del mismo producto). |
+| `codigo_indicador_producto_mga` | Código del indicador (9 dígitos). |
+| `codigo_indicador_producto` | Código SisPT (`IP-35`, …); desempate cuando el indicador MGA se repite. |
+
+Tras actualizar el backend, **recargar el Excel** del Plan Indicativo para materializar todas las filas. Ver [README_MAIN.md](README_MAIN.md) para despliegue a producción.
+
+---
+
 ## Módulo PDM — Exportar PIIP
 
 Desde el menú **Acciones** del PDM (rol `admin`), la opción **Exportar PIIP** genera y descarga un Excel (`.xlsx`) con productos que tienen BPIN y meta programada en el año indicado. El archivo **no se guarda** en el servidor ni queda historial. Si un producto tiene varios BPIN (separados por coma), o varias fuentes presupuestales, se genera **una fila por cada BPIN y por cada fuente**. Las fuentes se normalizan al catálogo PIIP (Propios, SGP - Salud, …, Otros).

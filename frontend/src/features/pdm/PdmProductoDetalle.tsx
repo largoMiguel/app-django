@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { memo, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Calendar,
   CheckCircle2,
@@ -114,6 +115,7 @@ export default function PdmProductoDetalle({
   onAbrirBpin,
   unidad,
 }: PdmProductoDetalleProps) {
+  const navigate = useNavigate();
   const fuentesActivas = useMemo(
     () => ejecucionPresupuestal?.fuentes_detalle?.filter(fuentePresupuestalTieneValores) ?? [],
     [ejecucionPresupuestal],
@@ -133,6 +135,16 @@ export default function PdmProductoDetalle({
     () => Object.fromEntries(ANIOS_PDM.map((anio) => [anio, getAvanceAnio(producto, anio)])),
     [producto],
   );
+  const hermanos = producto.indicadores_hermanos ?? [];
+  const totalIndicadores = producto.total_indicadores ?? 1;
+  const indicadoresRelacionados = useMemo(() => {
+    const actual = {
+      clave_producto: producto.clave,
+      codigo_indicador_producto_mga: producto.codigo_indicador_producto_mga,
+      indicador_producto_mga: producto.indicador_producto_mga,
+    };
+    return [actual, ...hermanos];
+  }, [producto, hermanos]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -144,11 +156,54 @@ export default function PdmProductoDetalle({
           headerClassName="bg-blue-50/80"
         >
           <div className="space-y-5">
+            {totalIndicadores > 1 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-800">
+                  Indicadores de este producto ({totalIndicadores})
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {indicadoresRelacionados.map((ind) => {
+                    const activo = ind.clave_producto === producto.clave;
+                    const label = [
+                      ind.codigo_indicador_producto_mga,
+                      ind.indicador_producto_mga,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <button
+                        key={ind.clave_producto}
+                        type="button"
+                        disabled={activo}
+                        onClick={() =>
+                          navigate(`/pdm/productos/${encodeURIComponent(ind.clave_producto)}`)
+                        }
+                        className={`rounded-full px-3 py-1.5 text-left text-xs transition ${
+                          activo
+                            ? "cursor-default bg-amber-600 font-semibold text-white"
+                            : "bg-white text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100"
+                        }`}
+                      >
+                        {label || ind.clave_producto}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <FieldLabel>Código Producto</FieldLabel>
                 <FieldValue>{producto.codigo}</FieldValue>
               </div>
+              <div>
+                <FieldLabel>Código de Indicador (MGA)</FieldLabel>
+                <FieldValue>{producto.codigo_indicador_producto_mga || "N/D"}</FieldValue>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <FieldLabel>Unidad de Medida</FieldLabel>
                 <FieldValue>{producto.unidad_medida || "N/D"}</FieldValue>
@@ -404,6 +459,12 @@ export default function PdmProductoDetalle({
               </div>
             ) : (
               <>
+                {totalIndicadores > 1 && (
+                  <PdmAlert tone="info">
+                    Ejecución presupuestal y contratos compartidos con los {totalIndicadores} indicadores
+                    del producto {producto.codigo}.
+                  </PdmAlert>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[320px] text-sm">
                     <thead>

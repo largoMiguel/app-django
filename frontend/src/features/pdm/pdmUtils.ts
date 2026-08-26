@@ -1,4 +1,4 @@
-import type { PdmActividad, PdmProducto, ResumenAnioBackend } from "@/core/api/pdm";
+import type { PdmActividad, PdmIndicadorHermano, PdmProducto, ResumenAnioBackend } from "@/core/api/pdm";
 import { formatFechaCO, formatFechaHoraCO } from "@/core/datetime";
 
 export type VistaPdm = "dashboard" | "productos" | "detalle" | "analisis" | "proyectos";
@@ -11,7 +11,11 @@ export function parseBpines(raw: string | null | undefined): string[] {
 
 export interface ResumenProducto {
   id: number;
+  clave: string;
   codigo: string;
+  codigo_indicador_producto_mga?: string | null;
+  total_indicadores?: number;
+  indicadores_hermanos?: PdmIndicadorHermano[];
   producto: string;
   avance_anio?: number;
   estado_anio?: string;
@@ -216,7 +220,11 @@ export function mapProductoToResumen(producto: PdmProducto): ResumenProducto {
   const totalCuatrienio = producto.total_2024 + producto.total_2025 + producto.total_2026 + producto.total_2027;
   return {
     id: producto.id,
+    clave: producto.clave_producto,
     codigo: producto.codigo_producto,
+    codigo_indicador_producto_mga: producto.codigo_indicador_producto_mga,
+    total_indicadores: producto.total_indicadores ?? 1,
+    indicadores_hermanos: producto.indicadores_hermanos ?? [],
     producto: producto.producto_mga || producto.indicador_producto_mga || producto.personalizacion_indicador || "",
     producto_mga: producto.producto_mga,
     indicador_producto_mga: producto.indicador_producto_mga,

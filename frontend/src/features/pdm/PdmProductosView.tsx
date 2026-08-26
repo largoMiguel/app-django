@@ -84,14 +84,30 @@ const ProductoRow = memo(function ProductoRow({
   const avanceFinanciero = getAvanceFinancieroAnio(producto);
   const estado = getEstadoProductoAnio(producto, filtroAnio, filtroAnio);
 
+  const tieneHermanos = (producto.total_indicadores ?? 1) > 1;
+
   return (
     <tr className="cursor-pointer transition hover:bg-blue-50/50" onClick={() => onOpenDetalle(producto)}>
       <td className="px-4 py-3">
-        <PdmBadge tone="secondary">{producto.codigo}</PdmBadge>
+        <div className="flex flex-col gap-1">
+          <PdmBadge tone="secondary">{producto.codigo}</PdmBadge>
+          {tieneHermanos && producto.codigo_indicador_producto_mga && (
+            <span className="inline-flex w-fit rounded-md bg-amber-50 px-1.5 py-0.5 text-[0.65rem] font-medium text-amber-800 ring-1 ring-amber-200">
+              {producto.codigo_indicador_producto_mga}
+            </span>
+          )}
+        </div>
       </td>
       <td className="max-w-xs px-4 py-3">
         <p className="font-medium text-slate-900 line-clamp-2">{producto.producto}</p>
-        <p className="text-xs text-slate-500 line-clamp-1">{producto.sector}</p>
+        {tieneHermanos && producto.indicador_producto_mga ? (
+          <>
+            <p className="text-xs text-slate-600 line-clamp-2">{producto.indicador_producto_mga}</p>
+            <p className="text-xs text-slate-400 line-clamp-1">{producto.sector}</p>
+          </>
+        ) : (
+          <p className="text-xs text-slate-500 line-clamp-1">{producto.sector}</p>
+        )}
       </td>
       <td className="hidden px-4 py-3 text-center md:table-cell">
         {formatearNumero(producto.meta_cuatrienio || 0)}
@@ -331,7 +347,7 @@ export default function PdmProductosView({
               className={pdmInput}
               value={filtroBusqueda}
               onChange={(e) => onFiltroBusqueda(e.target.value)}
-              placeholder="Código, nombre, línea..."
+              placeholder="Código, indicador, nombre, línea..."
             />
           </div>
         </div>

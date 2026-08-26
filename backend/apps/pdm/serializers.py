@@ -79,7 +79,7 @@ class PdmActividadSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "entity",
-            "codigo_producto",
+            "clave_producto",
             "anio",
             "nombre",
             "descripcion",
@@ -118,13 +118,17 @@ class PdmProductoListSerializer(serializers.ModelSerializer):
     pagos_anio = serializers.FloatField(read_only=True, required=False)
     avance_financiero_anio = serializers.FloatField(read_only=True, required=False)
     porcentaje_ejecucion = serializers.FloatField(read_only=True, required=False)
+    total_indicadores = serializers.IntegerField(read_only=True, required=False)
     responsable_usuario_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = PdmProducto
         fields = (
             "id",
+            "clave_producto",
             "codigo_producto",
+            "codigo_indicador_producto",
+            "codigo_indicador_producto_mga",
             "producto_mga",
             "indicador_producto_mga",
             "personalizacion_indicador",
@@ -136,6 +140,7 @@ class PdmProductoListSerializer(serializers.ModelSerializer):
             "bpin",
             "unidad_medida",
             "meta_cuatrienio",
+            "principal",
             "programacion_2024",
             "programacion_2025",
             "programacion_2026",
@@ -156,6 +161,7 @@ class PdmProductoListSerializer(serializers.ModelSerializer):
             "pagos_anio",
             "avance_financiero_anio",
             "porcentaje_ejecucion",
+            "total_indicadores",
         )
 
     def get_responsable_usuario_nombre(self, obj) -> str | None:
@@ -176,6 +182,8 @@ class PdmProductoSerializer(serializers.ModelSerializer):
     avance_financiero_anio = serializers.FloatField(read_only=True, required=False)
     porcentaje_ejecucion = serializers.FloatField(read_only=True, required=False)
     resumen_por_anio = serializers.JSONField(read_only=True, required=False)
+    total_indicadores = serializers.IntegerField(read_only=True, required=False)
+    indicadores_hermanos = serializers.JSONField(read_only=True, required=False)
     responsable_usuario_nombre = serializers.SerializerMethodField()
 
     class Meta:
@@ -187,6 +195,7 @@ class PdmProductoSerializer(serializers.ModelSerializer):
             "entidad_territorial",
             "nombre_plan",
             "codigo_indicador_producto",
+            "clave_producto",
             "codigo_producto",
             "linea_estrategica",
             "codigo_sector",
@@ -231,6 +240,8 @@ class PdmProductoSerializer(serializers.ModelSerializer):
             "avance_financiero_anio",
             "porcentaje_ejecucion",
             "resumen_por_anio",
+            "total_indicadores",
+            "indicadores_hermanos",
             "created_at",
             "updated_at",
         )

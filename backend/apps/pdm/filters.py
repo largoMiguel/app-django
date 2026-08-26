@@ -30,7 +30,10 @@ class PdmProductoFilterSet(django_filters.FilterSet):
             return queryset
         q = value.strip()
         return queryset.filter(
-            Q(codigo_producto__icontains=q)
+            Q(clave_producto__icontains=q)
+            | Q(codigo_producto__icontains=q)
+            | Q(codigo_indicador_producto_mga__icontains=q)
+            | Q(codigo_indicador_producto__icontains=q)
             | Q(producto_mga__icontains=q)
             | Q(indicador_producto_mga__icontains=q)
             | Q(personalizacion_indicador__icontains=q)

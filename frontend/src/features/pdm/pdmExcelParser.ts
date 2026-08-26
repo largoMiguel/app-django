@@ -335,7 +335,7 @@ function normalizeCodigo(value: unknown): string {
 }
 
 export function buildPdmUploadPayload(data: PdmExcelData) {
-  const productosPorCodigo = new Map<string, Record<string, string | number | null>>();
+  const productos: Record<string, string | number | null>[] = [];
   for (const producto of data.productos_plan_indicativo) {
     const codigo = normalizeCodigo(producto.codigo_producto);
     if (!codigo) continue;
@@ -344,7 +344,7 @@ export function buildPdmUploadPayload(data: PdmExcelData) {
       if (field === "codigo_producto") continue;
       row[field] = producto[field] ?? null;
     }
-    productosPorCodigo.set(codigo, row);
+    productos.push(row);
   }
 
   const iniciativasPorConsecutivo = new Map<string, PdmIniciativaSgrRow>();
@@ -355,7 +355,7 @@ export function buildPdmUploadPayload(data: PdmExcelData) {
   }
 
   return {
-    productos_plan_indicativo: Array.from(productosPorCodigo.values()),
+    productos_plan_indicativo: productos,
     iniciativas_sgr: Array.from(iniciativasPorConsecutivo.values()),
   };
 }

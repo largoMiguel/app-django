@@ -28,6 +28,7 @@ class PdmProducto(models.Model):
     entidad_territorial = models.CharField(max_length=256, blank=True, null=True)
     nombre_plan = models.CharField(max_length=512, blank=True, null=True)
     codigo_indicador_producto = models.TextField(blank=True, null=True)
+    clave_producto = models.CharField(max_length=96, db_index=True)
     codigo_producto = models.CharField(max_length=64, db_index=True)
 
     linea_estrategica = models.TextField(blank=True, null=True)
@@ -88,15 +89,16 @@ class PdmProducto(models.Model):
         db_table = "pdm_productos"
         verbose_name = "Producto PDM"
         verbose_name_plural = "Productos PDM"
-        ordering = ["codigo_producto"]
+        ordering = ["codigo_producto", "clave_producto"]
         constraints = [
             models.UniqueConstraint(
-                fields=("entity", "codigo_producto"),
-                name="uq_pdm_producto_entity_codigo",
+                fields=("entity", "clave_producto"),
+                name="uq_pdm_producto_entity_clave",
             )
         ]
         indexes = [
             models.Index(fields=("entity", "codigo_producto"), name="pdm_prod_entity_codigo_idx"),
+            models.Index(fields=("entity", "clave_producto"), name="pdm_prod_entity_clave_idx"),
             models.Index(fields=("entity", "responsable_secretaria"), name="pdm_prod_entity_sec_idx"),
         ]
 
@@ -149,7 +151,7 @@ class PdmActividad(models.Model):
         related_name="pdm_actividades",
         db_column="entity_id",
     )
-    codigo_producto = models.CharField(max_length=64, db_index=True)
+    clave_producto = models.CharField(max_length=96, db_index=True)
     anio = models.IntegerField(db_index=True)
     nombre = models.CharField(max_length=512)
     descripcion = models.TextField(blank=True, null=True)
@@ -186,7 +188,7 @@ class PdmActividad(models.Model):
         verbose_name_plural = "Actividades PDM"
         ordering = ["anio", "id"]
         indexes = [
-            models.Index(fields=("entity", "codigo_producto"), name="pdm_act_entity_prod_idx"),
+            models.Index(fields=("entity", "clave_producto"), name="pdm_act_entity_prod_idx"),
             models.Index(fields=("entity", "anio"), name="pdm_act_entity_anio_idx"),
             models.Index(fields=("entity", "responsable_secretaria"), name="pdm_act_entity_sec_idx"),
         ]

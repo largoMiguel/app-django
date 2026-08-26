@@ -198,17 +198,19 @@ def compute_pdm_analytics(
     include_por_secretaria: bool = False,
 ) -> dict:
     productos = _productos_for_analytics(productos_qs)
-    codigos = [p.codigo_producto for p in productos]
-    aggs_map = actividad_aggs_for_productos(entity_id, codigos)
+    claves = [p.clave_producto for p in productos]
+    aggs_map = actividad_aggs_for_productos(entity_id, claves)
 
     productos_relevantes: list[tuple[PdmProducto, dict]] = []
     for p in productos:
-        aggs = aggs_map.get(p.codigo_producto, {})
+        aggs = aggs_map.get(p.clave_producto, {})
         if _producto_cuenta_para_filtro(p, aggs, anio):
             productos_relevantes.append((p, aggs))
 
     codigos_financieros = (
-        [p.codigo_producto for p, _ in productos_relevantes] if anio is not None else codigos
+        list({p.codigo_producto for p, _ in productos_relevantes})
+        if anio is not None
+        else list({p.codigo_producto for p in productos})
     )
     codigos_fin_set = set(codigos_financieros)
     ejecucion_map = ejecucion_por_codigo(entity_id, codigos_financieros, anio)
@@ -251,9 +253,13 @@ def compute_pdm_analytics(
         }
     )
 
+    seen_codigos_ejec: set[str] = set()
     for p in productos:
         if p.codigo_producto not in codigos_fin_set:
             continue
+        if p.codigo_producto in seen_codigos_ejec:
+            continue
+        seen_codigos_ejec.add(p.codigo_producto)
         ej = ejecucion_map.get(p.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
         sector = p.sector_mga or "Sin sector"
         sector_agg[sector]["pto_definitivo"] += ej["pto_definitivo"]
@@ -436,8 +442,9 @@ def compute_pdm_analytics(
 def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -> dict:
     """Agrupa productos por BPIN con avance general y métricas por producto."""
     productos = _productos_for_proyectos(productos_qs)
-    codigos = [p.codigo_producto for p in productos]
-    aggs_map = actividad_aggs_for_productos(entity_id, codigos)
+    claves = [p.clave_producto for p in productos]
+    aggs_map = actividad_aggs_for_productos(entity_id, claves)
+    codigos = list({p.codigo_producto for p in productos})
     ejecucion_fin_map = _ejecucion_por_codigo_anio(entity_id, codigos)
 
     bpin_agg: dict[str, dict] = defaultdict(
@@ -460,9 +467,9 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
             productos_sin_bpin += 1
             continue
 
-        productos_con_bpin.add(p.codigo_producto)
+        productos_con_bpin.add(p.clave_producto)
 
-        aggs = aggs_map.get(p.codigo_producto, {})
+        aggs = aggs_map.get(p.clave_producto, {})
         avance_fisico = avance_general_producto(p, aggs)
         estado = _estado_producto(p, aggs, None)
         presupuesto = _presupuesto_total_producto(p)
@@ -470,8 +477,11 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
         avance_financiero = _avance_financiero_promedio(ej_anios)
 
         item = {
+            "clave_producto": p.clave_producto,
             "codigo_producto": p.codigo_producto,
-            "nombre": p.producto_mga or p.codigo_producto,
+            "codigo_indicador_producto_mga": p.codigo_indicador_producto_mga,
+            "indicador_producto_mga": p.indicador_producto_mga,
+            "nombre": p.producto_mga or p.indicador_producto_mga or p.codigo_producto,
             "linea_estrategica": p.linea_estrategica,
             "sector_mga": p.sector_mga,
             "meta_cuatrienio": float(p.meta_cuatrienio or 0),

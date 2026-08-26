@@ -129,15 +129,25 @@ function ProyectoAccordion({
               <tbody className="divide-y divide-slate-100">
                 {proyecto.productos.map((prod) => (
                   <tr
-                    key={prod.codigo_producto}
+                    key={prod.clave_producto}
                     className="cursor-pointer transition hover:bg-blue-50/50"
-                    onClick={() => onOpenProducto(prod.codigo_producto)}
+                    onClick={() => onOpenProducto(prod.clave_producto)}
                   >
                     <td className="px-4 py-3">
-                      <PdmBadge tone="secondary">{prod.codigo_producto}</PdmBadge>
+                      <div className="flex flex-col gap-1">
+                        <PdmBadge tone="secondary">{prod.codigo_producto}</PdmBadge>
+                        {prod.codigo_indicador_producto_mga && (
+                          <span className="text-[0.65rem] font-medium text-amber-700">
+                            {prod.codigo_indicador_producto_mga}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="max-w-xs px-4 py-3">
                       <p className="font-medium text-slate-900 line-clamp-2">{prod.nombre}</p>
+                      {prod.indicador_producto_mga && (
+                        <p className="mt-0.5 text-xs text-slate-600 line-clamp-2">{prod.indicador_producto_mga}</p>
+                      )}
                       {prod.responsable_secretaria_nombre && (
                         <p className="mt-0.5 text-xs text-slate-500">{prod.responsable_secretaria_nombre}</p>
                       )}
