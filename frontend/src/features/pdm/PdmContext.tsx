@@ -500,7 +500,7 @@ export function PdmProvider({ children }: { children: ReactNode }) {
         setUploadFeedback({
           tone: "success",
           title: "Plan indicativo cargado",
-          detail: `${parsed.productos_plan_indicativo.length} productos procesados. Total en entidad: ${result.total_productos ?? parsed.productos_plan_indicativo.length}.`,
+          detail: `${result.filas_recibidas ?? parsed.productos_plan_indicativo.length} filas recibidas · ${result.claves_procesadas ?? parsed.productos_plan_indicativo.length} claves · Total en entidad: ${result.total_productos ?? 0}.`,
         });
         setError(null);
         navigate("/pdm", { replace: true });

@@ -471,6 +471,9 @@ class PdmUploadView(APIView):
                     prod.clave_producto = clave
                     prod.save()
                     if old_clave != clave:
+                        existing_by_clave.pop(old_clave, None)
+                        if existing_by_legacy_codigo.get(old_clave) is prod:
+                            existing_by_legacy_codigo.pop(old_clave, None)
                         PdmActividad.objects.filter(entity=entity, clave_producto=old_clave).update(
                             clave_producto=clave
                         )
@@ -488,9 +491,7 @@ class PdmUploadView(APIView):
                 if clave == codigo:
                     existing_by_legacy_codigo[codigo] = prod
 
-            for clave, prod in existing_by_clave.items():
-                if clave not in claves_excel:
-                    prod.delete()
+            PdmProducto.objects.filter(entity=entity).exclude(clave_producto__in=claves_excel).delete()
 
             PdmIniciativaSGR.objects.filter(entity=entity).delete()
             iniciativas_por_consecutivo: dict[str, dict] = {}
@@ -504,7 +505,15 @@ class PdmUploadView(APIView):
                 )
 
         total = PdmProducto.objects.filter(entity=entity).count()
-        return Response({"tiene_datos": total > 0, "total_productos": total, "fecha_ultima_carga": timezone.now()})
+        return Response(
+            {
+                "tiene_datos": total > 0,
+                "total_productos": total,
+                "filas_recibidas": len(rows),
+                "claves_procesadas": len(claves_excel),
+                "fecha_ultima_carga": timezone.now(),
+            }
+        )
 
 
 class PdmActividadCreateView(APIView):
