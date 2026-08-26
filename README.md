@@ -262,8 +262,7 @@ Rutas frontend:
 
 | Ruta | Descripción |
 |---|---|
-| `/pdm/informes` | Historial PDF + botón **Crear informe** (selector de tipo) |
-| `/pdm/informes/plan-accion` | Plan de Acción Excel: filtros vigencia/dependencia y descarga inmediata |
+| `/pdm/informes` | Historial PDF + botón **Crear informe** (selector de tipo; Plan de Acción Excel abre modal de configuración) |
 
 **Tipos:** `AVANCE` = Informe de Avance de PDM (PDF) · Plan de Acción = Excel inmediato · `GESTION` = Informe de Gestión (próximamente).
 

@@ -72,7 +72,7 @@ $COMPOSE exec demo-backend python manage.py migrate pdm --noinput
 ### Plan de Acción Excel
 
 - [ ] **Crear informe** muestra dos opciones habilitadas: Avance PDF y Plan de Acción Excel.
-- [ ] Ruta `/pdm/informes/plan-accion` permite elegir vigencia y dependencia (admin).
+- [ ] **Crear informe → Plan de Acción (Excel)** abre modal con vigencia y dependencia (admin).
 - [ ] Descarga genera `.xlsx` con hojas *Plan de acción*, *Resumen por producto* y *Resumen por dependencia*.
 - [ ] Columnas incluyen metas, responsables, por ejecutar, avance y ejecución presupuestal.
 - [ ] Secretario solo exporta su dependencia (sin selector de secretaría).

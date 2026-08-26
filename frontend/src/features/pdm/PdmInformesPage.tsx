@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -6,6 +5,7 @@ import {
   Clock,
   Download,
   FileBarChart2,
+  FileSpreadsheet,
   FileText,
   Filter,
   Loader2,
@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  pdmApi,
   pdmInformesApi,
   type GenerarInformePdmPayload,
   type InformePDM,
@@ -299,13 +300,140 @@ function ReportModal({
   );
 }
 
+interface PlanAccionModalProps {
+  slug: string;
+  onClose: () => void;
+  secretarias: Secretaria[];
+  isAdmin: boolean;
+  defaultAnio: number;
+}
+
+function PlanAccionModal({ slug, onClose, secretarias, isAdmin, defaultAnio }: PlanAccionModalProps) {
+  const [anio, setAnio] = useState(defaultAnio);
+  const [secretariaId, setSecretariaId] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDownload() {
+    if (!slug) return;
+    setDownloading(true);
+    setError(null);
+    const params: Record<string, string> = { anio: String(anio) };
+    if (isAdmin && secretariaId) {
+      params.responsable_secretaria = secretariaId;
+    }
+    const depSuffix = secretariaId ? `_dep${secretariaId}` : "";
+    const filename = `Plan_Accion_PDM_${slug}_${anio}${depSuffix}.xlsx`;
+    try {
+      await pdmApi.downloadPlanAccion(slug, params, filename);
+      onClose();
+    } catch (err) {
+      setError(formatApiError(err, "No se pudo generar el Excel del plan de acción."));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between bg-[#0e7490] px-6 py-4 text-white">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            <span className="text-base font-semibold">Configurar Plan de Acción (Excel)</span>
+          </div>
+          <button type="button" onClick={onClose} className="rounded p-1 transition-colors hover:bg-white/20">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-5 p-6">
+          <p className="text-sm text-slate-600">
+            Exporte actividades, metas, responsables y resúmenes por producto y dependencia. La descarga es inmediata
+            y no se guarda historial en el servidor.
+          </p>
+
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          )}
+
+          <div>
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">Vigencia</label>
+            <select
+              value={anio}
+              onChange={(e) => setAnio(Number(e.target.value))}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#0e7490] focus:outline-none"
+            >
+              {ANIOS_PDM.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {isAdmin && (
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">Dependencia (opcional)</label>
+              <select
+                value={secretariaId}
+                onChange={(e) => setSecretariaId(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#0e7490] focus:outline-none"
+              >
+                <option value="">Toda la entidad</option>
+                {secretarias.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={downloading}
+            className="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-60"
+          >
+            <X className="h-4 w-4" /> Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDownload()}
+            disabled={downloading}
+            className="flex items-center gap-2 rounded-md bg-[#0e7490] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#0c6178] disabled:opacity-60"
+          >
+            {downloading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Generando…
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4" /> Descargar Excel
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PdmInformesPage() {
-  const navigate = useNavigate();
   const { slug, isAdmin, isSecretario, filtroAnio, entityId, secretariaUsuarioId } = usePdm();
   const entity = useAuthStore((s) => s.user?.entity);
   const queryClient = useQueryClient();
   const [showPicker, setShowPicker] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showPlanAccionModal, setShowPlanAccionModal] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -400,7 +528,7 @@ export default function PdmInformesPage() {
       return;
     }
     if (id === "PLAN_ACCION") {
-      navigate("/pdm/informes/plan-accion");
+      setShowPlanAccionModal(true);
     }
   }
 
@@ -577,6 +705,16 @@ export default function PdmInformesPage() {
           isSecretario={isSecretario}
           secretariaUsuarioId={secretariaUsuarioId}
           submitting={submitting}
+          defaultAnio={filtroAnio}
+        />
+      )}
+
+      {showPlanAccionModal && (
+        <PlanAccionModal
+          slug={slug}
+          onClose={() => setShowPlanAccionModal(false)}
+          secretarias={secretarias}
+          isAdmin={isAdmin}
           defaultAnio={filtroAnio}
         />
       )}
