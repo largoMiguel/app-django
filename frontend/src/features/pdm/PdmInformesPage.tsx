@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -30,7 +31,7 @@ import { pdmBtnPrimary } from "@/features/pdm/pdmStyles";
 import {
   INFORME_PDM_TIPO_LABEL,
   PDM_INFORME_TYPES,
-  type InformePdmTipo,
+  type PdmInformePickerTipo,
 } from "@/features/pdm/informes/pdmInformeTypes";
 
 const INFORME_TIPO = "AVANCE" as const;
@@ -53,7 +54,7 @@ function TypePickerModal({
   onSelect,
 }: {
   onClose: () => void;
-  onSelect: (id: InformePdmTipo) => void;
+  onSelect: (id: PdmInformePickerTipo) => void;
 }) {
   return (
     <div
@@ -299,6 +300,7 @@ function ReportModal({
 }
 
 export default function PdmInformesPage() {
+  const navigate = useNavigate();
   const { slug, isAdmin, isSecretario, filtroAnio, entityId, secretariaUsuarioId } = usePdm();
   const entity = useAuthStore((s) => s.user?.entity);
   const queryClient = useQueryClient();
@@ -391,10 +393,14 @@ export default function PdmInformesPage() {
     }
   }
 
-  function handleTypeSelect(id: InformePdmTipo) {
+  function handleTypeSelect(id: PdmInformePickerTipo) {
     setShowPicker(false);
     if (id === "AVANCE") {
       setShowReportModal(true);
+      return;
+    }
+    if (id === "PLAN_ACCION") {
+      navigate("/pdm/informes/plan-accion");
     }
   }
 

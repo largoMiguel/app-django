@@ -1,10 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, FileBarChart2 } from "lucide-react";
+import { BarChart3, FileBarChart2, FileSpreadsheet } from "lucide-react";
 
 export type InformePdmTipo = "AVANCE" | "GESTION";
 
+export type PdmInformePickerTipo = InformePdmTipo | "PLAN_ACCION";
+
 export interface PdmInformeTypeDefinition {
-  id: InformePdmTipo;
+  id: PdmInformePickerTipo;
   title: string;
   description: string;
   icon: LucideIcon;
@@ -22,6 +24,14 @@ export const PDM_INFORME_TYPES: PdmInformeTypeDefinition[] = [
     enabled: true,
   },
   {
+    id: "PLAN_ACCION",
+    title: "Plan de Acción (Excel)",
+    description:
+      "Exportación inmediata del plan de acción por vigencia y dependencia: actividades, metas, responsables, avance y resúmenes por producto y secretaría.",
+    icon: FileSpreadsheet,
+    enabled: true,
+  },
+  {
     id: "GESTION",
     title: "Informe de Gestión",
     description:
@@ -32,7 +42,7 @@ export const PDM_INFORME_TYPES: PdmInformeTypeDefinition[] = [
   },
 ];
 
-export function getPdmInformeType(id: InformePdmTipo): PdmInformeTypeDefinition | undefined {
+export function getPdmInformeType(id: PdmInformePickerTipo): PdmInformeTypeDefinition | undefined {
   return PDM_INFORME_TYPES.find((t) => t.id === id);
 }
 

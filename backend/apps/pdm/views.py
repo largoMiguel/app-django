@@ -57,6 +57,7 @@ from .metrics import (
 from .analytics import compute_pdm_analytics, compute_pdm_proyectos
 from .bpin_view import DATOS_GOV_CO_PORTAL, consultar_bpines_externos
 from .piip_export import build_piip_workbook, workbook_to_bytes
+from .plan_accion_export import build_plan_accion_export
 from .stats import compute_estado_stats, compute_pdm_stats_from_queryset, filter_options_from_productos, productos_for_stats
 from .models import (
     ActividadEstado,
@@ -978,6 +979,54 @@ class PdmExportPiipView(APIView):
         wb = build_piip_workbook(entity, request.user, anio)
         content = workbook_to_bytes(wb)
         filename = f"PIIP_{entity.slug}_{anio}.xlsx"
+        response = HttpResponse(
+            content,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class PdmExportPlanAccionView(APIView):
+    """Exporta Excel Plan de Acción del año seleccionado (descarga directa, sin persistir)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, slug: str):
+        entity = _entity_or_404(slug)
+        _ensure_user_can_manage_entity(request.user, entity)
+        if not (_is_admin(request.user) or _is_secretario(request.user)):
+            raise PermissionDenied("Solo admin o secretario pueden exportar el plan de acción.")
+
+        anio_param = request.query_params.get("anio")
+        try:
+            anio = int(anio_param) if anio_param else datetime.now().year
+        except (TypeError, ValueError):
+            anio = datetime.now().year
+        if anio not in ANIOS_PDM:
+            raise ValidationError({"anio": f"Año no válido. Use uno de: {', '.join(map(str, ANIOS_PDM))}."})
+
+        secretaria_id = request.query_params.get("responsable_secretaria")
+        secretaria_id_int = None
+        if secretaria_id:
+            try:
+                secretaria_id_int = int(secretaria_id)
+            except (TypeError, ValueError):
+                raise ValidationError({"responsable_secretaria": "ID de dependencia no válido."})
+            if not Secretaria.objects.filter(pk=secretaria_id_int, entity_id=entity.id).exists():
+                raise ValidationError({"responsable_secretaria": "Dependencia no válida."})
+
+        if _is_secretario(request.user) and not _is_admin(request.user):
+            if not request.user.secretaria_id:
+                raise PermissionDenied("Su usuario no tiene secretaría asignada.")
+            secretaria_id_int = request.user.secretaria_id
+
+        content, filename = build_plan_accion_export(
+            entity,
+            request.user,
+            anio,
+            responsable_secretaria_id=secretaria_id_int,
+        )
         response = HttpResponse(
             content,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

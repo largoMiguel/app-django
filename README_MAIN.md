@@ -6,8 +6,24 @@ Documento de referencia para migrar cambios validados en **demo** (`development`
 >
 > | Rama | URL | Notas |
 > |------|-----|-------|
-> | `development` | https://demo.softone360.com | Incluye soporte PDM multi-indicador (`clave_producto`) |
-> | `main` | https://app.softone360.com | Igualada a `development` hasta el próximo merge |
+> | `development` | https://demo.softone360.com | Incluye soporte PDM multi-indicador (`clave_producto`) + **Plan de Acción Excel** en Informes PDM |
+> | `main` | https://app.softone360.com | Pendiente merge: Plan de Acción Excel PDM |
+
+---
+
+## Cambio PDM: Plan de Acción (Excel)
+
+Nuevo informe en **PDM → Informes → Crear informe → Plan de Acción (Excel)**:
+
+- Descarga **inmediata** (sin Celery, sin B2, sin historial).
+- Filtros: **vigencia** (2024–2027) y **dependencia** (admin; secretario forzado a su secretaría).
+- Endpoint: `GET /api/v1/pdm/v2/{slug}/export-plan-accion?anio=&responsable_secretaria=`
+- Archivo: `Plan_Accion_PDM_{slug}_{anio}.xlsx` con tres hojas:
+  1. **Plan de acción** — una fila por actividad (meta, responsables, estado, evidencias).
+  2. **Resumen por producto** — metas programadas/asignadas/ejecutadas, avance físico y financiero.
+  3. **Resumen por dependencia** — consolidado por secretaría.
+
+**No requiere migraciones** ni variables de entorno adicionales.
 
 ---
 
@@ -53,7 +69,16 @@ $COMPOSE exec demo-backend python manage.py migrate pdm --noinput
 
 ## Checklist: validar en demo (antes de prod)
 
-- [ ] Cargar Excel PDM con productos repetidos → total productos = filas del Excel (p. ej. 108).
+### Plan de Acción Excel
+
+- [ ] **Crear informe** muestra dos opciones habilitadas: Avance PDF y Plan de Acción Excel.
+- [ ] Ruta `/pdm/informes/plan-accion` permite elegir vigencia y dependencia (admin).
+- [ ] Descarga genera `.xlsx` con hojas *Plan de acción*, *Resumen por producto* y *Resumen por dependencia*.
+- [ ] Columnas incluyen metas, responsables, por ejecutar, avance y ejecución presupuestal.
+- [ ] Secretario solo exporta su dependencia (sin selector de secretaría).
+- [ ] No aparece en historial de informes PDF (descarga inmediata).
+
+### Productos multi-indicador
 - [ ] Producto `4003018` aparece **dos veces** en la lista, distinguible por indicador.
 - [ ] Buscar `400301802` o `IP-35` encuentra el indicador correcto.
 - [ ] Detalle muestra selector de indicadores hermanos y nota de ejecución compartida.

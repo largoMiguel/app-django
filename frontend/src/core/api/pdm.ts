@@ -443,6 +443,15 @@ export const pdmApi = {
     const filename = `PIIP_${slug}_${anio}.xlsx`;
     return downloadAuthenticatedFile(url, filename);
   },
+  exportPlanAccionUrl: (slug: string, params: Record<string, string>) => {
+    const qs = new URLSearchParams(params).toString();
+    const base = import.meta.env.VITE_API_URL || "/api/v1";
+    return `${base}/pdm/v2/${encodeURIComponent(slug)}/export-plan-accion?${qs}`;
+  },
+  downloadPlanAccion: async (slug: string, params: Record<string, string>, filename: string) => {
+    const url = pdmApi.exportPlanAccionUrl(slug, params);
+    await downloadAuthenticatedFile(url, filename);
+  },
   chatAnalytics: (slug: string) =>
     api
       .get<PdmChatAnalytics>(`/pdm/v2/${encodeURIComponent(slug)}/chat/analytics/`)

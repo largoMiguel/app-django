@@ -236,22 +236,38 @@ Query param `anio` (opcional): año de seguimiento; por defecto el año actual. 
 
 ## Informes PDM
 
-Pestaña **Informes** en el módulo PDM (roles `admin` y `secretario`). La sección agrupa varios tipos de informe PDF; hoy está habilitado el **Informe de Avance de PDM** (`tipo=AVANCE`). El **Informe de Gestión** (`tipo=GESTION`) queda reservado para una fase posterior.
+Pestaña **Informes** en el módulo PDM (roles `admin` y `secretario`). La sección agrupa varios tipos de informe; botón **Crear informe** con selector de tipo:
 
-Generación **asíncrona** con Celery (membrete institucional, gráficas matplotlib, ejecución por producto y evidencias opcionales).
+| Tipo | Formato | Comportamiento |
+|---|---|---|
+| **Informe de Avance de PDM** | PDF | Generación **asíncrona** con Celery: membrete institucional, gráficas, ejecución por producto y evidencias. Historial con retención **7 días**. |
+| **Plan de Acción** | Excel | Descarga **inmediata** vía `GET /export-plan-accion/`; no se guarda en servidor ni hay historial. Tres hojas: actividades, resumen por producto/meta y resumen por dependencia. |
+| **Informe de Gestión** | PDF | Próximamente (`tipo=GESTION`). |
+
+Generación PDF **asíncrona** con Celery (membrete institucional, gráficas matplotlib, ejecución por producto y evidencias opcionales).
 
 | Método | Endpoint | Descripción |
 |---|---|---|
-| `GET` | `/api/v1/pdm/v2/{slug}/informes/?tipo=AVANCE` | Historial por tipo (purga perezosa de expirados) |
-| `POST` | `/api/v1/pdm/v2/{slug}/informes/` | Encola generación → `201` con estado `PENDIENTE`; `409` si ya hay uno del mismo tipo en cola/proceso |
+| `GET` | `/api/v1/pdm/v2/{slug}/informes/?tipo=AVANCE` | Historial PDF por tipo (purga perezosa de expirados) |
+| `POST` | `/api/v1/pdm/v2/{slug}/informes/` | Encola generación PDF → `201` con estado `PENDIENTE`; `409` si ya hay uno del mismo tipo en cola/proceso |
 | `GET` | `/api/v1/pdm/v2/{slug}/informes/{id}/download/` | Descarga PDF desde B2 (bucket PDM) |
-| `DELETE` | `/api/v1/pdm/v2/{slug}/informes/{id}/` | Elimina registro y archivo en B2 |
+| `DELETE` | `/api/v1/pdm/v2/{slug}/informes/{id}/` | Elimina registro PDF y archivo en B2 |
+| `GET` | `/api/v1/pdm/v2/{slug}/export-plan-accion?anio=2026&responsable_secretaria=` | Descarga Excel Plan de Acción (inmediato; encabezados cyan `#0E7490`) |
 
-**Body POST:** `tipo` (`AVANCE`; `GESTION` rechazado hasta implementación), `anio`, `usuario_firmante_id` (obligatorio), `responsable_secretaria_id` (opcional; admin filtra dependencia), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
+**Body POST (PDF):** `tipo` (`AVANCE`; `GESTION` rechazado hasta implementación), `anio`, `usuario_firmante_id` (obligatorio), `responsable_secretaria_id` (opcional; admin filtra dependencia), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
 
-**Tipos:** `AVANCE` = Informe de Avance de PDM · `GESTION` = Informe de Gestión (próximamente).
+**Query params Excel Plan de Acción:** `anio` (2024–2027; default año actual), `responsable_secretaria` (opcional; admin filtra dependencia; secretario queda forzado a su secretaría).
 
-**Roles:** `admin` puede filtrar por dependencia o toda la entidad; `secretario` queda forzado a su secretaría. Retención **7 días** (`expires_at`); purga automática Celery Beat `03:45` (`purge_expired_informes_pdm`) y al listar. Requiere `celery-worker` y `celery-beat` activos.
+Rutas frontend:
+
+| Ruta | Descripción |
+|---|---|
+| `/pdm/informes` | Historial PDF + botón **Crear informe** (selector de tipo) |
+| `/pdm/informes/plan-accion` | Plan de Acción Excel: filtros vigencia/dependencia y descarga inmediata |
+
+**Tipos:** `AVANCE` = Informe de Avance de PDM (PDF) · Plan de Acción = Excel inmediato · `GESTION` = Informe de Gestión (próximamente).
+
+**Roles:** `admin` puede filtrar por dependencia o toda la entidad; `secretario` queda forzado a su secretaría (PDF y Excel). Retención PDF **7 días** (`expires_at`); purga automática Celery Beat `03:45` (`purge_expired_informes_pdm`) y al listar. Requiere `celery-worker` y `celery-beat` activos para PDF.
 
 ---
 
