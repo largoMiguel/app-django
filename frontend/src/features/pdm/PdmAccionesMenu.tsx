@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Download, MoreHorizontal, RefreshCw, Upload } from "lucide-react";
+import { ChevronDown, Download, Link2, MoreHorizontal, RefreshCw, Upload } from "lucide-react";
 import { pdmBtnPrimary } from "@/features/pdm/pdmStyles";
 
 interface PdmAccionesMenuProps {
   onExportarPiip: () => void;
   onContratos: () => void;
   onEjecucion: () => void;
+  onArmonizaciones?: () => void;
   onRecargarPdm: () => void;
   disabled?: boolean;
 }
@@ -14,6 +15,7 @@ export default function PdmAccionesMenu({
   onExportarPiip,
   onContratos,
   onEjecucion,
+  onArmonizaciones,
   onRecargarPdm,
   disabled,
 }: PdmAccionesMenuProps) {
@@ -85,6 +87,20 @@ export default function PdmAccionesMenu({
             <Upload className="h-4 w-4 text-emerald-600" />
             Ejecución presupuestal
           </button>
+          {onArmonizaciones ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+              onClick={() => {
+                setOpen(false);
+                onArmonizaciones();
+              }}
+            >
+              <Link2 className="h-4 w-4 text-amber-700" />
+              Armonizaciones presupuesto
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"

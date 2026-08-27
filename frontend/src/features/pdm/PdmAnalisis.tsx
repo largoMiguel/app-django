@@ -5,6 +5,7 @@ import {
   CartesianGrid,
   Cell,
   ComposedChart,
+  LabelList,
   Legend,
   Line,
   Pie,
@@ -165,6 +166,30 @@ function AnalisisContent({
         meta_ejecutada_total: m.meta_ejecutada_total ?? 0,
       })),
     [data.metas_por_anio],
+  );
+
+  const lineaChartData = useMemo(
+    () =>
+      data.por_linea.map((l, idx) => ({
+        name: truncateLabel(l.linea, 26),
+        fullName: l.linea,
+        avance_pct: l.avance_pct,
+        productos: l.productos,
+        color: SECTOR_COLORS[idx % SECTOR_COLORS.length],
+      })),
+    [data.por_linea],
+  );
+
+  const secretariaChartData = useMemo(
+    () =>
+      data.por_secretaria.map((s) => ({
+        name: truncateLabel(s.secretaria, 22),
+        fullName: s.secretaria,
+        avance_pct: s.avance_pct,
+        avance_financiero_pct: Number((s.avance_financiero_pct ?? 0).toFixed(1)),
+        productos: s.productos,
+      })),
+    [data.por_secretaria],
   );
 
   const odsPieData = useMemo(
@@ -432,6 +457,54 @@ function AnalisisContent({
       </div>
 
       <PdmCard title="Por Línea Estratégica" icon={<Layers size={16} />}>
+        {lineaChartData.length > 0 && (
+          <div className="mb-5 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+            <p className="mb-3 text-center text-sm font-medium text-slate-600">
+              Avance por línea estratégica ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+            </p>
+            <ResponsiveContainer width="100%" height={Math.max(180, lineaChartData.length * 42)}>
+              <BarChart
+                data={lineaChartData}
+                layout="vertical"
+                margin={{ top: 4, right: 48, left: 8, bottom: 4 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                <XAxis
+                  type="number"
+                  domain={[0, 100]}
+                  tick={{ fontSize: 10, fill: "#64748b" }}
+                  tickFormatter={(v) => `${v}%`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={170}
+                  tick={{ fontSize: 11, fill: "#475569" }}
+                  interval={0}
+                />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  formatter={(value, _name, item) => [
+                    `${value}% · ${(item?.payload as { productos?: number })?.productos ?? 0} producto(s)`,
+                    "Avance",
+                  ]}
+                  labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullName ?? ""}
+                />
+                <Bar dataKey="avance_pct" name="Avance %" radius={[0, 4, 4, 0]} barSize={18}>
+                  {lineaChartData.map((entry) => (
+                    <Cell key={entry.fullName} fill={entry.color} />
+                  ))}
+                  <LabelList
+                    dataKey="avance_pct"
+                    position="right"
+                    formatter={(v) => `${v}%`}
+                    style={{ fontSize: 11, fill: "#475569" }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
         <div className="max-h-96 space-y-4 overflow-y-auto pr-1">
           {data.por_linea.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-500">Sin datos por línea estratégica.</p>
@@ -606,6 +679,68 @@ function AnalisisContent({
           icon={<Layers size={16} className="text-indigo-600" />}
           headerClassName="border-b border-indigo-100 bg-indigo-50/90"
         >
+          <div className="mb-5 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+            <p className="mb-3 text-center text-sm font-medium text-slate-600">
+              Avance físico y financiero por secretaría (
+              {anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+            </p>
+            <ResponsiveContainer width="100%" height={Math.max(200, secretariaChartData.length * 52)}>
+              <BarChart
+                data={secretariaChartData}
+                layout="vertical"
+                margin={{ top: 4, right: 48, left: 8, bottom: 4 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                <XAxis
+                  type="number"
+                  domain={[0, 100]}
+                  tick={{ fontSize: 10, fill: "#64748b" }}
+                  tickFormatter={(v) => `${v}%`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={150}
+                  tick={{ fontSize: 11, fill: "#475569" }}
+                  interval={0}
+                />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  formatter={(value) => `${value}%`}
+                  labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullName ?? ""}
+                />
+                <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8 }} />
+                <Bar
+                  dataKey="avance_pct"
+                  name="Avance físico"
+                  fill="#6366f1"
+                  radius={[0, 4, 4, 0]}
+                  barSize={12}
+                >
+                  <LabelList
+                    dataKey="avance_pct"
+                    position="right"
+                    formatter={(v) => `${v}%`}
+                    style={{ fontSize: 10, fill: "#475569" }}
+                  />
+                </Bar>
+                <Bar
+                  dataKey="avance_financiero_pct"
+                  name="Avance financiero"
+                  fill="#20c997"
+                  radius={[0, 4, 4, 0]}
+                  barSize={12}
+                >
+                  <LabelList
+                    dataKey="avance_financiero_pct"
+                    position="right"
+                    formatter={(v) => `${v}%`}
+                    style={{ fontSize: 10, fill: "#475569" }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>

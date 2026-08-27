@@ -36,6 +36,7 @@ function PdmLayoutInner() {
     handleExportarPiip,
     setModalContratos,
     setModalEjecucion,
+    abrirModalArmonizacion,
     volverDesdeDetalle,
   } = usePdm();
 
@@ -91,6 +92,7 @@ function PdmLayoutInner() {
               onExportarPiip={() => void handleExportarPiip()}
               onContratos={() => setModalContratos(true)}
               onEjecucion={() => setModalEjecucion(true)}
+              onArmonizaciones={() => abrirModalArmonizacion()}
               onRecargarPdm={triggerRecargarPdm}
             />
           )}

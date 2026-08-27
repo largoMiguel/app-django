@@ -237,7 +237,7 @@ Cuando el Excel de **ejecución presupuestal** trae códigos que no existen en e
 | `DELETE` | `/api/v1/pdm/ejecucion/armonizaciones/{id}/` | Revertir armonización |
 | `GET` | `/api/v1/pdm/ejecucion/armonizaciones/candidatos/?search=` | Productos del plan para el selector |
 
-UI: **PDM → Resumen** → tarjeta de advertencia → botón **Armonizar** (solo admin).
+UI: **PDM → Resumen** → tarjeta de advertencia → botón **Armonizar** (solo admin). Para consultar o revertir las vigentes en cualquier momento: **PDM → Acciones → Armonizaciones presupuesto**.
 
 Requiere migración `pdm.0010_pdm_armonizacion`.
 

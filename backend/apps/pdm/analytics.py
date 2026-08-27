@@ -476,11 +476,12 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
             "en_progreso": 0,
             "pendientes": 0,
             "por_ejecutar": 0,
-            "presupuesto_total": 0.0,
+            "codigos": set(),
         }
     )
     productos_sin_bpin = 0
     productos_con_bpin: set[str] = set()
+    ejecucion_map = ejecucion_por_codigo(entity_id, codigos)
 
     for p in productos:
         bpines = _parse_bpines(p.bpin)
@@ -493,7 +494,7 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
         aggs = aggs_map.get(p.clave_producto, {})
         avance_fisico = avance_general_producto(p, aggs)
         estado = _estado_producto(p, aggs, None)
-        presupuesto = _presupuesto_total_producto(p)
+        ej = ejecucion_map.get(p.codigo_producto, {"pto_definitivo": 0.0, "pagos": 0.0})
         ej_anios = ejecucion_fin_map.get(p.codigo_producto, {})
         avance_financiero = _avance_financiero_promedio(ej_anios)
 
@@ -510,7 +511,8 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
             "avance": avance_fisico,
             "avance_financiero": avance_financiero,
             "estado": estado,
-            "presupuesto": presupuesto,
+            "pto_definitivo": ej["pto_definitivo"],
+            "pagos": ej["pagos"],
         }
 
         estado_key = {
@@ -524,7 +526,7 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
             group = bpin_agg[bpin]
             group["productos"].append(item)
             group["avance_sum"] += avance_fisico
-            group["presupuesto_total"] += presupuesto
+            group["codigos"].add(p.codigo_producto)
             if estado_key:
                 group[estado_key] += 1
 
@@ -535,6 +537,7 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
         total = len(data["productos"])
         avance_general = round(data["avance_sum"] / total, 1) if total else 0.0
         avance_global_sum += data["avance_sum"]
+        totales = totales_ejecucion_codigos(ejecucion_map, list(data["codigos"]))
         proyectos.append(
             {
                 "bpin": bpin,
@@ -544,7 +547,8 @@ def compute_pdm_proyectos(productos_qs: QuerySet[PdmProducto], entity_id: int) -
                 "en_progreso": data["en_progreso"],
                 "pendientes": data["pendientes"],
                 "por_ejecutar": data["por_ejecutar"],
-                "presupuesto_total": data["presupuesto_total"],
+                "pto_definitivo": totales["pto_definitivo"],
+                "pagos": totales["pagos"],
                 "productos": sorted(data["productos"], key=lambda x: x["codigo_producto"]),
             }
         )

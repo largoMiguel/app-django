@@ -2,12 +2,32 @@
 
 Documento de referencia para migrar cambios validados en **demo** (`development`) hacia **producción** (`main`).
 
-> **Estado al 26 ago 2026**
+> **Estado al 27 ago 2026**
 >
 > | Rama | URL | Notas |
 > |------|-----|-------|
-> | `development` | https://demo.softone360.com | Incluye soporte PDM multi-indicador (`clave_producto`) + **Plan de Acción Excel** + **armonización presupuesto ↔ PDM** |
-> | `main` | https://app.softone360.com | Pendiente merge: Plan de Acción Excel PDM + armonización presupuesto ↔ PDM |
+> | `development` | https://demo.softone360.com | En sync con `main` |
+> | `main` | https://app.softone360.com | PDM multi-indicador + Plan de Acción Excel + armonización presupuesto ↔ PDM + gráficas Análisis + ejecución en Proyectos |
+
+---
+
+## Cambio PDM: gráficas en Análisis y etiqueta de presupuesto en Proyectos
+
+Cambios **solo de frontend** (`frontend/src/features/pdm/PdmAnalisis.tsx`). No hay endpoints nuevos, migraciones ni variables de entorno.
+
+- **Análisis → Por Línea Estratégica:** además de las barras de progreso, gráfico de barras horizontal con el avance por línea (etiqueta de % al final de cada barra y tooltip con nombre completo y número de productos).
+- **Análisis → Análisis por Secretaría:** gráfico de barras horizontal agrupado con **avance físico** y **avance financiero** por secretaría, sobre la tabla existente. Solo visible para `admin` (igual que la tabla).
+- Ambas gráficas respetan los filtros de **año** y **secretaría** de la pestaña Análisis y crecen en altura según el número de filas.
+
+---
+
+## Cambio PDM: ejecución presupuestal en Proyectos (BPIN)
+
+Backend (`backend/apps/pdm/analytics.py`) + frontend (`PdmProyectosView.tsx`). Sin migraciones ni variables de entorno.
+
+- Endpoint `GET /api/v1/pdm/v2/{slug}/proyectos`: cada proyecto expone `pto_definitivo` y `pagos` (ejecución presupuestal consolidada 2024-2027) en lugar de `presupuesto_total`.
+- Los totales del proyecto suman códigos MGA **únicos** (indicadores hermanos no duplican ejecución).
+- UI: bloque **Total Consolidado** con **Pto. Definitivo** y **Pagos** en la tarjeta; columnas **Pto. Def.** y **Pagos** en la tabla de productos.
 
 ---
 
@@ -19,7 +39,8 @@ Permite asignar códigos de ejecución del Excel que no existen en el Plan Indic
 - Rol: solo **admin** de la entidad.
 - Endpoints: `GET/POST /api/v1/pdm/ejecucion/armonizaciones/`, `DELETE .../{id}/`, `GET .../candidatos/?search=`.
 - UI: PDM → Resumen → advertencia **Ejecución sin producto en el Plan Indicativo** → **Armonizar**.
-- Tras armonizar, la advertencia desaparece y el producto destino muestra badge *Incluye ejecución armonizada de: …*.
+- Acceso permanente (aunque no haya advertencia): **PDM → Acciones → Armonizaciones presupuesto** (solo admin), para consultar y **revertir** las vigentes.
+- Tras armonizar, la advertencia desaparece y el producto destino muestra badge *Incluye ejecución armonizada de: …* (en la pestaña de ejecución presupuestal del detalle, bajo la tabla), con enlace a Acciones → Armonizaciones presupuesto para revertir.
 - Las recargas del Excel respetan las armonizaciones guardadas.
 
 ---
@@ -107,6 +128,20 @@ $COMPOSE exec demo-backend python manage.py migrate pdm --noinput
 - [ ] Recargar Excel de ejecución del año mantiene la armonización.
 - [ ] **Revertir** en el modal restaura el código huérfano en la advertencia.
 - [ ] Secretario **no** ve botón Armonizar ni puede llamar los endpoints.
+- [ ] **Acciones → Armonizaciones presupuesto** abre el modal con las armonizaciones vigentes y permite revertir.
+
+### Gráficas en Análisis PDM
+- [ ] **Análisis → Por Línea Estratégica** muestra el gráfico de barras horizontal con el % de avance por línea.
+- [ ] **Análisis → Análisis por Secretaría** (admin) muestra el gráfico de barras con avance físico y financiero sobre la tabla.
+- [ ] Cambiar el filtro de **año** o de **secretaría** actualiza ambas gráficas.
+- [ ] Con muchas líneas/secretarías el gráfico crece en alto y las etiquetas no se solapan.
+- [ ] Entidad sin datos por línea: no se renderiza el gráfico y se mantiene el mensaje *Sin datos por línea estratégica*.
+
+### Proyectos (BPIN) — ejecución presupuestal
+- [ ] Cada tarjeta de proyecto muestra **Total Consolidado** con **Pto. Definitivo** y **Pagos**.
+- [ ] Al expandir el proyecto, las columnas **Pto. Def.** y **Pagos** aparecen por producto (ocultas en móvil).
+- [ ] El total consolidado de la tarjeta coincide con la suma de códigos MGA únicos (sin duplicar indicadores hermanos).
+- [ ] Proyecto sin ejecución cargada muestra $0 en ambos campos.
 
 ---
 

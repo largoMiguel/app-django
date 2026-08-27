@@ -220,7 +220,8 @@ export interface PdmProyectoProducto {
   avance: number;
   avance_financiero: number;
   estado: string;
-  presupuesto: number;
+  pto_definitivo: number;
+  pagos: number;
 }
 
 export interface PdmProyecto {
@@ -235,7 +236,8 @@ export interface PdmProyecto {
   en_progreso: number;
   pendientes: number;
   por_ejecutar: number;
-  presupuesto_total: number;
+  pto_definitivo: number;
+  pagos: number;
   productos: PdmProyectoProducto[];
 }
 

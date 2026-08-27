@@ -91,9 +91,30 @@ function ProyectoAccordion({
               <span className="text-amber-600">{proyecto.pendientes} pendiente(s)</span>
             )}
           </div>
-          <p className="text-sm font-medium text-emerald-700">
-            {formatearMoneda(proyecto.presupuesto_total)}
-          </p>
+          <div
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 sm:min-w-[180px]"
+            title="Ejecución presupuestal consolidada (2024-2027) de los productos del proyecto"
+          >
+            <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+              Total Consolidado
+            </p>
+            <table className="w-full text-xs">
+              <tbody>
+                <tr>
+                  <td className="py-0.5 text-slate-500">Pto. Definitivo:</td>
+                  <td className="py-0.5 text-right font-semibold text-slate-800">
+                    {formatearMoneda(proyecto.pto_definitivo)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-0.5 text-blue-700">Pagos:</td>
+                  <td className="py-0.5 text-right font-semibold text-blue-700">
+                    {formatearMoneda(proyecto.pagos)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </button>
 
@@ -114,6 +135,12 @@ function ProyectoAccordion({
                   </th>
                   <th className="hidden px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 md:table-cell">
                     Meta cuat.
+                  </th>
+                  <th className="hidden px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 md:table-cell">
+                    Pto. Def.
+                  </th>
+                  <th className="hidden px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 md:table-cell">
+                    Pagos
                   </th>
                   <th className="min-w-[110px] px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Avance Físico
@@ -154,6 +181,12 @@ function ProyectoAccordion({
                     </td>
                     <td className="hidden px-4 py-3 text-center text-slate-700 md:table-cell">
                       {formatearNumero(prod.meta_cuatrienio || 0)}
+                    </td>
+                    <td className="hidden px-4 py-3 text-right font-medium text-slate-800 md:table-cell">
+                      {formatearMoneda(prod.pto_definitivo || 0)}
+                    </td>
+                    <td className="hidden px-4 py-3 text-right font-medium text-blue-700 md:table-cell">
+                      {formatearMoneda(prod.pagos || 0)}
                     </td>
                     <td className="min-w-[110px] px-4 py-3">
                       <p className="mb-1 text-[0.65rem] font-medium uppercase tracking-wide text-slate-400">Físico</p>
@@ -262,7 +295,8 @@ export default function PdmProyectosView({ data, isLoading, onOpenProducto }: Pd
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-600">
             Proyectos unificados por código BPIN con sus productos del Plan Indicativo. Haga clic en un
-            producto para ver su detalle.
+            producto para ver su detalle. El bloque <strong>Total Consolidado</strong> muestra la ejecución
+            presupuestal (Pto. Definitivo y Pagos) de los productos del proyecto en el cuatrienio.
           </p>
           <div className="relative w-full sm:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />

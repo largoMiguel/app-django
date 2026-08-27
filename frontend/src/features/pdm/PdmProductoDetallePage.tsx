@@ -36,6 +36,7 @@ export default function PdmProductoDetallePage() {
         onCargarEvidencia={pdm.handleCargarEvidencia}
         unidad={pdm.productoSeleccionado.unidad_medida || "N/D"}
         onAbrirBpin={pdm.handleAbrirBpin}
+        onGestionarArmonizaciones={() => pdm.abrirModalArmonizacion()}
       />
     </Suspense>
   );

@@ -81,6 +81,7 @@ export interface PdmProductoDetalleProps {
   onEliminarActividad: (actividad: PdmActividad) => void;
   onCargarEvidencia: (actividad: PdmActividad) => void;
   onAbrirBpin: (bpin: string) => void;
+  onGestionarArmonizaciones?: () => void;
   unidad: string;
 }
 
@@ -117,6 +118,7 @@ export default function PdmProductoDetalle({
   onEliminarActividad,
   onCargarEvidencia,
   onAbrirBpin,
+  onGestionarArmonizaciones,
   unidad,
 }: PdmProductoDetalleProps) {
   const navigate = useNavigate();
@@ -469,14 +471,6 @@ export default function PdmProductoDetalle({
                     del producto {producto.codigo}.
                   </PdmAlert>
                 )}
-                {(producto.codigos_armonizados?.length ?? ejecucionPresupuestal?.codigos_armonizados?.length) ? (
-                  <PdmAlert tone="warning">
-                    Incluye ejecución armonizada de:{" "}
-                    <strong>
-                      {(producto.codigos_armonizados ?? ejecucionPresupuestal?.codigos_armonizados ?? []).join(", ")}
-                    </strong>
-                  </PdmAlert>
-                ) : null}
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[320px] text-sm">
                     <thead>
@@ -511,6 +505,29 @@ export default function PdmProductoDetalle({
                   <strong>Nota:</strong> El <strong>Pto. Definitivo</strong> es el presupuesto real asignado al producto
                   (después de adiciones y reducciones). Se compara con el presupuesto del Plan Indicativo (PPI).
                 </PdmAlert>
+                {(producto.codigos_armonizados?.length ?? ejecucionPresupuestal?.codigos_armonizados?.length) ? (
+                  <div className="mt-3">
+                    <PdmAlert tone="warning">
+                    Incluye ejecución armonizada de:{" "}
+                    <strong>
+                      {(producto.codigos_armonizados ?? ejecucionPresupuestal?.codigos_armonizados ?? []).join(", ")}
+                    </strong>
+                    {isAdmin && onGestionarArmonizaciones ? (
+                      <span className="mt-2 block text-sm">
+                        Para revertir una armonización, abra{" "}
+                        <button
+                          type="button"
+                          className="font-semibold text-amber-900 underline hover:text-amber-950"
+                          onClick={onGestionarArmonizaciones}
+                        >
+                          Acciones → Armonizaciones presupuesto
+                        </button>{" "}
+                        y use <strong>Revertir</strong> en la tabla de armonizaciones vigentes.
+                      </span>
+                    ) : null}
+                    </PdmAlert>
+                  </div>
+                ) : null}
               </>
             )}
           </PdmCard>
