@@ -10,6 +10,7 @@ interface Props {
   insights: AIInsight[];
   title?: string;
   loading?: boolean;
+  error?: boolean;
   className?: string;
   onInsightClick?: (insight: AIInsight) => void;
 }
@@ -84,13 +85,14 @@ export default function AIInsightsSection({
   insights,
   title = "Insights IA",
   loading = false,
+  error = false,
   className = "",
   onInsightClick,
 }: Props) {
   const [collapsed, setCollapsed] = useState(() => isInsightsPanelHidden(module));
   const [showIgnored, setShowIgnored] = useState(false);
   const ignore = useIgnoreInsight(module);
-  const { data: ignoredList = [] } = useIgnoredInsights(module, !collapsed);
+  const { data: ignoredList = [] } = useIgnoredInsights(module, true);
 
   function toggleCollapsed() {
     const next = !collapsed;
@@ -111,6 +113,14 @@ export default function AIInsightsSection({
           <Sparkles className="h-4 w-4 animate-pulse" />
           Generando insights…
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50/60 p-4">
+        <p className="text-sm text-red-700">No se pudieron cargar los insights IA. Intente recargar la página.</p>
       </div>
     );
   }

@@ -36,7 +36,8 @@ def detect_pdm_anomalies(
         productos_qs = productos_qs.filter(codigo_producto__in=codigos)
     productos = list(productos_qs)
     codigos = [p.codigo_producto for p in productos]
-    all_aggs = actividad_aggs_for_productos(entity_id, codigos)
+    claves = [p.clave_producto for p in productos]
+    all_aggs = actividad_aggs_for_productos(entity_id, claves)
     anomalies: list[dict[str, Any]] = []
 
     plan_codes = set(codigos)
@@ -61,7 +62,7 @@ def detect_pdm_anomalies(
         if meta_programada <= 0:
             continue
 
-        aggs_by_anio = all_aggs.get(producto.codigo_producto, {})
+        aggs_by_anio = all_aggs.get(producto.clave_producto, {})
         avance_fisico = _avance_fisico(producto, anio, aggs_by_anio)
         estado = estado_producto_anio(producto, anio, aggs_by_anio)
 
@@ -95,7 +96,8 @@ def detect_pdm_anomalies(
                 })
 
         actividades_count = PdmActividad.objects.filter(
-            codigo_producto=producto.codigo_producto,
+            entity_id=entity_id,
+            clave_producto=producto.clave_producto,
             anio=anio,
         ).count()
         if meta_programada > 0 and actividades_count == 0 and estado != "COMPLETADO":
@@ -138,8 +140,8 @@ def forecast_pdm_completion(entity_id: int, anio: int | None = None) -> list[dic
     months_remaining = max(1, 12 - now.month + 1)
 
     productos = list(PdmProducto.objects.filter(entity_id=entity_id))
-    codigos = [p.codigo_producto for p in productos]
-    all_aggs = actividad_aggs_for_productos(entity_id, codigos)
+    claves = [p.clave_producto for p in productos]
+    all_aggs = actividad_aggs_for_productos(entity_id, claves)
     forecasts: list[dict[str, Any]] = []
 
     for producto in productos:
@@ -147,7 +149,7 @@ def forecast_pdm_completion(entity_id: int, anio: int | None = None) -> list[dic
         if meta <= 0:
             continue
 
-        aggs_by_anio = all_aggs.get(producto.codigo_producto, {})
+        aggs_by_anio = all_aggs.get(producto.clave_producto, {})
         avance = _avance_fisico(producto, anio, aggs_by_anio)
         pace = avance / months_elapsed
         projected = min(100, pace * 12)

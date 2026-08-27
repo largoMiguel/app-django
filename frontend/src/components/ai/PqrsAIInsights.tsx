@@ -16,7 +16,7 @@ export default function PqrsAIInsights({
   onInsightClick,
 }: Props) {
   const enabled = Boolean(useAuthStore((s) => s.user?.entity?.enable_pqrs));
-  const { data, isLoading } = usePqrsInsights(enabled);
+  const { data, isLoading, isError } = usePqrsInsights(enabled);
 
   if (!enabled) return null;
 
@@ -25,6 +25,7 @@ export default function PqrsAIInsights({
       module="pqrs"
       insights={data?.insights ?? []}
       loading={isLoading}
+      error={isError}
       title={title}
       className={className}
       onInsightClick={onInsightClick}

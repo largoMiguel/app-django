@@ -20,7 +20,7 @@ export default function PdmAIInsights({
   onInsightClick,
 }: Props) {
   const enabled = Boolean(useAuthStore((s) => s.user?.entity?.enable_pdm));
-  const { data, isLoading } = usePdmInsights(slug, anio, enabled && Boolean(slug));
+  const { data, isLoading, isError } = usePdmInsights(slug, anio, enabled && Boolean(slug));
 
   if (!enabled) return null;
 
@@ -29,6 +29,7 @@ export default function PdmAIInsights({
       module="pdm"
       insights={data?.insights ?? []}
       loading={isLoading}
+      error={isError}
       title={title}
       className={className}
       onInsightClick={onInsightClick}
