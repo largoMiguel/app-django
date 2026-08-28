@@ -249,7 +249,7 @@ Complementa la carga anual general (dashboard/análisis) con **cargas por mes** 
 
 - **Acciones → Ejecución mensual (PIIP)** (solo `admin`): tabla de los 12 meses del año (cargado/pendiente), subida, reemplazo y borrado por mes.
 - El sistema detecta mes/año del título del Excel (`Del 01/07/2026 Al 31/07/2026` en celda A1). Si el rango es acumulado (más de un mes), responde `409` hasta confirmar.
-- `SALDO COMPROMISOS` y `PAGOS` se guardan **tal cual vienen** en el archivo (si vienen en 0, quedan en 0).
+- `REGISTRO`, `SALDO COMPROMISOS` y `PAGOS` se guardan **tal cual vienen** en el archivo (si vienen en 0, quedan en 0).
 - Las armonizaciones presupuesto ↔ PDM aplican también a la ejecución mensual.
 
 | Método | Endpoint | Descripción |
@@ -275,9 +275,9 @@ Query params: `anio` (obligatorio para corte mensual), `mes` (1–12, recomendad
 | Columna PIIP | Origen |
 |---|---|
 | VALOR INICIAL | Pto. definitivo de la **carga anual** por fuente |
-| Comprometido cada mes | `SALDO COMPROMISOS` del mes |
+| Comprometido cada mes | `REGISTRO` del mes |
 | Pago Cada mes | `PAGOS` del mes |
-| Comprometido Acumulado | Suma de `SALDO COMPROMISOS` meses 1→mes |
+| Comprometido Acumulado | Suma de `REGISTRO` meses 1→mes |
 | Pago Acumulado | Suma de `PAGOS` meses 1→mes |
 | VALOR EJECUTADO | Pago Acumulado al mes |
 | CANTIDAD META EJECUTADA | Meta ejecutada con corte por `fecha_ejecucion` ≤ fin de mes |
