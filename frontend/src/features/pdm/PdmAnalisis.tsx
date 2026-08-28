@@ -132,9 +132,9 @@ function AnalisisContent({
     () =>
       [
         { name: "PENDIENTE", value: estado.pendiente, color: ESTADO_COLORS.PENDIENTE },
-        { name: "EN_PROGRESO", value: estado.en_progreso, color: ESTADO_COLORS.EN_PROGRESO },
-        { name: "COMPLETADO", value: estado.completado, color: ESTADO_COLORS.COMPLETADO },
-        { name: "POR_EJECUTAR", value: estado.por_ejecutar, color: ESTADO_COLORS.POR_EJECUTAR },
+        { name: "EN PROGRESO", value: estado.en_progreso, color: ESTADO_COLORS.EN_PROGRESO },
+        { name: "AL 100%", value: estado.completado, color: ESTADO_COLORS.COMPLETADO },
+        { name: "POR EJECUTAR", value: estado.por_ejecutar, color: ESTADO_COLORS.POR_EJECUTAR },
       ].filter((d) => d.value > 0),
     [estado],
   );
@@ -188,6 +188,10 @@ function AnalisisContent({
         avance_pct: s.avance_pct,
         avance_financiero_pct: Number((s.avance_financiero_pct ?? 0).toFixed(1)),
         productos: s.productos,
+        meta_programada: s.meta_programada_total ?? 0,
+        meta_ejecutada: s.meta_ejecutada_total ?? 0,
+        presupuesto_plan: s.presupuesto_plan ?? 0,
+        pagos: s.pagos ?? 0,
       })),
     [data.por_secretaria],
   );
@@ -227,12 +231,12 @@ function AnalisisContent({
           accent="cyan"
         />
         <PdmStatCard
-          label="Avance Global"
+          label="Avance físico promedio"
           value={`${data.avance_global}%`}
           hint={
             filtroAnio === "all"
-              ? `Promedio de ${productosConMeta} productos · ${completados} completados`
-              : `Promedio de ${productosConMeta} productos · ${completados} completados`
+              ? `Promedio de avance de ${productosConMeta} productos (incluye parciales) · ${completados} al 100%`
+              : `Promedio de avance de ${productosConMeta} productos (incluye parciales) · ${completados} al 100%`
           }
           icon={<TrendingUp size={24} className="text-emerald-600" />}
           accent="emerald"
@@ -260,7 +264,10 @@ function AnalisisContent({
           headerClassName="border-b border-cyan-100 bg-cyan-50/90"
         >
           <p className="mb-4 text-center text-sm font-medium text-slate-600">
-            Distribución de Productos por Estado ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+            Cantidad de productos por estado ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              «Al 100%» = meta cumplida · distinto del avance físico promedio ({data.avance_global}%)
+            </span>
           </p>
           {pieEstadoData.length === 0 ? (
             <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin datos</div>
@@ -462,11 +469,11 @@ function AnalisisContent({
             <p className="mb-3 text-center text-sm font-medium text-slate-600">
               Avance por línea estratégica ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
             </p>
-            <ResponsiveContainer width="100%" height={Math.max(180, lineaChartData.length * 42)}>
+            <ResponsiveContainer width="100%" height={Math.max(220, lineaChartData.length * 48)}>
               <BarChart
                 data={lineaChartData}
                 layout="vertical"
-                margin={{ top: 4, right: 48, left: 8, bottom: 4 }}
+                margin={{ top: 4, right: 56, left: 4, bottom: 4 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
                 <XAxis
@@ -478,7 +485,7 @@ function AnalisisContent({
                 <YAxis
                   type="category"
                   dataKey="name"
-                  width={170}
+                  width={180}
                   tick={{ fontSize: 11, fill: "#475569" }}
                   interval={0}
                 />
@@ -675,71 +682,97 @@ function AnalisisContent({
 
       {isAdmin && data.por_secretaria.length > 0 && (
         <ChartCard
-          title="Análisis por Secretaría"
+          title="Análisis por Secretaría (Dependencia)"
           icon={<Layers size={16} className="text-indigo-600" />}
           headerClassName="border-b border-indigo-100 bg-indigo-50/90"
         >
-          <div className="mb-5 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
-            <p className="mb-3 text-center text-sm font-medium text-slate-600">
-              Avance físico y financiero por secretaría (
-              {anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
-            </p>
-            <ResponsiveContainer width="100%" height={Math.max(200, secretariaChartData.length * 52)}>
-              <BarChart
-                data={secretariaChartData}
-                layout="vertical"
-                margin={{ top: 4, right: 48, left: 8, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                <XAxis
-                  type="number"
-                  domain={[0, 100]}
-                  tick={{ fontSize: 10, fill: "#64748b" }}
-                  tickFormatter={(v) => `${v}%`}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={150}
-                  tick={{ fontSize: 11, fill: "#475569" }}
-                  interval={0}
-                />
-                <Tooltip
-                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                  formatter={(value) => `${value}%`}
-                  labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullName ?? ""}
-                />
-                <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8 }} />
-                <Bar
-                  dataKey="avance_pct"
-                  name="Avance físico"
-                  fill="#6366f1"
-                  radius={[0, 4, 4, 0]}
-                  barSize={12}
+          <div className="mb-5 space-y-6">
+            <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+              <p className="mb-3 text-center text-sm font-medium text-slate-600">
+                Meta física programada vs ejecutada ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+              </p>
+              <ResponsiveContainer width="100%" height={Math.max(200, secretariaChartData.length * 52)}>
+                <BarChart
+                  data={secretariaChartData}
+                  layout="vertical"
+                  margin={{ top: 4, right: 16, left: 4, bottom: 4 }}
                 >
-                  <LabelList
-                    dataKey="avance_pct"
-                    position="right"
-                    formatter={(v) => `${v}%`}
-                    style={{ fontSize: 10, fill: "#475569" }}
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: "#64748b" }} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={160}
+                    tick={{ fontSize: 11, fill: "#475569" }}
+                    interval={0}
                   />
-                </Bar>
-                <Bar
-                  dataKey="avance_financiero_pct"
-                  name="Avance financiero"
-                  fill="#20c997"
-                  radius={[0, 4, 4, 0]}
-                  barSize={12}
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                    formatter={(value, name) => [
+                      Number(value ?? 0).toLocaleString("es-CO", { maximumFractionDigits: 2 }),
+                      String(name),
+                    ]}
+                    labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullName ?? ""}
+                  />
+                  <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8 }} />
+                  <Bar
+                    dataKey="meta_programada"
+                    name="Meta programada"
+                    fill="#6366f1"
+                    radius={[0, 4, 4, 0]}
+                    barSize={14}
+                  />
+                  <Bar
+                    dataKey="meta_ejecutada"
+                    name="Meta ejecutada"
+                    fill="#20c997"
+                    radius={[0, 4, 4, 0]}
+                    barSize={14}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+              <p className="mb-3 text-center text-sm font-medium text-slate-600">
+                Presupuesto programado vs pagado ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+              </p>
+              <ResponsiveContainer width="100%" height={Math.max(200, secretariaChartData.length * 52)}>
+                <BarChart
+                  data={secretariaChartData}
+                  layout="vertical"
+                  margin={{ top: 4, right: 16, left: 4, bottom: 4 }}
                 >
-                  <LabelList
-                    dataKey="avance_financiero_pct"
-                    position="right"
-                    formatter={(v) => `${v}%`}
-                    style={{ fontSize: 10, fill: "#475569" }}
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 10, fill: "#64748b" }}
+                    tickFormatter={(v) => `${(Number(v) / 1e6).toFixed(0)}M`}
                   />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={160}
+                    tick={{ fontSize: 11, fill: "#475569" }}
+                    interval={0}
+                  />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                    formatter={(value, name) => [formatearMoneda(Number(value ?? 0)), String(name)]}
+                    labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullName ?? ""}
+                  />
+                  <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8 }} />
+                  <Bar
+                    dataKey="presupuesto_plan"
+                    name="Presupuesto programado (plan)"
+                    fill="#3b82f6"
+                    radius={[0, 4, 4, 0]}
+                    barSize={14}
+                  />
+                  <Bar dataKey="pagos" name="Pagado (ejecutado)" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={14} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -752,6 +785,9 @@ function AnalisisContent({
                   <th className="px-2 py-3 text-center">Pendientes</th>
                   <th className="px-2 py-3 text-center">Por Ejecutar</th>
                   <th className="px-2 py-3 text-center">Avance %</th>
+                  <th className="px-2 py-3 text-right">Meta prog.</th>
+                  <th className="px-2 py-3 text-right">Meta ejec.</th>
+                  <th className="px-2 py-3 text-right">Ppto. plan</th>
                   <th className="px-2 py-3 text-center">Avance Fin. %</th>
                   <th className="px-2 py-3 text-right">Pto. Def.</th>
                   <th className="px-2 py-3 text-right">Pagado</th>
@@ -778,6 +814,15 @@ function AnalisisContent({
                         </div>
                         <span className="text-xs font-semibold">{s.avance_pct}%</span>
                       </div>
+                    </td>
+                    <td className="px-2 py-3 text-right text-xs">
+                      {(s.meta_programada_total ?? 0).toLocaleString("es-CO", { maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-2 py-3 text-right text-xs">
+                      {(s.meta_ejecutada_total ?? 0).toLocaleString("es-CO", { maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-2 py-3 text-right text-xs sm:text-sm">
+                      {formatearMoneda(s.presupuesto_plan ?? 0)}
                     </td>
                     <td className="px-2 py-3 text-center text-xs font-semibold">
                       {(s.avance_financiero_pct ?? 0).toFixed(1)}%

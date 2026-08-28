@@ -195,6 +195,9 @@ export interface PdmAnalisisResponse {
     por_ejecutar: number;
     avance_pct: number;
     avance_financiero_pct?: number;
+    meta_programada_total?: number;
+    meta_ejecutada_total?: number;
+    presupuesto_plan?: number;
     pto_definitivo: number;
     pagos: number;
   }[];

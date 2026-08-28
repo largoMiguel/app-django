@@ -243,6 +243,9 @@ def compute_pdm_analytics(
             "pendientes": 0,
             "por_ejecutar": 0,
             "avance_sum": 0.0,
+            "meta_programada_total": 0.0,
+            "meta_ejecutada_total": 0.0,
+            "presupuesto_plan": 0.0,
             "pto_definitivo": 0.0,
             "pagos": 0.0,
         }
@@ -306,6 +309,19 @@ def compute_pdm_analytics(
             sec = secretaria_agg[sid]
             sec["productos"] += 1
             sec["avance_sum"] += avance
+            if anio is not None:
+                res = resumen_anio(p, anio, aggs)
+                sec["meta_programada_total"] += res["meta_programada"]
+                sec["meta_ejecutada_total"] += res["meta_ejecutada"]
+                sec["presupuesto_plan"] += _plan_anio(p, anio)
+            else:
+                for y in ANIOS_PDM:
+                    if not _tiene_meta_anio(p, y, aggs):
+                        continue
+                    res = resumen_anio(p, y, aggs)
+                    sec["meta_programada_total"] += res["meta_programada"]
+                    sec["meta_ejecutada_total"] += res["meta_ejecutada"]
+                    sec["presupuesto_plan"] += _plan_anio(p, y)
             if estado == "COMPLETADO":
                 sec["completados"] += 1
             elif estado == "EN_PROGRESO":
@@ -430,6 +446,9 @@ def compute_pdm_analytics(
                     "avance_financiero_pct": round((data["pagos"] / data["pto_definitivo"]) * 100, 1)
                     if data["pto_definitivo"]
                     else 0.0,
+                    "meta_programada_total": round(data["meta_programada_total"], 2),
+                    "meta_ejecutada_total": round(data["meta_ejecutada_total"], 2),
+                    "presupuesto_plan": round(data["presupuesto_plan"], 2),
                     "pto_definitivo": data["pto_definitivo"],
                     "pagos": data["pagos"],
                 }
