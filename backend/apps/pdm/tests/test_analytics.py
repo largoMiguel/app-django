@@ -95,7 +95,18 @@ class PdmAnalyticsTests(TestCase):
         )
         qs = PdmProducto.objects.filter(entity=self.entity)
         data = compute_pdm_analytics(qs, self.entity.id, anio=2026)
+        assert len(data["presupuestal_por_anio"]) == 1
+        assert len(data["metas_por_anio"]) == 1
+        assert len(data["fuentes_por_anio"]) == 1
         row_2026 = next(r for r in data["fuentes_por_anio"] if r["anio"] == 2026)
         by_name = {f["nombre"]: f for f in row_2026["fuentes"]}
         assert by_name["SGP - Educación"]["pto_definitivo"] == 300_000
         assert by_name["SGP - Salud"]["pto_definitivo"] == 200_000
+
+    def test_series_temporales_incluyen_cuatrienio_sin_filtro(self):
+        self._producto("1001", "1001", "Sector A", 100, 0)
+        qs = PdmProducto.objects.filter(entity=self.entity)
+        data = compute_pdm_analytics(qs, self.entity.id, anio=None)
+        assert len(data["presupuestal_por_anio"]) == 4
+        assert len(data["metas_por_anio"]) == 4
+        assert len(data["fuentes_por_anio"]) == 4

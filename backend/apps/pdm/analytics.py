@@ -113,13 +113,22 @@ def _ejecucion_por_codigo_anio(
     return out
 
 
-def _fuentes_por_anio(entity_id: int, codigos: list[str]) -> list[dict]:
+def _anios_vista(anio: int | None) -> tuple[int, ...]:
+    """Años incluidos en series temporales según filtro de analítica."""
+    return (anio,) if anio is not None else ANIOS_PDM
+
+
+def _fuentes_por_anio(
+    entity_id: int,
+    codigos: list[str],
+    anios: tuple[int, ...] = ANIOS_PDM,
+) -> list[dict]:
     """Ejecución presupuestal agregada por año y fuente MGA normalizada."""
     from django.db.models import Sum
 
     from .models import PDMEjecucionPresupuestal
 
-    base = [{"anio": y, "fuentes": []} for y in ANIOS_PDM]
+    base = [{"anio": y, "fuentes": []} for y in anios]
     if not codigos:
         return base
 
@@ -127,7 +136,7 @@ def _fuentes_por_anio(entity_id: int, codigos: list[str]) -> list[dict]:
         PDMEjecucionPresupuestal.objects.filter(
             entity_id=entity_id,
             codigo_producto__in=codigos,
-            anio__in=ANIOS_PDM,
+            anio__in=anios,
         )
         .values("anio", "descripcion_fte")
         .annotate(pto_definitivo=Sum("pto_definitivo"), pagos=Sum("pagos"))
@@ -135,13 +144,13 @@ def _fuentes_por_anio(entity_id: int, codigos: list[str]) -> list[dict]:
 
     agg: dict[int, dict[str, dict[str, float]]] = {
         y: {nombre: {"pto_definitivo": 0.0, "pagos": 0.0} for nombre in FUENTES_PIIP_CANONICAS}
-        for y in ANIOS_PDM
+        for y in anios
     }
     for row in rows:
-        anio = row.get("anio")
-        if anio is None:
+        anio_row = row.get("anio")
+        if anio_row is None:
             continue
-        anio_int = int(anio)
+        anio_int = int(anio_row)
         if anio_int not in agg:
             continue
         nombre = normalizar_fuente_financiacion(row.get("descripcion_fte"))
@@ -153,7 +162,7 @@ def _fuentes_por_anio(entity_id: int, codigos: list[str]) -> list[dict]:
         bucket["pagos"] += float(row["pagos"] or 0)
 
     result: list[dict] = []
-    for y in ANIOS_PDM:
+    for y in anios:
         fuentes = []
         for nombre in FUENTES_PIIP_CANONICAS:
             data = agg[y].get(nombre, {"pto_definitivo": 0.0, "pagos": 0.0})
@@ -394,8 +403,10 @@ def compute_pdm_analytics(
     avance_global = round(avance_sum / total, 1) if total else 0.0
     productos_al_100 = estado_distribucion["completado"]
 
+    anios_vista = _anios_vista(anio)
+
     metas_por_anio = []
-    for y in ANIOS_PDM:
+    for y in anios_vista:
         programada = 0
         ejecutada = 0
         meta_programada_total = 0.0
@@ -421,9 +432,9 @@ def compute_pdm_analytics(
             }
         )
 
-    seen_plan_por_anio: dict[int, set[str]] = {y: set() for y in ANIOS_PDM}
+    seen_plan_por_anio: dict[int, set[str]] = {y: set() for y in anios_vista}
     presupuestal_por_anio = []
-    for y in ANIOS_PDM:
+    for y in anios_vista:
         plan = 0.0
         for p, _ in productos_relevantes:
             if p.codigo_producto in seen_plan_por_anio[y]:
@@ -438,7 +449,7 @@ def compute_pdm_analytics(
             {"anio": y, "plan": plan, "ejecucion": ejec, "pagos": pagos, "pct_pagado": pct_pagado}
         )
 
-    fuentes_por_anio = _fuentes_por_anio(entity_id, codigos_financieros)
+    fuentes_por_anio = _fuentes_por_anio(entity_id, codigos_financieros, anios_vista)
 
     por_linea = sorted(
         [

@@ -174,7 +174,10 @@ type FuenteResumenRow = {
   pctPagado: number;
 };
 
-function buildFuentesResumen(rows: PdmAnalisisResponse["fuentes_por_anio"]): FuenteResumenRow[] {
+function buildFuentesResumen(
+  rows: PdmAnalisisResponse["fuentes_por_anio"],
+  anios: readonly number[],
+): FuenteResumenRow[] {
   const map = new Map<string, Record<number, { pto: number; pagos: number }>>();
   for (const row of rows) {
     for (const fuente of row.fuentes) {
@@ -188,15 +191,15 @@ function buildFuentesResumen(rows: PdmAnalisisResponse["fuentes_por_anio"]): Fue
 
   return FUENTES_FINANCIACION_ORDER.filter((nombre) => map.has(nombre)).map((nombre, idx) => {
     const raw = map.get(nombre) ?? {};
-    const anios = Object.fromEntries(
-      ANIOS_PDM.map((anio) => [anio, raw[anio] ?? { pto: 0, pagos: 0 }]),
+    const aniosData = Object.fromEntries(
+      anios.map((anio) => [anio, raw[anio] ?? { pto: 0, pagos: 0 }]),
     ) as Record<number, { pto: number; pagos: number }>;
-    const totalPto = ANIOS_PDM.reduce((sum, anio) => sum + anios[anio].pto, 0);
-    const totalPagos = ANIOS_PDM.reduce((sum, anio) => sum + anios[anio].pagos, 0);
+    const totalPto = anios.reduce((sum, anio) => sum + aniosData[anio].pto, 0);
+    const totalPagos = anios.reduce((sum, anio) => sum + aniosData[anio].pagos, 0);
     return {
       nombre,
       color: FUENTE_FINANCIACION_COLORS[idx % FUENTE_FINANCIACION_COLORS.length],
-      anios,
+      anios: aniosData,
       totalPto,
       totalPagos,
       pctPagado: totalPto > 0 ? (totalPagos / totalPto) * 100 : 0,
@@ -207,13 +210,29 @@ function buildFuentesResumen(rows: PdmAnalisisResponse["fuentes_por_anio"]): Fue
 function AnalisisContent({
   data,
   filtroAnio,
+  filtroSecretaria,
+  secretarias,
   isAdmin,
 }: {
   data: PdmAnalisisResponse;
   filtroAnio: number | "all";
+  filtroSecretaria: string;
+  secretarias: Secretaria[];
   isAdmin: boolean;
 }) {
-  const anioLabel = filtroAnio === "all" ? "todos los años" : String(filtroAnio);
+  const aniosVista = useMemo(
+    () => (filtroAnio === "all" ? [...ANIOS_PDM] : [filtroAnio]),
+    [filtroAnio],
+  );
+  const periodoLabel = filtroAnio === "all" ? "Cuatrienio 2024-2027" : `Vigencia ${filtroAnio}`;
+  const filtroContexto = useMemo(() => {
+    const parts: string[] = [periodoLabel];
+    if (filtroSecretaria) {
+      const secretaria = secretarias.find((s) => String(s.id) === filtroSecretaria);
+      parts.push(secretaria?.nombre ?? "Secretaría seleccionada");
+    }
+    return parts.join(" · ");
+  }, [periodoLabel, filtroSecretaria, secretarias]);
   const estado = data.estado_distribucion;
   const estadoTotal = estado.total || 1;
 
@@ -294,8 +313,8 @@ function AnalisisContent({
     [data.fuentes_por_anio],
   );
   const fuentesResumen = useMemo(
-    () => buildFuentesResumen(data.fuentes_por_anio ?? []),
-    [data.fuentes_por_anio],
+    () => buildFuentesResumen(data.fuentes_por_anio ?? [], aniosVista),
+    [data.fuentes_por_anio, aniosVista],
   );
   const fuentesTotales = useMemo(
     () =>
@@ -336,36 +355,28 @@ function AnalisisContent({
         <PdmStatCard
           label="Productos con Meta"
           value={productosConMeta}
-          hint={
-            filtroAnio === "all"
-              ? `${productosConMeta} con meta en cuatrienio · ${totalEnPlan} en el plan`
-              : `${productosConMeta} con meta en ${filtroAnio} · ${totalEnPlan} en el plan`
-          }
+          hint={`${productosConMeta} con meta · ${totalEnPlan} en el plan · ${filtroContexto}`}
           icon={<Box size={24} className="text-cyan-600" />}
           accent="cyan"
         />
         <PdmStatCard
           label="Avance físico promedio"
           value={`${data.avance_global}%`}
-          hint={
-            filtroAnio === "all"
-              ? `Promedio de avance de ${productosConMeta} productos (incluye parciales) · ${completados} al 100%`
-              : `Promedio de avance de ${productosConMeta} productos (incluye parciales) · ${completados} al 100%`
-          }
+          hint={`Promedio de ${productosConMeta} productos · ${completados} al 100% · ${filtroContexto}`}
           icon={<TrendingUp size={24} className="text-emerald-600" />}
           accent="emerald"
         />
         <PdmStatCard
           label="Presupuesto Total (Ejecución)"
           value={formatearMoneda(data.presupuesto.pto_definitivo)}
-          hint="Pto. definitivo"
+          hint={`Pto. definitivo · ${filtroContexto}`}
           icon={<DollarSign size={24} className="text-blue-600" />}
           accent="blue"
         />
         <PdmStatCard
           label="Presupuesto Pagado"
           value={formatearMoneda(data.presupuesto.pagos)}
-          hint={`${pctPagadoGlobal}% sobre pto. definitivo`}
+          hint={`${pctPagadoGlobal}% sobre pto. definitivo · ${filtroContexto}`}
           icon={<DollarSign size={24} className="text-amber-600" />}
           accent="amber"
         />
@@ -378,7 +389,7 @@ function AnalisisContent({
           headerClassName="border-b border-cyan-100 bg-cyan-50/90"
         >
           <p className="mb-4 text-center text-sm font-medium text-slate-600">
-            Cantidad de productos por estado ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+            Cantidad de productos por estado ({filtroContexto})
             <span className="mt-1 block text-xs font-normal text-slate-500">
               «Al 100%» = meta cumplida · distinto del avance físico promedio ({data.avance_global}%)
             </span>
@@ -423,7 +434,7 @@ function AnalisisContent({
           headerClassName="border-b border-emerald-100 bg-emerald-50/90 text-emerald-900"
         >
           <p className="mb-4 text-center text-sm font-medium text-slate-600">
-            Conteo de productos y meta física acumulada (2024-2027)
+            Conteo de productos y meta física ({filtroContexto})
           </p>
           {metasChartData.every((m) => m.programada === 0) ? (
             <div className="flex h-56 items-center justify-center text-sm text-slate-400">Sin datos</div>
@@ -438,12 +449,14 @@ function AnalisisContent({
                   allowDecimals={false}
                   width={36}
                 />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={{ fontSize: 10, fill: "#64748b" }}
-                  width={48}
-                />
+                {aniosVista.length > 1 && (
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 10, fill: "#64748b" }}
+                    width={48}
+                  />
+                )}
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Legend verticalAlign="top" align="center" wrapperStyle={{ fontSize: 11, paddingBottom: 8 }} />
                 <Bar
@@ -460,24 +473,28 @@ function AnalisisContent({
                   fill="#20c997"
                   radius={[4, 4, 0, 0]}
                 />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="meta_programada_total"
-                  name="Meta física programada"
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="meta_ejecutada_total"
-                  name="Meta física ejecutada"
-                  stroke="#f59e0b"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                />
+                {aniosVista.length > 1 && (
+                  <>
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="meta_programada_total"
+                      name="Meta física programada"
+                      stroke="#6366f1"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="meta_ejecutada_total"
+                      name="Meta física ejecutada"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </>
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -492,7 +509,7 @@ function AnalisisContent({
           bodyClassName="p-3 sm:p-4"
         >
           <p className="mb-3 text-center text-sm font-medium text-slate-600">
-            Distribución por sector ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+            Distribución por sector ({filtroContexto})
           </p>
           {sectorPieData.length === 0 ? (
             <div className="flex h-52 items-center justify-center text-sm text-slate-400">Sin datos</div>
@@ -585,7 +602,7 @@ function AnalisisContent({
             {lineaChartData.length > 0 && (
               <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
                 <p className="mb-3 text-center text-sm font-medium text-slate-600">
-                  Avance por línea estratégica ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+                  Avance por línea estratégica ({filtroContexto})
                 </p>
                 <ResponsiveContainer width="100%" height={Math.max(220, lineaChartData.length * 48)}>
                   <BarChart
@@ -661,7 +678,7 @@ function AnalisisContent({
           bodyClassName="p-3 sm:p-4"
         >
           <p className="mb-3 text-center text-sm font-medium text-slate-600">
-            Objetivos de Desarrollo Sostenible ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+            Objetivos de Desarrollo Sostenible ({filtroContexto})
           </p>
           {odsPieData.length === 0 ? (
             <div className="flex h-52 items-center justify-center text-sm text-slate-400">Sin datos</div>
@@ -749,6 +766,7 @@ function AnalisisContent({
         icon={<DollarSign size={16} className="text-blue-600" />}
         headerClassName="border-b border-blue-100 bg-blue-50/90"
       >
+        <p className="mb-4 text-center text-sm font-medium text-slate-600">{filtroContexto}</p>
         <div className="overflow-x-auto rounded-lg border border-slate-100">
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -805,7 +823,7 @@ function AnalisisContent({
         headerClassName="border-b border-violet-100 bg-violet-50/90"
       >
         <p className="mb-4 text-center text-sm font-medium text-slate-600">
-          Ejecución presupuestal por fuente MGA normalizada (2024-2027)
+          Ejecución presupuestal por fuente MGA normalizada ({filtroContexto})
         </p>
         {!fuentesConDatos ? (
           <div className="flex h-48 items-center justify-center text-sm text-slate-400">
@@ -889,7 +907,7 @@ function AnalisisContent({
                       <th className="px-3 py-2 text-left font-semibold" rowSpan={2}>
                         Fuente
                       </th>
-                      {ANIOS_PDM.map((anio) => (
+                      {aniosVista.map((anio) => (
                         <th key={anio} className="px-2 py-2 text-center font-semibold" colSpan={2}>
                           {anio}
                         </th>
@@ -902,7 +920,7 @@ function AnalisisContent({
                       </th>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      {ANIOS_PDM.map((anio) => (
+                      {aniosVista.map((anio) => (
                         <Fragment key={`sub-${anio}`}>
                           <th className="px-2 py-1.5 text-right font-medium text-slate-400">Pto.</th>
                           <th className="px-2 py-1.5 text-right font-medium text-slate-400">Pag.</th>
@@ -926,7 +944,7 @@ function AnalisisContent({
                             </span>
                           </span>
                         </td>
-                        {ANIOS_PDM.map((anio) => {
+                        {aniosVista.map((anio) => {
                           const cell = row.anios[anio];
                           return (
                             <Fragment key={`${row.nombre}-${anio}`}>
@@ -954,7 +972,7 @@ function AnalisisContent({
                     ))}
                     <tr className="bg-violet-50/60 font-semibold text-violet-950">
                       <td className="px-3 py-2.5">Total general</td>
-                      {ANIOS_PDM.map((anio) => {
+                      {aniosVista.map((anio) => {
                         const ptoAnio = fuentesResumen.reduce((sum, row) => sum + row.anios[anio].pto, 0);
                         const pagosAnio = fuentesResumen.reduce((sum, row) => sum + row.anios[anio].pagos, 0);
                         return (
@@ -989,7 +1007,7 @@ function AnalisisContent({
           <div className="mb-5 grid gap-4 lg:grid-cols-2 lg:items-start">
             <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
               <p className="mb-3 text-center text-sm font-medium text-slate-600">
-                Meta física programada vs ejecutada ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+                Meta física programada vs ejecutada ({filtroContexto})
               </p>
               <ResponsiveContainer width="100%" height={Math.max(200, secretariaChartData.length * 52)}>
                 <BarChart
@@ -1035,7 +1053,7 @@ function AnalisisContent({
 
             <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
               <p className="mb-3 text-center text-sm font-medium text-slate-600">
-                Presupuesto programado vs pagado ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+                Presupuesto programado vs pagado ({filtroContexto})
               </p>
               <ResponsiveContainer width="100%" height={Math.max(200, secretariaChartData.length * 52)}>
                 <BarChart
@@ -1212,7 +1230,13 @@ export default function PdmAnalisis({
       )}
 
       {!isLoading && !loadError && data && (
-        <AnalisisContent data={data} filtroAnio={filtroAnio} isAdmin={isAdmin} />
+        <AnalisisContent
+          data={data}
+          filtroAnio={filtroAnio}
+          filtroSecretaria={filtroSecretaria}
+          secretarias={secretarias}
+          isAdmin={isAdmin}
+        />
       )}
     </div>
   );
