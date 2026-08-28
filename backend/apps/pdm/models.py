@@ -171,8 +171,7 @@ class PdmActividad(models.Model):
         related_name="pdm_actividades_responsable_usuario",
         db_column="responsable_usuario_id",
     )
-    fecha_inicio = models.DateTimeField(blank=True, null=True)
-    fecha_fin = models.DateTimeField(blank=True, null=True)
+    fecha_ejecucion = models.DateField(blank=True, null=True, db_index=True)
     meta_ejecutar = models.FloatField(default=0)
     estado = models.CharField(
         max_length=64,
@@ -309,6 +308,95 @@ class PDMEjecucionPresupuestal(models.Model):
         indexes = [
             models.Index(fields=("entity", "codigo_producto", "anio"), name="pdm_ejec_entity_prod_anio_idx"),
             models.Index(fields=("entity", "anio"), name="pdm_ejec_entity_anio_idx"),
+        ]
+
+
+class PDMEjecucionMensual(models.Model):
+    """Carga de ejecución presupuestal por producto/fuente/mes (para PIIP)."""
+
+    entity = models.ForeignKey(
+        "entities.Entity",
+        on_delete=models.CASCADE,
+        related_name="pdm_ejecuciones_mensuales",
+        db_column="entity_id",
+    )
+    anio = models.IntegerField(db_index=True)
+    mes = models.PositiveSmallIntegerField(db_index=True)
+    codigo_producto = models.CharField(max_length=64, db_index=True)
+    codigo_producto_origen = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    descripcion_fte = models.CharField(max_length=500)
+    pto_inicial = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    adicion = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    reduccion = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    credito = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    contracredito = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    pto_definitivo = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    registro = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    obligaciones = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    saldo_compromisos = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    pagos = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    sector = models.CharField(max_length=100, blank=True, null=True)
+    dependencia = models.CharField(max_length=200, blank=True, null=True)
+    bpin = models.CharField(max_length=50, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        db_table = "pdm_ejecucion_mensual"
+        verbose_name = "Ejecución presupuestal mensual PDM"
+        verbose_name_plural = "Ejecuciones presupuestales mensuales PDM"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("entity", "anio", "mes", "codigo_producto_origen", "descripcion_fte"),
+                name="uq_pdm_ejec_mensual_entity_mes_origen_fte",
+            )
+        ]
+        indexes = [
+            models.Index(fields=("entity", "anio", "mes"), name="pdm_ejecm_ent_anio_mes_idx"),
+            models.Index(
+                fields=("entity", "codigo_producto", "anio", "mes"),
+                name="pdm_ejecm_ent_prod_am_idx",
+            ),
+        ]
+
+
+class PDMEjecucionMensualCarga(models.Model):
+    """Registro de control de cargas mensuales de ejecución presupuestal."""
+
+    entity = models.ForeignKey(
+        "entities.Entity",
+        on_delete=models.CASCADE,
+        related_name="pdm_ejecuciones_mensuales_cargas",
+        db_column="entity_id",
+    )
+    anio = models.IntegerField(db_index=True)
+    mes = models.PositiveSmallIntegerField(db_index=True)
+    rango_desde = models.DateField()
+    rango_hasta = models.DateField()
+    titulo_archivo = models.TextField(blank=True, default="")
+    filename = models.CharField(max_length=255, blank=True, default="")
+    es_acumulado = models.BooleanField(default=False)
+    registros_insertados = models.PositiveIntegerField(default=0)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pdm_ejecuciones_mensuales_subidas",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "pdm_ejecucion_mensual_carga"
+        verbose_name = "Carga ejecución mensual PDM"
+        verbose_name_plural = "Cargas ejecución mensual PDM"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("entity", "anio", "mes"),
+                name="uq_pdm_ejec_mensual_carga_entity_anio_mes",
+            )
+        ]
+        indexes = [
+            models.Index(fields=("entity", "anio"), name="pdm_ejecm_carga_anio_idx"),
         ]
 
 
@@ -473,6 +561,7 @@ class InformePDM(models.Model):
         db_index=True,
     )
     anio = models.PositiveIntegerField()
+    mes = models.PositiveSmallIntegerField(null=True, blank=True, db_index=True)
     responsable_secretaria = models.ForeignKey(
         "entities.Secretaria",
         on_delete=models.SET_NULL,

@@ -16,7 +16,6 @@ import { pdmApi, type PdmActividad, type PdmEjecucionProducto, type PdmProducto 
 import { secretariasApi } from "@/core/api/entities";
 import { usersApi, type AppUser } from "@/core/api/users";
 import { formatApiError } from "@/core/api/errors";
-import { dateInputValueToIsoCO } from "@/core/datetime";
 import { useAuthStore } from "@/core/auth/store";
 import type { ActividadFormValues } from "@/features/pdm/PdmActividadModal";
 import type { ContratosRPSResumen } from "@/features/pdm/PdmProductoDetalle";
@@ -134,13 +133,17 @@ interface PdmContextValue {
   handleEliminarActividad: (a: PdmActividad) => Promise<void>;
   handleCargarEvidencia: (a: PdmActividad) => Promise<void>;
   handleEditarActividad: (a: PdmActividad) => void;
-  handleExportarPiip: () => Promise<void>;
+  handleExportarPiip: () => void;
   handleAbrirBpin: (bpin: string) => void;
   guardarActividad: (values: ActividadFormValues) => Promise<void>;
   modalContratos: boolean;
   setModalContratos: (v: boolean) => void;
   modalEjecucion: boolean;
   setModalEjecucion: (v: boolean) => void;
+  modalEjecucionMensual: boolean;
+  setModalEjecucionMensual: (v: boolean) => void;
+  modalExportPiip: boolean;
+  setModalExportPiip: (v: boolean) => void;
   modalArmonizacion: boolean;
   setModalArmonizacion: (v: boolean) => void;
   armonizacionCodigoOrigen: string;
@@ -219,6 +222,8 @@ export function PdmProvider({ children }: { children: ReactNode }) {
 
   const [modalContratos, setModalContratos] = useState(false);
   const [modalEjecucion, setModalEjecucion] = useState(false);
+  const [modalEjecucionMensual, setModalEjecucionMensual] = useState(false);
+  const [modalExportPiip, setModalExportPiip] = useState(false);
   const [modalArmonizacion, setModalArmonizacion] = useState(false);
   const [armonizacionCodigoOrigen, setArmonizacionCodigoOrigen] = useState("");
   const [armonizacionPtoDefinitivo, setArmonizacionPtoDefinitivo] = useState<number | undefined>(undefined);
@@ -466,8 +471,7 @@ export function PdmProvider({ children }: { children: ReactNode }) {
           descripcion: values.descripcion.trim(),
           responsable_secretaria: values.responsable_secretaria_id,
           responsable_usuario: values.responsable_usuario_id,
-          fecha_inicio: dateInputValueToIsoCO(values.fecha_inicio),
-          fecha_fin: dateInputValueToIsoCO(values.fecha_fin),
+          fecha_ejecucion: values.fecha_ejecucion,
           meta_ejecutar: values.meta_ejecutar,
         };
         const actividad = actividadEnEdicion
@@ -654,30 +658,9 @@ export function PdmProvider({ children }: { children: ReactNode }) {
     [slug, setError],
   );
 
-  const handleExportarPiip = useCallback(async () => {
-    if (!slug) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const anioExport = route === "productos" ? filtroAnio : new Date().getFullYear();
-      await pdmApi.exportPiip(slug, anioExport);
-      setUploadFeedback({
-        tone: "success",
-        title: "Exportación PIIP",
-        detail: `Se descargó el archivo PIIP_${slug}_${anioExport}.xlsx.`,
-      });
-    } catch (e) {
-      const detail = formatApiError(e, "No se pudo exportar PIIP.");
-      setError(detail);
-      setUploadFeedback({
-        tone: "error",
-        title: "Error al exportar PIIP",
-        detail,
-      });
-    } finally {
-      setSaving(false);
-    }
-  }, [filtroAnio, route, slug]);
+  const handleExportarPiip = useCallback(() => {
+    setModalExportPiip(true);
+  }, []);
 
   const handleAbrirBpin = useCallback((bpin: string) => {
     setMostrarModalBpin(true);
@@ -806,6 +789,10 @@ export function PdmProvider({ children }: { children: ReactNode }) {
     setModalContratos,
     modalEjecucion,
     setModalEjecucion,
+    modalEjecucionMensual,
+    setModalEjecucionMensual,
+    modalExportPiip,
+    setModalExportPiip,
     modalArmonizacion,
     setModalArmonizacion,
     armonizacionCodigoOrigen,

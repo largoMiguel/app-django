@@ -49,7 +49,12 @@ from .armonizacion import (
     serializar_armonizacion,
 )
 from .contratos_parser import parse_contratos_rps
-from .ejecucion_parser import _looks_like_codigo_fuente, parse_ejecucion_excel, rows_from_ejecucion_dataframe
+from .ejecucion_parser import (
+    detectar_periodo_ejecucion,
+    parse_ejecucion_excel,
+    rows_from_ejecucion_dataframe,
+)
+from .ejecucion_mensual import listar_estado_mensual, persistir_ejecucion_mensual
 from .evidencia_storage import (
     _files_from_request,
     attach_evidencia_archivos,
@@ -73,6 +78,8 @@ from .models import (
     ActividadEstado,
     PDMContratoRPS,
     PDMEjecucionPresupuestal,
+    PDMEjecucionMensual,
+    PDMEjecucionMensualCarga,
     PdmActividad,
     PdmActividadEvidencia,
     PdmArmonizacionEjecucion,
@@ -123,6 +130,18 @@ def _is_admin(user) -> bool:
 
 def _is_secretario(user) -> bool:
     return "secretario" in user_roles(user)
+
+
+def _parse_iso_date(raw):
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(str(raw).replace("Z", "+00:00")).date()
+    except ValueError:
+        try:
+            return datetime.strptime(str(raw)[:10], "%Y-%m-%d").date()
+        except ValueError:
+            return None
 
 
 def _parse_iso_dt(raw):
@@ -558,8 +577,12 @@ class PdmActividadCreateView(APIView):
         payload = request.data.copy()
         payload["clave_producto"] = clave
         payload.pop("codigo_producto", None)
-        payload["fecha_inicio"] = _parse_iso_dt(payload.get("fecha_inicio"))
-        payload["fecha_fin"] = _parse_iso_dt(payload.get("fecha_fin"))
+        payload["fecha_ejecucion"] = _parse_iso_date(payload.get("fecha_ejecucion"))
+        if not payload.get("fecha_ejecucion"):
+            raise ValidationError({"fecha_ejecucion": "Fecha de ejecución obligatoria."})
+        anio_act = int(payload.get("anio") or 0)
+        if anio_act and payload["fecha_ejecucion"].year != anio_act:
+            raise ValidationError({"fecha_ejecucion": "La fecha de ejecución debe pertenecer al año de la actividad."})
         if not _is_secretario(request.user):
             payload.pop("responsable_usuario", None)
             payload.pop("responsable_usuario_id", None)
@@ -597,10 +620,12 @@ class PdmActividadDetailView(APIView):
         payload = request.data.copy()
         payload.pop("clave_producto", None)
         payload.pop("codigo_producto", None)
-        if "fecha_inicio" in payload:
-            payload["fecha_inicio"] = _parse_iso_dt(payload.get("fecha_inicio"))
-        if "fecha_fin" in payload:
-            payload["fecha_fin"] = _parse_iso_dt(payload.get("fecha_fin"))
+        if "fecha_ejecucion" in payload:
+            payload["fecha_ejecucion"] = _parse_iso_date(payload.get("fecha_ejecucion"))
+            if payload["fecha_ejecucion"] is None:
+                raise ValidationError({"fecha_ejecucion": "Fecha de ejecución no válida."})
+            if payload["fecha_ejecucion"].year != actividad.anio:
+                raise ValidationError({"fecha_ejecucion": "La fecha de ejecución debe pertenecer al año de la actividad."})
         if not _is_secretario(request.user):
             payload.pop("responsable_usuario", None)
             payload.pop("responsable_usuario_id", None)
@@ -858,6 +883,137 @@ class PdmEjecucionUploadView(APIView):
                 "registros_insertados": len(rows),
                 "registros_eliminados": deleted,
                 "errores": errores[:10],
+            }
+        )
+
+
+class PdmEjecucionMensualListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        require_user_module(request.user, "pdm", message="El módulo PDM no está habilitado para tu usuario.")
+        if not _is_admin(request.user):
+            raise PermissionDenied("Solo admin puede consultar ejecución mensual.")
+        anio_param = request.query_params.get("anio")
+        try:
+            anio = int(anio_param) if anio_param else timezone.now().year
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({"anio": "Parámetro inválido."}) from exc
+        return Response({"anio": anio, "meses": listar_estado_mensual(request.user.entity_id, anio)})
+
+
+class PdmEjecucionMensualUploadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        require_user_module(request.user, "pdm", message="El módulo PDM no está habilitado para tu usuario.")
+        if not _is_admin(request.user):
+            raise PermissionDenied("Solo admin puede cargar ejecución mensual.")
+        archivo = request.FILES.get("file")
+        if not archivo:
+            raise ValidationError({"file": "Archivo requerido."})
+        if not archivo.name.lower().endswith((".csv", ".xlsx", ".xls")):
+            raise ValidationError({"file": "Formato inválido."})
+
+        content = archivo.read()
+        try:
+            periodo = detectar_periodo_ejecucion(content, archivo.name)
+        except ValueError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+
+        confirmar = str(request.data.get("confirmar", "")).lower() in {"1", "true", "yes", "si", "sí"}
+        if periodo["es_acumulado"] and not confirmar:
+            return Response(
+                {
+                    "detail": "El archivo parece acumulado (rango de más de un mes). Confirme o suba un archivo del mes.",
+                    "periodo": {
+                        "titulo": periodo["titulo"],
+                        "desde": periodo["desde"].isoformat(),
+                        "hasta": periodo["hasta"].isoformat(),
+                        "mes": periodo["mes"],
+                        "anio": periodo["anio"],
+                        "es_acumulado": True,
+                    },
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        anio = periodo["anio"]
+        mes = periodo["mes"]
+        if request.data.get("anio") not in (None, ""):
+            try:
+                anio = int(request.data.get("anio"))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"anio": "Parámetro inválido."}) from exc
+        if request.data.get("mes") not in (None, ""):
+            try:
+                mes = int(request.data.get("mes"))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"mes": "Parámetro inválido."}) from exc
+        if mes < 1 or mes > 12:
+            raise ValidationError({"mes": "Mes inválido (1-12)."})
+
+        try:
+            df_filtrado, _ = parse_ejecucion_excel(content, archivo.name)
+            rows_data, errores = rows_from_ejecucion_dataframe(df_filtrado, anio)
+        except ValueError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+
+        entity = get_object_or_404(Entity, id=request.user.entity_id)
+        with transaction.atomic():
+            insertados, saldo_cero = persistir_ejecucion_mensual(
+                entity,
+                request.user,
+                anio,
+                mes,
+                periodo,
+                rows_data,
+                archivo.name,
+            )
+
+        return Response(
+            {
+                "success": True,
+                "message": f"Ejecución mensual cargada para {mes:02d}/{anio}.",
+                "anio": anio,
+                "mes": mes,
+                "periodo": {
+                    "titulo": periodo["titulo"],
+                    "desde": periodo["desde"].isoformat(),
+                    "hasta": periodo["hasta"].isoformat(),
+                    "es_acumulado": periodo["es_acumulado"],
+                },
+                "registros_procesados": len(df_filtrado),
+                "registros_insertados": insertados,
+                "saldo_compromisos_en_cero": saldo_cero,
+                "errores": errores[:10],
+            }
+        )
+
+
+class PdmEjecucionMensualDeleteView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, anio: int, mes: int):
+        require_user_module(request.user, "pdm", message="El módulo PDM no está habilitado para tu usuario.")
+        if not _is_admin(request.user):
+            raise PermissionDenied("Solo admin puede eliminar ejecución mensual.")
+        if mes < 1 or mes > 12:
+            raise ValidationError({"mes": "Mes inválido (1-12)."})
+        deleted_rows = PDMEjecucionMensual.objects.filter(
+            entity_id=request.user.entity_id, anio=anio, mes=mes
+        ).delete()[0]
+        deleted_meta = PDMEjecucionMensualCarga.objects.filter(
+            entity_id=request.user.entity_id, anio=anio, mes=mes
+        ).delete()[0]
+        return Response(
+            {
+                "success": True,
+                "anio": anio,
+                "mes": mes,
+                "registros_eliminados": deleted_rows,
+                "carga_eliminada": deleted_meta > 0,
             }
         )
 
@@ -1121,14 +1277,23 @@ class PdmExportPiipView(APIView):
             raise PermissionDenied("Solo admin puede exportar PIIP.")
 
         anio_param = request.query_params.get("anio")
+        mes_param = request.query_params.get("mes")
         try:
             anio = int(anio_param) if anio_param else datetime.now().year
         except (TypeError, ValueError):
             anio = datetime.now().year
+        mes = None
+        if mes_param not in (None, ""):
+            try:
+                mes = int(mes_param)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"mes": "Parámetro inválido."}) from exc
+            if mes < 1 or mes > 12:
+                raise ValidationError({"mes": "Mes inválido (1-12)."})
 
-        wb = build_piip_workbook(entity, request.user, anio)
+        wb = build_piip_workbook(entity, request.user, anio, mes=mes)
         content = workbook_to_bytes(wb)
-        filename = f"PIIP_{entity.slug}_{anio}.xlsx"
+        filename = f"PIIP_{entity.slug}_{anio}.xlsx" if not mes else f"PIIP_{entity.slug}_{anio}_{mes:02d}.xlsx"
         response = HttpResponse(
             content,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1171,11 +1336,22 @@ class PdmExportPlanAccionView(APIView):
                 raise PermissionDenied("Su usuario no tiene secretaría asignada.")
             secretaria_id_int = request.user.secretaria_id
 
+        mes_param = request.query_params.get("mes")
+        mes = None
+        if mes_param not in (None, ""):
+            try:
+                mes = int(mes_param)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"mes": "Parámetro inválido."}) from exc
+            if mes < 1 or mes > 12:
+                raise ValidationError({"mes": "Mes inválido (1-12)."})
+
         content, filename = build_plan_accion_export(
             entity,
             request.user,
             anio,
             responsable_secretaria_id=secretaria_id_int,
+            mes=mes,
         )
         response = HttpResponse(
             content,

@@ -123,6 +123,7 @@ function ReportModal({
   defaultAnio,
 }: ModalProps) {
   const [anio, setAnio] = useState(defaultAnio);
+  const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [secretariaId, setSecretariaId] = useState("");
   const [firmanteId, setFirmanteId] = useState("");
   const [incluirEvidencias, setIncluirEvidencias] = useState(true);
@@ -151,6 +152,7 @@ function ReportModal({
     const payload: GenerarInformePdmPayload = {
       tipo: INFORME_TIPO,
       anio,
+      mes,
       usuario_firmante_id: Number(firmanteId),
       incluir_evidencias: incluirEvidencias,
       usar_ia: usarIa,
@@ -190,6 +192,34 @@ function ReportModal({
               {ANIOS_PDM.map((y) => (
                 <option key={y} value={y}>
                   {y}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">Mes del informe</label>
+            <select
+              value={mes}
+              onChange={(e) => setMes(Number(e.target.value))}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#0e7490] focus:outline-none"
+            >
+              {[
+                "Enero",
+                "Febrero",
+                "Marzo",
+                "Abril",
+                "Mayo",
+                "Junio",
+                "Julio",
+                "Agosto",
+                "Septiembre",
+                "Octubre",
+                "Noviembre",
+                "Diciembre",
+              ].map((label, idx) => (
+                <option key={label} value={idx + 1}>
+                  {label}
                 </option>
               ))}
             </select>
@@ -310,6 +340,7 @@ interface PlanAccionModalProps {
 
 function PlanAccionModal({ slug, onClose, secretarias, isAdmin, defaultAnio }: PlanAccionModalProps) {
   const [anio, setAnio] = useState(defaultAnio);
+  const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [secretariaId, setSecretariaId] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -318,12 +349,12 @@ function PlanAccionModal({ slug, onClose, secretarias, isAdmin, defaultAnio }: P
     if (!slug) return;
     setDownloading(true);
     setError(null);
-    const params: Record<string, string> = { anio: String(anio) };
+    const params: Record<string, string> = { anio: String(anio), mes: String(mes) };
     if (isAdmin && secretariaId) {
       params.responsable_secretaria = secretariaId;
     }
     const depSuffix = secretariaId ? `_dep${secretariaId}` : "";
-    const filename = `Plan_Accion_PDM_${slug}_${anio}${depSuffix}.xlsx`;
+    const filename = `Plan_Accion_PDM_${slug}_${anio}_${String(mes).padStart(2, "0")}${depSuffix}.xlsx`;
     try {
       await pdmApi.downloadPlanAccion(slug, params, filename);
       onClose();
@@ -372,6 +403,34 @@ function PlanAccionModal({ slug, onClose, secretarias, isAdmin, defaultAnio }: P
               {ANIOS_PDM.map((y) => (
                 <option key={y} value={y}>
                   {y}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">Mes del informe</label>
+            <select
+              value={mes}
+              onChange={(e) => setMes(Number(e.target.value))}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#0e7490] focus:outline-none"
+            >
+              {[
+                "Enero",
+                "Febrero",
+                "Marzo",
+                "Abril",
+                "Mayo",
+                "Junio",
+                "Julio",
+                "Agosto",
+                "Septiembre",
+                "Octubre",
+                "Noviembre",
+                "Diciembre",
+              ].map((label, idx) => (
+                <option key={label} value={idx + 1}>
+                  {label}
                 </option>
               ))}
             </select>

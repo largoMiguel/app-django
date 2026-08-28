@@ -15,6 +15,7 @@ from apps.common.b2_client import get_b2_client
 from apps.common.storages import pdm_storage_for_paths
 from apps.pdm.access import productos_queryset_for_user
 from apps.pdm.analytics import compute_pdm_analytics
+from apps.pdm.ejecucion_mensual import ultimo_dia_mes
 from apps.pdm.models import InformePDM, InformePdmEstado, InformePdmTipo, PdmActividad, PdmProducto
 
 from .types import storage_slug_for_tipo
@@ -91,6 +92,7 @@ def _prepare_actividades(
     claves: list[str],
     anio: int,
     incluir_evidencias: bool,
+    mes: int | None = None,
 ) -> list[PdmActividad]:
     actividades_qs = (
         PdmActividad.objects.filter(entity_id=entity_id, clave_producto__in=claves)
@@ -100,6 +102,8 @@ def _prepare_actividades(
     )
     if anio != 0:
         actividades_qs = actividades_qs.filter(anio=anio)
+    if mes:
+        actividades_qs = actividades_qs.filter(fecha_ejecucion__lte=ultimo_dia_mes(anio, mes))
 
     actividades = list(actividades_qs)
     for act in actividades:
@@ -129,7 +133,7 @@ def _gather_report_data(informe: InformePDM) -> dict:
         raise ValueError("No hay productos PDM para generar el informe con los filtros seleccionados.")
 
     claves = [p.clave_producto for p in productos]
-    actividades = _prepare_actividades(entity.id, claves, anio, informe.incluir_evidencias)
+    actividades = _prepare_actividades(entity.id, claves, anio, informe.incluir_evidencias, mes=informe.mes)
 
     lineas_count = productos_qs.values("linea_estrategica").distinct().count()
     iniciativas_count = 0
@@ -157,6 +161,8 @@ def _gather_report_data(informe: InformePDM) -> dict:
     filtros: dict = {}
     if secretaria_nombre:
         filtros["secretarias"] = [secretaria_nombre]
+    if informe.mes:
+        filtros["mes"] = informe.mes
 
     return {
         "productos": productos,

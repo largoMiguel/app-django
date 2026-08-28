@@ -36,6 +36,7 @@ function PdmLayoutInner() {
     handleExportarPiip,
     setModalContratos,
     setModalEjecucion,
+    setModalEjecucionMensual,
     abrirModalArmonizacion,
     volverDesdeDetalle,
   } = usePdm();
@@ -89,9 +90,10 @@ function PdmLayoutInner() {
           {tieneDatos && isAdmin && (
             <PdmAccionesMenu
               disabled={saving}
-              onExportarPiip={() => void handleExportarPiip()}
+              onExportarPiip={handleExportarPiip}
               onContratos={() => setModalContratos(true)}
               onEjecucion={() => setModalEjecucion(true)}
+              onEjecucionMensual={() => setModalEjecucionMensual(true)}
               onArmonizaciones={() => abrirModalArmonizacion()}
               onRecargarPdm={triggerRecargarPdm}
             />

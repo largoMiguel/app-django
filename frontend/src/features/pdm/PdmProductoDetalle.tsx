@@ -848,7 +848,7 @@ const ActividadCard = memo(function ActividadCard({
                 <div className="flex items-start gap-1.5">
                   <Calendar size={12} className="mt-0.5 shrink-0 text-slate-400" />
                   <span>
-                    <strong>Fechas:</strong> {formatFechaCorta(actividad.fecha_inicio)} - {formatFechaCorta(actividad.fecha_fin)}
+                    <strong>Fecha de ejecución:</strong> {formatFechaCorta(actividad.fecha_ejecucion)}
                   </span>
                 </div>
                 <div className="flex items-start gap-1.5">

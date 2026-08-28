@@ -19,8 +19,7 @@ export interface ActividadFormValues {
   responsable_secretaria_id: number | null;
   responsable_usuario_id: number | null;
   estado: PdmActividad["estado"];
-  fecha_inicio: string;
-  fecha_fin: string;
+  fecha_ejecucion: string;
   meta_ejecutar: number;
   evidencia_url: string;
   imagenes_nuevas: File[];
@@ -48,8 +47,7 @@ const EMPTY_FORM: ActividadFormValues = {
   responsable_secretaria_id: null,
   responsable_usuario_id: null,
   estado: "COMPLETADA",
-  fecha_inicio: "",
-  fecha_fin: "",
+  fecha_ejecucion: "",
   meta_ejecutar: 0,
   evidencia_url: "",
   imagenes_nuevas: [],
@@ -154,8 +152,7 @@ export default function PdmActividadModal({
         responsable_secretaria_id: actividadEnEdicion.responsable_secretaria || null,
         responsable_usuario_id: actividadEnEdicion.responsable_usuario || null,
         estado: actividadEnEdicion.estado,
-        fecha_inicio: (actividadEnEdicion.fecha_inicio || "").slice(0, 10),
-        fecha_fin: (actividadEnEdicion.fecha_fin || "").slice(0, 10),
+        fecha_ejecucion: (actividadEnEdicion.fecha_ejecucion || "").slice(0, 10),
         meta_ejecutar: Number(actividadEnEdicion.meta_ejecutar || 0),
         evidencia_url: actividadEnEdicion.evidencia?.url_evidencia || "",
         imagenes_nuevas: [],
@@ -164,11 +161,15 @@ export default function PdmActividadModal({
       setArchivosExistentes(actividadEnEdicion.evidencia?.archivos || []);
       return;
     }
+    const hoy = new Date();
+    const defaultFecha =
+      anio === hoy.getFullYear()
+        ? hoy.toISOString().slice(0, 10)
+        : `${anio}-12-31`;
     setForm({
       ...EMPTY_FORM,
       responsable_secretaria_id: esSecretario ? secretariaUsuarioId || null : null,
-      fecha_inicio: `${anio}-01-01`,
-      fecha_fin: `${anio}-12-31`,
+      fecha_ejecucion: defaultFecha,
     });
     setArchivosExistentes([]);
   }, [open, actividadEnEdicion, anio, esSecretario, secretariaUsuarioId]);
@@ -188,7 +189,7 @@ export default function PdmActividadModal({
     form.nombre.trim().length >= 5 &&
     form.descripcion.trim().length >= 10 &&
     Boolean(form.responsable_secretaria_id) &&
-    Boolean(form.fecha_inicio && form.fecha_fin) &&
+    Boolean(form.fecha_ejecucion) &&
     form.meta_ejecutar > 0 &&
     form.meta_ejecutar <= metaDisponible &&
     tieneEvidenciaValida;
@@ -313,19 +314,15 @@ export default function PdmActividadModal({
               </Field>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Fecha inicio *">
-                <input className={pdmInput}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Fecha de ejecución *">
+                <input
+                  className={pdmInput}
                   type="date"
-                  value={form.fecha_inicio}
-                  onChange={(e) => setForm((p) => ({ ...p, fecha_inicio: e.target.value }))}
-                />
-              </Field>
-              <Field label="Fecha fin *">
-                <input className={pdmInput}
-                  type="date"
-                  value={form.fecha_fin}
-                  onChange={(e) => setForm((p) => ({ ...p, fecha_fin: e.target.value }))}
+                  min={`${anio}-01-01`}
+                  max={`${anio}-12-31`}
+                  value={form.fecha_ejecucion}
+                  onChange={(e) => setForm((p) => ({ ...p, fecha_ejecucion: e.target.value }))}
                 />
               </Field>
               <Field label="Meta a ejecutar *">

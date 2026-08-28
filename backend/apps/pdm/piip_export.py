@@ -14,6 +14,7 @@ from apps.entities.models import Entity
 
 from .access import productos_queryset_for_user
 from .bpin_view import consultar_bpines_externos
+from .ejecucion_mensual import ejecucion_mensual_por_producto_fuente
 from .fuente_financiacion import normalizar_fuente_piip
 from .metrics import ANIOS_PDM, actividad_aggs_for_productos
 from .models import PDMEjecucionPresupuestal, PdmProducto
@@ -180,7 +181,7 @@ def _format_responsable(
     return ""
 
 
-def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
+def build_piip_export_rows(entity: Entity, user, anio: int, mes: int | None = None) -> list[list]:
     """Arma filas: una por cada BPIN (separados por coma) y por cada fuente presupuestal."""
     if anio not in ANIOS_PDM:
         return []
@@ -200,8 +201,16 @@ def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
                 seen_bpin.add(bpin)
                 all_bpines.append(bpin)
 
-    aggs_map = actividad_aggs_for_productos(entity.id, claves)
+    aggs_map = actividad_aggs_for_productos(
+        entity.id,
+        claves,
+        hasta_mes=mes,
+        anio_corte=anio if mes else None,
+    )
     fuentes_map = _fuentes_detalle_por_producto(entity.id, codigos, anio)
+    fuentes_mensual_map = (
+        ejecucion_mensual_por_producto_fuente(entity.id, codigos, anio, mes) if mes else {}
+    )
     datos_abiertos, _ = consultar_bpines_externos(all_bpines)
 
     secretaria_ids = [p.responsable_secretaria_id for p in productos if p.responsable_secretaria_id]
@@ -232,6 +241,8 @@ def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
         fuentes_list = fuentes_map.get(producto.codigo_producto) or [
             {"nombre": "Otros", "pto_definitivo": 0.0, "pagos": 0.0},
         ]
+        fuentes_mes_list = fuentes_mensual_map.get(producto.codigo_producto) or []
+        fuentes_mes_by_name = {str(f["nombre"]): f for f in fuentes_mes_list}
 
         for bpin in bpines:
             externo = datos_abiertos.get(bpin) or {}
@@ -239,6 +250,14 @@ def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
             sector = externo.get("sector") or ""
 
             for fuente in fuentes_list:
+                nombre_fuente = str(fuente["nombre"])
+                fm = fuentes_mes_by_name.get(nombre_fuente, {})
+                comprometido_mes = float(fm.get("saldo_mes", 0) or 0) if mes else 0
+                pago_mes = float(fm.get("pagos_mes", 0) or 0) if mes else 0
+                comprometido_acum = float(fm.get("saldo_acum", 0) or 0) if mes else 0
+                pago_acum = float(fm.get("pagos_acum", 0) or 0) if mes else 0
+                valor_ejecutado = pago_acum if mes else float(fuente["pagos"])
+
                 rows.append(
                     [
                         bpin,
@@ -249,23 +268,26 @@ def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
                         meta_programada,
                         meta_ejecutada,
                         float(fuente["pto_definitivo"]),
-                        0,
-                        0,
-                        0,
-                        0,
-                        float(fuente["pagos"]),
-                        str(fuente["nombre"]),
+                        comprometido_mes,
+                        pago_mes,
+                        comprometido_acum,
+                        pago_acum,
+                        valor_ejecutado,
+                        nombre_fuente,
                         responsable,
                     ]
                 )
     return rows
 
 
-def build_piip_workbook(entity: Entity, user, anio: int) -> Workbook:
+def build_piip_workbook(entity: Entity, user, anio: int, mes: int | None = None) -> Workbook:
     """Construye el workbook Excel con estilo de encabezado verde."""
     wb = Workbook()
     ws = wb.active
-    ws.title = f"PIIP {anio}"
+    title = f"PIIP {anio}"
+    if mes:
+        title = f"PIIP {anio}-{mes:02d}"
+    ws.title = title
 
     for col_idx, header in enumerate(PIIP_COLUMNS, start=1):
         cell = ws.cell(row=1, column=col_idx, value=header)
@@ -274,7 +296,7 @@ def build_piip_workbook(entity: Entity, user, anio: int) -> Workbook:
         cell.alignment = HEADER_ALIGNMENT
         cell.border = THIN_BORDER
 
-    for row_idx, row_data in enumerate(build_piip_export_rows(entity, user, anio), start=2):
+    for row_idx, row_data in enumerate(build_piip_export_rows(entity, user, anio, mes=mes), start=2):
         for col_idx, value in enumerate(row_data, start=1):
             cell = ws.cell(row=row_idx, column=col_idx, value=value)
             cell.border = THIN_BORDER
