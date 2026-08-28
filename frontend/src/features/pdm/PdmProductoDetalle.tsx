@@ -290,12 +290,20 @@ export default function PdmProductoDetalle({
                 <p className="text-xs text-slate-500">años con metas</p>
               </div>
               <div>
-                <FieldLabel>% de Avance</FieldLabel>
-                <p className="mt-0.5 text-2xl font-bold text-slate-900">{producto.porcentaje_ejecucion.toFixed(1)}%</p>
+                <FieldLabel>% de Avance ({anioDetalle})</FieldLabel>
+                <p className="mt-0.5 text-2xl font-bold text-slate-900">
+                  {(resumenAnioDetalle?.porcentaje_avance ?? producto.avance_anio ?? 0).toFixed(1)}%
+                </p>
+                <p className="text-xs text-slate-500">
+                  Cuatrienio: {producto.porcentaje_ejecucion.toFixed(1)}%
+                </p>
               </div>
             </div>
 
-            <PdmProgressBar value={producto.porcentaje_ejecucion} tone={getColorProgreso(producto.porcentaje_ejecucion)} />
+            <PdmProgressBar
+              value={resumenAnioDetalle?.porcentaje_avance ?? producto.avance_anio ?? 0}
+              tone={getColorProgreso(resumenAnioDetalle?.porcentaje_avance ?? producto.avance_anio ?? 0)}
+            />
           </div>
         </PdmCard>
 
@@ -735,7 +743,15 @@ function AuthenticatedImage({
   className?: string;
   onClick?: () => void;
 }) {
-  const src = useAuthenticatedImage(url);
+  const { src, failed } = useAuthenticatedImage(url);
+
+  if (failed) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-100 text-xs text-slate-500 ${className}`}>
+        Error
+      </div>
+    );
+  }
 
   if (!src) {
     return (
@@ -749,7 +765,7 @@ function AuthenticatedImage({
 }
 
 function AuthenticatedImageModal({ url, onClose }: { url: string; onClose: () => void }) {
-  const src = useAuthenticatedImage(url);
+  const { src, failed } = useAuthenticatedImage(url);
 
   return (
     <div
@@ -765,7 +781,9 @@ function AuthenticatedImageModal({ url, onClose }: { url: string; onClose: () =>
       >
         <X size={24} />
       </button>
-      {src ? (
+      {failed ? (
+        <p className="text-white">No se pudo cargar la imagen.</p>
+      ) : src ? (
         <img src={src} alt="Evidencia ampliada" className="max-h-[90vh] max-w-full object-contain" onClick={(e) => e.stopPropagation()} />
       ) : (
         <Loader2 size={32} className="animate-spin text-white" />

@@ -46,6 +46,7 @@ import numpy as np
 plt.rcParams['font.family'] = 'DejaVu Sans'
 
 from apps.pdm.models import ActividadEstado, PDMEjecucionPresupuestal
+from apps.pdm.metrics import actividad_aggs_for_productos, avance_general_producto, resumen_anio
 from apps.common.report_cover import build_cover_flowables
 from apps.common.report_theme import (
     BG_WHITE,
@@ -239,34 +240,26 @@ class PDMReportGenerator:
                 return str(plan).strip()
         return "Plan de Desarrollo Municipal"
 
+    def _aggs_for_producto(self, producto) -> dict:
+        if not hasattr(self, "_aggs_by_clave"):
+            claves = [p.clave_producto for p in self.productos]
+            self._aggs_by_clave = actividad_aggs_for_productos(self.entity.id, claves)
+        return self._aggs_by_clave.get(producto.clave_producto, {})
+
     def _avance_fisico_meta_grupo(self, productos: list) -> float:
-        codigos = {p.clave_producto for p in productos}
         meta_prog = sum(self._meta_programada_producto(p) for p in productos)
         if meta_prog <= 0:
             return 0.0
-        meta_ejec = 0.0
-        for act in self.actividades:
-            if act.clave_producto not in codigos:
-                continue
-            if self.anio != 0 and act.anio != self.anio:
-                continue
-            if getattr(act, "tiene_evidencia", False) or act.estado == "COMPLETADA":
-                meta_ejec += float(act.meta_ejecutar or 0)
+        meta_ejec = sum(self._meta_ejecutada_producto(p) for p in productos)
         return min(100.0, (meta_ejec / meta_prog) * 100)
 
     def _meta_ejecutada_producto(self, producto) -> float:
+        aggs = self._aggs_for_producto(producto)
         if self.anio == 0:
-            anios = (2024, 2025, 2026, 2027)
-        else:
-            anios = (self.anio,)
-        meta_ejec = 0.0
-        for anio in anios:
-            for act in self.actividades:
-                if act.clave_producto != producto.clave_producto or act.anio != anio:
-                    continue
-                if getattr(act, "tiene_evidencia", False):
-                    meta_ejec += float(act.meta_ejecutar or 0)
-        return meta_ejec
+            return sum(
+                resumen_anio(producto, y, aggs)["meta_ejecutada"] for y in (2024, 2025, 2026, 2027)
+            )
+        return resumen_anio(producto, self.anio, aggs)["meta_ejecutada"]
 
     def _presupuesto_producto(self, producto) -> tuple[float, float]:
         qs = PDMEjecucionPresupuestal.objects.filter(
@@ -906,66 +899,14 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             traceback.print_exc()
     
     def calcular_avance_producto(self, producto):
-        """
-        Calcula el avance de un producto basado en meta ejecutada vs meta programada
-        Respeta el año seleccionado (self.anio). Si anio=0, calcula promedio de todos los años.
-        """
+        """Avance físico alineado con metrics.resumen_anio / avance_general_producto."""
         try:
-            # Determinar años a calcular según self.anio
+            aggs = self._aggs_for_producto(producto)
             if self.anio == 0:
-                # Todos los años del cuatrienio
-                anios = [2024, 2025, 2026, 2027]
-            else:
-                # Solo el año seleccionado
-                anios = [self.anio]
-            
-            suma_avances = 0
-            total_anios_con_meta = 0
-            
-            print(f"\n🔍 Calculando avance para producto: {producto.codigo_producto}")
-            print(f"   Año(s) a calcular: {anios}")
-            print(f"   Total actividades disponibles: {len(self.actividades)}")
-            
-            for anio in anios:
-                # Obtener meta programada del año
-                meta_programada = getattr(producto, f'programacion_{anio}', 0) or 0
-                
-                if meta_programada > 0:
-                    # Calcular meta ejecutada: suma de meta_ejecutar de actividades con evidencia
-                    actividades_anio = [
-                        act for act in self.actividades 
-                        if act.clave_producto == producto.clave_producto and act.anio == anio
-                    ]
-                    
-                    print(f"   Año {anio}: meta_programada={meta_programada}, actividades={len(actividades_anio)}")
-                    
-                    # Sumar meta_ejecutar de actividades completadas (alineado con analytics)
-                    meta_ejecutada = sum(
-                        act.meta_ejecutar for act in actividades_anio
-                        if getattr(act, "estado", None) == ActividadEstado.COMPLETADA
-                    )
-
-                    actividades_completadas = sum(
-                        1 for act in actividades_anio
-                        if getattr(act, "estado", None) == ActividadEstado.COMPLETADA
-                    )
-                    print(f"   Año {anio}: meta_ejecutada={meta_ejecutada}, actividades_completadas={actividades_completadas}")
-                    
-                    # Calcular porcentaje de avance (topar en 100%)
-                    porcentaje_avance = min(100, (meta_ejecutada / meta_programada) * 100)
-                    print(f"   Año {anio}: porcentaje_avance={porcentaje_avance:.1f}%")
-                    suma_avances += porcentaje_avance
-                    total_anios_con_meta += 1
-            
-            resultado = suma_avances / total_anios_con_meta if total_anios_con_meta > 0 else 0
-            print(f"   ✅ Avance promedio final: {resultado:.1f}%\n")
-            return resultado
-            
-        except Exception as e:
-            print(f"      ⚠️ Error calculando avance para {producto.codigo_producto}: {e}")
-            import traceback
-            traceback.print_exc()
-            return 0
+                return avance_general_producto(producto, aggs)
+            return resumen_anio(producto, self.anio, aggs)["porcentaje_avance"]
+        except Exception:
+            return 0.0
     
     def calcular_avance_financiero(self, producto) -> float:
         """
@@ -984,12 +925,8 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ejecuciones = list(qs)
             
             if not ejecuciones:
-                anio_texto = "todos los años" if self.anio == 0 else str(self.anio)
-                print(f"      ℹ️ No hay ejecución presupuestal para {producto.codigo_producto} en {anio_texto}")
-                # Sin datos de ejecución, usar avance físico como estimación
                 return self.calcular_avance_producto(producto)
             
-            # Sumar totales de todas las fuentes
             total_definitivo = 0
             total_pagos = 0
             
@@ -997,21 +934,13 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 total_definitivo += float(ejecucion.pto_definitivo or 0)
                 total_pagos += float(ejecucion.pagos or 0)
             
-            # Calcular porcentaje
             if total_definitivo == 0:
-                print(f"      ⚠️ Presupuesto definitivo = 0 para {producto.codigo_producto}")
                 return self.calcular_avance_producto(producto)
             
             avance_financiero = (total_pagos / total_definitivo) * 100
-            print(f"      💰 Avance financiero {producto.codigo_producto}: {avance_financiero:.1f}% (Pagos: ${total_pagos:,.0f} / Definitivo: ${total_definitivo:,.0f})")
+            return min(100, max(0, avance_financiero))
             
-            return min(100, max(0, avance_financiero))  # Entre 0 y 100%
-            
-        except Exception as e:
-            print(f"      ❌ Error calculando avance financiero para {producto.codigo_producto}: {e}")
-            import traceback
-            traceback.print_exc()
-            # En caso de error, usar avance físico
+        except Exception:
             return self.calcular_avance_producto(producto)
     
     def generate_grafica_moderna_lineas(self):
@@ -1349,12 +1278,8 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         
         # Procesar cada producto (SIN LÍMITE - mejora implementada)
         st = self._institutional_styles()
-        total_productos = len(self.productos)
-        print(f"   📦 Procesando {total_productos} productos...")
         
-        for idx, prod in enumerate(self.productos, 1):
-            print(f"   📦 Procesando producto {idx}/{total_productos}: {prod.codigo_producto}")
-
+        for prod in self.productos:
             actividades = actividades_por_producto.get(prod.clave_producto, [])
             producto_nombre = prod.producto_mga or prod.codigo_producto
             indicador_nombre = prod.indicador_producto_mga or prod.personalizacion_indicador or "N/A"

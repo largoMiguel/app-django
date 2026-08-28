@@ -1,13 +1,25 @@
 import { lazy, Suspense } from "react";
 import { usePdm } from "@/features/pdm/PdmContext";
-import { PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
+import { PdmAlert, PdmLoadingOverlay } from "@/features/pdm/components/PdmUi";
+import { pdmBtnSecondary } from "@/features/pdm/pdmStyles";
 
 const PdmProductoDetalle = lazy(() => import("@/features/pdm/PdmProductoDetalle"));
 
 export default function PdmProductoDetallePage() {
   const pdm = usePdm();
 
-  if (!pdm.productoSeleccionado || !pdm.resumenAnioDetalle) {
+  if (pdm.detalleFetchError) {
+    return (
+      <div className="mx-auto max-w-lg space-y-4 p-6">
+        <PdmAlert tone="error">{pdm.detalleFetchError}</PdmAlert>
+        <button type="button" className={pdmBtnSecondary} onClick={pdm.volverDesdeDetalle}>
+          Volver
+        </button>
+      </div>
+    );
+  }
+
+  if (pdm.loadingProductoDetail || !pdm.productoSeleccionado || !pdm.resumenAnioDetalle) {
     return <PdmLoadingOverlay message="Cargando producto..." />;
   }
 

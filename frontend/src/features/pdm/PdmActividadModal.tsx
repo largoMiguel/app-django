@@ -57,6 +57,15 @@ const EMPTY_FORM: ActividadFormValues = {
 };
 
 const MAX_IMAGENES_EVIDENCIA = 4;
+const ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"];
+
+function validateEvidenciaImage(file: File): string | null {
+  const ext = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")).toLowerCase() : "";
+  if (!ALLOWED_IMAGE_EXTENSIONS.includes(ext)) {
+    return `Tipo no permitido (${ext || "sin extensión"}). Use PNG, JPG, GIF o WEBP.`;
+  }
+  return null;
+}
 
 const labelClass = "mb-1 block text-xs font-medium text-slate-600";
 const textareaClass =
@@ -71,7 +80,15 @@ function AuthenticatedImagePreview({
   alt: string;
   className?: string;
 }) {
-  const src = useAuthenticatedImage(url);
+  const { src, failed } = useAuthenticatedImage(url);
+
+  if (failed) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-100 text-xs text-slate-500 ${className}`}>
+        No se pudo cargar
+      </div>
+    );
+  }
 
   if (!src) {
     return (
@@ -343,13 +360,20 @@ export default function PdmActividadModal({
             <Field label="Imágenes (máximo 4)">
               <input
                 type="file"
-                accept="image/*"
+                accept=".png,.jpg,.jpeg,.gif,.webp,image/png,image/jpeg,image/gif,image/webp"
                 multiple
                 disabled={slotsDisponibles <= 0}
                 className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-700"
                 onChange={(e) => {
                   const selected = Array.from(e.target.files || []);
                   if (!selected.length) return;
+                  const invalid = selected.map(validateEvidenciaImage).find(Boolean);
+                  if (invalid) {
+                    setFormError(invalid);
+                    e.target.value = "";
+                    return;
+                  }
+                  setFormError(null);
                   setForm((p) => {
                     const existentes = archivosExistentes.filter((a) => !p.archivos_eliminar.includes(a.id)).length;
                     const disponibles = Math.max(0, MAX_IMAGENES_EVIDENCIA - existentes - p.imagenes_nuevas.length);

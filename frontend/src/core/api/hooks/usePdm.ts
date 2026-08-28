@@ -182,8 +182,17 @@ export function useInvalidatePdmQueries() {
       void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "productos"] });
       void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "armonizaciones"] });
     },
-    afterAsignarResponsable: (slug: string) => {
+    afterAsignarResponsable: (slug: string, clave?: string, anio?: number) => {
       void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "productos", slug] });
+      void qc.invalidateQueries({ queryKey: pdmKeys.stats(slug, anio) });
+      void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "analisis", slug] });
+      if (clave) {
+        void qc.invalidateQueries({ queryKey: pdmKeys.producto(slug, clave, anio) });
+      }
+    },
+    afterUploadContratos: (slug: string, anio?: number) => {
+      void qc.invalidateQueries({ queryKey: pdmKeys.contratos(slug, anio) });
+      void qc.invalidateQueries({ queryKey: [...pdmKeys.all, "contratos", slug] });
     },
   };
 }

@@ -178,9 +178,7 @@ export default function PdmSharedModals() {
                     const result = await pdmApi.uploadContratos(slug, archivoContratos, anioContratos);
                     setModalContratos(false);
                     setArchivoContratos(null);
-                    if (productoSeleccionado && route === "detalle") {
-                      invalidatePdm.invalidateContratos(slug, anioContratos, productoSeleccionado.codigo);
-                    }
+                    invalidatePdm.afterUploadContratos(slug, anioContratos);
                     setError(null);
                     setUploadFeedback({
                       tone: "success",

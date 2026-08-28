@@ -273,7 +273,7 @@ def _build_producto_sheet(ws, data: dict, anio: int) -> None:
             presupuesto,
             pto_def,
             pagos,
-            _pct(pagos, presupuesto if presupuesto > 0 else pto_def),
+            _pct(pagos, pto_def if pto_def > 0 else presupuesto),
             estado_producto_anio(producto, anio, aggs_by_anio),
         ]
         _write_row(ws, row_idx, values)

@@ -329,21 +329,57 @@ const UPLOAD_PRODUCTO_FIELDS = [
   "total_2027",
 ] as const;
 
+const PRESUPUESTO_FUENTES = [
+  "recursos_propios",
+  "sgp_educacion",
+  "sgp_salud",
+  "sgp_deporte",
+  "sgp_cultura",
+  "sgp_libre_inversion",
+  "sgp_libre_destinacion",
+  "sgp_alimentacion_escolar",
+  "sgp_municipios_rio_magdalena",
+  "sgp_apsb",
+  "credito",
+  "transferencias_cofinanciacion_departamento",
+  "transferencias_cofinanciacion_nacion",
+  "otros",
+] as const;
+
+type PresupuestoAnio = 2024 | 2025 | 2026 | 2027;
+
+function buildPresupuestoAnio(
+  producto: PdmProductoExcelRow,
+  anio: PresupuestoAnio,
+): Record<string, number> | null {
+  const out: Record<string, number> = {};
+  for (const fuente of PRESUPUESTO_FUENTES) {
+    const key = `${fuente}_${anio}` as keyof PdmProductoExcelRow;
+    const val = Number(producto[key]) || 0;
+    if (val > 0) out[fuente] = val;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 function normalizeCodigo(value: unknown): string {
   if (value === null || value === undefined) return "";
   return String(value).trim();
 }
 
 export function buildPdmUploadPayload(data: PdmExcelData) {
-  const productos: Record<string, string | number | null>[] = [];
+  const productos: Record<string, string | number | Record<string, number> | null>[] = [];
   for (const producto of data.productos_plan_indicativo) {
     const codigo = normalizeCodigo(producto.codigo_producto);
     if (!codigo) continue;
-    const row: Record<string, string | number | null> = { codigo_producto: codigo };
+    const row: Record<string, string | number | Record<string, number> | null> = { codigo_producto: codigo };
     for (const field of UPLOAD_PRODUCTO_FIELDS) {
       if (field === "codigo_producto") continue;
       row[field] = producto[field] ?? null;
     }
+    row.presupuesto_2024 = buildPresupuestoAnio(producto, 2024);
+    row.presupuesto_2025 = buildPresupuestoAnio(producto, 2025);
+    row.presupuesto_2026 = buildPresupuestoAnio(producto, 2026);
+    row.presupuesto_2027 = buildPresupuestoAnio(producto, 2027);
     productos.push(row);
   }
 

@@ -515,7 +515,12 @@ export default function PdmInformesPage() {
       await pdmInformesApi.create(slug, payload);
       await queryClient.invalidateQueries({ queryKey: ["pdm-informes", slug, INFORME_TIPO] });
     } catch (err) {
-      setActionError(formatApiError(err, "No se pudo encolar el informe PDF."));
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      setActionError(
+        status === 409
+          ? "Ya hay un informe de este tipo en cola o en proceso. Espere a que termine."
+          : formatApiError(err, "No se pudo encolar el informe PDF."),
+      );
     } finally {
       setSubmitting(false);
     }

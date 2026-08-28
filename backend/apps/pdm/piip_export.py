@@ -277,6 +277,7 @@ def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
         return []
 
     codigos = [p.codigo_producto for p in productos]
+    claves = [p.clave_producto for p in productos]
     all_bpines: list[str] = []
     seen_bpin: set[str] = set()
     for p in productos:
@@ -285,7 +286,7 @@ def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
                 seen_bpin.add(bpin)
                 all_bpines.append(bpin)
 
-    aggs_map = actividad_aggs_for_productos(entity.id, codigos)
+    aggs_map = actividad_aggs_for_productos(entity.id, claves)
     fuentes_map = _fuentes_detalle_por_producto(entity.id, codigos, anio)
     datos_abiertos, _ = consultar_bpines_externos(all_bpines)
 
@@ -298,7 +299,7 @@ def build_piip_export_rows(entity: Entity, user, anio: int) -> list[list]:
         if not bpines:
             continue
 
-        aggs_anio = aggs_map.get(producto.codigo_producto, {}).get(anio, {})
+        aggs_anio = aggs_map.get(producto.clave_producto, {}).get(anio, {})
         meta_ejecutada = float(aggs_anio.get("meta_ejecutada", 0) or 0)
         meta_programada = _meta_programada(producto, anio)
 

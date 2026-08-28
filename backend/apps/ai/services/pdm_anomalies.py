@@ -82,6 +82,7 @@ def detect_pdm_anomalies(
                     "type": "physical_financial_divergence",
                     "severity": "high",
                     "codigo_producto": producto.codigo_producto,
+                    "clave_producto": producto.clave_producto,
                     "producto_mga": producto.producto_mga,
                     "title": f"Divergencia físico/financiero: {producto.codigo_producto}",
                     "message": (
@@ -105,6 +106,7 @@ def detect_pdm_anomalies(
                 "type": "no_activities",
                 "severity": "medium",
                 "codigo_producto": producto.codigo_producto,
+                "clave_producto": producto.clave_producto,
                 "producto_mga": producto.producto_mga,
                 "title": f"Meta sin actividades: {producto.codigo_producto}",
                 "message": f"Producto con meta programada {meta_programada} en {anio} pero sin actividades registradas.",
@@ -116,6 +118,7 @@ def detect_pdm_anomalies(
                 "type": "execution_no_progress",
                 "severity": "high",
                 "codigo_producto": producto.codigo_producto,
+                "clave_producto": producto.clave_producto,
                 "producto_mga": producto.producto_mga,
                 "title": f"Pagos sin avance físico: {producto.codigo_producto}",
                 "message": f"Pagos de ${total_pagos:,.0f} pero avance físico solo {avance_fisico:.0f}%.",
@@ -158,6 +161,7 @@ def forecast_pdm_completion(entity_id: int, anio: int | None = None) -> list[dic
         if at_risk or avance < 30:
             forecasts.append({
                 "codigo_producto": producto.codigo_producto,
+                "clave_producto": producto.clave_producto,
                 "producto_mga": producto.producto_mga,
                 "avance_actual": round(avance, 1),
                 "projected_year_end": round(projected, 1),

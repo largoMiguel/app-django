@@ -16,6 +16,7 @@ import { pdmApi, type PdmActividad, type PdmEjecucionProducto, type PdmProducto 
 import { secretariasApi } from "@/core/api/entities";
 import { usersApi, type AppUser } from "@/core/api/users";
 import { formatApiError } from "@/core/api/errors";
+import { dateInputValueToIsoCO } from "@/core/datetime";
 import { useAuthStore } from "@/core/auth/store";
 import type { ActividadFormValues } from "@/features/pdm/PdmActividadModal";
 import type { ContratosRPSResumen } from "@/features/pdm/PdmProductoDetalle";
@@ -106,6 +107,7 @@ interface PdmContextValue {
   contratosRPS: ContratosRPSResumen | null;
   cargandoContratos: boolean;
   loadingProductoDetail: boolean;
+  detalleFetchError: string | null;
   filtroLinea: string;
   filtroSector: string;
   filtroSecretaria: string;
@@ -318,12 +320,15 @@ export function PdmProvider({ children }: { children: ReactNode }) {
   const { data: resumenEjecucion } = usePdmResumenEjecucionAnual(slug, tieneDatos && route === "dashboard");
 
   const detalleEnabled = tieneDatos && route === "detalle" && Boolean(codigoDetalle && slug);
-  const { data: productoDetailData, isLoading: loadingProductoDetail } = usePdmProductoDetail(
+  const { data: productoDetailData, isLoading: loadingProductoDetail, isError: detalleIsError, error: detalleError } = usePdmProductoDetail(
     slug,
     codigoDetalle,
     anioDetalle,
     detalleEnabled,
   );
+  const detalleFetchError = detalleIsError
+    ? formatApiError(detalleError, "No se pudo cargar el producto.")
+    : null;
   const codigoEjecucionDetalle =
     productoDetailData?.codigo_producto ?? productoListPreview?.codigo ?? "";
   const { data: ejecucionPresupuestal = null, isLoading: cargandoEjecucion } = usePdmEjecucionProducto(
@@ -410,14 +415,18 @@ export function PdmProvider({ children }: { children: ReactNode }) {
   );
 
   const openDetalleByCodigo = useCallback(
-    (codigo: string, from?: PdmDetalleFrom) => {
-      setProductoListPreview(null);
+    (codigoOrClave: string, from?: PdmDetalleFrom) => {
+      const match = resumenProductos.find(
+        (p) => p.clave === codigoOrClave || p.codigo === codigoOrClave,
+      );
+      const clave = match?.clave ?? codigoOrClave;
+      setProductoListPreview(match ?? null);
       setAnioDetalle(from === "analisis" ? (typeof filtroAnioAnalisis === "number" ? filtroAnioAnalisis : new Date().getFullYear()) : new Date().getFullYear());
-      navigate(`/pdm/productos/${encodeURIComponent(codigo)}`, {
+      navigate(`/pdm/productos/${encodeURIComponent(clave)}`, {
         state: from ? { from } : undefined,
       });
     },
-    [filtroAnioAnalisis, navigate],
+    [filtroAnioAnalisis, navigate, resumenProductos],
   );
 
   const openProductoFromProyectos = useCallback(
@@ -447,6 +456,8 @@ export function PdmProvider({ children }: { children: ReactNode }) {
       setGuardandoEvidencia(true);
       setSaving(true);
       setError(null);
+      let actividadId: number | null = actividadEnEdicion?.id ?? null;
+      const isNew = !actividadEnEdicion;
       try {
         const payload = {
           clave_producto: productoSeleccionado.clave,
@@ -455,21 +466,25 @@ export function PdmProvider({ children }: { children: ReactNode }) {
           descripcion: values.descripcion.trim(),
           responsable_secretaria: values.responsable_secretaria_id,
           responsable_usuario: values.responsable_usuario_id,
-          estado: "COMPLETADA" as const,
-          fecha_inicio: new Date(values.fecha_inicio).toISOString(),
-          fecha_fin: new Date(values.fecha_fin).toISOString(),
+          fecha_inicio: dateInputValueToIsoCO(values.fecha_inicio),
+          fecha_fin: dateInputValueToIsoCO(values.fecha_fin),
           meta_ejecutar: values.meta_ejecutar,
         };
         const actividad = actividadEnEdicion
           ? await pdmApi.actualizarActividad(slug, actividadEnEdicion.id, payload)
           : await pdmApi.crearActividad(slug, payload);
+        actividadId = actividad.id;
         const evidenciaPayload = {
           descripcion: values.descripcion.trim(),
           url_evidencia: values.evidencia_url.trim() || undefined,
           archivos: values.imagenes_nuevas,
           archivos_eliminar: values.archivos_eliminar,
         };
-        if (actividadEnEdicion?.evidencia?.id || actividadEnEdicion?.tiene_evidencia) {
+        const tieneEvidenciaRegistrada = Boolean(
+          actividadEnEdicion?.evidencia?.id ||
+            (actividadEnEdicion?.tiene_evidencia && actividadEnEdicion.evidencia),
+        );
+        if (tieneEvidenciaRegistrada) {
           await pdmApi.actualizarEvidencia(slug, actividad.id, evidenciaPayload);
         } else {
           await pdmApi.registrarEvidencia(slug, actividad.id, evidenciaPayload);
@@ -478,6 +493,13 @@ export function PdmProvider({ children }: { children: ReactNode }) {
         setMostrarModalActividad(false);
         setActividadEnEdicion(null);
       } catch (e) {
+        if (isNew && actividadId) {
+          try {
+            await pdmApi.eliminarActividad(slug, actividadId);
+          } catch {
+            /* best effort rollback */
+          }
+        }
         setError(formatApiError(e, "No se pudo guardar la actividad."));
       } finally {
         setGuardandoEvidencia(false);
@@ -537,14 +559,14 @@ export function PdmProvider({ children }: { children: ReactNode }) {
       setSaving(true);
       try {
         await pdmApi.asignarResponsable(slug, p.clave, sid);
-        invalidatePdm.afterAsignarResponsable(slug);
+        invalidatePdm.afterAsignarResponsable(slug, p.clave, filtroAnio);
       } catch (e) {
         setError(formatApiError(e, "No se pudo asignar."));
       } finally {
         setSaving(false);
       }
     },
-    [invalidatePdm, slug],
+    [invalidatePdm, slug, filtroAnio],
   );
 
   const handleAsignarUsuario = useCallback(
@@ -553,14 +575,14 @@ export function PdmProvider({ children }: { children: ReactNode }) {
       setSaving(true);
       try {
         await pdmApi.asignarResponsableUsuario(slug, p.clave, uid);
-        invalidatePdm.afterAsignarResponsable(slug);
+        invalidatePdm.afterAsignarResponsable(slug, p.clave, filtroAnio);
       } catch (e) {
         setError(formatApiError(e, "No se pudo asignar al contratista."));
       } finally {
         setSaving(false);
       }
     },
-    [invalidatePdm, slug],
+    [invalidatePdm, slug, filtroAnio],
   );
 
   const handleEliminarActividad = useCallback(
@@ -617,18 +639,19 @@ export function PdmProvider({ children }: { children: ReactNode }) {
     (a: PdmActividad) => {
       void (async () => {
         let act = a;
-        if (a.tiene_evidencia && !a.evidencia && slug) {
+        if (a.tiene_evidencia && !a.evidencia?.id && slug) {
           try {
             act = { ...a, evidencia: await pdmApi.getEvidencia(slug, a.id) };
-          } catch {
-            /* ignore */
+          } catch (e) {
+            setError(formatApiError(e, "No se pudo cargar la evidencia para editar."));
+            return;
           }
         }
         setActividadEnEdicion(act);
         setMostrarModalActividad(true);
       })();
     },
-    [slug],
+    [slug, setError],
   );
 
   const handleExportarPiip = useCallback(async () => {
@@ -697,7 +720,8 @@ export function PdmProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loading = loadingStatus || procesandoExcel;
-  const cargandoDetalleUrl = detalleEnabled && (loadingProductoDetail || !productoSeleccionado);
+  const cargandoDetalleUrl =
+    detalleEnabled && loadingProductoDetail && !detalleFetchError && !productoSeleccionado;
 
   const value: PdmContextValue = {
     slug,
@@ -748,6 +772,7 @@ export function PdmProvider({ children }: { children: ReactNode }) {
     contratosRPS: contratosRPS as ContratosRPSResumen | null,
     cargandoContratos,
     loadingProductoDetail,
+    detalleFetchError,
     filtroLinea,
     filtroSector,
     filtroSecretaria,

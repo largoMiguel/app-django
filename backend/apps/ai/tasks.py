@@ -57,7 +57,8 @@ def index_pdm_evidencia_embedding(self, evidencia_id: int):
     actividad = evidencia.actividad
     from apps.pdm.models import PdmProducto
     producto = PdmProducto.objects.filter(
-        codigo_producto=actividad.codigo_producto,
+        entity_id=actividad.entity_id,
+        clave_producto=actividad.clave_producto,
     ).first()
     if not producto:
         return
@@ -68,7 +69,7 @@ def index_pdm_evidencia_embedding(self, evidencia_id: int):
         ContentEmbedding.ContentType.PDM_EVIDENCIA,
         evidencia.id,
         texto,
-        {"codigo_producto": actividad.codigo_producto},
+        {"codigo_producto": producto.codigo_producto, "clave_producto": producto.clave_producto},
     )
 
 

@@ -30,7 +30,9 @@ from .access import (
     codigos_producto_for_user,
     ejecucion_queryset_for_user,
     productos_queryset_for_user,
+    resolve_clave_producto,
     user_can_access_actividad,
+    user_can_access_codigo_producto,
     user_can_access_producto,
 )
 from .ejecucion_resumen import resumen_ejecucion_entidad
@@ -506,6 +508,15 @@ class PdmUploadView(APIView):
                 if clave == codigo:
                     existing_by_legacy_codigo[codigo] = prod
 
+            claves_a_eliminar = list(
+                PdmProducto.objects.filter(entity=entity)
+                .exclude(clave_producto__in=claves_excel)
+                .values_list("clave_producto", flat=True)
+            )
+            if claves_a_eliminar:
+                PdmActividad.objects.filter(
+                    entity=entity, clave_producto__in=claves_a_eliminar
+                ).delete()
             PdmProducto.objects.filter(entity=entity).exclude(clave_producto__in=claves_excel).delete()
 
             PdmIniciativaSGR.objects.filter(entity=entity).delete()
@@ -541,7 +552,8 @@ class PdmActividadCreateView(APIView):
         if not (_is_admin(request.user) or _is_secretario(request.user)):
             raise PermissionDenied("Sin permisos para crear actividades.")
         clave = str(request.data.get("clave_producto") or request.data.get("codigo_producto") or "").strip()
-        if not user_can_access_producto(request.user, entity, clave):
+        clave = resolve_clave_producto(request.user, entity, clave) or clave
+        if not clave or not user_can_access_producto(request.user, entity, clave):
             raise PermissionDenied("No tiene permisos para este producto.")
         payload = request.data.copy()
         payload["clave_producto"] = clave
@@ -583,6 +595,8 @@ class PdmActividadDetailView(APIView):
         if not user_can_access_actividad(request.user, entity, actividad):
             raise PermissionDenied("No tiene permisos para esta actividad.")
         payload = request.data.copy()
+        payload.pop("clave_producto", None)
+        payload.pop("codigo_producto", None)
         if "fecha_inicio" in payload:
             payload["fecha_inicio"] = _parse_iso_dt(payload.get("fecha_inicio"))
         if "fecha_fin" in payload:
@@ -590,6 +604,11 @@ class PdmActividadDetailView(APIView):
         if not _is_secretario(request.user):
             payload.pop("responsable_usuario", None)
             payload.pop("responsable_usuario_id", None)
+        if payload.get("estado") == ActividadEstado.COMPLETADA:
+            if not PdmActividadEvidencia.objects.filter(actividad_id=actividad.id).exists():
+                raise ValidationError(
+                    {"estado": "No se puede marcar como completada sin evidencia registrada."}
+                )
         ser = PdmActividadSerializer(actividad, data=payload, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
@@ -681,6 +700,22 @@ class PdmEvidenciaView(APIView):
             raise ValidationError({"archivos": "Debe conservar al menos una imagen o una URL externa."})
         return Response(self._serialize(evidencia, request))
 
+    def delete(self, request, slug: str, actividad_id: int):
+        entity = _entity_or_404(slug)
+        _ensure_user_can_manage_entity(request.user, entity)
+        actividad = get_object_or_404(PdmActividad, id=actividad_id, entity=entity)
+        if not user_can_access_actividad(request.user, entity, actividad):
+            raise PermissionDenied("No tiene permisos para esta actividad.")
+        evidencia = get_object_or_404(
+            PdmActividadEvidencia.objects.prefetch_related("archivos"),
+            actividad_id=actividad_id,
+            entity=entity,
+        )
+        evidencia.delete()
+        actividad.estado = ActividadEstado.PENDIENTE
+        actividad.save(update_fields=["estado", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class PdmAsignarResponsableView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -763,6 +798,8 @@ class PdmEjecucionUploadView(APIView):
 
     def post(self, request):
         require_user_module(request.user, "pdm", message="El módulo PDM no está habilitado para tu usuario.")
+        if not _is_admin(request.user):
+            raise PermissionDenied("Solo admin puede cargar ejecución presupuestal.")
         archivo = request.FILES.get("file")
         if not archivo:
             raise ValidationError({"file": "Archivo requerido."})
@@ -849,7 +886,7 @@ class PdmEjecucionProductoView(APIView):
     def get(self, request, codigo_producto: str):
         require_user_module(request.user, "pdm", message="El módulo PDM no está habilitado para tu usuario.")
         entity = get_object_or_404(Entity, id=request.user.entity_id)
-        if not user_can_access_producto(request.user, entity, codigo_producto):
+        if not user_can_access_codigo_producto(request.user, entity, codigo_producto):
             raise PermissionDenied("No tiene permisos para este producto.")
         qs = _ejecucion_qs_for_user(request.user).filter(codigo_producto=codigo_producto)
         anio = request.query_params.get("anio")
@@ -1155,7 +1192,7 @@ class PdmContratosView(APIView):
         entity = _entity_or_404(slug)
         _ensure_user_can_manage_entity(request.user, entity)
         qs = PDMContratoRPS.objects.filter(entity=entity)
-        if _is_secretario(request.user) and not _is_admin(request.user):
+        if not _is_admin(request.user):
             codigos = codigos_producto_for_user(request.user, entity)
             qs = qs.filter(codigo_producto__in=codigos) if codigos else qs.none()
         anio = request.query_params.get("anio")
@@ -1164,7 +1201,7 @@ class PdmContratosView(APIView):
             qs = qs.filter(anio=anio)
         if codigo:
             codigo = str(codigo).strip()
-            if not user_can_access_producto(request.user, entity, codigo):
+            if not user_can_access_codigo_producto(request.user, entity, codigo):
                 raise PermissionDenied("No tiene permisos para este producto.")
             qs = qs.filter(codigo_producto=codigo)
         qs = qs.order_by("codigo_producto", "no_crp")

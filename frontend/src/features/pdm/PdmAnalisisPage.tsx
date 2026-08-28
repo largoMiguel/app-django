@@ -25,8 +25,10 @@ export default function PdmAnalisisPage() {
         <ModuleAIAlertsBanner
           module="pdm"
           onAlertClick={(a) => {
-            const codigo = a.metadata?.codigo_producto as string | undefined;
-            if (codigo) openDetalleByCodigo(codigo, "analisis");
+            const clave =
+              (a.metadata?.clave_producto as string | undefined) ||
+              (a.metadata?.codigo_producto as string | undefined);
+            if (clave) openDetalleByCodigo(clave, "analisis");
           }}
         />
       )}
@@ -37,8 +39,10 @@ export default function PdmAnalisisPage() {
           anio={filtroAnioAnalisis === "all" ? undefined : filtroAnioAnalisis}
           title="Insights IA del PDM"
           onInsightClick={(insight) => {
-            const codigo = insight.metadata?.codigo_producto as string | undefined;
-            if (codigo) openDetalleByCodigo(codigo, "analisis");
+            const clave =
+              (insight.metadata?.clave_producto as string | undefined) ||
+              (insight.metadata?.codigo_producto as string | undefined);
+            if (clave) openDetalleByCodigo(clave, "analisis");
           }}
         />
       )}

@@ -57,14 +57,16 @@ def claves_producto_for_user(user, entity: Entity) -> list[str]:
 
 
 def ejecucion_queryset_for_user(user, entity: Entity) -> QuerySet[PDMEjecucionPresupuestal]:
-    """Ejecución presupuestal de la entidad; secretario solo filas de sus productos asignados."""
+    """Ejecución presupuestal de la entidad; secretario/contratista solo filas de sus productos."""
     qs = PDMEjecucionPresupuestal.objects.filter(entity=entity)
-    if _is_secretario(user) and not _is_admin(user):
+    if _is_admin(user):
+        return qs
+    if _is_secretario(user) or _is_contratista(user):
         codigos = codigos_producto_for_user(user, entity)
         if not codigos:
             return qs.none()
         return qs.filter(codigo_producto__in=codigos)
-    return qs
+    return qs.none()
 
 
 def ejecucion_agrupada_por_campo_producto(
@@ -146,20 +148,46 @@ def ejecucion_sin_producto_en_plan(user, entity: Entity) -> list[dict]:
 
 
 def actividades_queryset_for_user(user, entity: Entity) -> QuerySet[PdmActividad]:
-    """Actividades visibles según productos asignados al secretario."""
+    """Actividades visibles según productos asignados al usuario."""
     qs = (
         PdmActividad.objects.filter(entity=entity)
         .select_related("responsable_secretaria")
         .prefetch_related("evidencia")
     )
-    if _is_secretario(user) and not _is_admin(user):
+    if _is_admin(user):
+        return qs
+    if _is_secretario(user) or _is_contratista(user):
         claves = claves_producto_for_user(user, entity)
-        qs = qs.filter(clave_producto__in=claves)
-    return qs
+        if not claves:
+            return qs.none()
+        return qs.filter(clave_producto__in=claves)
+    return qs.none()
 
 
 def user_can_access_producto(user, entity: Entity, clave_producto: str) -> bool:
     return productos_queryset_for_user(user, entity).filter(clave_producto=clave_producto).exists()
+
+
+def resolve_clave_producto(user, entity: Entity, ref: str) -> str | None:
+    """Resuelve clave_producto desde clave exacta o codigo_producto MGA."""
+    ref = str(ref or "").strip()
+    if not ref:
+        return None
+    qs = productos_queryset_for_user(user, entity)
+    if qs.filter(clave_producto=ref).exists():
+        return ref
+    match = qs.filter(codigo_producto=ref).order_by("clave_producto").first()
+    return match.clave_producto if match else None
+
+
+def user_can_access_codigo_producto(user, entity: Entity, codigo_producto: str) -> bool:
+    """Permite acceso por clave o por codigo_producto MGA (puede haber varios indicadores)."""
+    ref = str(codigo_producto or "").strip()
+    if not ref:
+        return False
+    if user_can_access_producto(user, entity, ref):
+        return True
+    return productos_queryset_for_user(user, entity).filter(codigo_producto=ref).exists()
 
 
 def user_can_access_actividad(user, entity: Entity, actividad: PdmActividad) -> bool:

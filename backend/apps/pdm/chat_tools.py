@@ -77,6 +77,28 @@ def _producto_label(p: PdmProducto) -> str:
     return (p.producto_mga or p.codigo_indicador_producto or p.codigo_producto or "").strip()
 
 
+def _claves_for_producto_ref(entity: Entity, ref: str) -> list[str]:
+    """Claves de producto para un codigo_producto MGA o clave exacta."""
+    ref = str(ref or "").strip()
+    if not ref:
+        return []
+    qs = _producto_base_qs(entity)
+    claves = list(qs.filter(clave_producto=ref).values_list("clave_producto", flat=True))
+    if claves:
+        return claves
+    return list(qs.filter(codigo_producto=ref).values_list("clave_producto", flat=True))
+
+
+def _codigo_por_clave(entity: Entity, clave: str) -> str:
+    codigo = (
+        _producto_base_qs(entity)
+        .filter(clave_producto=clave)
+        .values_list("codigo_producto", flat=True)
+        .first()
+    )
+    return codigo or clave
+
+
 def _looks_like_bpin(text: str) -> bool:
     """Detecta códigos BPIN PIIP (~13 dígitos, suelen empezar por 20)."""
     t = re.sub(r"\D", "", (text or "").strip())
@@ -583,11 +605,13 @@ def _enrich_contratos_with_productos(
 ) -> list[dict]:
     """Agrega meta y datos del producto PDM vinculado a cada contrato."""
     codigos = list({r["codigo_producto"] for r in rows if r.get("codigo_producto")})
-    productos_map = {
-        p.codigo_producto: p
-        for p in _producto_base_qs(entity).filter(codigo_producto__in=codigos)
-    }
-    aggs_map = actividad_aggs_for_productos(entity.id, codigos) if codigos else {}
+    productos = list(_producto_base_qs(entity).filter(codigo_producto__in=codigos))
+    productos_map: dict[str, PdmProducto] = {}
+    for p in productos:
+        if p.codigo_producto not in productos_map:
+            productos_map[p.codigo_producto] = p
+    claves = [p.clave_producto for p in productos]
+    aggs_map = actividad_aggs_for_productos(entity.id, claves) if claves else {}
 
     enriched: list[dict] = []
     for r in rows:
@@ -737,8 +761,8 @@ def metas_cumplidas_anio(
         entity=entity, anio=target_anio, estado="COMPLETADA"
     )
     if sector or query or linea:
-        codigos_filtrados = {p.codigo_producto for p in productos}
-        act_qs = act_qs.filter(codigo_producto__in=codigos_filtrados)
+        claves_filtradas = {p.clave_producto for p in productos}
+        act_qs = act_qs.filter(clave_producto__in=claves_filtradas)
 
     actividades_completadas = list(
         act_qs.select_related("evidencia").order_by("-updated_at")[:20]
@@ -751,7 +775,8 @@ def metas_cumplidas_anio(
         except ObjectDoesNotExist:
             pass
         act_items.append({
-            "codigo_producto": a.codigo_producto,
+            "clave_producto": a.clave_producto,
+            "codigo_producto": _codigo_por_clave(entity, a.clave_producto),
             "nombre": a.nombre,
             "descripcion": a.descripcion,
             "meta_ejecutar": a.meta_ejecutar,
@@ -846,13 +871,14 @@ def actividades(
 
     qs = PdmActividad.objects.filter(entity=entity, anio=target_anio).select_related("evidencia")
     if resolved_codigo:
-        qs = qs.filter(codigo_producto=resolved_codigo)
+        claves = _claves_for_producto_ref(entity, resolved_codigo)
+        qs = qs.filter(clave_producto__in=claves) if claves else qs.none()
     elif query:
         q = query.strip()
         qs = qs.filter(
             Q(nombre__icontains=q)
             | Q(descripcion__icontains=q)
-            | Q(codigo_producto__icontains=q)
+            | Q(clave_producto__icontains=q)
         )
     elif not estado:
         return {
@@ -878,7 +904,8 @@ def actividades(
             ev = None
         items.append({
             "id": a.id,
-            "codigo_producto": a.codigo_producto,
+            "clave_producto": a.clave_producto,
+            "codigo_producto": _codigo_por_clave(entity, a.clave_producto),
             "nombre": a.nombre,
             "descripcion": a.descripcion,
             "anio": a.anio,
@@ -937,13 +964,13 @@ def consultar_proyecto_bpin(
 
     target_anio, advertencia = _normalize_anio(anio)
     productos = _productos_por_bpin(entity, bpin)
-    codigos = [p.codigo_producto for p in productos]
+    claves = [p.clave_producto for p in productos]
 
     externo_raw, consulta_url, ext_error = consultar_bpin_externo(bpin)
     proyecto_piip = _normalize_proyecto_bpin(externo_raw) if externo_raw else None
 
-    aggs_map = actividad_aggs_for_productos(entity.id, codigos) if codigos else {}
-    ejec_map = ejecucion_for_productos(entity.id, codigos, target_anio) if codigos else {}
+    aggs_map = actividad_aggs_for_productos(entity.id, claves) if claves else {}
+    ejec_map = ejecucion_for_productos(entity.id, [p.codigo_producto for p in productos], target_anio) if productos else {}
 
     productos_vinculados = [
         _producto_metrics_item(entity, p, target_anio, aggs_map, ejec_map)
@@ -951,10 +978,13 @@ def consultar_proyecto_bpin(
     ]
 
     contratos_bpin = list(
-        PDMContratoRPS.objects.filter(entity=entity, codigo_producto__in=codigos)
+        PDMContratoRPS.objects.filter(
+            entity=entity,
+            codigo_producto__in=[p.codigo_producto for p in productos],
+        )
         .order_by("-valor")[:10]
         .values("no_crp", "codigo_producto", "contratista", "valor", "anio")
-    ) if codigos else []
+    ) if productos else []
 
     ejec_bpin = (
         PDMEjecucionPresupuestal.objects.filter(
