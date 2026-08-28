@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -165,6 +165,45 @@ function buildFuentesStackedChart(
   return { fuentes, chartData };
 }
 
+type FuenteResumenRow = {
+  nombre: string;
+  color: string;
+  anios: Record<number, { pto: number; pagos: number }>;
+  totalPto: number;
+  totalPagos: number;
+  pctPagado: number;
+};
+
+function buildFuentesResumen(rows: PdmAnalisisResponse["fuentes_por_anio"]): FuenteResumenRow[] {
+  const map = new Map<string, Record<number, { pto: number; pagos: number }>>();
+  for (const row of rows) {
+    for (const fuente of row.fuentes) {
+      if (!map.has(fuente.nombre)) map.set(fuente.nombre, {});
+      map.get(fuente.nombre)![row.anio] = {
+        pto: fuente.pto_definitivo,
+        pagos: fuente.pagos,
+      };
+    }
+  }
+
+  return FUENTES_FINANCIACION_ORDER.filter((nombre) => map.has(nombre)).map((nombre, idx) => {
+    const raw = map.get(nombre) ?? {};
+    const anios = Object.fromEntries(
+      ANIOS_PDM.map((anio) => [anio, raw[anio] ?? { pto: 0, pagos: 0 }]),
+    ) as Record<number, { pto: number; pagos: number }>;
+    const totalPto = ANIOS_PDM.reduce((sum, anio) => sum + anios[anio].pto, 0);
+    const totalPagos = ANIOS_PDM.reduce((sum, anio) => sum + anios[anio].pagos, 0);
+    return {
+      nombre,
+      color: FUENTE_FINANCIACION_COLORS[idx % FUENTE_FINANCIACION_COLORS.length],
+      anios,
+      totalPto,
+      totalPagos,
+      pctPagado: totalPto > 0 ? (totalPagos / totalPto) * 100 : 0,
+    };
+  });
+}
+
 function AnalisisContent({
   data,
   filtroAnio,
@@ -254,7 +293,22 @@ function AnalisisContent({
     () => buildFuentesStackedChart(data.fuentes_por_anio ?? [], "pagos"),
     [data.fuentes_por_anio],
   );
-  const fuentesConDatos = fuentesPtoChart.fuentes.length > 0;
+  const fuentesResumen = useMemo(
+    () => buildFuentesResumen(data.fuentes_por_anio ?? []),
+    [data.fuentes_por_anio],
+  );
+  const fuentesTotales = useMemo(
+    () =>
+      fuentesResumen.reduce(
+        (acc, row) => ({
+          pto: acc.pto + row.totalPto,
+          pagos: acc.pagos + row.totalPagos,
+        }),
+        { pto: 0, pagos: 0 },
+      ),
+    [fuentesResumen],
+  );
+  const fuentesConDatos = fuentesResumen.length > 0;
 
   const odsPieData = useMemo(
     () =>
@@ -758,58 +812,169 @@ function AnalisisContent({
             Sin datos de ejecución por fuente de financiación
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-            <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
-              <p className="mb-3 text-center text-sm font-medium text-slate-600">Pto. definitivo</p>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={fuentesPtoChart.chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: "#64748b" }}
-                    tickFormatter={(v) => `${(Number(v) / 1e9).toFixed(1)}B`}
-                  />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    formatter={(value, name) => [formatearMoneda(Number(value ?? 0)), String(name)]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                  {fuentesPtoChart.fuentes.map((nombre, idx) => (
-                    <Bar
-                      key={nombre}
-                      dataKey={nombre}
-                      stackId="pto"
-                      fill={FUENTE_FINANCIACION_COLORS[idx % FUENTE_FINANCIACION_COLORS.length]}
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] xl:items-start">
+            <div className="space-y-4">
+              <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+                <p className="mb-3 text-center text-sm font-medium text-slate-600">Pto. definitivo por año</p>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={fuentesPtoChart.chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#64748b" }}
+                      tickFormatter={(v) => `${(Number(v) / 1e9).toFixed(1)}B`}
                     />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                      formatter={(value, name) => [formatearMoneda(Number(value ?? 0)), String(name)]}
+                    />
+                    {fuentesPtoChart.fuentes.map((nombre, idx) => (
+                      <Bar
+                        key={nombre}
+                        dataKey={nombre}
+                        stackId="pto"
+                        fill={FUENTE_FINANCIACION_COLORS[idx % FUENTE_FINANCIACION_COLORS.length]}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+                <p className="mb-3 text-center text-sm font-medium text-slate-600">Pagado por año</p>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={fuentesPagosChart.chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#64748b" }}
+                      tickFormatter={(v) => `${(Number(v) / 1e9).toFixed(1)}B`}
+                    />
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                      formatter={(value, name) => [formatearMoneda(Number(value ?? 0)), String(name)]}
+                    />
+                    {fuentesPagosChart.fuentes.map((nombre, idx) => (
+                      <Bar
+                        key={nombre}
+                        dataKey={nombre}
+                        stackId="pagos"
+                        fill={FUENTE_FINANCIACION_COLORS[idx % FUENTE_FINANCIACION_COLORS.length]}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap gap-2 rounded-lg border border-slate-100 bg-white px-3 py-2">
+                {fuentesResumen.map((row) => (
+                  <span
+                    key={row.nombre}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-100 bg-slate-50 px-2 py-1 text-[11px] text-slate-600"
+                    title={row.nombre}
+                  >
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                    <span className="truncate">{truncateLabel(row.nombre, 34)}</span>
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
-              <p className="mb-3 text-center text-sm font-medium text-slate-600">Pagado</p>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={fuentesPagosChart.chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: "#64748b" }}
-                    tickFormatter={(v) => `${(Number(v) / 1e9).toFixed(1)}B`}
-                  />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    formatter={(value, name) => [formatearMoneda(Number(value ?? 0)), String(name)]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                  {fuentesPagosChart.fuentes.map((nombre, idx) => (
-                    <Bar
-                      key={nombre}
-                      dataKey={nombre}
-                      stackId="pagos"
-                      fill={FUENTE_FINANCIACION_COLORS[idx % FUENTE_FINANCIACION_COLORS.length]}
-                    />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
+
+            <div className="min-w-0 overflow-hidden rounded-lg border border-slate-100">
+              <div className="border-b border-violet-100 bg-violet-50/80 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-violet-900">
+                Detalle por fuente MGA
+              </div>
+              <div className="max-h-[620px] overflow-auto">
+                <table className="min-w-full text-xs sm:text-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 sm:text-xs">
+                    <tr className="border-b border-slate-100">
+                      <th className="px-3 py-2 text-left font-semibold" rowSpan={2}>
+                        Fuente
+                      </th>
+                      {ANIOS_PDM.map((anio) => (
+                        <th key={anio} className="px-2 py-2 text-center font-semibold" colSpan={2}>
+                          {anio}
+                        </th>
+                      ))}
+                      <th className="px-2 py-2 text-center font-semibold" colSpan={2}>
+                        Total
+                      </th>
+                      <th className="px-2 py-2 text-center font-semibold" rowSpan={2}>
+                        % Pag.
+                      </th>
+                    </tr>
+                    <tr className="border-b border-slate-100">
+                      {ANIOS_PDM.map((anio) => (
+                        <Fragment key={`sub-${anio}`}>
+                          <th className="px-2 py-1.5 text-right font-medium text-slate-400">Pto.</th>
+                          <th className="px-2 py-1.5 text-right font-medium text-slate-400">Pag.</th>
+                        </Fragment>
+                      ))}
+                      <th className="px-2 py-1.5 text-right font-medium text-slate-400">Pto.</th>
+                      <th className="px-2 py-1.5 text-right font-medium text-slate-400">Pag.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {fuentesResumen.map((row, idx) => (
+                      <tr key={row.nombre} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
+                        <td className="max-w-[160px] px-3 py-2.5 font-medium text-slate-800">
+                          <span className="flex items-start gap-2">
+                            <span
+                              className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: row.color }}
+                            />
+                            <span className="min-w-0 leading-snug" title={row.nombre}>
+                              {row.nombre}
+                            </span>
+                          </span>
+                        </td>
+                        {ANIOS_PDM.map((anio) => {
+                          const cell = row.anios[anio];
+                          return (
+                            <Fragment key={`${row.nombre}-${anio}`}>
+                              <td className="whitespace-nowrap px-2 py-2.5 text-right text-slate-700">
+                                {cell.pto > 0 ? formatearMoneda(cell.pto) : "—"}
+                              </td>
+                              <td className="whitespace-nowrap px-2 py-2.5 text-right text-slate-700">
+                                {cell.pagos > 0 ? formatearMoneda(cell.pagos) : "—"}
+                              </td>
+                            </Fragment>
+                          );
+                        })}
+                        <td className="whitespace-nowrap px-2 py-2.5 text-right font-semibold text-slate-900">
+                          {formatearMoneda(row.totalPto)}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2.5 text-right font-semibold text-slate-900">
+                          {formatearMoneda(row.totalPagos)}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2.5 text-right">
+                          <span className={row.pctPagado >= 50 ? "font-semibold text-emerald-600" : "font-semibold text-amber-600"}>
+                            {row.pctPagado.toFixed(1)}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-violet-50/60 font-semibold text-violet-950">
+                      <td className="px-3 py-2.5">Total general</td>
+                      {ANIOS_PDM.map((anio) => {
+                        const ptoAnio = fuentesResumen.reduce((sum, row) => sum + row.anios[anio].pto, 0);
+                        const pagosAnio = fuentesResumen.reduce((sum, row) => sum + row.anios[anio].pagos, 0);
+                        return (
+                          <Fragment key={`total-${anio}`}>
+                            <td className="whitespace-nowrap px-2 py-2.5 text-right">{formatearMoneda(ptoAnio)}</td>
+                            <td className="whitespace-nowrap px-2 py-2.5 text-right">{formatearMoneda(pagosAnio)}</td>
+                          </Fragment>
+                        );
+                      })}
+                      <td className="whitespace-nowrap px-2 py-2.5 text-right">{formatearMoneda(fuentesTotales.pto)}</td>
+                      <td className="whitespace-nowrap px-2 py-2.5 text-right">{formatearMoneda(fuentesTotales.pagos)}</td>
+                      <td className="whitespace-nowrap px-2 py-2.5 text-right">
+                        {fuentesTotales.pto > 0
+                          ? `${((fuentesTotales.pagos / fuentesTotales.pto) * 100).toFixed(1)}%`
+                          : "—"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
