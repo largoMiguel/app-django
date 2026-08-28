@@ -77,6 +77,42 @@ def listar_estado_mensual(entity_id: int, anio: int) -> list[dict[str, Any]]:
     return out
 
 
+def ejecucion_mensual_por_descripcion_fte(
+    entity_id: int,
+    codigos: list[str],
+    anio: int,
+    mes: int,
+) -> dict[str, dict[str, dict[str, float]]]:
+    """Totales del mes y acumulado (meses 1..mes) por producto y descripcion_fte exacta."""
+    if not codigos or mes < 1 or mes > 12:
+        return {}
+
+    rows = PDMEjecucionMensual.objects.filter(
+        entity_id=entity_id,
+        codigo_producto__in=codigos,
+        anio=anio,
+        mes__lte=mes,
+    ).values("codigo_producto", "descripcion_fte", "mes", "registro", "pagos")
+
+    grouped: dict[str, dict[str, dict[str, float]]] = defaultdict(dict)
+    for row in rows:
+        codigo = row["codigo_producto"]
+        desc = row["descripcion_fte"] or "Sin Fuente"
+        bucket = grouped[codigo].setdefault(
+            desc,
+            {"registro_mes": 0.0, "pagos_mes": 0.0, "registro_acum": 0.0, "pagos_acum": 0.0},
+        )
+        registro = float(row["registro"] or 0)
+        pagos = float(row["pagos"] or 0)
+        bucket["registro_acum"] += registro
+        bucket["pagos_acum"] += pagos
+        if int(row["mes"]) == mes:
+            bucket["registro_mes"] += registro
+            bucket["pagos_mes"] += pagos
+
+    return {codigo: dict(fuentes) for codigo, fuentes in grouped.items()}
+
+
 def ejecucion_mensual_por_producto_fuente(
     entity_id: int,
     codigos: list[str],

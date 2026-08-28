@@ -14,7 +14,7 @@ from apps.entities.models import Entity
 
 from .access import productos_queryset_for_user
 from .bpin_view import consultar_bpines_externos
-from .ejecucion_mensual import ejecucion_mensual_por_producto_fuente
+from .ejecucion_mensual import ejecucion_mensual_por_descripcion_fte
 from .fuente_financiacion import normalizar_fuente_piip
 from .metrics import ANIOS_PDM, actividad_aggs_for_productos
 from .models import PDMEjecucionPresupuestal, PdmProducto
@@ -130,21 +130,34 @@ def _fuentes_detalle_por_producto(
         )
     )
 
-    grouped: dict[str, dict[str, dict[str, float | str]]] = defaultdict(dict)
+    grouped: dict[str, dict[str, dict[str, float | str | set[str]]]] = defaultdict(dict)
     for row in rows:
         codigo = row["codigo_producto"]
         nombre = normalizar_fuente_piip(row["descripcion_fte"])
         bucket = grouped[codigo].setdefault(
             nombre,
-            {"nombre": nombre, "pto_definitivo": 0.0, "pagos": 0.0},
+            {"nombre": nombre, "pto_definitivo": 0.0, "pagos": 0.0, "descripcion_ftes": set()},
         )
-        bucket["pto_definitivo"] = float(bucket["pto_definitivo"]) + float(row["pto_definitivo"] or 0)
+        pto = float(row["pto_definitivo"] or 0)
+        bucket["pto_definitivo"] = float(bucket["pto_definitivo"]) + pto
         bucket["pagos"] = float(bucket["pagos"]) + float(row["pagos"] or 0)
+        if pto > 0:
+            bucket["descripcion_ftes"].add(row["descripcion_fte"])
 
-    return {
-        codigo: sorted(fuentes.values(), key=lambda x: str(x["nombre"]))
-        for codigo, fuentes in grouped.items()
-    }
+    result: dict[str, list[dict[str, float | str]]] = {}
+    for codigo, fuentes in grouped.items():
+        items: list[dict[str, float | str]] = []
+        for fuente in fuentes.values():
+            items.append(
+                {
+                    "nombre": fuente["nombre"],
+                    "pto_definitivo": fuente["pto_definitivo"],
+                    "pagos": fuente["pagos"],
+                    "descripcion_ftes": sorted(fuente["descripcion_ftes"]),
+                }
+            )
+        result[codigo] = sorted(items, key=lambda x: str(x["nombre"]))
+    return result
 
 
 def _secretarios_por_secretaria(entity_id: int, secretaria_ids: list[int]) -> dict[int, str]:
@@ -209,7 +222,7 @@ def build_piip_export_rows(entity: Entity, user, anio: int, mes: int | None = No
     )
     fuentes_map = _fuentes_detalle_por_producto(entity.id, codigos, anio)
     fuentes_mensual_map = (
-        ejecucion_mensual_por_producto_fuente(entity.id, codigos, anio, mes) if mes else {}
+        ejecucion_mensual_por_descripcion_fte(entity.id, codigos, anio, mes) if mes else {}
     )
     datos_abiertos, _ = consultar_bpines_externos(all_bpines)
 
@@ -241,8 +254,7 @@ def build_piip_export_rows(entity: Entity, user, anio: int, mes: int | None = No
         fuentes_list = fuentes_map.get(producto.codigo_producto) or [
             {"nombre": "Otros", "pto_definitivo": 0.0, "pagos": 0.0},
         ]
-        fuentes_mes_list = fuentes_mensual_map.get(producto.codigo_producto) or []
-        fuentes_mes_by_name = {str(f["nombre"]): f for f in fuentes_mes_list}
+        fuentes_mes_by_desc = fuentes_mensual_map.get(producto.codigo_producto) or {}
 
         for bpin in bpines:
             externo = datos_abiertos.get(bpin) or {}
@@ -251,11 +263,18 @@ def build_piip_export_rows(entity: Entity, user, anio: int, mes: int | None = No
 
             for fuente in fuentes_list:
                 nombre_fuente = str(fuente["nombre"])
-                fm = fuentes_mes_by_name.get(nombre_fuente, {})
-                comprometido_mes = float(fm.get("registro_mes", 0) or 0) if mes else 0
-                pago_mes = float(fm.get("pagos_mes", 0) or 0) if mes else 0
-                comprometido_acum = float(fm.get("registro_acum", 0) or 0) if mes else 0
-                pago_acum = float(fm.get("pagos_acum", 0) or 0) if mes else 0
+                desc_ftes = fuente.get("descripcion_ftes") or []
+                comprometido_mes = 0.0
+                pago_mes = 0.0
+                comprometido_acum = 0.0
+                pago_acum = 0.0
+                if mes and desc_ftes:
+                    for desc in desc_ftes:
+                        fm = fuentes_mes_by_desc.get(str(desc), {})
+                        comprometido_mes += float(fm.get("registro_mes", 0) or 0)
+                        pago_mes += float(fm.get("pagos_mes", 0) or 0)
+                        comprometido_acum += float(fm.get("registro_acum", 0) or 0)
+                        pago_acum += float(fm.get("pagos_acum", 0) or 0)
                 valor_ejecutado = pago_acum if mes else float(fuente["pagos"])
 
                 rows.append(
