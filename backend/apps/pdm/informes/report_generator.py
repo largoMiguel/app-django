@@ -1278,8 +1278,9 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         
         # Procesar cada producto (SIN LÍMITE - mejora implementada)
         st = self._institutional_styles()
+        total_productos = len(self.productos)
         
-        for prod in self.productos:
+        for prod_idx, prod in enumerate(self.productos, 1):
             actividades = actividades_por_producto.get(prod.clave_producto, [])
             producto_nombre = prod.producto_mga or prod.codigo_producto
             indicador_nombre = prod.indicador_producto_mga or prod.personalizacion_indicador or "N/A"
@@ -1535,7 +1536,7 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                 self._append_banner_table("REGISTRO DE EVIDENCIA")
             
             # Separador entre productos (después de evidencias y antes del siguiente bloque)
-            if idx < total_productos:
+            if prod_idx < total_productos:
                 self.story.append(Spacer(1, 0.35 * inch))
     
     def _build_content_pdf(
