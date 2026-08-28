@@ -252,9 +252,9 @@ def build_piip_export_rows(entity: Entity, user, anio: int, mes: int | None = No
             for fuente in fuentes_list:
                 nombre_fuente = str(fuente["nombre"])
                 fm = fuentes_mes_by_name.get(nombre_fuente, {})
-                comprometido_mes = float(fm.get("saldo_mes", 0) or 0) if mes else 0
+                comprometido_mes = float(fm.get("registro_mes", 0) or 0) if mes else 0
                 pago_mes = float(fm.get("pagos_mes", 0) or 0) if mes else 0
-                comprometido_acum = float(fm.get("saldo_acum", 0) or 0) if mes else 0
+                comprometido_acum = float(fm.get("registro_acum", 0) or 0) if mes else 0
                 pago_acum = float(fm.get("pagos_acum", 0) or 0) if mes else 0
                 valor_ejecutado = pago_acum if mes else float(fuente["pagos"])
 

@@ -92,7 +92,7 @@ def ejecucion_mensual_por_producto_fuente(
         codigo_producto__in=codigos,
         anio=anio,
         mes__lte=mes,
-    ).values("codigo_producto", "descripcion_fte", "mes", "saldo_compromisos", "pagos")
+    ).values("codigo_producto", "descripcion_fte", "mes", "registro", "pagos")
 
     grouped: dict[str, dict[str, dict[str, float | str]]] = defaultdict(dict)
     for row in rows:
@@ -102,18 +102,18 @@ def ejecucion_mensual_por_producto_fuente(
             nombre,
             {
                 "nombre": nombre,
-                "saldo_mes": 0.0,
+                "registro_mes": 0.0,
                 "pagos_mes": 0.0,
-                "saldo_acum": 0.0,
+                "registro_acum": 0.0,
                 "pagos_acum": 0.0,
             },
         )
-        saldo = float(row["saldo_compromisos"] or 0)
+        registro = float(row["registro"] or 0)
         pagos = float(row["pagos"] or 0)
-        bucket["saldo_acum"] = float(bucket["saldo_acum"]) + saldo
+        bucket["registro_acum"] = float(bucket["registro_acum"]) + registro
         bucket["pagos_acum"] = float(bucket["pagos_acum"]) + pagos
         if int(row["mes"]) == mes:
-            bucket["saldo_mes"] = float(bucket["saldo_mes"]) + saldo
+            bucket["registro_mes"] = float(bucket["registro_mes"]) + registro
             bucket["pagos_mes"] = float(bucket["pagos_mes"]) + pagos
 
     return {
