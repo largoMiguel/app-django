@@ -275,9 +275,9 @@ Query params: `anio` (obligatorio para corte mensual), `mes` (1–12, recomendad
 | Columna PIIP | Origen |
 |---|---|
 | VALOR INICIAL | Pto. definitivo de la **carga anual** por fuente |
-| Comprometido cada mes | `REGISTRO` del mes |
-| Pago Cada mes | `PAGOS` del mes |
-| Comprometido Acumulado | Suma de `REGISTRO` meses 1→mes |
+| Comprometido cada mes | `REGISTRO` del mes, por cada fuente PIIP alineada con la carga anual (solo filas con pto. definitivo > 0; excluye movimientos auxiliares como `R.B.` que comparten categoría MGA) |
+| Pago Cada mes | `PAGOS` del mes (misma regla de alineación por fuente) |
+| Comprometido Acumulado | Suma de `REGISTRO` meses 1→mes (misma regla de alineación) |
 | Pago Acumulado | Suma de `PAGOS` meses 1→mes |
 | VALOR EJECUTADO | Pago Acumulado al mes |
 | CANTIDAD META EJECUTADA | Meta ejecutada con corte por `fecha_ejecucion` ≤ fin de mes |
