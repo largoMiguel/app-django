@@ -243,15 +243,52 @@ Requiere migración `pdm.0010_pdm_armonizacion`.
 
 ---
 
-## Módulo PDM — Exportar PIIP
+## Módulo PDM — Ejecución presupuestal mensual (PIIP)
 
-Desde el menú **Acciones** del PDM (rol `admin`), la opción **Exportar PIIP** genera y descarga un Excel (`.xlsx`) con productos que tienen BPIN y meta programada en el año indicado. El archivo **no se guarda** en el servidor ni queda historial. Si un producto tiene varios BPIN (separados por coma), o varias fuentes presupuestales, se genera **una fila por cada BPIN y por cada fuente**. Las fuentes se normalizan al catálogo PIIP (Propios, SGP - Salud, …, Otros).
+Complementa la carga anual general (dashboard/análisis) con **cargas por mes** usadas en el export PIIP y en informes con corte mensual.
+
+- **Acciones → Ejecución mensual (PIIP)** (solo `admin`): tabla de los 12 meses del año (cargado/pendiente), subida, reemplazo y borrado por mes.
+- El sistema detecta mes/año del título del Excel (`Del 01/07/2026 Al 31/07/2026` en celda A1). Si el rango es acumulado (más de un mes), responde `409` hasta confirmar.
+- `SALDO COMPROMISOS` y `PAGOS` se guardan **tal cual vienen** en el archivo (si vienen en 0, quedan en 0).
+- Las armonizaciones presupuesto ↔ PDM aplican también a la ejecución mensual.
 
 | Método | Endpoint | Descripción |
 |---|---|---|
-| `GET` | `/api/v1/pdm/v2/{slug}/export-piip?anio=2026` | Descarga `PIIP_{slug}_{anio}.xlsx` (encabezados verde `#6AA84F`, texto blanco) |
+| `GET` | `/api/v1/pdm/ejecucion/mensual/?anio=` | Estado de los 12 meses (carga, rango, totales) |
+| `POST` | `/api/v1/pdm/ejecucion/mensual/upload` | Subir Excel mensual (`file`, opcional `confirmar=true`) |
+| `DELETE` | `/api/v1/pdm/ejecucion/mensual/<anio>/<mes>/` | Eliminar carga de un mes |
 
-Query param `anio` (opcional): año de seguimiento; por defecto el año actual. El frontend usa el año del filtro de productos (`filtroAnio`) cuando está en la vista de productos; en dashboard usa el año por defecto del estado (año actual).
+Requiere migración `pdm.0011_pdm_ejecucion_mensual_fecha_ejecucion`.
+
+---
+
+## Módulo PDM — Exportar PIIP
+
+Desde el menú **Acciones** del PDM (rol `admin`), **Exportar PIIP** abre un modal para elegir **año y mes** y descarga un Excel (`.xlsx`) con productos que tienen BPIN y meta programada en el año indicado. El archivo **no se guarda** en el servidor ni queda historial. Si un producto tiene varios BPIN (separados por coma), o varias fuentes presupuestales, se genera **una fila por cada BPIN y por cada fuente**. Las fuentes se normalizan al catálogo PIIP (Propios, SGP - Salud, …, Otros).
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/pdm/v2/{slug}/export-piip?anio=2026&mes=7` | Descarga `PIIP_{slug}_{anio}_{MM}.xlsx` (encabezados verde `#6AA84F`, texto blanco) |
+
+Query params: `anio` (obligatorio para corte mensual), `mes` (1–12, recomendado). Con `mes`, el mapeo por producto y fuente es:
+
+| Columna PIIP | Origen |
+|---|---|
+| VALOR INICIAL | Pto. definitivo de la **carga anual** por fuente |
+| Comprometido cada mes | `SALDO COMPROMISOS` del mes |
+| Pago Cada mes | `PAGOS` del mes |
+| Comprometido Acumulado | Suma de `SALDO COMPROMISOS` meses 1→mes |
+| Pago Acumulado | Suma de `PAGOS` meses 1→mes |
+| VALOR EJECUTADO | Pago Acumulado al mes |
+| CANTIDAD META EJECUTADA | Meta ejecutada con corte por `fecha_ejecucion` ≤ fin de mes |
+
+---
+
+## Módulo PDM — Fecha de ejecución (evidencias)
+
+Las actividades PDM usan un único campo **`fecha_ejecucion`** (en lugar de fecha inicio/fin). Define a qué mes pertenece la evidencia en informes y export PIIP: una actividad registrada en febrero con fecha de ejecución 15/01/2026 **sí** aparece en el informe de enero.
+
+UI: modal **Nueva evidencia de ejecución** → campo **Fecha de ejecución** (obligatorio, limitado al año de la actividad).
 
 ---
 
@@ -275,9 +312,9 @@ Generación PDF **asíncrona** con Celery (membrete institucional, gráficas mat
 | `DELETE` | `/api/v1/pdm/v2/{slug}/informes/{id}/` | Elimina registro PDF y archivo en B2 |
 | `GET` | `/api/v1/pdm/v2/{slug}/export-plan-accion?anio=2026&responsable_secretaria=` | Descarga Excel Plan de Acción (inmediato; encabezados cyan `#0E7490`) |
 
-**Body POST (PDF):** `tipo` (`AVANCE`; `GESTION` rechazado hasta implementación), `anio`, `usuario_firmante_id` (obligatorio), `responsable_secretaria_id` (opcional; admin filtra dependencia), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
+**Body POST (PDF):** `tipo` (`AVANCE`; `GESTION` rechazado hasta implementación), `anio`, `mes` (1–12, corte por `fecha_ejecucion`), `usuario_firmante_id` (obligatorio), `responsable_secretaria_id` (opcional; admin filtra dependencia), `incluir_evidencias` (default `true`), `usar_ia` (solo si `enable_ai_reports`).
 
-**Query params Excel Plan de Acción:** `anio` (2024–2027; default año actual), `responsable_secretaria` (opcional; admin filtra dependencia; secretario queda forzado a su secretaría).
+**Query params Excel Plan de Acción:** `anio` (2024–2027; default año actual), `mes` (1–12, opcional; filtra actividades por `fecha_ejecucion`), `responsable_secretaria` (opcional; admin filtra dependencia; secretario queda forzado a su secretaría).
 
 Rutas frontend:
 

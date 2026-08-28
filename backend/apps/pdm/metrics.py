@@ -5,6 +5,7 @@ from datetime import datetime
 
 from django.db.models import Count, Q, Sum
 
+from .ejecucion_mensual import ultimo_dia_mes
 from .models import ActividadEstado, PdmActividad, PdmProducto
 
 ANIOS_PDM = (2024, 2025, 2026, 2027)
@@ -48,13 +49,49 @@ def ejecucion_definitivo_for_productos(entity_id: int, codigos: list[str], anio:
     }
 
 
-def actividad_aggs_for_productos(entity_id: int, claves: list[str]) -> dict[str, dict[int, dict]]:
-    """Agregados de actividades por clave_producto y año."""
+def actividad_aggs_for_productos(
+    entity_id: int,
+    claves: list[str],
+    hasta_mes: int | None = None,
+    anio_corte: int | None = None,
+) -> dict[str, dict[int, dict]]:
+    """Agregados de actividades por clave_producto y año.
+
+    Si hasta_mes está definido, solo incluye actividades con fecha_ejecucion <= fin de ese mes
+    del anio_corte (o del propio anio de la actividad si anio_corte es None).
+    """
     if not claves:
         return {}
+
+    qs = PdmActividad.objects.filter(entity_id=entity_id, clave_producto__in=claves, anio__in=ANIOS_PDM)
+    if hasta_mes is not None:
+        filtradas: list[PdmActividad] = []
+        for act in qs.only("id", "clave_producto", "anio", "meta_ejecutar", "estado", "fecha_ejecucion"):
+            anio_ref = anio_corte if anio_corte is not None else act.anio
+            if act.fecha_ejecucion and act.fecha_ejecucion <= ultimo_dia_mes(anio_ref, hasta_mes):
+                filtradas.append(act)
+            elif act.fecha_ejecucion is None and hasta_mes == 12:
+                filtradas.append(act)
+        out: dict[str, dict[int, dict]] = {}
+        for act in filtradas:
+            bucket = out.setdefault(act.clave_producto, {}).setdefault(
+                act.anio,
+                {
+                    "meta_asignada": 0.0,
+                    "meta_ejecutada": 0.0,
+                    "total_actividades": 0,
+                    "actividades_completadas": 0,
+                },
+            )
+            bucket["meta_asignada"] += float(act.meta_ejecutar or 0)
+            bucket["total_actividades"] += 1
+            if act.estado == ActividadEstado.COMPLETADA:
+                bucket["meta_ejecutada"] += float(act.meta_ejecutar or 0)
+                bucket["actividades_completadas"] += 1
+        return out
+
     rows = (
-        PdmActividad.objects.filter(entity_id=entity_id, clave_producto__in=claves, anio__in=ANIOS_PDM)
-        .values("clave_producto", "anio")
+        qs.values("clave_producto", "anio")
         .annotate(
             meta_asignada=Sum("meta_ejecutar"),
             meta_ejecutada=Sum("meta_ejecutar", filter=Q(estado=ActividadEstado.COMPLETADA)),

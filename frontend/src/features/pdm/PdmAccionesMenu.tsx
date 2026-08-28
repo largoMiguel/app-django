@@ -6,6 +6,7 @@ interface PdmAccionesMenuProps {
   onExportarPiip: () => void;
   onContratos: () => void;
   onEjecucion: () => void;
+  onEjecucionMensual?: () => void;
   onArmonizaciones?: () => void;
   onRecargarPdm: () => void;
   disabled?: boolean;
@@ -15,6 +16,7 @@ export default function PdmAccionesMenu({
   onExportarPiip,
   onContratos,
   onEjecucion,
+  onEjecucionMensual,
   onArmonizaciones,
   onRecargarPdm,
   disabled,
@@ -87,6 +89,20 @@ export default function PdmAccionesMenu({
             <Upload className="h-4 w-4 text-emerald-600" />
             Ejecución presupuestal
           </button>
+          {onEjecucionMensual ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+              onClick={() => {
+                setOpen(false);
+                onEjecucionMensual();
+              }}
+            >
+              <Upload className="h-4 w-4 text-teal-600" />
+              Ejecución mensual (PIIP)
+            </button>
+          ) : null}
           {onArmonizaciones ? (
             <button
               type="button"

@@ -12,6 +12,7 @@ from .types import tipo_informe_habilitado
 class GenerarInformePdmSerializer(serializers.Serializer):
     tipo = serializers.ChoiceField(choices=InformePdmTipo.choices, default=InformePdmTipo.AVANCE)
     anio = serializers.IntegerField()
+    mes = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=12)
     responsable_secretaria_id = serializers.IntegerField(required=False, allow_null=True)
     incluir_evidencias = serializers.BooleanField(required=False, default=True)
     usar_ia = serializers.BooleanField(required=False, default=False)
@@ -45,6 +46,7 @@ class InformePdmSerializer(serializers.ModelSerializer):
             "tipo",
             "tipo_label",
             "anio",
+            "mes",
             "responsable_secretaria",
             "responsable_secretaria_nombre",
             "incluir_evidencias",

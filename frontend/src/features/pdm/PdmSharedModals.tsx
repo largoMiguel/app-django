@@ -5,6 +5,8 @@ import { useInvalidatePdmQueries } from "@/core/api/hooks/usePdm";
 import PdmActividadModal from "@/features/pdm/PdmActividadModal";
 import PdmArmonizacionModal from "@/features/pdm/PdmArmonizacionModal";
 import PdmBpinModal from "@/features/pdm/PdmBpinModal";
+import PdmEjecucionMensualModal from "@/features/pdm/PdmEjecucionMensualModal";
+import PdmExportPiipModal from "@/features/pdm/PdmExportPiipModal";
 import { usePdm } from "@/features/pdm/PdmContext";
 import { ANIOS_PDM } from "@/features/pdm/pdmUtils";
 import { pdmBtnPrimary, pdmBtnSecondary, pdmSelect } from "@/features/pdm/pdmStyles";
@@ -27,6 +29,11 @@ export default function PdmSharedModals() {
     setModalContratos,
     modalEjecucion,
     setModalEjecucion,
+    modalEjecucionMensual,
+    setModalEjecucionMensual,
+    modalExportPiip,
+    setModalExportPiip,
+    filtroAnio,
     modalArmonizacion,
     setModalArmonizacion,
     armonizacionCodigoOrigen,
@@ -137,6 +144,38 @@ export default function PdmSharedModals() {
           emptyLabel="Seleccionar Excel de ejecución"
         />
       </PdmModal>
+
+      <PdmEjecucionMensualModal
+        open={modalEjecucionMensual}
+        saving={saving}
+        setSaving={setSaving}
+        onClose={() => setModalEjecucionMensual(false)}
+        onSuccess={(detail) => {
+          setError(null);
+          setUploadFeedback({ tone: "success", title: "Ejecución mensual", detail });
+        }}
+        onError={(detail) => {
+          setError(detail);
+          setUploadFeedback({ tone: "error", title: "Error ejecución mensual", detail });
+        }}
+      />
+
+      <PdmExportPiipModal
+        open={modalExportPiip}
+        slug={slug}
+        defaultAnio={route === "productos" ? filtroAnio : new Date().getFullYear()}
+        saving={saving}
+        setSaving={setSaving}
+        onClose={() => setModalExportPiip(false)}
+        onSuccess={(detail) => {
+          setError(null);
+          setUploadFeedback({ tone: "success", title: "Exportación PIIP", detail });
+        }}
+        onError={(detail) => {
+          setError(detail);
+          setUploadFeedback({ tone: "error", title: "Error al exportar PIIP", detail });
+        }}
+      />
 
       <PdmArmonizacionModal
         open={modalArmonizacion}

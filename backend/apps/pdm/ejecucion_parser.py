@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import re
 import unicodedata
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -45,6 +46,7 @@ ALIASES = {
     "PRESUPUESTO INICIAL": "PTO INICIAL",
     "PTO INICIAL $": "PTO INICIAL",
     "ADICIONES": "ADICION",
+    "ADICION": "ADICION",
     "REDUCCIONES": "REDUCCION",
     "PTO. DEFINITIVO": "PTO DEFINITIVO",
     "PRESUPUESTO DEFINITIVO": "PTO DEFINITIVO",
@@ -52,7 +54,18 @@ ALIASES = {
     "VALOR PAGADO": "PAGOS",
     "PAGOS EFECTUADOS": "PAGOS",
     "PAGOS ACUMULADOS": "PAGOS",
+    "REGISTRO": "REGISTRO",
+    "CANCEL C R P": "REGISTRO",
+    "CANCEL CRP": "REGISTRO",
+    "OBLIGACIONES": "OBLIGACIONES",
+    "SALDO COMPROMISOS": "SALDO COMPROMISOS",
+    "SALDO DE COMPROMISOS": "SALDO COMPROMISOS",
 }
+
+PERIODO_RE = re.compile(
+    r"Del\s+(\d{1,2}/\d{1,2}/\d{4})\s+Al\s+(\d{1,2}/\d{1,2}/\d{4})",
+    re.IGNORECASE,
+)
 
 
 def _normalize_text(value: Any) -> str:
@@ -350,6 +363,56 @@ def parse_ejecucion_excel(contents: bytes, filename: str) -> tuple[pd.DataFrame,
     return df_filtrado, []
 
 
+def _read_title_row(contents: bytes, filename: str) -> str:
+    df_raw = _read_raw(contents, filename)
+    if df_raw.empty:
+        return ""
+    value = df_raw.iloc[0, 0]
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return ""
+    return str(value).strip()
+
+
+def _parse_fecha_periodo(text: str) -> datetime | None:
+    text = (text or "").strip()
+    for fmt in ("%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def detectar_periodo_ejecucion(contents: bytes, filename: str) -> dict[str, Any]:
+    """Detecta mes/año y si el archivo es acumulado a partir del título (celda A1)."""
+    titulo = _read_title_row(contents, filename)
+    match = PERIODO_RE.search(titulo)
+    if not match:
+        raise ValueError(
+            "No se pudo detectar el período en el título del archivo. "
+            'Se espera texto como: Del 01/07/2026 Al 31/07/2026'
+        )
+    desde = _parse_fecha_periodo(match.group(1))
+    hasta = _parse_fecha_periodo(match.group(2))
+    if not desde or not hasta:
+        raise ValueError("Formato de fechas del período no válido en el título del archivo.")
+    if hasta < desde:
+        raise ValueError("El rango de fechas del archivo es inválido (fecha final anterior a la inicial).")
+    es_acumulado = desde.month != hasta.month or desde.year != hasta.year
+    return {
+        "titulo": titulo,
+        "desde": desde.date(),
+        "hasta": hasta.date(),
+        "mes": hasta.month,
+        "anio": hasta.year,
+        "es_acumulado": es_acumulado,
+    }
+
+
+def _column_present(df: pd.DataFrame, canonical: str) -> bool:
+    return any(_canonical(str(col)) == canonical for col in df.columns)
+
+
 def rows_from_ejecucion_dataframe(df_filtrado: pd.DataFrame, anio: int) -> tuple[list[dict[str, Any]], list[str]]:
     has_dependencia = any(_normalize_text(c) == "DEPENDENCIA" for c in df_filtrado.columns)
     has_bpin = any(_normalize_text(c) == "BPIN" for c in df_filtrado.columns)
@@ -370,22 +433,28 @@ def rows_from_ejecucion_dataframe(df_filtrado: pd.DataFrame, anio: int) -> tuple
         return [], errores
 
     numeric_cols = ["PTO INICIAL", "ADICION", "REDUCCION", "CREDITO", "CONTRACREDITO", "PAGOS"]
-    for col in numeric_cols:
+    optional_numeric = ["REGISTRO", "OBLIGACIONES", "SALDO COMPROMISOS"]
+    for col in numeric_cols + [c for c in optional_numeric if _column_present(work, c)]:
         work[col] = work[col].apply(limpiar_numero)
 
-    grouped = work.groupby(["_codigo_producto", "_descripcion_fte"], as_index=False).agg(
-        {
-            "PTO INICIAL": "sum",
-            "ADICION": "sum",
-            "REDUCCION": "sum",
-            "CREDITO": "sum",
-            "CONTRACREDITO": "sum",
-            "PAGOS": "sum",
-            "SECTOR": "first",
-            **({"DEPENDENCIA": "first"} if has_dependencia else {}),
-            **({"BPIN": "first"} if has_bpin else {}),
-        }
-    )
+    agg_spec: dict[str, Any] = {
+        "PTO INICIAL": "sum",
+        "ADICION": "sum",
+        "REDUCCION": "sum",
+        "CREDITO": "sum",
+        "CONTRACREDITO": "sum",
+        "PAGOS": "sum",
+        "SECTOR": "first",
+    }
+    for col in optional_numeric:
+        if _column_present(work, col):
+            agg_spec[col] = "sum"
+    if has_dependencia:
+        agg_spec["DEPENDENCIA"] = "first"
+    if has_bpin:
+        agg_spec["BPIN"] = "first"
+
+    grouped = work.groupby(["_codigo_producto", "_descripcion_fte"], as_index=False).agg(agg_spec)
 
     rows: list[dict[str, Any]] = []
     for _, row in grouped.iterrows():
@@ -406,6 +475,11 @@ def rows_from_ejecucion_dataframe(df_filtrado: pd.DataFrame, anio: int) -> tuple
                 "credito": row["CREDITO"],
                 "contracredito": row["CONTRACREDITO"],
                 "pagos": row["PAGOS"],
+                "registro": row["REGISTRO"] if "REGISTRO" in grouped.columns else Decimal("0.00"),
+                "obligaciones": row["OBLIGACIONES"] if "OBLIGACIONES" in grouped.columns else Decimal("0.00"),
+                "saldo_compromisos": row["SALDO COMPROMISOS"]
+                if "SALDO COMPROMISOS" in grouped.columns
+                else Decimal("0.00"),
                 "pto_definitivo": Decimal(str(pto_def)),
                 "sector": str(row["SECTOR"]).strip() if pd.notna(row["SECTOR"]) else None,
                 "dependencia": str(row["DEPENDENCIA"]).strip()

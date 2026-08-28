@@ -911,8 +911,7 @@ def actividades(
             "anio": a.anio,
             "estado": a.estado,
             "meta_ejecutar": a.meta_ejecutar,
-            "fecha_inicio": a.fecha_inicio.isoformat() if a.fecha_inicio else None,
-            "fecha_fin": a.fecha_fin.isoformat() if a.fecha_fin else None,
+            "fecha_ejecucion": a.fecha_ejecucion.isoformat() if a.fecha_ejecucion else None,
             "evidencia_descripcion": ev.descripcion if ev else None,
             "url_evidencia": ev.url_evidencia if ev else None,
         })

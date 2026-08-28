@@ -148,6 +148,7 @@ class InformePdmViewSet(viewsets.GenericViewSet):
             created_by=user,
             tipo=tipo,
             anio=data["anio"],
+            mes=data.get("mes"),
             responsable_secretaria_id=secretaria_id,
             incluir_evidencias=data.get("incluir_evidencias", True),
             usar_ia=usar_ia,

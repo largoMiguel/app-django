@@ -12,6 +12,7 @@ from openpyxl.utils import get_column_letter
 from apps.entities.models import Entity
 
 from .access import actividades_queryset_for_user, productos_queryset_for_user
+from .ejecucion_mensual import ultimo_dia_mes
 from .ejecucion_resumen import ejecucion_por_codigo
 from .metrics import (
     ANIOS_PDM,
@@ -55,8 +56,7 @@ ACTividades_COLUMNS = [
     "ESTADO ACTIVIDAD",
     "RESPONSABLE SECRETARÍA",
     "RESPONSABLE USUARIO",
-    "FECHA INICIO",
-    "FECHA FIN",
+    "FECHA DE EJECUCIÓN",
     "EVIDENCIA URL",
     "DESCRIPCIÓN EVIDENCIA",
 ]
@@ -150,6 +150,7 @@ def _gather_data(
     *,
     anio: int,
     responsable_secretaria_id: int | None = None,
+    mes: int | None = None,
 ):
     productos_qs = productos_queryset_for_user(user, entity)
     if responsable_secretaria_id:
@@ -162,12 +163,19 @@ def _gather_data(
     codigos = list({p.codigo_producto for p in productos if p.codigo_producto})
     producto_by_clave = {p.clave_producto: p for p in productos}
 
-    aggs = actividad_aggs_for_productos(entity.id, claves)
+    aggs = actividad_aggs_for_productos(
+        entity.id,
+        claves,
+        hasta_mes=mes,
+        anio_corte=anio if mes else None,
+    )
     ejecucion = ejecucion_por_codigo(entity.id, codigos, anio)
 
     act_qs = actividades_queryset_for_user(user, entity).filter(anio=anio)
     if responsable_secretaria_id:
         act_qs = act_qs.filter(clave_producto__in=claves)
+    if mes:
+        act_qs = act_qs.filter(fecha_ejecucion__lte=ultimo_dia_mes(anio, mes))
     actividades = list(
         act_qs.select_related("responsable_secretaria", "responsable_usuario")
         .prefetch_related("evidencia")
@@ -228,8 +236,7 @@ def _build_actividades_sheet(ws, data: dict, anio: int) -> None:
             ESTADO_LABELS.get(act.estado, act.estado),
             sec_nombre,
             usuario_nombre,
-            act.fecha_inicio.date().isoformat() if act.fecha_inicio else "",
-            act.fecha_fin.date().isoformat() if act.fecha_fin else "",
+            act.fecha_ejecucion.isoformat() if act.fecha_ejecucion else "",
             evidencia.url_evidencia if evidencia else "",
             evidencia.descripcion if evidencia else "",
         ]
@@ -238,7 +245,7 @@ def _build_actividades_sheet(ws, data: dict, anio: int) -> None:
 
     _set_column_widths(
         ws,
-        [28, 30, 14, 40, 35, 14, 16, 16, 40, 35, 14, 14, 14, 16, 28, 28, 12, 12, 40, 40],
+        [28, 30, 14, 40, 35, 14, 16, 16, 40, 35, 14, 14, 14, 16, 28, 28, 14, 40, 40],
     )
 
 
@@ -352,6 +359,7 @@ def build_plan_accion_workbook(
     anio: int,
     *,
     responsable_secretaria_id: int | None = None,
+    mes: int | None = None,
 ) -> Workbook:
     if anio not in ANIOS_PDM:
         raise ValueError(f"Año no válido: {anio}")
@@ -361,6 +369,7 @@ def build_plan_accion_workbook(
         entity,
         anio=anio,
         responsable_secretaria_id=responsable_secretaria_id,
+        mes=mes,
     )
 
     wb = Workbook()
@@ -383,16 +392,19 @@ def build_plan_accion_export(
     anio: int,
     *,
     responsable_secretaria_id: int | None = None,
+    mes: int | None = None,
 ) -> tuple[bytes, str]:
     wb = build_plan_accion_workbook(
         entity,
         user,
         anio,
         responsable_secretaria_id=responsable_secretaria_id,
+        mes=mes,
     )
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     dep_suffix = f"_dep{responsable_secretaria_id}" if responsable_secretaria_id else ""
-    filename = f"Plan_Accion_PDM_{entity.slug or entity.id}_{anio}{dep_suffix}.xlsx"
+    mes_suffix = f"_{mes:02d}" if mes else ""
+    filename = f"Plan_Accion_PDM_{entity.slug or entity.id}_{anio}{mes_suffix}{dep_suffix}.xlsx"
     return buffer.getvalue(), filename

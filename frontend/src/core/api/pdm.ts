@@ -29,8 +29,7 @@ export interface PdmActividad {
   responsable_secretaria_nombre?: string | null;
   responsable_usuario?: number | null;
   responsable_usuario_nombre?: string | null;
-  fecha_inicio?: string | null;
-  fecha_fin?: string | null;
+  fecha_ejecucion?: string | null;
   meta_ejecutar: number;
   estado: "PENDIENTE" | "EN_PROGRESO" | "COMPLETADA" | "CANCELADA";
   tiene_evidencia?: boolean;
@@ -449,6 +448,20 @@ export const pdmApi = {
     if (anio) form.append("anio", String(anio));
     return api.post("/pdm/ejecucion/upload", form).then((r) => r.data);
   },
+  listarEjecucionMensual: (anio: number) =>
+    api
+      .get<{ anio: number; meses: PdmEjecucionMensualMesEstado[] }>("/pdm/ejecucion/mensual/", {
+        params: { anio },
+      })
+      .then((r) => r.data),
+  uploadEjecucionMensual: (file: File, confirmar = false) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (confirmar) form.append("confirmar", "true");
+    return api.post<PdmEjecucionMensualUploadResult>("/pdm/ejecucion/mensual/upload", form).then((r) => r.data);
+  },
+  eliminarEjecucionMensual: (anio: number, mes: number) =>
+    api.delete(`/pdm/ejecucion/mensual/${anio}/${mes}/`).then((r) => r.data),
   resumenEjecucionAnualEntidad: () =>
     api.get<PdmEjecucionResumenAnual>("/pdm/ejecucion/resumen-anual-entidad").then((r) => r.data),
   listArmonizaciones: () => api.get<PdmArmonizacion[]>("/pdm/ejecucion/armonizaciones/").then((r) => r.data),
@@ -484,11 +497,12 @@ export const pdmApi = {
         { params: { ...(anio ? { anio } : {}), ...(codigoProducto ? { codigo_producto: codigoProducto } : {}) } },
       )
       .then((r) => r.data),
-  exportPiip: (slug: string, anio: number) => {
-    const params = new URLSearchParams({ anio: String(anio) });
+  exportPiip: async (slug: string, anio: number, mes: number) => {
+    const params = new URLSearchParams({ anio: String(anio), mes: String(mes) });
+    const filename = `PIIP_${slug}_${anio}_${String(mes).padStart(2, "0")}.xlsx`;
     const url = `/api/v1/pdm/v2/${encodeURIComponent(slug)}/export-piip?${params}`;
-    const filename = `PIIP_${slug}_${anio}.xlsx`;
-    return downloadAuthenticatedFile(url, filename);
+    await downloadAuthenticatedFile(url, filename);
+    return filename;
   },
   exportPlanAccionUrl: (slug: string, params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();
@@ -515,6 +529,7 @@ export interface InformePDM {
   tipo: InformePdmTipo;
   tipo_label: string;
   anio: number;
+  mes?: number | null;
   responsable_secretaria: number | null;
   responsable_secretaria_nombre: string;
   incluir_evidencias: boolean;
@@ -535,9 +550,37 @@ export interface InformePDM {
   created_by_nombre: string;
 }
 
+export interface PdmEjecucionMensualMesEstado {
+  mes: number;
+  mes_label: string;
+  cargado: boolean;
+  rango_desde: string | null;
+  rango_hasta: string | null;
+  titulo_archivo: string;
+  filename: string;
+  es_acumulado: boolean;
+  registros_insertados: number;
+  saldo_compromisos_total: number;
+  pagos_total: number;
+  uploaded_at: string | null;
+  uploaded_by_nombre: string | null;
+}
+
+export interface PdmEjecucionMensualUploadResult {
+  success: boolean;
+  message: string;
+  anio: number;
+  mes: number;
+  registros_procesados: number;
+  registros_insertados: number;
+  saldo_compromisos_en_cero: boolean;
+  errores: string[];
+}
+
 export interface GenerarInformePdmPayload {
   tipo?: InformePdmTipo;
   anio: number;
+  mes?: number | null;
   usuario_firmante_id: number;
   responsable_secretaria_id?: number | null;
   incluir_evidencias?: boolean;

@@ -583,6 +583,8 @@ class PDMReportGenerator:
             if self.filtros.get("secretarias"):
                 secs = ", ".join(self.filtros["secretarias"])
                 filter_info.append(f"Secretarías: {secs}")
+            if self.filtros.get("mes"):
+                filter_info.append(f"Corte mensual: mes {self.filtros['mes']}")
             if self.filtros.get("fecha_inicio") or self.filtros.get("fecha_fin"):
                 inicio = self.filtros.get("fecha_inicio", "N/A")
                 fin = self.filtros.get("fecha_fin", "N/A")
@@ -1750,10 +1752,9 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                     ws3[f'C{row}'] = act.estado
                     ws3[f'D{row}'] = act.anio
                     ws3[f'E{row}'] = act.meta_ejecutar or 0
-                    ws3[f'F{row}'] = act.fecha_inicio.strftime('%Y-%m-%d') if act.fecha_inicio else ''
-                    ws3[f'G{row}'] = act.fecha_fin.strftime('%Y-%m-%d') if act.fecha_fin else ''
-                    ws3[f'H{row}'] = act.responsable_secretaria.nombre if act.responsable_secretaria else 'N/A'
-                    ws3[f'I{row}'] = 'Sí' if (hasattr(act, 'tiene_evidencia') and act.tiene_evidencia) else 'No'
+                    ws3[f'F{row}'] = act.fecha_ejecucion.strftime('%Y-%m-%d') if act.fecha_ejecucion else ''
+                    ws3[f'G{row}'] = act.responsable_secretaria.nombre if act.responsable_secretaria else 'N/A'
+                    ws3[f'H{row}'] = 'Sí' if (hasattr(act, 'tiene_evidencia') and act.tiene_evidencia) else 'No'
                     row += 1
             
             # Ajustar anchos
