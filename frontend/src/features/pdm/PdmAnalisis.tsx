@@ -296,6 +296,7 @@ function AnalisisContent({
         avance_pct: s.avance_pct,
         avance_financiero_pct: Number((s.avance_financiero_pct ?? 0).toFixed(1)),
         productos: s.productos,
+        completados: s.completados,
         meta_programada: s.meta_programada_total ?? 0,
         meta_ejecutada: s.meta_ejecutada_total ?? 0,
         presupuesto_plan: s.presupuesto_plan ?? 0,
@@ -1007,7 +1008,7 @@ function AnalisisContent({
           <div className="mb-5 grid gap-4 lg:grid-cols-2 lg:items-start">
             <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
               <p className="mb-3 text-center text-sm font-medium text-slate-600">
-                Meta física programada vs ejecutada ({filtroContexto})
+                Productos con meta vs completados ({filtroContexto})
               </p>
               <ResponsiveContainer width="100%" height={Math.max(200, secretariaChartData.length * 52)}>
                 <BarChart
@@ -1016,7 +1017,7 @@ function AnalisisContent({
                   margin={{ top: 4, right: 16, left: 4, bottom: 4 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: "#64748b" }} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: "#64748b" }} />
                   <YAxis
                     type="category"
                     dataKey="name"
@@ -1026,23 +1027,20 @@ function AnalisisContent({
                   />
                   <Tooltip
                     contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    formatter={(value, name) => [
-                      Number(value ?? 0).toLocaleString("es-CO", { maximumFractionDigits: 2 }),
-                      String(name),
-                    ]}
+                    formatter={(value, name) => [Number(value ?? 0), String(name)]}
                     labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullName ?? ""}
                   />
                   <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 8 }} />
                   <Bar
-                    dataKey="meta_programada"
-                    name="Meta programada"
+                    dataKey="productos"
+                    name="Productos con meta (asignados)"
                     fill="#6366f1"
                     radius={[0, 4, 4, 0]}
                     barSize={14}
                   />
                   <Bar
-                    dataKey="meta_ejecutada"
-                    name="Meta ejecutada"
+                    dataKey="completados"
+                    name="Completados (al 100%)"
                     fill="#20c997"
                     radius={[0, 4, 4, 0]}
                     barSize={14}
