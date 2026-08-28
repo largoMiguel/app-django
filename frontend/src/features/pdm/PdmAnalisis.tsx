@@ -464,74 +464,79 @@ function AnalisisContent({
       </div>
 
       <PdmCard title="Por Línea Estratégica" icon={<Layers size={16} />}>
-        {lineaChartData.length > 0 && (
-          <div className="mb-5 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
-            <p className="mb-3 text-center text-sm font-medium text-slate-600">
-              Avance por línea estratégica ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
-            </p>
-            <ResponsiveContainer width="100%" height={Math.max(220, lineaChartData.length * 48)}>
-              <BarChart
-                data={lineaChartData}
-                layout="vertical"
-                margin={{ top: 4, right: 56, left: 4, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                <XAxis
-                  type="number"
-                  domain={[0, 100]}
-                  tick={{ fontSize: 10, fill: "#64748b" }}
-                  tickFormatter={(v) => `${v}%`}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={180}
-                  tick={{ fontSize: 11, fill: "#475569" }}
-                  interval={0}
-                />
-                <Tooltip
-                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                  formatter={(value, _name, item) => [
-                    `${value}% · ${(item?.payload as { productos?: number })?.productos ?? 0} producto(s)`,
-                    "Avance",
-                  ]}
-                  labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullName ?? ""}
-                />
-                <Bar dataKey="avance_pct" name="Avance %" radius={[0, 4, 4, 0]} barSize={18}>
-                  {lineaChartData.map((entry) => (
-                    <Cell key={entry.fullName} fill={entry.color} />
-                  ))}
-                  <LabelList
-                    dataKey="avance_pct"
-                    position="right"
-                    formatter={(v) => `${v}%`}
-                    style={{ fontSize: 11, fill: "#475569" }}
+        {data.por_linea.length === 0 ? (
+          <p className="py-6 text-center text-sm text-slate-500">Sin datos por línea estratégica.</p>
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+            {lineaChartData.length > 0 && (
+              <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+                <p className="mb-3 text-center text-sm font-medium text-slate-600">
+                  Avance por línea estratégica ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
+                </p>
+                <ResponsiveContainer width="100%" height={Math.max(220, lineaChartData.length * 48)}>
+                  <BarChart
+                    data={lineaChartData}
+                    layout="vertical"
+                    margin={{ top: 4, right: 56, left: 4, bottom: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      domain={[0, 100]}
+                      tick={{ fontSize: 10, fill: "#64748b" }}
+                      tickFormatter={(v) => `${v}%`}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={180}
+                      tick={{ fontSize: 11, fill: "#475569" }}
+                      interval={0}
+                    />
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                      formatter={(value, _name, item) => [
+                        `${value}% · ${(item?.payload as { productos?: number })?.productos ?? 0} producto(s)`,
+                        "Avance",
+                      ]}
+                      labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullName ?? ""}
+                    />
+                    <Bar dataKey="avance_pct" name="Avance %" radius={[0, 4, 4, 0]} barSize={18}>
+                      {lineaChartData.map((entry) => (
+                        <Cell key={entry.fullName} fill={entry.color} />
+                      ))}
+                      <LabelList
+                        dataKey="avance_pct"
+                        position="right"
+                        formatter={(v) => `${v}%`}
+                        style={{ fontSize: 11, fill: "#475569" }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            <div className="max-h-[420px] space-y-4 overflow-y-auto pr-1">
+              {data.por_linea.map((item) => (
+                <div key={item.linea}>
+                  <div className="mb-1 flex flex-wrap justify-between gap-2 text-sm">
+                    <span className="min-w-0 flex-1 truncate text-slate-700" title={item.linea}>
+                      {item.linea}
+                    </span>
+                    <span className="shrink-0 text-slate-500">
+                      {item.productos} producto{item.productos !== 1 ? "s" : ""}
+                    </span>
+                    <strong className="shrink-0 text-slate-900">{item.avance_pct}%</strong>
+                  </div>
+                  <PdmProgressBar
+                    value={item.avance_pct}
+                    tone={item.avance_pct >= 75 ? "success" : item.avance_pct >= 40 ? "info" : "warning"}
                   />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                </div>
+              ))}
+            </div>
           </div>
         )}
-        <div className="max-h-96 space-y-4 overflow-y-auto pr-1">
-          {data.por_linea.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-500">Sin datos por línea estratégica.</p>
-          ) : (
-            data.por_linea.map((item) => (
-              <div key={item.linea}>
-                <div className="mb-1 flex flex-wrap justify-between gap-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate text-slate-700" title={item.linea}>
-                    {item.linea}
-                  </span>
-                  <span className="shrink-0 text-slate-500">
-                    {item.productos} producto{item.productos !== 1 ? "s" : ""}
-                  </span>
-                  <strong className="shrink-0 text-slate-900">{item.avance_pct}%</strong>
-                </div>
-                <PdmProgressBar value={item.avance_pct} tone={item.avance_pct >= 75 ? "success" : item.avance_pct >= 40 ? "info" : "warning"} />
-              </div>
-            ))
-          )}
-        </div>
       </PdmCard>
 
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
@@ -686,8 +691,8 @@ function AnalisisContent({
           icon={<Layers size={16} className="text-indigo-600" />}
           headerClassName="border-b border-indigo-100 bg-indigo-50/90"
         >
-          <div className="mb-5 space-y-6">
-            <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+          <div className="mb-5 grid gap-4 lg:grid-cols-2 lg:items-start">
+            <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
               <p className="mb-3 text-center text-sm font-medium text-slate-600">
                 Meta física programada vs ejecutada ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
               </p>
@@ -733,7 +738,7 @@ function AnalisisContent({
               </ResponsiveContainer>
             </div>
 
-            <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+            <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
               <p className="mb-3 text-center text-sm font-medium text-slate-600">
                 Presupuesto programado vs pagado ({anioLabel === "todos los años" ? "Cuatrienio" : anioLabel})
               </p>
