@@ -50,6 +50,7 @@ from .armonizacion import (
 )
 from .contratos_parser import parse_contratos_rps
 from .ejecucion_parser import (
+    _looks_like_codigo_fuente,
     detectar_periodo_ejecucion,
     parse_ejecucion_excel,
     rows_from_ejecucion_dataframe,
