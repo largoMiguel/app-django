@@ -74,6 +74,36 @@ const ODS_COLORS = [
   "#795548",
 ];
 
+const FUENTES_FINANCIACION_ORDER = [
+  "Propios",
+  "SGP - Salud",
+  "SGP - Educación",
+  "SGP - Propósito General Deporte",
+  "SGP - Propósito General Cultura",
+  "SGP - Propósito General Libre Inversión",
+  "SGP - Propósito General Libre Destinación",
+  "SGP - Alimentación Escolar",
+  "SGP - Ribereños",
+  "SGP - Agua Potable y Saneamiento Básico",
+  "SGP - Primera Infancia",
+  "Otros",
+] as const;
+
+const FUENTE_FINANCIACION_COLORS = [
+  "#2563eb",
+  "#059669",
+  "#7c3aed",
+  "#d97706",
+  "#db2777",
+  "#0891b2",
+  "#4d7c0f",
+  "#ea580c",
+  "#6366f1",
+  "#0d9488",
+  "#b45309",
+  "#64748b",
+];
+
 interface PdmAnalisisProps {
   slug: string;
   filtroAnio: number | "all";
@@ -113,6 +143,26 @@ function ChartCard({
 function truncateLabel(value: string, max = 28): string {
   if (value.length <= max) return value;
   return `${value.slice(0, max - 3)}...`;
+}
+
+function buildFuentesStackedChart(
+  rows: PdmAnalisisResponse["fuentes_por_anio"],
+  metric: "pto_definitivo" | "pagos",
+) {
+  const active = new Set<string>();
+  for (const row of rows) {
+    for (const fuente of row.fuentes) active.add(fuente.nombre);
+  }
+  const fuentes = FUENTES_FINANCIACION_ORDER.filter((nombre) => active.has(nombre));
+  const chartData = rows.map((row) => {
+    const byName = Object.fromEntries(row.fuentes.map((fuente) => [fuente.nombre, fuente]));
+    const point: Record<string, string | number> = { anio: String(row.anio) };
+    for (const nombre of fuentes) {
+      point[nombre] = byName[nombre]?.[metric] ?? 0;
+    }
+    return point;
+  });
+  return { fuentes, chartData };
 }
 
 function AnalisisContent({
@@ -195,6 +245,16 @@ function AnalisisContent({
       })),
     [data.por_secretaria],
   );
+
+  const fuentesPtoChart = useMemo(
+    () => buildFuentesStackedChart(data.fuentes_por_anio ?? [], "pto_definitivo"),
+    [data.fuentes_por_anio],
+  );
+  const fuentesPagosChart = useMemo(
+    () => buildFuentesStackedChart(data.fuentes_por_anio ?? [], "pagos"),
+    [data.fuentes_por_anio],
+  );
+  const fuentesConDatos = fuentesPtoChart.fuentes.length > 0;
 
   const odsPieData = useMemo(
     () =>
@@ -683,6 +743,76 @@ function AnalisisContent({
             </BarChart>
           </ResponsiveContainer>
         </div>
+      </ChartCard>
+
+      <ChartCard
+        title="Fuentes de Financiación por Año"
+        icon={<DollarSign size={16} className="text-violet-600" />}
+        headerClassName="border-b border-violet-100 bg-violet-50/90"
+      >
+        <p className="mb-4 text-center text-sm font-medium text-slate-600">
+          Ejecución presupuestal por fuente MGA normalizada (2024-2027)
+        </p>
+        {!fuentesConDatos ? (
+          <div className="flex h-48 items-center justify-center text-sm text-slate-400">
+            Sin datos de ejecución por fuente de financiación
+          </div>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+            <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+              <p className="mb-3 text-center text-sm font-medium text-slate-600">Pto. definitivo</p>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={fuentesPtoChart.chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#64748b" }}
+                    tickFormatter={(v) => `${(Number(v) / 1e9).toFixed(1)}B`}
+                  />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                    formatter={(value, name) => [formatearMoneda(Number(value ?? 0)), String(name)]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  {fuentesPtoChart.fuentes.map((nombre, idx) => (
+                    <Bar
+                      key={nombre}
+                      dataKey={nombre}
+                      stackId="pto"
+                      fill={FUENTE_FINANCIACION_COLORS[idx % FUENTE_FINANCIACION_COLORS.length]}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
+              <p className="mb-3 text-center text-sm font-medium text-slate-600">Pagado</p>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={fuentesPagosChart.chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="anio" tick={{ fontSize: 11, fill: "#64748b" }} />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#64748b" }}
+                    tickFormatter={(v) => `${(Number(v) / 1e9).toFixed(1)}B`}
+                  />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                    formatter={(value, name) => [formatearMoneda(Number(value ?? 0)), String(name)]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  {fuentesPagosChart.fuentes.map((nombre, idx) => (
+                    <Bar
+                      key={nombre}
+                      dataKey={nombre}
+                      stackId="pagos"
+                      fill={FUENTE_FINANCIACION_COLORS[idx % FUENTE_FINANCIACION_COLORS.length]}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
       </ChartCard>
 
       {isAdmin && data.por_secretaria.length > 0 && (

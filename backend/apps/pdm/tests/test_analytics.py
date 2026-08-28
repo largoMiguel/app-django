@@ -74,3 +74,28 @@ class PdmAnalyticsTests(TestCase):
         data = compute_pdm_analytics(qs, self.entity.id, anio=2026)
         assert data["total_productos_todos"] == 2
         assert data["productos_con_meta"] == 1
+
+    def test_fuentes_por_anio_normaliza_codigo_mga(self):
+        self._producto("1001", "1001", "Sector A", 100, 0)
+        PDMEjecucionPresupuestal.objects.create(
+            entity=self.entity,
+            codigo_producto="1001",
+            descripcion_fte="1.2.4.1.01",
+            anio=2026,
+            pto_definitivo=300_000,
+            pagos=120_000,
+        )
+        PDMEjecucionPresupuestal.objects.create(
+            entity=self.entity,
+            codigo_producto="1001",
+            descripcion_fte="SGP SALUD",
+            anio=2026,
+            pto_definitivo=200_000,
+            pagos=80_000,
+        )
+        qs = PdmProducto.objects.filter(entity=self.entity)
+        data = compute_pdm_analytics(qs, self.entity.id, anio=2026)
+        row_2026 = next(r for r in data["fuentes_por_anio"] if r["anio"] == 2026)
+        by_name = {f["nombre"]: f for f in row_2026["fuentes"]}
+        assert by_name["SGP - Educación"]["pto_definitivo"] == 300_000
+        assert by_name["SGP - Salud"]["pto_definitivo"] == 200_000

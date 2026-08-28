@@ -7,6 +7,7 @@ from datetime import datetime
 from django.db.models import QuerySet
 
 from .ejecucion_resumen import ejecucion_por_anio, ejecucion_por_codigo, totales_ejecucion_codigos
+from .fuente_financiacion import FUENTES_PIIP_CANONICAS, normalizar_fuente_financiacion
 from .metrics import (
     ANIOS_PDM,
     actividad_aggs_for_productos,
@@ -110,6 +111,64 @@ def _ejecucion_por_codigo_anio(
             "pagos": pagos,
         }
     return out
+
+
+def _fuentes_por_anio(entity_id: int, codigos: list[str]) -> list[dict]:
+    """Ejecución presupuestal agregada por año y fuente MGA normalizada."""
+    from django.db.models import Sum
+
+    from .models import PDMEjecucionPresupuestal
+
+    base = [{"anio": y, "fuentes": []} for y in ANIOS_PDM]
+    if not codigos:
+        return base
+
+    rows = (
+        PDMEjecucionPresupuestal.objects.filter(
+            entity_id=entity_id,
+            codigo_producto__in=codigos,
+            anio__in=ANIOS_PDM,
+        )
+        .values("anio", "descripcion_fte")
+        .annotate(pto_definitivo=Sum("pto_definitivo"), pagos=Sum("pagos"))
+    )
+
+    agg: dict[int, dict[str, dict[str, float]]] = {
+        y: {nombre: {"pto_definitivo": 0.0, "pagos": 0.0} for nombre in FUENTES_PIIP_CANONICAS}
+        for y in ANIOS_PDM
+    }
+    for row in rows:
+        anio = row.get("anio")
+        if anio is None:
+            continue
+        anio_int = int(anio)
+        if anio_int not in agg:
+            continue
+        nombre = normalizar_fuente_financiacion(row.get("descripcion_fte"))
+        bucket = agg[anio_int].setdefault(
+            nombre,
+            {"pto_definitivo": 0.0, "pagos": 0.0},
+        )
+        bucket["pto_definitivo"] += float(row["pto_definitivo"] or 0)
+        bucket["pagos"] += float(row["pagos"] or 0)
+
+    result: list[dict] = []
+    for y in ANIOS_PDM:
+        fuentes = []
+        for nombre in FUENTES_PIIP_CANONICAS:
+            data = agg[y].get(nombre, {"pto_definitivo": 0.0, "pagos": 0.0})
+            pto = data["pto_definitivo"]
+            pagos = data["pagos"]
+            if pto > 0 or pagos > 0:
+                fuentes.append(
+                    {
+                        "nombre": nombre,
+                        "pto_definitivo": round(pto, 2),
+                        "pagos": round(pagos, 2),
+                    }
+                )
+        result.append({"anio": y, "fuentes": fuentes})
+    return result
 
 
 def _avance_financiero_promedio(anios_map: dict[int, dict[str, float]]) -> float:
@@ -379,6 +438,8 @@ def compute_pdm_analytics(
             {"anio": y, "plan": plan, "ejecucion": ejec, "pagos": pagos, "pct_pagado": pct_pagado}
         )
 
+    fuentes_por_anio = _fuentes_por_anio(entity_id, codigos_financieros)
+
     por_linea = sorted(
         [
             {
@@ -475,6 +536,7 @@ def compute_pdm_analytics(
         "por_sector_estado": por_sector_estado,
         "por_ods": por_ods,
         "presupuestal_por_anio": presupuestal_por_anio,
+        "fuentes_por_anio": fuentes_por_anio,
         "por_secretaria": por_secretaria,
     }
 

@@ -185,6 +185,10 @@ export interface PdmAnalisisResponse {
     pagos: number;
     pct_pagado: number;
   }[];
+  fuentes_por_anio: {
+    anio: number;
+    fuentes: { nombre: string; pto_definitivo: number; pagos: number }[];
+  }[];
   por_secretaria: {
     secretaria_id: number;
     secretaria: string;

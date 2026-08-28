@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-import unicodedata
 from collections import defaultdict
 from io import BytesIO
 
@@ -15,6 +14,7 @@ from apps.entities.models import Entity
 
 from .access import productos_queryset_for_user
 from .bpin_view import consultar_bpines_externos
+from .fuente_financiacion import normalizar_fuente_piip
 from .metrics import ANIOS_PDM, actividad_aggs_for_productos
 from .models import PDMEjecucionPresupuestal, PdmProducto
 
@@ -45,21 +45,6 @@ PIIP_COLUMNS = [
     "RESPONSABLE",
 ]
 
-FUENTES_PIIP_CANONICAS = [
-    "Propios",
-    "SGP - Salud",
-    "SGP - Educación",
-    "SGP - Propósito General Deporte",
-    "SGP - Propósito General Cultura",
-    "SGP - Propósito General Libre Inversión",
-    "SGP - Propósito General Libre Destinación",
-    "SGP - Alimentación Escolar",
-    "SGP - Ribereños",
-    "SGP - Agua Potable y Saneamiento Básico",
-    "SGP - Primera Infancia",
-    "Otros",
-]
-
 HEADER_FILL = PatternFill(start_color="6AA84F", end_color="6AA84F", fill_type="solid")
 HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
 THIN_BORDER = Border(
@@ -87,77 +72,6 @@ COLUMN_WIDTHS = {
     "N": 35,
     "O": 45,
 }
-
-_FUENTE_KEYWORDS: list[tuple[str, str]] = [
-    ("propios", "Propios"),
-    ("sgp salud", "SGP - Salud"),
-    ("salud", "SGP - Salud"),
-    ("sgp educacion", "SGP - Educación"),
-    ("educacion", "SGP - Educación"),
-    ("proposito general deporte", "SGP - Propósito General Deporte"),
-    ("deporte", "SGP - Propósito General Deporte"),
-    ("proposito general cultura", "SGP - Propósito General Cultura"),
-    ("cultura", "SGP - Propósito General Cultura"),
-    ("libre inversion", "SGP - Propósito General Libre Inversión"),
-    ("libre destinacion", "SGP - Propósito General Libre Destinación"),
-    ("alimentacion escolar", "SGP - Alimentación Escolar"),
-    ("ribere", "SGP - Ribereños"),
-    ("agua potable", "SGP - Agua Potable y Saneamiento Básico"),
-    ("saneamiento basico", "SGP - Agua Potable y Saneamiento Básico"),
-    ("primera infancia", "SGP - Primera Infancia"),
-]
-
-
-def _normalize_key(text: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", text)
-    sin_acentos = "".join(c for c in nfkd if not unicodedata.combining(c))
-    return re.sub(r"\s+", " ", sin_acentos.lower().strip())
-
-
-_CANONICAL_BY_KEY = {_normalize_key(nombre): nombre for nombre in FUENTES_PIIP_CANONICAS}
-
-
-def normalizar_fuente_piip(descripcion_fte: str | None) -> str:
-    """Mapea la descripción de ejecución al catálogo PIIP de la imagen de referencia."""
-    raw = (descripcion_fte or "").strip()
-    if not raw:
-        return "Otros"
-
-    key = _normalize_key(raw)
-    if key in _CANONICAL_BY_KEY:
-        return _CANONICAL_BY_KEY[key]
-
-    for canon_key, canon_name in _CANONICAL_BY_KEY.items():
-        if canon_key in key or key in canon_key:
-            return canon_name
-
-    for keyword, canon_name in _FUENTE_KEYWORDS:
-        if keyword in key:
-            return canon_name
-
-    if raw.upper().startswith("SGP"):
-        if "SALUD" in key:
-            return "SGP - Salud"
-        if "EDUCACION" in key:
-            return "SGP - Educación"
-        if "DEPORTE" in key:
-            return "SGP - Propósito General Deporte"
-        if "CULTURA" in key:
-            return "SGP - Propósito General Cultura"
-        if "LIBRE INVERSION" in key or "LIBRE INV" in key:
-            return "SGP - Propósito General Libre Inversión"
-        if "LIBRE DESTINACION" in key or "LIBRE DEST" in key:
-            return "SGP - Propósito General Libre Destinación"
-        if "ALIMENTACION" in key:
-            return "SGP - Alimentación Escolar"
-        if "RIBER" in key:
-            return "SGP - Ribereños"
-        if "AGUA" in key or "SANEAMIENTO" in key:
-            return "SGP - Agua Potable y Saneamiento Básico"
-        if "INFANCIA" in key:
-            return "SGP - Primera Infancia"
-
-    return "Otros"
 
 
 def _split_bpines(bpin_raw: str | None) -> list[str]:
