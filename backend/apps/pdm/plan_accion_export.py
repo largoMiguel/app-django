@@ -247,8 +247,8 @@ def _build_producto_sheet(ws, data: dict, anio: int) -> None:
     row_idx = 2
 
     for producto in data["productos"]:
-        aggs_anio = data["aggs"].get(producto.clave_producto, {}).get(anio, {})
-        resumen = resumen_anio(producto, anio, aggs_anio)
+        aggs_by_anio = data["aggs"].get(producto.clave_producto, {})
+        resumen = resumen_anio(producto, anio, aggs_by_anio)
         ej = data["ejecucion"].get(str(producto.codigo_producto), {})
         pto_def = float(ej.get("pto_definitivo", 0))
         pagos = float(ej.get("pagos", 0))
@@ -274,7 +274,7 @@ def _build_producto_sheet(ws, data: dict, anio: int) -> None:
             pto_def,
             pagos,
             _pct(pagos, presupuesto if presupuesto > 0 else pto_def),
-            estado_producto_anio(producto, anio, aggs_anio),
+            estado_producto_anio(producto, anio, aggs_by_anio),
         ]
         _write_row(ws, row_idx, values)
         row_idx += 1
@@ -304,8 +304,8 @@ def _build_dependencia_sheet(ws, data: dict, anio: int) -> None:
 
     for producto in data["productos"]:
         dep = _dependencia_nombre(producto)
-        aggs_anio = data["aggs"].get(producto.clave_producto, {}).get(anio, {})
-        resumen = resumen_anio(producto, anio, aggs_anio)
+        aggs_by_anio = data["aggs"].get(producto.clave_producto, {})
+        resumen = resumen_anio(producto, anio, aggs_by_anio)
         ej = data["ejecucion"].get(str(producto.codigo_producto), {})
         g = grouped[dep]
         g["productos"] += 1
