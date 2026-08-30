@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { SignIn, useAuth } from "@clerk/react";
 import { Moon, Sun } from "lucide-react";
 import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
 import { consumeAuthBlockMessage } from "@/core/auth/authErrors";
-import { canAccessPath, firstAccessibleRoute } from "@/core/auth/routes";
+import { firstAccessibleRoute } from "@/core/auth/routes";
 import { needsEntitySelection, useAuthStore } from "@/core/auth/store";
 
 const loginAppearance = (dark: boolean) => ({
@@ -31,11 +31,9 @@ const loginAppearance = (dark: boolean) => ({
 });
 
 export default function LoginPage() {
-  const location = useLocation();
   const { isLoaded, isSignedIn } = useAuth();
   const user = useAuthStore((s) => s.user);
   const activeEntityId = useAuthStore((s) => s.activeEntityId);
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
   const [blockMessage, setBlockMessage] = useState<string | null>(null);
   const [dark, setDark] = useState(false);
 
@@ -55,9 +53,7 @@ export default function LoginPage() {
     if (needsEntitySelection(user, activeEntityId)) {
       return <Navigate to="/app" replace />;
     }
-    const destination =
-      from && from !== "/" && canAccessPath(user, from) ? from : firstAccessibleRoute(user);
-    return <Navigate to={destination === "/" ? "/app" : destination} replace />;
+    return <Navigate to={firstAccessibleRoute(user)} replace />;
   }
 
   return (

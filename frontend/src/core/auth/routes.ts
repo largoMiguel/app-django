@@ -32,7 +32,7 @@ export interface AppModuleRoute {
   navSection?: "main" | "secondary";
 }
 
-/** Configuración única: rutas, guards, sidebar y redirección post-login. */
+/** Configuración única: rutas, guards, sidebar y destino post-login (bienvenida). */
 export const APP_MODULE_ROUTES: AppModuleRoute[] = [
   {
     moduleKey: "pqrs",
@@ -190,10 +190,10 @@ export function canAccessModuleRoute(user: AuthUser | null, moduleKey: AppModule
   return canAccess(user, entry.access);
 }
 
-/** Primera ruta del primer módulo activo al que el usuario tiene acceso. */
+/** Destino post-login: bienvenida si hay módulos; si no, sin acceso. */
 export function firstAccessibleRoute(user: AuthUser | null): string {
   if (!user) return "/app";
-  if (isPlatformSuperadmin(user)) return "/superadmin/entities";
+  if (isPlatformSuperadmin(user)) return "/app";
 
   const entity = user.entity;
   if (!entity) return "/app";
@@ -201,7 +201,7 @@ export function firstAccessibleRoute(user: AuthUser | null): string {
   for (const moduleKey of modulesInOrder(user)) {
     const key = moduleKey as AppModuleKey;
     if (!ROUTE_BY_MODULE_KEY[key]) continue;
-    if (canAccessModuleRoute(user, key)) return ROUTE_BY_MODULE_KEY[key].path;
+    if (canAccessModuleRoute(user, key)) return "/app";
   }
 
   return "/sin-acceso";
@@ -218,7 +218,7 @@ export function canAccessPath(user: AuthUser | null, pathname: string): boolean 
   const rule = PATH_RULES.find(
     (r) => pathname === r.prefix || pathname.startsWith(r.prefix + "/"),
   );
-  if (!rule) return pathname === "/" || pathname === "/sin-acceso";
+  if (!rule) return pathname === "/" || pathname === "/app" || pathname === "/sin-acceso";
 
   return canAccessModuleRoute(user, rule.entry.moduleKey);
 }
