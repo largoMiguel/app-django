@@ -1,7 +1,14 @@
+import { Navigate } from "react-router-dom";
 import { UserButton } from "@clerk/react";
+import { accessibleNavRoutes, useAuthStore } from "@/core/auth/store";
 
 /** Usuario autenticado sin ningún módulo asignado (p. ej. secretario sin módulos). */
 export default function SinAccesoPage() {
+  const user = useAuthStore((s) => s.user);
+  if (user && accessibleNavRoutes(user).length > 0) {
+    return <Navigate to="/app" replace />;
+  }
+
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
       <h1 className="text-xl font-semibold text-slate-800">Sin módulos asignados</h1>

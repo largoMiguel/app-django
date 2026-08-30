@@ -1,4 +1,3 @@
-import { MODULES } from "@/core/modules";
 import {
   isModuleEnabled,
   isPlatformSuperadmin,
@@ -17,6 +16,7 @@ export type AppModuleKey =
   | "reports_pdf"
   | "asistencia"
   | "correspondencia"
+  | "gestion_documental"
   | "contratacion";
 
 export interface AppModuleRoute {
@@ -88,6 +88,16 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     navSection: "main",
   },
   {
+    moduleKey: "gestion_documental",
+    path: "/gestion-documental",
+    paths: ["/gestion-documental"],
+    label: "Gestión documental",
+    module: "enable_gestion_documental",
+    access: { roles: ["admin", "secretario", "contratista"] },
+    showInNav: true,
+    navSection: "main",
+  },
+  {
     moduleKey: "contratacion",
     path: "/contratacion",
     paths: ["/contratacion"],
@@ -129,45 +139,6 @@ export function getModuleRoute(moduleKey: AppModuleKey): AppModuleRoute {
   return ROUTE_BY_MODULE_KEY[moduleKey];
 }
 
-function modulesInOrder(user: AuthUser): string[] {
-  const entity = user.entity;
-  if (!entity) return [];
-
-  const orderedKeys = MODULES.map((m) => m.key);
-  const userEnabled = user.enabled_modules ?? [];
-  const entityEnabled = entity.enabled_modules ?? [];
-  const role = primaryRole(user);
-
-  if (role === "secretario") {
-    if (userEnabled.length === 0) return [];
-    const allowed = new Set(userEnabled);
-    if (isModuleEnabled(entity, "enable_users_admin")) {
-      allowed.add("users_admin");
-    }
-    return orderedKeys.filter((key) => allowed.has(key));
-  }
-
-  if (role === "contratista") {
-    if (userEnabled.length === 0) return [];
-    const allowed = new Set(userEnabled);
-    return orderedKeys.filter((key) => allowed.has(key));
-  }
-
-  if (userEnabled.length > 0) {
-    const allowed = new Set(userEnabled);
-    return orderedKeys.filter((key) => allowed.has(key));
-  }
-
-  if (entityEnabled.length > 0) {
-    const allowed = new Set(entityEnabled);
-    return orderedKeys.filter((key) => allowed.has(key));
-  }
-
-  return MODULES.filter((m) => isModuleEnabled(entity, m.flag as EntityModuleFlag)).map(
-    (m) => m.key,
-  );
-}
-
 export function canAccessModuleRoute(user: AuthUser | null, moduleKey: AppModuleKey): boolean {
   if (!user) return false;
   const entry = ROUTE_BY_MODULE_KEY[moduleKey];
@@ -198,13 +169,11 @@ export function firstAccessibleRoute(user: AuthUser | null): string {
   const entity = user.entity;
   if (!entity) return "/app";
 
-  for (const moduleKey of modulesInOrder(user)) {
-    const key = moduleKey as AppModuleKey;
-    if (!ROUTE_BY_MODULE_KEY[key]) continue;
-    if (canAccessModuleRoute(user, key)) return "/app";
-  }
-
-  return "/sin-acceso";
+  // Misma regla que sidebar/bienvenida (flags de entidad + RBAC), no sólo enabled_modules[].
+  const hasAccess = APP_MODULE_ROUTES.some((route) =>
+    canAccessModuleRoute(user, route.moduleKey),
+  );
+  return hasAccess ? "/app" : "/sin-acceso";
 }
 
 /** Indica si el usuario puede visitar una ruta (p. ej. destino tras login). */
