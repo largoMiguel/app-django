@@ -1,4 +1,4 @@
-import { FileText, Building2, Users, BarChart3, LogOut, Clock, Mail, FileSearch, ClipboardList, type LucideIcon } from "lucide-react";
+import { FileText, Building2, Users, BarChart3, LogOut, Clock, Mail, FileSearch, ClipboardList, House, type LucideIcon } from "lucide-react";
 import { useClerk } from "@clerk/react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
@@ -121,6 +121,27 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-2">
+          <NavLink
+            to="/app"
+            end
+            onClick={() => onMobileClose?.()}
+            className={({ isActive }) =>
+              `group flex items-center gap-3 rounded-[0.3rem] px-3 py-2.5 text-sm transition-all ${
+                isActive
+                  ? "border-l-[3px] border-[#3eafd4] bg-[rgba(62,175,212,0.2)] pl-[calc(0.75rem-3px)] text-white"
+                  : "text-[rgba(255,255,255,0.6)] hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
+              }`
+            }
+          >
+            <House className="h-5 w-5 flex-shrink-0" />
+            <span
+              className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
+                isExpanded || mobileOpen ? "max-w-[200px] opacity-100" : "max-w-0 opacity-0"
+              }`}
+            >
+              Inicio
+            </span>
+          </NavLink>
           {mainItems.map(renderNavItem)}
           {secondaryItems.map(renderNavItem)}
         </nav>

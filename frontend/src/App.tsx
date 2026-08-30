@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/react";
 import ScrollToTop from "@/core/routing/ScrollToTop";
 import { isMarketingHost, isShowcaseHost, redirectToApp } from "@/core/host";
 import LoginPage from "@/features/auth/LoginPage";
+import WelcomePage from "@/features/auth/WelcomePage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
 import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
@@ -57,15 +58,6 @@ const suspenseFallback = (
   <div className="flex min-h-screen items-center justify-center text-slate-500">Cargando…</div>
 );
 
-function AppHomeRedirect() {
-  const user = useAuthStore((s) => s.user);
-  const activeEntityId = useAuthStore((s) => s.activeEntityId);
-  if (needsEntitySelection(user, activeEntityId)) {
-    return <SessionLoadingScreen message="Seleccione una entidad…" />;
-  }
-  return <Navigate to={firstAccessibleRoute(user)} replace />;
-}
-
 /** En softone360.com cualquier ruta de app se manda a app.softone360.com. */
 function RedirectToAppHost() {
   const location = useLocation();
@@ -75,7 +67,7 @@ function RedirectToAppHost() {
   return suspenseFallback;
 }
 
-/** En app.* no hay showcase: / → login (o dashboard si ya hay sesión). */
+/** En app.* no hay showcase: / → login (o bienvenida si ya hay sesión). */
 function AppRootEntry() {
   const { isLoaded, isSignedIn } = useAuth();
   const user = useAuthStore((s) => s.user);
@@ -149,7 +141,7 @@ export default function App(): ReactElement {
 
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
-              <Route path="/app" element={<AppHomeRedirect />} />
+              <Route path="/app" element={<WelcomePage />} />
               <Route path="/sin-acceso" element={<SinAccesoPage />} />
 
               <Route element={<ModuleRouteGuard moduleKey="pqrs" />}>
