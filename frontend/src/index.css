@@ -12,6 +12,67 @@ html, body {
   animation: amber-glow 1.4s ease-in-out infinite;
 }
 
+@keyframes welcome-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(12px, -10px) scale(1.04); }
+  66% { transform: translate(-8px, 6px) scale(0.97); }
+}
+
+@keyframes welcome-shimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes welcome-pulse-ring {
+  0%, 100% { transform: scale(1); opacity: 0.35; }
+  50% { transform: scale(1.08); opacity: 0.12; }
+}
+
+.welcome-orb {
+  animation: welcome-float 9s ease-in-out infinite;
+}
+
+.welcome-orb-delayed {
+  animation: welcome-float 11s ease-in-out infinite;
+  animation-delay: -3s;
+}
+
+.welcome-shimmer-text {
+  background: linear-gradient(
+    90deg,
+    #3eafd4 0%,
+    #2dd4bf 35%,
+    #3eafd4 50%,
+    #38bdf8 65%,
+    #3eafd4 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: welcome-shimmer 6s linear infinite;
+}
+
+.welcome-logo-ring {
+  animation: welcome-pulse-ring 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-orb,
+  .welcome-orb-delayed,
+  .welcome-shimmer-text,
+  .welcome-logo-ring {
+    animation: none;
+  }
+
+  .welcome-shimmer-text {
+    color: #3eafd4;
+    background: none;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+  }
+}
+
 @theme {
   --color-brand-50: #eff6ff;
   --color-brand-500: #3b82f6;
