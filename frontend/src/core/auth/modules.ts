@@ -11,7 +11,8 @@ export type EntityModuleFlag =
   | "enable_pdm_chat"
   | "enable_asistencia"
   | "enable_correspondencia"
-  | "enable_presupuesto";
+  | "enable_presupuesto"
+  | "enable_gestion_documental";
 
 export const MODULE_FLAG_TO_KEY: Record<EntityModuleFlag, string> = {
   enable_pqrs: "pqrs",
@@ -25,6 +26,7 @@ export const MODULE_FLAG_TO_KEY: Record<EntityModuleFlag, string> = {
   enable_asistencia: "asistencia",
   enable_correspondencia: "correspondencia",
   enable_presupuesto: "presupuesto",
+  enable_gestion_documental: "gestion_documental",
 };
 
 export function isModuleEnabled(entity: AuthEntity, module: EntityModuleFlag): boolean {
