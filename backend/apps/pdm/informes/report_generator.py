@@ -116,6 +116,9 @@ class PDMReportGenerator:
     MAX_CHART_HEIGHT = 9.0 * inch
     EVIDENCIA_IMG_INCH = 2.4 * inch
     FRAME_SAFETY_PT = 18
+    # Banda reservada por encabezado FM-PDM-001 en páginas internas (template 'Later').
+    LATER_PAGE_HEADER_BAND = 1.68 * inch
+    TABLE_CELL_VERTICAL_PADDING = 12
     GRUPO_BLOCK_GAP = 0.15 * inch
     COLOR_PRIMARY = TEXT_DARK
     COLOR_HEADER = TEXT_DARK
@@ -200,12 +203,21 @@ class PDMReportGenerator:
         self._max_flowable_height = max(3.5 * inch, frame_h - self.FRAME_SAFETY_PT)
         self._max_flowable_width = min(self.MAX_FLOWABLE_WIDTH, frame_w - 4)
 
+    def _later_page_frame_height(self) -> float:
+        """Alto del frame 'normal' en páginas internas (con encabezado FM-PDM-001)."""
+        top = float(getattr(self.doc, "topMargin", 0.8 * inch) if self.doc else 0.8 * inch)
+        bottom = float(getattr(self.doc, "bottomMargin", 0.8 * inch) if self.doc else 0.8 * inch)
+        return letter[1] - top - bottom - self.LATER_PAGE_HEADER_BAND
+
     def _max_table_cell_height(self) -> float:
-        """Alto máximo de una celda de tabla (una fila no puede superar el frame)."""
-        return getattr(self, "_max_flowable_height", self.MAX_FLOWABLE_HEIGHT)
+        """Alto máximo de una celda de tabla (una fila no puede superar el frame 'Later')."""
+        frame_h = self._later_page_frame_height()
+        cap = frame_h - self.TABLE_CELL_VERTICAL_PADDING - self.FRAME_SAFETY_PT
+        return max(2.5 * inch, cap)
 
     def _paragraph_height(self, text: str, style: ParagraphStyle, width: float) -> float:
-        return Paragraph((text or "").strip() or "—", style).wrap(width, self._max_table_cell_height())[1]
+        limit = self._max_table_cell_height()
+        return Paragraph((text or "").strip() or "—", style).wrap(width, limit)[1]
 
     def _fit_paragraph_text(
         self,
@@ -1362,16 +1374,17 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         
         for prod_idx, prod in enumerate(self.productos, 1):
             actividades = actividades_por_producto.get(prod.clave_producto, [])
-            producto_nombre = self._fit_paragraph_text(
-                prod.producto_mga or prod.codigo_producto,
-                st["cell_left"],
-                4.67 * inch,
-            )
-            indicador_nombre = self._fit_paragraph_text(
+            indicador_chunks = self._split_text_for_cell(
                 prod.indicador_producto_mga or prod.personalizacion_indicador or "N/A",
                 st["cell_left"],
                 2.33 * inch,
             )
+            producto_chunks = self._split_text_for_cell(
+                prod.producto_mga or prod.codigo_producto,
+                st["cell_left"],
+                4.67 * inch,
+            )
+            detail_row_count = max(len(indicador_chunks), len(producto_chunks))
             avance_fisico = self.calcular_avance_producto(prod)
             avance_financiero = self.calcular_avance_financiero(prod)
             meta_ejecutada = self._meta_ejecutada_producto(prod)
@@ -1414,11 +1427,24 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                     Paragraph("<b>PRODUCTO(S)</b>", st["col_header"]),
                     Paragraph("", st["col_header"]),
                 ],
-                [
-                    Paragraph(indicador_nombre, st["cell_left"]),
-                    Paragraph(producto_nombre, st["cell_left"]),
+            ]
+            for detail_idx in range(detail_row_count):
+                resumen_rows.append([
+                    Paragraph(
+                        indicador_chunks[detail_idx]
+                        if detail_idx < len(indicador_chunks)
+                        else "",
+                        st["cell_left"],
+                    ),
+                    Paragraph(
+                        producto_chunks[detail_idx]
+                        if detail_idx < len(producto_chunks)
+                        else "",
+                        st["cell_left"],
+                    ),
                     Paragraph("", st["cell_left"]),
-                ],
+                ])
+            resumen_rows.extend([
                 [
                     Paragraph("<b>AVANCE FÍSICO</b>", st["col_header"]),
                     Paragraph("<b>AVANCE FINANCIERO</b>", st["col_header"]),
@@ -1444,42 +1470,51 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
                     Paragraph(f"<b>{responsable.upper()}</b>", st["cell_bold"]),
                     Paragraph("", st["cell_left"]),
                 ],
+            ])
+
+            avance_header_row = detail_row_count + 1
+            avance_values_row = avance_header_row + 1
+            presup_header_row = avance_values_row + 1
+            presup_values_row = presup_header_row + 1
+            responsable_row = presup_values_row + 1
+
+            resumen_style_cmds = [
+                ("BACKGROUND", (0, 0), (-1, 0), self.COLOR_HEADER),
+                ("BACKGROUND", (0, avance_header_row), (-1, avance_header_row), self.COLOR_HEADER),
+                ("BACKGROUND", (0, presup_header_row), (-1, presup_header_row), self.COLOR_HEADER),
+                ("BACKGROUND", (0, responsable_row), (0, responsable_row), self.COLOR_HEADER),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("TEXTCOLOR", (0, avance_header_row), (-1, avance_header_row), colors.white),
+                ("TEXTCOLOR", (0, presup_header_row), (-1, presup_header_row), colors.white),
+                ("TEXTCOLOR", (0, responsable_row), (0, responsable_row), colors.white),
+                ("SPAN", (1, 0), (2, 0)),
+                ("SPAN", (1, responsable_row), (2, responsable_row)),
+                ("BACKGROUND", (0, avance_values_row), (-1, avance_values_row), BG_WHITE),
+                ("BACKGROUND", (0, presup_values_row), (-1, presup_values_row), ROW_ALT),
+                ("BACKGROUND", (0, responsable_row), (0, responsable_row), self.COLOR_HEADER),
+                ("BACKGROUND", (1, responsable_row), (2, responsable_row), BG_WHITE),
+                ("TEXTCOLOR", (1, responsable_row), (2, responsable_row), TEXT_DARK),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LINEBELOW", (0, 0), (-1, -1), 0.5, LINE_MID),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
             ]
+            for detail_idx in range(detail_row_count):
+                row_idx = detail_idx + 1
+                resumen_style_cmds.extend([
+                    ("SPAN", (1, row_idx), (2, row_idx)),
+                    ("BACKGROUND", (0, row_idx), (-1, row_idx), self.COLOR_ROW_ALT),
+                ])
+
             resumen_table = Table(
                 resumen_rows,
                 colWidths=[2.33 * inch, 2.34 * inch, 2.33 * inch],
                 splitByRow=True,
             )
-            resumen_table.setStyle(
-                TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, 0), self.COLOR_HEADER),
-                        ("BACKGROUND", (0, 2), (-1, 2), self.COLOR_HEADER),
-                        ("BACKGROUND", (0, 4), (-1, 4), self.COLOR_HEADER),
-                        ("BACKGROUND", (0, 6), (0, 6), self.COLOR_HEADER),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                        ("TEXTCOLOR", (0, 2), (-1, 2), colors.white),
-                        ("TEXTCOLOR", (0, 4), (-1, 4), colors.white),
-                        ("TEXTCOLOR", (0, 6), (0, 6), colors.white),
-                        ("SPAN", (1, 0), (2, 0)),
-                        ("SPAN", (1, 1), (2, 1)),
-                        ("SPAN", (1, 6), (2, 6)),
-                        ("BACKGROUND", (0, 1), (-1, 1), self.COLOR_ROW_ALT),
-                        ("BACKGROUND", (0, 3), (-1, 3), BG_WHITE),
-                        ("BACKGROUND", (0, 5), (-1, 5), ROW_ALT),
-                        ("BACKGROUND", (0, 6), (0, 6), self.COLOR_HEADER),
-                        ("BACKGROUND", (1, 6), (2, 6), BG_WHITE),
-                        ("TEXTCOLOR", (1, 6), (2, 6), TEXT_DARK),
-                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("LINEBELOW", (0, 0), (-1, -1), 0.5, LINE_MID),
-                        ("TOPPADDING", (0, 0), (-1, -1), 5),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ]
-                )
-            )
+            resumen_table.setStyle(TableStyle(resumen_style_cmds))
             self.story.append(resumen_table)
 
             self._append_banner_table(f"EJECUCIÓN PLAN DE ACCIÓN VIGENCIA {anio_vigencia}")
@@ -1491,26 +1526,35 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]]
             if actividades:
                 for act in actividades:
-                    nombre_actividad = self._fit_paragraph_text(
+                    descripcion = (act.descripcion or "").strip() or "—"
+                    meta_act = float(act.meta_ejecutar or 0)
+                    nombre_chunks = self._split_text_for_cell(
                         act.nombre or "Sin nombre",
                         st["cell_left"],
                         2.5 * inch,
                     )
-                    descripcion = (act.descripcion or "").strip() or "—"
-                    meta_act = float(act.meta_ejecutar or 0)
                     desc_chunks = self._split_text_for_cell(
                         descripcion,
                         st["cell_left"],
                         3.25 * inch,
                     )
-                    for chunk_idx, desc_chunk in enumerate(desc_chunks):
+                    row_count = max(len(nombre_chunks), len(desc_chunks))
+                    for chunk_idx in range(row_count):
+                        nombre = (
+                            nombre_chunks[chunk_idx]
+                            if chunk_idx < len(nombre_chunks)
+                            else ""
+                        )
+                        desc_chunk = (
+                            desc_chunks[chunk_idx]
+                            if chunk_idx < len(desc_chunks)
+                            else "—"
+                        )
                         actividades_rows.append([
                             Paragraph(
-                                f"<b>{nombre_actividad}</b>",
+                                f"<b>{nombre}</b>" if nombre else "",
                                 st["cell_left"],
-                            )
-                            if chunk_idx == 0
-                            else Paragraph("", st["cell_left"]),
+                            ),
                             Paragraph(desc_chunk, st["cell_left"]),
                             Paragraph(f"{meta_act:g}", st["cell_bold"])
                             if chunk_idx == 0
