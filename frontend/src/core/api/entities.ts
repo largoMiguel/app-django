@@ -30,6 +30,7 @@ export interface Entity {
   asistencias_por_dia?: number;
   enable_correspondencia: boolean;
   enable_presupuesto: boolean;
+  enable_gestion_documental: boolean;
   enabled_modules: string[];
   plan_name: string | null;
   pdf_template_url: string | null;

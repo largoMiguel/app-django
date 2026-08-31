@@ -20,6 +20,7 @@ export const MODULES: ModuleDef[] = [
   { key: "pdm_chat", label: "Chat IA del PDM (público)", flag: "enable_pdm_chat", scope: "admin_only" },
   { key: "asistencia", label: "Asistencia", flag: "enable_asistencia", scope: "all" },
   { key: "correspondencia", label: "Correspondencia", flag: "enable_correspondencia", scope: "all" },
+  { key: "gestion_documental", label: "Gestión documental", flag: "enable_gestion_documental", scope: "all" },
   { key: "presupuesto", label: "Presupuesto", flag: "enable_presupuesto", scope: "all" },
 ];
 

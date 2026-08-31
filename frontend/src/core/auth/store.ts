@@ -56,6 +56,7 @@ export interface AuthEntity {
   asistencias_por_dia?: number;
   enable_correspondencia: boolean;
   enable_presupuesto: boolean;
+  enable_gestion_documental: boolean;
   enabled_modules: string[];
 }
 
