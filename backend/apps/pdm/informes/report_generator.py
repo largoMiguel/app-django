@@ -200,6 +200,86 @@ class PDMReportGenerator:
         self._max_flowable_height = max(3.5 * inch, frame_h - self.FRAME_SAFETY_PT)
         self._max_flowable_width = min(self.MAX_FLOWABLE_WIDTH, frame_w - 4)
 
+    def _max_table_cell_height(self) -> float:
+        """Alto máximo de una celda de tabla (una fila no puede superar el frame)."""
+        return getattr(self, "_max_flowable_height", self.MAX_FLOWABLE_HEIGHT)
+
+    def _paragraph_height(self, text: str, style: ParagraphStyle, width: float) -> float:
+        return Paragraph((text or "").strip() or "—", style).wrap(width, self._max_table_cell_height())[1]
+
+    def _fit_paragraph_text(
+        self,
+        text: str,
+        style: ParagraphStyle,
+        width: float,
+        *,
+        max_height: float | None = None,
+    ) -> str:
+        """Recorta texto para que quepa en una celda de tabla de una sola fila."""
+        cleaned = (text or "").strip() or "—"
+        limit = max_height or self._max_table_cell_height()
+        if self._paragraph_height(cleaned, style, width) <= limit:
+            return cleaned
+
+        suffix = "…"
+        lo, hi = 0, len(cleaned)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            candidate = cleaned[:mid].rstrip() + suffix
+            if self._paragraph_height(candidate, style, width) <= limit:
+                lo = mid
+            else:
+                hi = mid - 1
+        if lo <= 0:
+            return suffix
+        chunk = cleaned[:lo].rstrip()
+        last_space = chunk.rfind(" ")
+        if last_space > lo * 0.5:
+            chunk = chunk[:last_space]
+        return chunk.rstrip() + suffix
+
+    def _split_text_for_cell(
+        self,
+        text: str,
+        style: ParagraphStyle,
+        width: float,
+        *,
+        max_height: float | None = None,
+    ) -> list[str]:
+        """Parte textos largos en trozos que caben cada uno en una fila de tabla."""
+        cleaned = (text or "").strip() or "—"
+        limit = max_height or self._max_table_cell_height()
+        if self._paragraph_height(cleaned, style, width) <= limit:
+            return [cleaned]
+
+        chunks: list[str] = []
+        remaining = cleaned
+        while remaining:
+            lo, hi = 1, len(remaining)
+            best = 1
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                candidate = remaining[:mid]
+                if self._paragraph_height(candidate, style, width) <= limit:
+                    best = mid
+                    lo = mid + 1
+                else:
+                    hi = mid - 1
+
+            chunk = remaining[:best]
+            if best < len(remaining):
+                last_space = chunk.rfind(" ")
+                if last_space > best * 0.5:
+                    chunk = remaining[:last_space]
+                    best = last_space + 1
+
+            chunk = chunk.rstrip()
+            if chunk:
+                chunks.append(chunk)
+            remaining = remaining[best:].lstrip()
+
+        return chunks or ["—"]
+
     def _chart_image_height(self, item_count: int) -> float:
         cap = getattr(self, "_max_flowable_height", self.MAX_CHART_HEIGHT)
         raw = max(item_count * 0.5 * inch, 3.2 * inch)
@@ -1282,8 +1362,16 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         
         for prod_idx, prod in enumerate(self.productos, 1):
             actividades = actividades_por_producto.get(prod.clave_producto, [])
-            producto_nombre = prod.producto_mga or prod.codigo_producto
-            indicador_nombre = prod.indicador_producto_mga or prod.personalizacion_indicador or "N/A"
+            producto_nombre = self._fit_paragraph_text(
+                prod.producto_mga or prod.codigo_producto,
+                st["cell_left"],
+                4.67 * inch,
+            )
+            indicador_nombre = self._fit_paragraph_text(
+                prod.indicador_producto_mga or prod.personalizacion_indicador or "N/A",
+                st["cell_left"],
+                2.33 * inch,
+            )
             avance_fisico = self.calcular_avance_producto(prod)
             avance_financiero = self.calcular_avance_financiero(prod)
             meta_ejecutada = self._meta_ejecutada_producto(prod)
@@ -1403,18 +1491,31 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
             ]]
             if actividades:
                 for act in actividades:
-                    nombre_actividad = act.nombre or "Sin nombre"
-                    if len(nombre_actividad) > 400:
-                        nombre_actividad = nombre_actividad[:397] + "..."
-                    descripcion = (act.descripcion or "").strip()
-                    if len(descripcion) > 4000:
-                        descripcion = descripcion[:3997] + "..."
+                    nombre_actividad = self._fit_paragraph_text(
+                        act.nombre or "Sin nombre",
+                        st["cell_left"],
+                        2.5 * inch,
+                    )
+                    descripcion = (act.descripcion or "").strip() or "—"
                     meta_act = float(act.meta_ejecutar or 0)
-                    actividades_rows.append([
-                        Paragraph(f"<b>{nombre_actividad}</b>", st["cell_left"]),
-                        Paragraph(descripcion or "—", st["cell_left"]),
-                        Paragraph(f"{meta_act:g}", st["cell_bold"]),
-                    ])
+                    desc_chunks = self._split_text_for_cell(
+                        descripcion,
+                        st["cell_left"],
+                        3.25 * inch,
+                    )
+                    for chunk_idx, desc_chunk in enumerate(desc_chunks):
+                        actividades_rows.append([
+                            Paragraph(
+                                f"<b>{nombre_actividad}</b>",
+                                st["cell_left"],
+                            )
+                            if chunk_idx == 0
+                            else Paragraph("", st["cell_left"]),
+                            Paragraph(desc_chunk, st["cell_left"]),
+                            Paragraph(f"{meta_act:g}", st["cell_bold"])
+                            if chunk_idx == 0
+                            else Paragraph("", st["cell_left"]),
+                        ])
             else:
                 actividades_rows.append([
                     Paragraph("Sin actividades registradas", st["cell_left"]),
