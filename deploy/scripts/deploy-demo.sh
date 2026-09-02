@@ -25,8 +25,24 @@ fi
 echo "==> Construyendo imágenes demo…"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --pull
 
+compose_up() {
+    local attempt=1
+    local max_attempts=3
+    while (( attempt <= max_attempts )); do
+        if docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans; then
+            return 0
+        fi
+        echo "WARN: compose up intento ${attempt}/${max_attempts} falló; esperando limpieza de contenedores…" >&2
+        sleep $(( attempt * 5 ))
+        attempt=$(( attempt + 1 ))
+    done
+    return 1
+}
+
 echo "==> Levantando servicios demo…"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" stop celery-worker celery-beat demo-backend demo-frontend 2>/dev/null || true
+sleep 2
+compose_up
 
 echo "==> Recargando nginx demo…"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T demo-nginx nginx -s reload
