@@ -51,6 +51,7 @@ app_django/
 │   │   │   └── migrations/
 │   │   ├── secop/                  # Módulo Contratación SECOP I/II
 │   │   ├── planes/                 # Planes Institucionales (Decreto 612)
+│   │   ├── gestion_documental/    # Gestión documental SGDEA (Ley 594 / AGN 001-2024)
 │   │   └── common/
 │   │       └── management/commands/bootstrap_app.py
 │   ├── requirements.txt · pyproject.toml
@@ -511,6 +512,80 @@ PLANES_REPORTS_OPENAI_MODEL=gpt-4o-mini   # opcional
 
 ---
 
+## Módulo Gestión documental (Ley 594 / Acuerdo AGN 001 de 2024)
+
+SGDEA operativo por entidad: instrumentos archivísticos, clasificación TRD/CCD, expedientes electrónicos, inventario FUID, transferencias y disposición final. Complementa **Correspondencia** (radicación) y **Planes** (PINAR como plan Decreto 612); aquí se cargan los formatos oficiales AGN y la TRD estructurada.
+
+### Marco normativo
+
+- **Ley 594 de 2000:** PGD, TRD obligatoria, inventario documental.
+- **Decreto 2609/2012 + 1080/2015:** CCD, TRD, TVD, FUID, SIC.
+- **Acuerdo AGN 001 de 2024:** SGDEA, expediente electrónico, repositorio digital, convalidación → RUSD.
+
+### Flujo
+
+```
+Superadmin activa módulo → Admin carga instrumentos (TRD, CCD, PGD…)
+  └─→ Importa / define series TRD (retención, disposición CT/S/E/MD)
+       └─→ Crea expedientes + documentos (B2)
+            └─→ Genera FUID → Transferencias primaria/secundaria → Disposición
+```
+
+### Roles
+
+| Rol | Permisos |
+|---|---|
+| `admin` | CRUD instrumentos, series, expedientes, FUID, transferencias, disposición, export Excel |
+| `secretario` | Expedientes de su secretaría, instrumentos, series de su dependencia |
+| `contratista` | Expedientes asignados, carga de documentos |
+| `superadmin` | Activa `enable_gestion_documental`; no opera el módulo |
+
+### Endpoints (`/api/v1/gestion-documental/`)
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/stats/` | KPIs: instrumentos, expedientes, procesos PGD, retención vencida |
+| `GET/POST/PATCH/DELETE` | `/instrumentos/` | CRUD instrumentos archivísticos |
+| `POST` | `/instrumentos/{id}/archivo/` | Subir PDF/Excel oficial (multipart) |
+| `GET/POST/PATCH/DELETE` | `/unidades/` | Oficinas productoras |
+| `GET/POST/PATCH/DELETE` | `/series/` | Series / subseries CCD-TRD |
+| `POST` | `/series/importar/` | Importar Excel TRD |
+| `GET/POST/PATCH/DELETE` | `/expedientes/` | CRUD expedientes |
+| `POST` | `/expedientes/{id}/documentos/` | Subir documento al expediente |
+| `POST` | `/expedientes/{id}/cerrar/` | Cerrar expediente |
+| `GET/POST` | `/fuid/` | Inventario FUID |
+| `POST` | `/fuid/generar-desde-expedientes/` | Generar filas FUID desde expedientes |
+| `GET/POST` | `/transferencias/` | Transferencias primaria / secundaria |
+| `POST` | `/transferencias/{id}/ejecutar/` | Ejecutar (cambia etapa archivística) |
+| `GET/POST` | `/disposiciones/` | Registro disposición final |
+| `GET` | `/export/?tipo=fuid\|trd\|transferencias` | Descarga Excel inmediata |
+
+### Almacenamiento (B2)
+
+| Entorno | Bucket |
+|---|---|
+| Demo | `storage-demo` (`B2_BUCKET_GESTION_DOCUMENTAL=storage-demo`) |
+| Prod | `softone-document-management` |
+
+Rutas:
+
+```
+entities/<entity_id>/gestion-documental/instrumentos/<instrumento_id>/<uuid>_<nombre>
+entities/<entity_id>/gestion-documental/expedientes/<expediente_id>/<uuid>_<nombre>
+```
+
+URLs firmadas vía `files.softone360.com` (prod) o `files-demo.softone360.com` (demo).
+
+### Activación
+
+Superadmin → Entidad → Módulos: activar **Gestión documental** (`enable_gestion_documental`).
+
+Ruta frontend: `/gestion-documental` (Resumen · Instrumentos · Clasificación · Expedientes · Inventario FUID · Transferencias · Informes).
+
+**Demo:** disponible tras push a `development`. **Prod:** ver [README_MAIN.md](README_MAIN.md) (bucket dedicado + worker).
+
+---
+
 ## Módulo Chat IA del PDM (público)
 
 Chat ciudadano **sin autenticación** para consultar el Plan de Desarrollo Municipal de cada entidad en **tiempo real** (datos leídos directamente de PostgreSQL vía herramientas OpenAI). Un chat por entidad; solo responde sobre el PDM de esa entidad.
@@ -737,7 +812,7 @@ Archivos firmados:
 
 | Entorno | Worker | Bucket(s) B2 |
 |---|---|---|
-| Prod | https://files.softone360.com | `softone-pqrs`, `softone-pdm`, `softone-th`, `softone-correspondence`, `softone-planes-612` |
+| Prod | https://files.softone360.com | `softone-pqrs`, `softone-pdm`, `softone-th`, `softone-correspondence`, `softone-planes-612`, `softone-document-management` |
 | Demo | https://files-demo.softone360.com | `storage-demo` (todos los módulos) |
 
 Demo y prod comparten el **mismo servidor** (`192.168.1.2`) y el **mismo par B2** (`B2_KEY_ID` / `B2_APP_KEY`); solo cambian bucket y signing key. Merge `development` → `main` no migra archivos entre buckets.
@@ -1078,6 +1153,7 @@ B2_BUCKET_ASISTENCIA=softone-th
 # ASISTENCIA_FACE_MATCH_THRESHOLD=0.6
 B2_BUCKET_CORRESPONDENCIA=softone-correspondence
 B2_BUCKET_PLANES=softone-planes-612
+B2_BUCKET_GESTION_DOCUMENTAL=softone-document-management
 B2_BUCKET_DB=softone-db
 
 # Entrega firmada vía Cloudflare Worker

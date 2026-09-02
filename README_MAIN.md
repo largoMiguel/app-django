@@ -1,6 +1,6 @@
 # Guía: despliegue a producción (`main`)
 
-Documento de referencia para migrar cambios validados en **demo** (`development`) hacia **producción** (`main`).
+Documento de referencia para migrar el módulo **Gestión documental** validado en **demo** (`development`) hacia **producción** (`main`).
 
 > **Estado al 2 sep 2026**
 >
@@ -13,42 +13,37 @@ Documento de referencia para migrar cambios validados en **demo** (`development`
 
 ---
 
-## Cambio PDM: ejecución presupuestal mensual + export PIIP por mes
+## Cambio: Módulo Gestión documental (Ley 594 / Acuerdo AGN 001 de 2024)
 
-Nueva tabla independiente de la ejecución anual (`PDMEjecucionPresupuestal`). La carga general anual **no cambia** (dashboard, análisis, proyectos, armonizaciones).
+Nueva app `apps.gestion_documental` con instrumentos archivísticos, TRD/CCD, expedientes, FUID, transferencias y disposición. Flag de entidad `enable_gestion_documental`.
 
-### Migración
+### Migraciones
 
-- **`pdm.0011_pdm_ejecucion_mensual_fecha_ejecucion`**
-  - Tablas: `pdm_ejecucion_mensual`, `pdm_ejecucion_mensual_carga`
-  - Campo `PdmActividad.fecha_ejecucion` (reemplaza `fecha_inicio` / `fecha_fin`)
-  - Campo `InformePDM.mes` (corte mensual en informes PDF)
+- **`entities.0007_initial_gestion_documental`** — campo `Entity.enable_gestion_documental`
+- **`gestion_documental.0001_initial_gestion_documental`** — tablas SGDEA (`gd_instrumentos`, `gd_series_documentales`, `gd_expedientes`, `gd_documentos_expediente`, `gd_fuid_registros`, `gd_transferencias`, `gd_disposiciones`, `gd_eventos`, …)
 
 ### Endpoints nuevos
 
+Base: `/api/v1/gestion-documental/`
+
 | Método | Endpoint |
 |---|---|
-| `GET` | `/api/v1/pdm/ejecucion/mensual/?anio=` |
-| `POST` | `/api/v1/pdm/ejecucion/mensual/upload` |
-| `DELETE` | `/api/v1/pdm/ejecucion/mensual/<anio>/<mes>/` |
+| `GET` | `/stats/` |
+| CRUD | `/instrumentos/`, `/unidades/`, `/series/`, `/expedientes/`, `/fuid/`, `/transferencias/`, `/disposiciones/` |
+| `POST` | `/instrumentos/{id}/archivo/`, `/series/importar/`, `/expedientes/{id}/documentos/`, `/fuid/generar-desde-expedientes/`, `/transferencias/{id}/ejecutar/` |
+| `GET` | `/export/?tipo=fuid\|trd\|transferencias` |
 
-### Export PIIP
+### UI
 
-- `GET /api/v1/pdm/v2/{slug}/export-piip?anio=&mes=` (mes 1–12)
-- Archivo: `PIIP_{slug}_{anio}_{MM}.xlsx`
-- **VALOR INICIAL** = carga anual; comprometido/pago del mes y acumulados = carga mensual
+Ruta `/gestion-documental` — pestañas: Resumen, Instrumentos, Clasificación, Expedientes, Inventario FUID, Transferencias, Informes.
 
-### UI (solo admin)
+### Bucket B2 (prod)
 
-- **Acciones → Ejecución mensual (PIIP)**: control de 12 meses, subir/borrar
-- **Acciones → Exportar PIIP**: modal año + mes
-- **Nueva evidencia de ejecución**: campo único **Fecha de ejecución**
+| Variable | Valor prod |
+|---|---|
+| `B2_BUCKET_GESTION_DOCUMENTAL` | `softone-document-management` |
 
-### Informes
-
-- PDF Avance: body `mes` (1–12)
-- Plan de Acción Excel: query `mes` (1–12)
-- Actividades filtradas por `fecha_ejecucion` ≤ fin de mes
+Bucket ya creado en Backblaze B2 (privado, versionado, región `us-east-005`). Demo usa `storage-demo`.
 
 ---
 
@@ -57,45 +52,54 @@ Nueva tabla independiente de la ejecución anual (`PDMEjecucionPresupuestal`). L
 ```bash
 cd /opt/softone-demo
 export COMPOSE="docker compose -f deploy/docker-compose.demo.yml --env-file .env"
-$COMPOSE exec demo-backend python manage.py showmigrations pdm
-# Debe incluir [X] 0011_pdm_ejecucion_mensual_fecha_ejecucion
+$COMPOSE exec demo-backend python manage.py showmigrations entities gestion_documental
+# Debe incluir [X] entities.0007_initial_gestion_documental
+# Debe incluir [X] gestion_documental.0001_initial_gestion_documental
 ```
 
 Si queda pendiente:
 
 ```bash
-$COMPOSE exec demo-backend python manage.py migrate pdm --noinput
+$COMPOSE exec demo-backend python manage.py migrate --noinput
 ```
 
 ---
 
 ## Checklist: validar en demo (antes de prod)
 
-### Ejecución mensual
+### Activación
 
-- [ ] **Acciones → Ejecución mensual (PIIP)** muestra los 12 meses del año seleccionado.
-- [ ] Subir `Ejecucion Gastos_JULIO.xls` detecta julio 2026 y marca el mes como cargado.
-- [ ] Reemplazar un mes sobrescribe la carga anterior.
-- [ ] Eliminar mes deja el mes en pendiente.
-- [ ] La carga anual general (Acciones → Ejecución presupuestal) sigue funcionando igual.
+- [ ] Superadmin → Entidad → activar **Gestión documental**.
+- [ ] Admin/secretario ven el ítem **Gestión documental** en el menú lateral.
 
-### Export PIIP
+### Instrumentos
 
-- [ ] **Exportar PIIP** pide año y mes antes de descargar.
-- [ ] Columnas Comprometido/Pago del mes y acumulados reflejan la carga mensual.
-- [ ] VALOR INICIAL sale de la carga anual; VALOR EJECUTADO = pago acumulado al mes.
-- [ ] Mes sin carga mensual: comprometido/pago del mes en cero (aviso en modal).
+- [ ] **Instrumentos** → crear TRD vigencia 2026 → subir PDF/Excel.
+- [ ] Cambiar estado (borrador → vigente).
 
-### Fecha de ejecución
+### Clasificación TRD
 
-- [ ] Modal **Nueva evidencia de ejecución** muestra solo **Fecha de ejecución** (sin inicio/fin).
-- [ ] Actividades existentes conservan fecha tras migración (backfill desde `fecha_fin` o `created_at`).
-- [ ] Informe PDF y Plan de Acción con `mes=1` no incluyen actividades con `fecha_ejecucion` de febrero.
+- [ ] Importar Excel TRD o crear serie manualmente.
+- [ ] Series muestran retención gestión/central y disposición (CT/S/E/MD).
 
-### Informes PDF / Excel
+### Expedientes
 
-- [ ] Crear informe Avance PDF permite elegir mes.
-- [ ] Plan de Acción Excel permite elegir mes y filtra actividades.
+- [ ] Crear expediente asociado a una serie.
+- [ ] Subir documento → aparece en hoja de control con SHA-256.
+- [ ] Cerrar expediente.
+
+### FUID e informes
+
+- [ ] **Inventario FUID** → generar desde expedientes.
+- [ ] **Informes** → descargar Excel FUID y TRD.
+
+### Transferencias
+
+- [ ] Crear transferencia primaria con expedientes → ejecutar → etapa pasa a central.
+
+### Aislamiento
+
+- [ ] Admin entidad A no ve expedientes/instrumentos de entidad B.
 
 ---
 
@@ -119,7 +123,27 @@ $COMPOSE exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
   | gzip > "/tmp/softone-prod-backup-$(date +%Y%m%d-%H%M).sql.gz"
 ```
 
-### 3. Merge y push
+### 3. Variables prod (`.env` en `/opt/softone-app`)
+
+```bash
+B2_BUCKET_GESTION_DOCUMENTAL=softone-document-management
+```
+
+Verificar que `B2_KEY_ID` / `B2_APP_KEY` tengan acceso al bucket `softone-document-management`.
+
+### 4. Cloudflare Worker (prod)
+
+Tras merge, redeploy del worker para incluir el bucket:
+
+```bash
+bash deploy/scripts/deploy-cloudflare-worker-from-prod.sh
+```
+
+`wrangler.toml` debe listar `softone-document-management` en `ALLOWED_BUCKETS`.
+
+Nginx prod/demo: regex debe incluir `document-management` en `deploy/nginx/conf.d/app.conf` y `conf.d-demo/app.conf`.
+
+### 5. Merge y push
 
 ```bash
 git checkout main
@@ -128,21 +152,22 @@ git merge development
 git push origin main
 ```
 
-### 4. Post-deploy prod
+### 6. Post-deploy prod
 
 ```bash
-$COMPOSE exec backend python manage.py showmigrations pdm | tail -5
+$COMPOSE exec backend python manage.py showmigrations gestion_documental | tail -3
 $COMPOSE logs backend --tail 100
 curl -fsS https://app.softone360.com/healthz
 ```
 
 Prueba manual:
 
-1. Login admin → PDM → Acciones → Ejecución mensual: subir al menos un mes.
-2. Exportar PIIP del mismo mes y revisar columnas comprometido/pago.
-3. Crear evidencia con **Fecha de ejecución** y verificar corte en informe.
+1. Superadmin → activar **Gestión documental** en una entidad piloto.
+2. Admin → cargar TRD + importar series → crear expediente → subir documento.
+3. Generar FUID y descargar Excel.
+4. Verificar descarga de archivo vía `https://files.softone360.com/softone-document-management/...`
 
-### 5. Sincronizar ramas
+### 7. Sincronizar ramas
 
 ```bash
 git checkout development
@@ -155,8 +180,8 @@ git push origin development
 ## Rollback
 
 1. **Código:** revertir merge en `main` y push.
-2. **Base de datos:** restaurar dump de `pg_dump`. La migración `0011` elimina `fecha_inicio`/`fecha_fin`; rollback de código sin restore dejará el frontend desincronizado.
-3. Datos mensuales en `pdm_ejecucion_mensual` se pierden con restore a pre-migración.
+2. **Base de datos:** restaurar dump de `pg_dump`. Las tablas `gd_*` quedarán huérfanas si no se restaura.
+3. **Archivos B2:** los objetos en `softone-document-management` permanecen; no se borran con rollback de código.
 
 ---
 
@@ -170,4 +195,4 @@ git push origin development
 
 Rutas en servidor: demo → `/opt/softone-demo`, prod → `/opt/softone-app`.
 
-Ver también: [README.md](README.md) (arquitectura general).
+Ver también: [README.md](README.md) (documentación del módulo).

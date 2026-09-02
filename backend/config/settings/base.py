@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "apps.ai",
     "apps.secop",
     "apps.planes",
+    "apps.gestion_documental",
 ]
 
 MIDDLEWARE = [
@@ -145,6 +146,7 @@ B2_BUCKET_PDM = os.getenv("B2_BUCKET_PDM", "softone-pdm")
 B2_BUCKET_ASISTENCIA = os.getenv("B2_BUCKET_ASISTENCIA", "softone-th")
 B2_BUCKET_CORRESPONDENCIA = os.getenv("B2_BUCKET_CORRESPONDENCIA", "softone-correspondence")
 B2_BUCKET_PLANES = os.getenv("B2_BUCKET_PLANES", "softone-planes-612")
+B2_BUCKET_GESTION_DOCUMENTAL = os.getenv("B2_BUCKET_GESTION_DOCUMENTAL", "softone-document-management")
 B2_BUCKET_DB = os.getenv("B2_BUCKET_DB", "softone-db")
 USE_B2_STORAGE = env_bool("USE_B2_STORAGE", bool(B2_KEY_ID and B2_APP_KEY))
 

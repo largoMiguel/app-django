@@ -96,6 +96,7 @@ services:
       B2_BUCKET_ASISTENCIA: ${B2_BUCKET_ASISTENCIA:-storage-demo}
       B2_BUCKET_CORRESPONDENCIA: ${B2_BUCKET_CORRESPONDENCIA:-storage-demo}
       B2_BUCKET_PLANES: ${B2_BUCKET_PLANES:-storage-demo}
+      B2_BUCKET_GESTION_DOCUMENTAL: ${B2_BUCKET_GESTION_DOCUMENTAL:-storage-demo}
       B2_BUCKET_DB: ${B2_BUCKET_DB:-storage-demo}
     volumes:
       - media_data:/app/media
@@ -206,6 +207,7 @@ services:
       B2_BUCKET_ASISTENCIA: ${B2_BUCKET_ASISTENCIA:-storage-demo}
       B2_BUCKET_CORRESPONDENCIA: ${B2_BUCKET_CORRESPONDENCIA:-storage-demo}
       B2_BUCKET_PLANES: ${B2_BUCKET_PLANES:-storage-demo}
+      B2_BUCKET_GESTION_DOCUMENTAL: ${B2_BUCKET_GESTION_DOCUMENTAL:-storage-demo}
       B2_BUCKET_DB: ${B2_BUCKET_DB:-storage-demo}
       FILE_DELIVERY_BASE_URL: ${FILE_DELIVERY_BASE_URL:-https://files-demo.softone360.com}
       FILE_DELIVERY_SIGNING_KEY: ${FILE_DELIVERY_SIGNING_KEY:-}

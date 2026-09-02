@@ -75,3 +75,7 @@ def signed_correspondencia_url(key: str, *, filename: str | None = None) -> str:
 
 def signed_planes_url(key: str, *, filename: str | None = None) -> str:
     return signed_file_url(settings.B2_BUCKET_PLANES, key, filename=filename)
+
+
+def signed_gestion_documental_url(key: str, *, filename: str | None = None) -> str:
+    return signed_file_url(settings.B2_BUCKET_GESTION_DOCUMENTAL, key, filename=filename)

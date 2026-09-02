@@ -107,6 +107,7 @@ class UserMeSerializer(serializers.ModelSerializer):
             "asistencias_por_dia": e.asistencias_por_dia,
             "enable_correspondencia": e.enable_correspondencia,
             "enable_presupuesto": e.enable_presupuesto,
+            "enable_gestion_documental": e.enable_gestion_documental,
             "enabled_modules": e.enabled_modules,
             "is_active": e.is_active,
             "logo_url": e.logo_url,

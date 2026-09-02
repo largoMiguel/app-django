@@ -18,6 +18,7 @@ ENTITY_MODULE_FLAGS = {
     "asistencia": "enable_asistencia",
     "correspondencia": "enable_correspondencia",
     "presupuesto": "enable_presupuesto",
+    "gestion_documental": "enable_gestion_documental",
 }
 
 

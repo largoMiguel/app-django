@@ -37,6 +37,15 @@ import PlanDetailPage from "@/features/planes/PlanDetailPage";
 import PlanesCronogramaPage from "@/features/planes/PlanesCronogramaPage";
 import PlanesInformesPage from "@/features/planes/PlanesInformesPage";
 import PlanesInformeTrimestralPage from "@/features/planes/PlanesInformeTrimestralPage";
+import GestionDocumentalLayout from "@/features/gestion-documental/GestionDocumentalLayout";
+import GdDashboard from "@/features/gestion-documental/GdDashboard";
+import GdInstrumentosPage from "@/features/gestion-documental/GdInstrumentosPage";
+import GdClasificacionPage from "@/features/gestion-documental/GdClasificacionPage";
+import GdExpedientesPage from "@/features/gestion-documental/GdExpedientesPage";
+import GdExpedienteDetailPage from "@/features/gestion-documental/GdExpedienteDetailPage";
+import GdInventarioPage from "@/features/gestion-documental/GdInventarioPage";
+import GdTransferenciasPage from "@/features/gestion-documental/GdTransferenciasPage";
+import GdInformesPage from "@/features/gestion-documental/GdInformesPage";
 import SecopLayout from "@/features/secop/SecopLayout";
 import SecopResumen from "@/features/secop/SecopResumen";
 import SecopListPage from "@/features/secop/SecopListPage";
@@ -195,6 +204,19 @@ export default function App(): ReactElement {
                   <Route path="informes/seguimiento" element={<Navigate to="/planes/informes" replace />} />
                   <Route path="informes/trimestral" element={<PlanesInformeTrimestralPage />} />
                   <Route path=":id" element={<PlanDetailPage />} />
+                </Route>
+              </Route>
+
+              <Route element={<ModuleRouteGuard moduleKey="gestion_documental" />}>
+                <Route path="/gestion-documental" element={<GestionDocumentalLayout />}>
+                  <Route index element={<GdDashboard />} />
+                  <Route path="instrumentos" element={<GdInstrumentosPage />} />
+                  <Route path="clasificacion" element={<GdClasificacionPage />} />
+                  <Route path="expedientes" element={<GdExpedientesPage />} />
+                  <Route path="expedientes/:id" element={<GdExpedienteDetailPage />} />
+                  <Route path="inventario" element={<GdInventarioPage />} />
+                  <Route path="transferencias" element={<GdTransferenciasPage />} />
+                  <Route path="informes" element={<GdInformesPage />} />
                 </Route>
               </Route>
 

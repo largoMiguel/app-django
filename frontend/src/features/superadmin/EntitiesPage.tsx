@@ -195,6 +195,7 @@ function NewEntityModal({
     enable_asistencia: false,
     enable_correspondencia: false,
     enable_presupuesto: false,
+    enable_gestion_documental: false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
