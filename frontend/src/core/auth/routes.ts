@@ -16,7 +16,6 @@ export type AppModuleKey =
   | "reports_pdf"
   | "asistencia"
   | "correspondencia"
-  | "gestion_documental"
   | "contratacion";
 
 export interface AppModuleRoute {
@@ -83,16 +82,6 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     paths: ["/correspondencia"],
     label: "Correspondencia",
     module: "enable_correspondencia",
-    access: { roles: ["admin", "secretario", "contratista"] },
-    showInNav: true,
-    navSection: "main",
-  },
-  {
-    moduleKey: "gestion_documental",
-    path: "/gestion-documental",
-    paths: ["/gestion-documental"],
-    label: "Gestión documental",
-    module: "enable_gestion_documental",
     access: { roles: ["admin", "secretario", "contratista"] },
     showInNav: true,
     navSection: "main",
