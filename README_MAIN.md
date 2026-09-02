@@ -2,12 +2,14 @@
 
 Documento de referencia para migrar cambios validados en **demo** (`development`) hacia **producción** (`main`).
 
-> **Estado al 28 ago 2026**
+> **Estado al 2 sep 2026**
 >
 > | Rama | URL | Notas |
 > |------|-----|-------|
-> | `development` | https://demo.softone360.com | Ejecución mensual PIIP + `fecha_ejecucion` + export PIIP por mes |
-> | `main` | https://app.softone360.com | Sin estos cambios hasta merge |
+> | `development` | https://demo.softone360.com | En sync con `main` + WIP **Gestión documental** (solo demo) |
+> | `main` | https://app.softone360.com | PDM ejecución mensual / PIIP + `fecha_ejecucion` + página de bienvenida |
+>
+> **Pendiente de prod:** módulo Gestión documental (no mergear a `main` hasta validar en demo).
 
 ---
 
