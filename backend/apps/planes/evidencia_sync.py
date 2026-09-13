@@ -41,6 +41,55 @@ def total_ejecutado(actividad: PlanActividad) -> Decimal:
     return total
 
 
+def ejecutado_restante(
+    actividad: PlanActividad,
+    *,
+    exclude_evidencia_id: int | None = None,
+) -> Decimal | None:
+    """Unidades que aún se pueden registrar. None si la meta no es numérica."""
+    meta = parse_meta_programada(actividad.meta)
+    if meta is None or meta <= 0:
+        return None
+    ejecutado = total_ejecutado(actividad)
+    if exclude_evidencia_id:
+        cantidad = (
+            PlanEvidencia.objects.filter(pk=exclude_evidencia_id, actividad_id=actividad.pk)
+            .values_list("cantidad_ejecutada", flat=True)
+            .first()
+        )
+        if cantidad is not None:
+            ejecutado -= Decimal(cantidad or 0)
+    restante = meta - ejecutado
+    return max(Decimal("0"), restante)
+
+
+def validate_cantidad_ejecutada(
+    actividad: PlanActividad,
+    cantidad: Decimal,
+    *,
+    exclude_evidencia_id: int | None = None,
+) -> None:
+    """Valida que la cantidad no supere la meta programada."""
+    from rest_framework.exceptions import ValidationError
+
+    if cantidad <= 0:
+        raise ValidationError({"cantidad_ejecutada": "La cantidad ejecutada debe ser mayor a 0."})
+    restante = ejecutado_restante(actividad, exclude_evidencia_id=exclude_evidencia_id)
+    if restante is None:
+        return
+    if cantidad > restante:
+        meta = parse_meta_programada(actividad.meta)
+        ya = (meta or Decimal("0")) - restante
+        raise ValidationError(
+            {
+                "cantidad_ejecutada": (
+                    f"Solo puede registrar hasta {restante} unidades "
+                    f"(meta {meta}, ya ejecutado {ya})."
+                )
+            }
+        )
+
+
 def compute_avance_pct(actividad: PlanActividad) -> int:
     meta = parse_meta_programada(actividad.meta)
     ejecutado = total_ejecutado(actividad)

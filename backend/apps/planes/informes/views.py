@@ -75,6 +75,15 @@ def _firmante_belongs_to_secretaria(firmante, entity_id: int, secretaria_id: int
     ).exists()
 
 
+def _get_firmante_user(entity: Entity, user_id: int) -> User | None:
+    """Resuelve firmante por membresía activa en la entidad (multi-entidad)."""
+    member_ids = UserEntityMembership.objects.filter(
+        entity_id=entity.id,
+        is_active=True,
+    ).values_list("user_id", flat=True)
+    return User.objects.filter(pk=user_id, id__in=member_ids).first()
+
+
 class InformePlanViewSet(viewsets.GenericViewSet):
     serializer_class = InformePlanSerializer
     permission_classes = (IsAuthenticated,)
@@ -132,7 +141,7 @@ class InformePlanViewSet(viewsets.GenericViewSet):
         if not data.get("usuario_firmante_id"):
             raise ValidationError({"usuario_firmante_id": "El firmante es obligatorio."})
 
-        firmante = User.objects.filter(pk=data["usuario_firmante_id"], entity_id=entity.id).first()
+        firmante = _get_firmante_user(entity, data["usuario_firmante_id"])
         if not firmante:
             raise ValidationError({"usuario_firmante_id": "Usuario firmante no válido."})
         if not _firmante_has_allowed_role(firmante, entity.id):

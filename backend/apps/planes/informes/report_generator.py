@@ -377,23 +377,75 @@ class PlanesReportGenerator:
             self.story.append(table)
 
             if self.incluir_evidencias:
-                imgs: list[str] = []
-                for act in acts:
-                    imgs.extend(getattr(act, "imagenes_evidencia", [])[:2])
-                if imgs:
-                    self.story.append(Spacer(1, 0.1 * inch))
-                    img_flowables = []
-                    for data_uri in imgs[:4]:
-                        try:
-                            raw = base64.b64decode(data_uri.split(",", 1)[1])
-                            img_flowables.append(RLImage(BytesIO(raw), width=2.2 * inch, height=2.2 * inch))
-                        except Exception:
-                            continue
-                    if img_flowables:
-                        row = img_flowables[:2]
-                        while len(row) < 2 and len(img_flowables) > len(row):
-                            row.append(Spacer(2.2 * inch, 2.2 * inch))
-                        self.story.append(Table([row], colWidths=[2.4 * inch, 2.4 * inch]))
+                evidencias_plan = [
+                    (act, ev)
+                    for act in acts
+                    for ev in getattr(act, "evidencias_informe", [])
+                    if ev.get("url_evidencia") or ev.get("imagenes") or ev.get("descripcion")
+                ]
+                if evidencias_plan:
+                    self.story.append(Spacer(1, 0.12 * inch))
+                    self._append_banner("REGISTRO DE EVIDENCIAS")
+                    st = self._institutional_styles()
+                    for num, (act, ev) in enumerate(evidencias_plan, start=1):
+                        titulo = act.nombre[:300]
+                        self.story.append(
+                            Paragraph(
+                                f"<b>Evidencia {num} — {titulo}</b>",
+                                ParagraphStyle(
+                                    "EvTitle",
+                                    parent=st["cell_left"],
+                                    fontSize=9,
+                                    textColor=TEXT_DARK,
+                                ),
+                            )
+                        )
+                        desc = (ev.get("descripcion") or "").strip()
+                        cantidad = ev.get("cantidad_ejecutada")
+                        if cantidad:
+                            desc = f"+{cantidad} ejecutado · {desc}" if desc else f"+{cantidad} ejecutado"
+                        if desc:
+                            self.story.append(
+                                Paragraph(
+                                    desc[:4000],
+                                    ParagraphStyle(
+                                        "EvDesc",
+                                        parent=st["cell_left"],
+                                        fontSize=8,
+                                        textColor=TEXT_DARK,
+                                    ),
+                                )
+                            )
+                        url_ev = (ev.get("url_evidencia") or "").strip()
+                        if url_ev:
+                            safe_url = url_ev.replace("&", "&amp;")
+                            self.story.append(
+                                Paragraph(
+                                    f'<link href="{safe_url}" color="blue">Ver evidencia externa: {safe_url}</link>',
+                                    ParagraphStyle(
+                                        "EvUrl",
+                                        parent=st["cell_left"],
+                                        fontSize=8,
+                                        textColor=TEXT_DARK,
+                                    ),
+                                )
+                            )
+                        img_flowables = []
+                        for data_uri in ev.get("imagenes") or []:
+                            try:
+                                raw = base64.b64decode(data_uri.split(",", 1)[1])
+                                img_flowables.append(
+                                    RLImage(BytesIO(raw), width=2.2 * inch, height=2.2 * inch)
+                                )
+                            except Exception:
+                                continue
+                        if img_flowables:
+                            rows = [img_flowables[i : i + 2] for i in range(0, len(img_flowables), 2)]
+                            for row in rows:
+                                while len(row) < 2:
+                                    row.append(Spacer(2.2 * inch, 2.2 * inch))
+                                self.story.append(Table([row], colWidths=[2.4 * inch, 2.4 * inch]))
+                        self.story.append(Spacer(1, 0.08 * inch))
 
     def generate_resultados(self) -> None:
         self._append_heading("RESULTADOS DE LA AUDITORÍA")

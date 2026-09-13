@@ -2,7 +2,15 @@
 from decimal import Decimal
 from unittest import TestCase
 
-from apps.planes.evidencia_sync import compute_avance_pct, parse_meta_programada, total_ejecutado
+from rest_framework.exceptions import ValidationError
+
+from apps.planes.evidencia_sync import (
+    compute_avance_pct,
+    ejecutado_restante,
+    parse_meta_programada,
+    total_ejecutado,
+    validate_cantidad_ejecutada,
+)
 
 
 class MockEvidencia:
@@ -51,3 +59,12 @@ class EvidenciaSyncTests(TestCase):
     def test_avance_meta_6_ejecutado_3(self):
         act = MockActividad(meta="6", evidencias=[MockEvidencia(3)])
         self.assertEqual(compute_avance_pct(act), 50)
+
+    def test_ejecutado_restante_mock(self):
+        act = MockActividad(meta="10", evidencias=[MockEvidencia(5)])
+        self.assertEqual(ejecutado_restante(act), 5)
+
+    def test_validate_cantidad_excede_meta(self):
+        act = MockActividad(meta="10", evidencias=[MockEvidencia(8)])
+        with self.assertRaises(ValidationError):
+            validate_cantidad_ejecutada(act, 5)

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { planesApi, TRIMESTRE_OPTIONS, type CronogramaPlan } from "@/core/api/planes";
 import { formatApiError } from "@/core/api/errors";
 import { PlanesCard, PlanesLoading } from "./components/PlanesUi";
@@ -20,6 +21,108 @@ function estadoColor(estado: string): string {
 
 const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
+function CronogramaPlanCard({ plan, anio }: { plan: CronogramaPlan; anio: number }) {
+  const [open, setOpen] = useState(false);
+
+  const trimestreBands = useMemo(
+    () => [
+      { label: "T I", cols: "1 / span 3" },
+      { label: "T II", cols: "4 / span 3" },
+      { label: "T III", cols: "7 / span 3" },
+      { label: "T IV", cols: "10 / span 3" },
+    ],
+    [],
+  );
+
+  const avancePromedio = useMemo(() => {
+    if (!plan.actividades.length) return 0;
+    const sum = plan.actividades.reduce((acc, a) => acc + a.avance, 0);
+    return Math.round(sum / plan.actividades.length);
+  }, [plan.actividades]);
+
+  return (
+    <PlanesCard
+      title={
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-center gap-2 text-left"
+        >
+          {open ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
+          )}
+          <span className="flex-1">
+            {plan.catalogo_nombre} ({plan.catalogo_codigo})
+          </span>
+          <span className="text-xs font-normal text-slate-500">
+            {plan.actividades.length} actividad{plan.actividades.length === 1 ? "" : "es"} · {avancePromedio}%
+          </span>
+        </button>
+      }
+    >
+      {open && (
+        <div className="overflow-x-auto">
+          <div
+            className="grid min-w-[720px] gap-px bg-slate-200"
+            style={{ gridTemplateColumns: "200px repeat(12, 1fr)" }}
+          >
+            <div className="bg-slate-100 p-2 text-xs font-semibold text-slate-600">Actividad</div>
+            {MONTHS.map((m) => (
+              <div key={m} className="bg-slate-100 p-2 text-center text-xs font-semibold text-slate-600">
+                {m}
+              </div>
+            ))}
+
+            <div className="col-span-full grid bg-slate-50" style={{ gridTemplateColumns: "200px repeat(12, 1fr)" }}>
+              <div className="p-2 text-xs text-slate-400">Trimestres</div>
+              {trimestreBands.map((t) => (
+                <div
+                  key={t.label}
+                  className="border-x border-slate-200 p-1 text-center text-[10px] font-bold uppercase text-[#0e7490]"
+                  style={{ gridColumn: t.cols }}
+                >
+                  {t.label}
+                </div>
+              ))}
+            </div>
+
+            {plan.actividades.map((act) => (
+              <div key={act.id} className="contents">
+                <div className="bg-white p-2 text-xs text-slate-800">
+                  <div className="font-medium">{act.nombre}</div>
+                  <div className="text-slate-400">{act.trimestre_label}</div>
+                </div>
+                <div
+                  className="relative bg-white p-1"
+                  style={{ gridColumn: "2 / -1", display: "grid", gridTemplateColumns: "repeat(12, 1fr)" }}
+                >
+                  {(() => {
+                    const start = monthIndex(act.fecha_inicio, anio) ?? (act.trimestre - 1) * 3;
+                    const end = monthIndex(act.fecha_fin, anio) ?? Math.min(11, start + 2);
+                    const colStart = start + 1;
+                    const span = Math.max(1, end - start + 1);
+                    return (
+                      <div
+                        className={`mx-0.5 self-center rounded px-1 py-1 text-[10px] text-white ${estadoColor(act.estado)}`}
+                        style={{ gridColumn: `${colStart} / span ${span}` }}
+                        title={`${act.avance}% · ${act.estado}`}
+                      >
+                        {act.avance}%
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </PlanesCard>
+  );
+}
+
 export default function PlanesCronogramaPage() {
   const { anio } = usePlanesYear();
   const [data, setData] = useState<CronogramaPlan[]>([]);
@@ -35,16 +138,6 @@ export default function PlanesCronogramaPage() {
       .finally(() => setLoading(false));
   }, [anio]);
 
-  const trimestreBands = useMemo(
-    () => [
-      { label: "T I", cols: "1 / span 3" },
-      { label: "T II", cols: "4 / span 3" },
-      { label: "T III", cols: "7 / span 3" },
-      { label: "T IV", cols: "10 / span 3" },
-    ],
-    [],
-  );
-
   if (loading) return <PlanesLoading message="Cargando cronograma…" />;
   if (error) {
     return (
@@ -57,65 +150,7 @@ export default function PlanesCronogramaPage() {
       {data.length === 0 ? (
         <p className="text-sm text-slate-500">No hay actividades con fechas para esta vigencia.</p>
       ) : (
-        data.map((plan) => (
-          <PlanesCard key={plan.plan_id} title={`${plan.catalogo_nombre} (${plan.catalogo_codigo})`}>
-            <div className="overflow-x-auto">
-              <div
-                className="grid min-w-[720px] gap-px bg-slate-200"
-                style={{ gridTemplateColumns: "200px repeat(12, 1fr)" }}
-              >
-                <div className="bg-slate-100 p-2 text-xs font-semibold text-slate-600">Actividad</div>
-                {MONTHS.map((m) => (
-                  <div key={m} className="bg-slate-100 p-2 text-center text-xs font-semibold text-slate-600">
-                    {m}
-                  </div>
-                ))}
-
-                <div className="col-span-full grid bg-slate-50" style={{ gridTemplateColumns: "200px repeat(12, 1fr)" }}>
-                  <div className="p-2 text-xs text-slate-400">Trimestres</div>
-                  {trimestreBands.map((t) => (
-                    <div
-                      key={t.label}
-                      className="border-x border-slate-200 p-1 text-center text-[10px] font-bold uppercase text-[#0e7490]"
-                      style={{ gridColumn: t.cols }}
-                    >
-                      {t.label}
-                    </div>
-                  ))}
-                </div>
-
-                {plan.actividades.map((act) => (
-                  <div key={act.id} className="contents">
-                    <div className="bg-white p-2 text-xs text-slate-800">
-                      <div className="font-medium">{act.nombre}</div>
-                      <div className="text-slate-400">{act.trimestre_label}</div>
-                    </div>
-                    <div
-                      className="relative bg-white p-1"
-                      style={{ gridColumn: "2 / -1", display: "grid", gridTemplateColumns: "repeat(12, 1fr)" }}
-                    >
-                      {(() => {
-                        const start = monthIndex(act.fecha_inicio, anio) ?? (act.trimestre - 1) * 3;
-                        const end = monthIndex(act.fecha_fin, anio) ?? Math.min(11, start + 2);
-                        const colStart = start + 1;
-                        const span = Math.max(1, end - start + 1);
-                        return (
-                          <div
-                            className={`mx-0.5 self-center rounded px-1 py-1 text-[10px] text-white ${estadoColor(act.estado)}`}
-                            style={{ gridColumn: `${colStart} / span ${span}` }}
-                            title={`${act.avance}% · ${act.estado}`}
-                          >
-                            {act.avance}%
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </PlanesCard>
-        ))
+        data.map((plan) => <CronogramaPlanCard key={plan.plan_id} plan={plan} anio={anio} />)
       )}
 
       <div className="flex flex-wrap gap-4 text-xs text-slate-500">

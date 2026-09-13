@@ -65,23 +65,45 @@ def has_active_informe(entity_id: int, tipo: str) -> bool:
     ).exists()
 
 
+def _load_evidencia_imagenes(evidencia) -> list[str]:
+    imagenes: list[str] = []
+    for arch in evidencia.archivos.all():
+        ct = (arch.content_type or "").lower()
+        if not ct.startswith("image/"):
+            continue
+        try:
+            with arch.archivo.open("rb") as fh:
+                imagenes.append(_normalize_evidencia_image(fh.read()))
+        except Exception:
+            logger.warning(
+                "No se pudo cargar imagen evidencia %s actividad %s",
+                arch.id,
+                evidencia.actividad_id,
+            )
+    return imagenes
+
+
 def _prepare_actividades_evidencias(actividades, incluir_evidencias: bool) -> None:
     for act in actividades:
         act.total_ejecutado_val = float(total_ejecutado(act))
         act.avance_calculado = compute_avance_pct(act)
         act.tiene_evidencia = act.evidencias.exists()
         act.imagenes_evidencia: list[str] = []
+        act.evidencias_informe: list = []
         if incluir_evidencias and act.tiene_evidencia:
-            for ev in act.evidencias.all():
-                for arch in ev.archivos.all():
-                    ct = (arch.content_type or "").lower()
-                    if not ct.startswith("image/"):
-                        continue
-                    try:
-                        with arch.archivo.open("rb") as fh:
-                            act.imagenes_evidencia.append(_normalize_evidencia_image(fh.read()))
-                    except Exception:
-                        logger.warning("No se pudo cargar evidencia imagen actividad %s", act.id)
+            for ev in act.evidencias.all().order_by("created_at", "id"):
+                imagenes = _load_evidencia_imagenes(ev)
+                act.imagenes_evidencia.extend(imagenes)
+                url = (ev.url_evidencia or "").strip()
+                if url or imagenes or ev.descripcion:
+                    act.evidencias_informe.append(
+                        {
+                            "descripcion": ev.descripcion,
+                            "cantidad_ejecutada": float(ev.cantidad_ejecutada or 0),
+                            "url_evidencia": url,
+                            "imagenes": imagenes,
+                        }
+                    )
 
 
 def _resolve_ai_analysis(

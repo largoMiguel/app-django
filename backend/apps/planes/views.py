@@ -24,7 +24,12 @@ from .access import (
     user_can_access_plan,
 )
 from .evidencia_storage import sync_evidencia_archivos_from_request
-from .evidencia_sync import reset_actividad_ejecucion, sync_actividad_from_evidencias
+from .evidencia_sync import (
+    ejecutado_restante,
+    reset_actividad_ejecucion,
+    sync_actividad_from_evidencias,
+    validate_cantidad_ejecutada,
+)
 from .export import build_trimestral_excel
 from .filters import PlanActividadFilterSet, PlanCatalogoFilterSet, PlanFilterSet
 from .models import PlanActividad, PlanCatalogo, PlanEvidencia, PlanInstitucional
@@ -501,6 +506,12 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
         descripcion = str(request.data.get("descripcion") or "").strip()
         url_evidencia = str(request.data.get("url_evidencia") or "").strip() or None
         cantidad_ejecutada = self._parse_cantidad_ejecutada(request)
+        validate_cantidad_ejecutada(actividad, cantidad_ejecutada)
+        restante = ejecutado_restante(actividad)
+        if restante is not None and restante <= 0:
+            raise ValidationError(
+                {"cantidad_ejecutada": "La meta programada ya fue cumplida; no puede registrar más evidencias."}
+            )
         if not descripcion:
             raise ValidationError({"descripcion": "Este campo es requerido."})
         archivos = request.FILES.getlist("archivos")
@@ -546,8 +557,12 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
         )
 
         if request.method == "DELETE":
-            if not _is_admin(request.user):
-                raise PermissionDenied("Solo admin puede eliminar evidencias.")
+            if _contratista_only(request.user):
+                raise PermissionDenied("Los contratistas no pueden eliminar evidencias.")
+            if _is_secretario(request.user) and not _is_admin(request.user):
+                if actividad.responsable_secretaria_id != request.user.secretaria_id:
+                    if actividad.plan.responsable_secretaria_id != request.user.secretaria_id:
+                        raise PermissionDenied("Sin permisos para eliminar evidencias de esta actividad.")
             evidencia.delete()
             sync_actividad_from_evidencias(actividad)
             return Response(status=status.HTTP_204_NO_CONTENT)
@@ -559,7 +574,11 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
                 raise ValidationError({"descripcion": "Este campo es requerido."})
             evidencia.descripcion = descripcion
         if "cantidad_ejecutada" in request.data or "meta_ejecutada" in request.data:
-            evidencia.cantidad_ejecutada = self._parse_cantidad_ejecutada(request)
+            cantidad = self._parse_cantidad_ejecutada(request)
+            validate_cantidad_ejecutada(
+                actividad, cantidad, exclude_evidencia_id=evidencia.id
+            )
+            evidencia.cantidad_ejecutada = cantidad
         if "url_evidencia" in request.data:
             evidencia.url_evidencia = url_evidencia
         evidencia.save()

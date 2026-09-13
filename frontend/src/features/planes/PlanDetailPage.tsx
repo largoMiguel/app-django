@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, ClipboardCheck, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardCheck, Pencil, Plus, Trash2 } from "lucide-react";
 import { openAuthenticatedFile } from "@/core/api/client";
 import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import {
@@ -20,6 +20,18 @@ import PlanFormModal from "./PlanFormModal";
 import { usePlanesDetailHeader } from "./PlanesDetailHeaderContext";
 import { PlanesBadge, PlanesCard, PlanesLoading, btnPrimary, btnSecondary } from "./components/PlanesUi";
 
+function parseMeta(value: string): number | null {
+  const match = value.trim().replace(",", ".").match(/\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : null;
+}
+
+function puedeAgregarEvidencia(act: PlanActividad): boolean {
+  const meta = parseMeta(act.meta || "");
+  if (!meta || meta <= 0) return true;
+  const ejecutado = act.total_ejecutado ?? 0;
+  return ejecutado < meta;
+}
+
 export default function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
   const planId = Number(id);
@@ -38,6 +50,7 @@ export default function PlanDetailPage() {
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [editActividad, setEditActividad] = useState<PlanActividad | null>(null);
   const [evidenciaActividad, setEvidenciaActividad] = useState<PlanActividad | null>(null);
+  const [editEvidencia, setEditEvidencia] = useState<PlanEvidencia | null>(null);
   const { setHeaderActions } = usePlanesDetailHeader();
 
   const load = useCallback(async () => {
@@ -93,6 +106,26 @@ export default function PlanDetailPage() {
     );
     return () => setHeaderActions(null);
   }, [isAdmin, canCreate, loading, error, plan, setHeaderActions]);
+
+  async function handleDeleteActividad(act: PlanActividad) {
+    if (!window.confirm(`¿Eliminar la actividad "${act.nombre}" y todas sus evidencias?`)) return;
+    try {
+      await planesApi.actividades.delete(act.id);
+      load();
+    } catch (err) {
+      alert(formatApiError(err));
+    }
+  }
+
+  async function handleDeleteEvidencia(act: PlanActividad, ev: PlanEvidencia) {
+    if (!window.confirm("¿Eliminar esta evidencia?")) return;
+    try {
+      await planesApi.actividades.eliminarEvidencia(act.id, ev.id);
+      load();
+    } catch (err) {
+      alert(formatApiError(err));
+    }
+  }
 
   if (loading) return <PlanesLoading />;
   if (error || !plan) {
@@ -171,10 +204,18 @@ export default function PlanDetailPage() {
                     setEditActividad(act);
                     setActividadModalOpen(true);
                   }}
+                  onDeleteActividad={() => handleDeleteActividad(act)}
                   onAgregarEvidencia={() => {
+                    setEditEvidencia(null);
                     setEvidenciaActividad(act);
                     setEvidenciaModalOpen(true);
                   }}
+                  onEditEvidencia={(ev) => {
+                    setEditEvidencia(ev);
+                    setEvidenciaActividad(act);
+                    setEvidenciaModalOpen(true);
+                  }}
+                  onDeleteEvidencia={(ev) => handleDeleteEvidencia(act, ev)}
                 />
               ))}
             </div>
@@ -203,11 +244,14 @@ export default function PlanDetailPage() {
           onClose={() => {
             setEvidenciaModalOpen(false);
             setEvidenciaActividad(null);
+            setEditEvidencia(null);
           }}
           actividad={evidenciaActividad}
+          evidencia={editEvidencia}
           onSaved={() => {
             setEvidenciaModalOpen(false);
             setEvidenciaActividad(null);
+            setEditEvidencia(null);
             load();
           }}
         />
@@ -242,16 +286,25 @@ function ActividadRow({
   act,
   canCreate,
   onEditActividad,
+  onDeleteActividad,
   onAgregarEvidencia,
+  onEditEvidencia,
+  onDeleteEvidencia,
 }: {
   act: PlanActividad;
   canCreate: boolean;
   onEditActividad: () => void;
+  onDeleteActividad: () => void;
   onAgregarEvidencia: () => void;
+  onEditEvidencia: (ev: PlanEvidencia) => void;
+  onDeleteEvidencia: (ev: PlanEvidencia) => void;
 }) {
   const estadoTone =
     act.estado === "COMPLETADA" ? "success" : act.estado === "EN_PROGRESO" ? "info" : "slate";
   const evidencias = act.evidencias ?? [];
+  const meta = parseMeta(act.meta || "");
+  const ejecutado = act.total_ejecutado ?? 0;
+  const puedeAgregar = puedeAgregarEvidencia(act);
 
   return (
     <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
@@ -271,26 +324,46 @@ function ActividadRow({
             <PlanesBadge tone={estadoTone}>{act.estado_label}</PlanesBadge>
             <span>Avance: {act.avance}%</span>
             {act.meta && <span>· Meta: {act.meta}</span>}
-            {(act.total_ejecutado ?? 0) > 0 && <span>· Ejecutado: {act.total_ejecutado}</span>}
+            {ejecutado > 0 && <span>· Ejecutado: {ejecutado}</span>}
+            {meta && meta > 0 && <span>· Restante: {Math.max(0, meta - ejecutado)}</span>}
             {act.responsable_secretaria_nombre && <span>· {act.responsable_secretaria_nombre}</span>}
           </div>
         </div>
         {canCreate && (
           <div className="flex shrink-0 flex-wrap gap-2">
             <button type="button" onClick={onEditActividad} className={btnSecondary}>
-              Editar actividad
+              <Pencil className="mr-1 inline h-4 w-4" />
+              Editar
             </button>
-            <button type="button" onClick={onAgregarEvidencia} className={btnPrimary}>
-              <ClipboardCheck className="mr-1 inline h-4 w-4" />
-              Agregar evidencia
+            <button
+              type="button"
+              onClick={onDeleteActividad}
+              className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+            >
+              <Trash2 className="mr-1 h-4 w-4" />
+              Eliminar
             </button>
+            {puedeAgregar ? (
+              <button type="button" onClick={onAgregarEvidencia} className={btnPrimary}>
+                <ClipboardCheck className="mr-1 inline h-4 w-4" />
+                Agregar evidencia
+              </button>
+            ) : (
+              <span className="self-center text-xs text-emerald-700">Meta cumplida</span>
+            )}
           </div>
         )}
       </div>
       {evidencias.length > 0 && (
         <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
           {evidencias.map((ev) => (
-            <EvidenciaItem key={ev.id} ev={ev} />
+            <EvidenciaItem
+              key={ev.id}
+              ev={ev}
+              canEdit={canCreate}
+              onEdit={() => onEditEvidencia(ev)}
+              onDelete={() => onDeleteEvidencia(ev)}
+            />
           ))}
         </div>
       )}
@@ -298,11 +371,38 @@ function ActividadRow({
   );
 }
 
-function EvidenciaItem({ ev }: { ev: PlanEvidencia }) {
+function EvidenciaItem({
+  ev,
+  canEdit,
+  onEdit,
+  onDelete,
+}: {
+  ev: PlanEvidencia;
+  canEdit: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   return (
     <div className="rounded-md border border-slate-200 bg-white p-3 text-sm">
-      <div className="font-medium text-slate-800">
-        +{ev.cantidad_ejecutada} ejecutado · {ev.descripcion}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 font-medium text-slate-800">
+          +{ev.cantidad_ejecutada} ejecutado · {ev.descripcion}
+        </div>
+        {canEdit && (
+          <div className="flex shrink-0 gap-1">
+            <button type="button" onClick={onEdit} className={btnSecondary} title="Editar evidencia">
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="inline-flex items-center rounded-lg border border-red-200 bg-white px-2 py-1.5 text-red-600 hover:bg-red-50"
+              title="Eliminar evidencia"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
       {ev.url_evidencia && (
         <a
@@ -311,7 +411,7 @@ function EvidenciaItem({ ev }: { ev: PlanEvidencia }) {
           rel="noopener noreferrer"
           className="mt-1 inline-block text-[#0e7490] hover:underline"
         >
-          URL externa
+          {ev.url_evidencia}
         </a>
       )}
       {ev.archivos?.length > 0 && (
