@@ -320,7 +320,7 @@ class PlanViewSet(viewsets.ModelViewSet):
 class PlanActividadViewSet(viewsets.ModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
     pagination_class = StandardPageNumberPagination
-    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+    http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
     parser_classes = (JSONParser, FormParser, MultiPartParser)
 
     def initial(self, request, *args, **kwargs):

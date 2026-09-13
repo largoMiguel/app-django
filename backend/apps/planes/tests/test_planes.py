@@ -191,6 +191,39 @@ class PlanesAccessTests(TestCase):
         self.assertEqual(actividad.avance, 100)
         self.assertEqual(actividad.estado, "COMPLETADA")
 
+    def test_evidencia_put_update_allowed(self):
+        actividad = PlanActividad.objects.create(
+            entity=self.entity_a,
+            plan=self.plan_a,
+            anio=2026,
+            trimestre=1,
+            nombre="Editar evidencia",
+            meta="10",
+            responsable_secretaria=self.secretaria_a,
+        )
+        pdf = SimpleUploadedFile("informe.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+        create_req = self.factory.post(
+            f"/api/v1/planes/actividades/{actividad.id}/evidencia/",
+            {"descripcion": "Original", "cantidad_ejecutada": "4", "archivos": pdf},
+            format="multipart",
+        )
+        force_authenticate(create_req, user=self.admin_a)
+        create_view = PlanActividadViewSet.as_view({"post": "evidencia"})
+        create_resp = create_view(create_req, pk=actividad.id)
+        self.assertEqual(create_resp.status_code, 201)
+        evidencia_id = create_resp.data["id"]
+
+        update_req = self.factory.put(
+            f"/api/v1/planes/actividades/{actividad.id}/evidencia/{evidencia_id}/",
+            {"descripcion": "Actualizada", "cantidad_ejecutada": "6", "url_evidencia": "https://example.com/ev"},
+            format="multipart",
+        )
+        force_authenticate(update_req, user=self.admin_a)
+        update_view = PlanActividadViewSet.as_view({"put": "evidencia_item"})
+        update_resp = update_view(update_req, pk=actividad.id, evidencia_id=str(evidencia_id))
+        self.assertEqual(update_resp.status_code, 200, update_resp.data)
+        self.assertEqual(update_resp.data["descripcion"], "Actualizada")
+
     def test_admin_can_create_custom_catalogo(self):
         payload = {
             "codigo": "plan_propio_test",
