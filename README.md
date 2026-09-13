@@ -401,7 +401,7 @@ Seguimiento trimestral a los **12 planes institucionales y estratégicos** que l
 6. Plan Institucional de Capacitación
 7. Plan de Incentivos Institucionales
 8. Plan de Trabajo Anual en Seguridad y Salud en el Trabajo
-9. Plan Anticorrupción y de Atención al Ciudadano
+9. Programa de Transparencia y Ética Pública (PTEP)
 10. Plan Estratégico de TIC (PETI)
 11. Plan de Tratamiento de Riesgos de Seguridad y Privacidad de la Información
 12. Plan de Seguridad y Privacidad de la Información

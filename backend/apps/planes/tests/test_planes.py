@@ -166,6 +166,31 @@ class PlanesAccessTests(TestCase):
         self.assertEqual(actividad.avance, 33)
         self.assertEqual(actividad.estado, "EN_PROGRESO")
 
+    def test_evidencia_meta_completa_con_prefetch(self):
+        """get_object() prefetch vacío no debe dejar avance en 0 al crear evidencia."""
+        actividad = PlanActividad.objects.create(
+            entity=self.entity_a,
+            plan=self.plan_a,
+            anio=2026,
+            trimestre=1,
+            nombre="Meta completa",
+            meta="1",
+            responsable_secretaria=self.secretaria_a,
+        )
+        pdf = SimpleUploadedFile("informe.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+        request = self.factory.post(
+            f"/api/v1/planes/actividades/{actividad.id}/evidencia/",
+            {"descripcion": "Programa formulado", "cantidad_ejecutada": "1", "archivos": pdf},
+            format="multipart",
+        )
+        force_authenticate(request, user=self.admin_a)
+        view = PlanActividadViewSet.as_view({"post": "evidencia"})
+        response = view(request, pk=actividad.id)
+        self.assertEqual(response.status_code, 201)
+        actividad.refresh_from_db()
+        self.assertEqual(actividad.avance, 100)
+        self.assertEqual(actividad.estado, "COMPLETADA")
+
     def test_admin_can_create_custom_catalogo(self):
         payload = {
             "codigo": "plan_propio_test",

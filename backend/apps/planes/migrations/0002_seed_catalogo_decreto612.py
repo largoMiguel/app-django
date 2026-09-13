@@ -12,7 +12,7 @@ CATALOGO_D612 = [
     (6, "capacitacion", "Plan Institucional de Capacitación"),
     (7, "incentivos", "Plan de Incentivos Institucionales"),
     (8, "sst", "Plan de Trabajo Anual en Seguridad y Salud en el Trabajo"),
-    (9, "anticorrupcion", "Plan Anticorrupción y de Atención al Ciudadano"),
+    (9, "anticorrupcion", "Programa de Transparencia y Ética Pública (PTEP)"),
     (10, "peti", "Plan Estratégico de Tecnologías de la Información y las Comunicaciones (PETI)"),
     (
         11,

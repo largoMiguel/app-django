@@ -75,10 +75,12 @@ class PlanActividadSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     responsable_usuario_nombre = serializers.SerializerMethodField()
+    avance = serializers.SerializerMethodField()
+    estado = serializers.SerializerMethodField()
     tiene_evidencia = serializers.SerializerMethodField()
     total_ejecutado = serializers.SerializerMethodField()
     trimestre_label = serializers.SerializerMethodField()
-    estado_label = serializers.CharField(source="get_estado_display", read_only=True)
+    estado_label = serializers.SerializerMethodField()
 
     class Meta:
         model = PlanActividad
@@ -108,6 +110,25 @@ class PlanActividadSerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = ("id", "entity", "created_at", "updated_at", "estado", "avance")
+
+    def get_avance(self, obj) -> int:
+        from .evidencia_sync import compute_avance_pct
+
+        return compute_avance_pct(obj)
+
+    def _estado_from_avance(self, avance: int) -> str:
+        if avance >= 100:
+            return ActividadEstado.COMPLETADA
+        if avance > 0:
+            return ActividadEstado.EN_PROGRESO
+        return ActividadEstado.PENDIENTE
+
+    def get_estado(self, obj) -> str:
+        return self._estado_from_avance(self.get_avance(obj))
+
+    def get_estado_label(self, obj) -> str:
+        estado = self.get_estado(obj)
+        return dict(ActividadEstado.choices).get(estado, estado)
 
     def get_responsable_usuario_nombre(self, obj) -> str | None:
         if not obj.responsable_usuario_id:

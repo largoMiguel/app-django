@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.entities.models import Entity
 
 from .access import actividades_queryset_for_user, planes_queryset_for_user
+from .evidencia_sync import compute_avance_pct
 from .models import ActividadEstado, PlanActividad, PlanInstitucional, Trimestre
 
 
@@ -100,13 +101,13 @@ def build_resumen_por_trimestre(plan: PlanInstitucional, actividades) -> list[di
         items = grouped.get(tri, [])
         avance = 0.0
         if items:
-            avance = sum(a.avance for a in items) / len(items)
+            avance = sum(compute_avance_pct(a) for a in items) / len(items)
         resumen.append(
             {
                 "trimestre": tri,
                 "trimestre_label": Trimestre(tri).label,
                 "total": len(items),
-                "completadas": sum(1 for a in items if a.estado == ActividadEstado.COMPLETADA),
+                "completadas": sum(1 for a in items if compute_avance_pct(a) >= 100),
                 "avance_promedio": round(avance, 1),
             }
         )
@@ -134,6 +135,13 @@ def build_cronograma(user, entity: Entity, *, anio: int | None = None) -> list[d
                 "actividades": [],
             },
         )
+        avance = compute_avance_pct(act)
+        if avance >= 100:
+            estado = ActividadEstado.COMPLETADA
+        elif avance > 0:
+            estado = ActividadEstado.EN_PROGRESO
+        else:
+            estado = ActividadEstado.PENDIENTE
         bucket["actividades"].append(
             {
                 "id": act.id,
@@ -142,8 +150,8 @@ def build_cronograma(user, entity: Entity, *, anio: int | None = None) -> list[d
                 "trimestre_label": Trimestre(act.trimestre).label if act.trimestre in Trimestre.values else str(act.trimestre),
                 "fecha_inicio": act.fecha_inicio.isoformat() if act.fecha_inicio else None,
                 "fecha_fin": act.fecha_fin.isoformat() if act.fecha_fin else None,
-                "estado": act.estado,
-                "avance": act.avance,
+                "estado": estado,
+                "avance": avance,
                 "responsable_secretaria_nombre": act.responsable_secretaria.nombre if act.responsable_secretaria_id else None,
             }
         )

@@ -22,6 +22,19 @@ def parse_meta_programada(value: str | None) -> Decimal | None:
 
 
 def total_ejecutado(actividad: PlanActividad) -> Decimal:
+    """Suma cantidad_ejecutada de evidencias.
+
+    Consulta la BD directamente cuando la actividad ya existe, para evitar
+    caché de prefetch vacía (p. ej. al crear la primera evidencia vía API).
+    """
+    if actividad.pk:
+        total = Decimal("0")
+        for cantidad in PlanEvidencia.objects.filter(actividad_id=actividad.pk).values_list(
+            "cantidad_ejecutada", flat=True
+        ):
+            total += Decimal(cantidad or 0)
+        return total
+
     total = Decimal("0")
     for ev in actividad.evidencias.all():
         total += Decimal(ev.cantidad_ejecutada or 0)

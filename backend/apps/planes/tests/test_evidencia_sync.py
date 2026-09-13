@@ -43,3 +43,11 @@ class EvidenciaSyncTests(TestCase):
         )
         self.assertEqual(total_ejecutado(act), Decimal("15"))
         self.assertEqual(compute_avance_pct(act), 50)
+
+    def test_avance_meta_1_ejecutado_1(self):
+        act = MockActividad(meta="1", evidencias=[MockEvidencia(1)])
+        self.assertEqual(compute_avance_pct(act), 100)
+
+    def test_avance_meta_6_ejecutado_3(self):
+        act = MockActividad(meta="6", evidencias=[MockEvidencia(3)])
+        self.assertEqual(compute_avance_pct(act), 50)

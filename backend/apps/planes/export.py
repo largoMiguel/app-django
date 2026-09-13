@@ -76,9 +76,10 @@ def build_trimestral_excel(
 
     row_idx = 2
     for act in act_qs:
-        from .evidencia_sync import total_ejecutado
+        from .evidencia_sync import compute_avance_pct, total_ejecutado
 
         ejecutado = float(total_ejecutado(act))
+        avance = compute_avance_pct(act)
         evidencias = list(act.evidencias.all())
         ultima = evidencias[-1] if evidencias else None
         tri_label = Trimestre(act.trimestre).label if act.trimestre in Trimestre.values else str(act.trimestre)
@@ -92,7 +93,7 @@ def build_trimestral_excel(
             act.indicador,
             act.responsable_secretaria.nombre if act.responsable_secretaria_id else "",
             act.get_estado_display(),
-            act.avance,
+            avance,
             ejecutado,
             act.fecha_inicio.isoformat() if act.fecha_inicio else "",
             act.fecha_fin.isoformat() if act.fecha_fin else "",

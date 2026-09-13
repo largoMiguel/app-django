@@ -399,6 +399,7 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Sin permisos para editar esta actividad.")
         ser = PlanActividadWriteSerializer(actividad, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
+        meta_changed = "meta" in ser.validated_data
         for field, value in ser.validated_data.items():
             if field in ("plan", "estado", "avance"):
                 continue
@@ -406,6 +407,9 @@ class PlanActividadViewSet(viewsets.ModelViewSet):
                 continue
             setattr(actividad, field, value)
         actividad.save()
+        if meta_changed:
+            sync_actividad_from_evidencias(actividad)
+            actividad.refresh_from_db()
         return Response(PlanActividadSerializer(actividad).data)
 
     def destroy(self, request, *args, **kwargs):
