@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, ClipboardCheck, Pencil, Plus, Trash2 } from "lucide-react";
-import { openAuthenticatedFile } from "@/core/api/client";
+import { ArrowLeft, ClipboardList, Inbox, Pencil, Plus } from "lucide-react";
 import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import {
   planesApi,
@@ -14,23 +13,14 @@ import {
 } from "@/core/api/planes";
 import { formatApiError } from "@/core/api/errors";
 import { primaryRole, useAuthStore } from "@/core/auth/store";
+import { PdmAlert, PdmBadge, PdmBtn, PdmCard, PdmProgressBar } from "@/features/pdm/components/PdmUi";
+import { getColorProgreso } from "@/features/pdm/pdmUtils";
 import ActividadFormModal from "./ActividadFormModal";
 import EvidenciaFormModal from "./EvidenciaFormModal";
 import PlanFormModal from "./PlanFormModal";
+import { PlanActividadCard, puedeAgregarEvidencia } from "./components/PlanActividadCard";
 import { usePlanesDetailHeader } from "./PlanesDetailHeaderContext";
-import { PlanesBadge, PlanesCard, PlanesLoading, btnPrimary, btnSecondary } from "./components/PlanesUi";
-
-function parseMeta(value: string): number | null {
-  const match = value.trim().replace(",", ".").match(/\d+(?:\.\d+)?/);
-  return match ? Number(match[0]) : null;
-}
-
-function puedeAgregarEvidencia(act: PlanActividad): boolean {
-  const meta = parseMeta(act.meta || "");
-  if (!meta || meta <= 0) return true;
-  const ejecutado = act.total_ejecutado ?? 0;
-  return ejecutado < meta;
-}
+import { PlanesBadge, PlanesLoading, btnPrimary, btnSecondary } from "./components/PlanesUi";
 
 export default function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -143,7 +133,7 @@ export default function PlanDetailPage() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-6">
       <div>
         <h2 className="text-xl font-bold text-slate-900">{plan.nombre}</h2>
         <p className="mt-1 text-sm text-slate-500">
@@ -169,58 +159,105 @@ export default function PlanDetailPage() {
       </div>
 
       {plan.estado === "BORRADOR" && isAdmin && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Este plan está en <strong>borrador</strong>. Cuando lo publique en la web de la entidad, edítelo y cambie
-          el estado a <strong>Publicado</strong> (indique URL y fecha). Luego pase a <strong>En ejecución</strong>{" "}
-          para el seguimiento trimestral.
-        </div>
+        <PdmAlert tone="warning">
+          Este plan está en <strong>borrador</strong>. Cuando lo publique en la web de la entidad, edítelo y cambie el
+          estado a <strong>Publicado</strong>. Luego pase a <strong>En ejecución</strong> para el seguimiento trimestral.
+        </PdmAlert>
       )}
 
       {plan.objetivo && (
-        <PlanesCard title="Objetivo">
+        <PdmCard title="Objetivo del plan" icon={<ClipboardList size={16} className="text-blue-600" />}>
           <p className="text-sm text-slate-700">{plan.objetivo}</p>
-        </PlanesCard>
+        </PdmCard>
       )}
 
       {byTrimestre.map(({ value, label, actividades, resumen }) => (
-        <PlanesCard
+        <PdmCard
           key={value}
           title={
-            resumen
-              ? `${label} · ${resumen.completadas}/${resumen.total} completadas · Avance ${resumen.avance_promedio}%`
-              : label
-          }
-        >
-          {actividades.length === 0 ? (
-            <p className="text-sm text-slate-500">Sin actividades en este trimestre.</p>
-          ) : (
-            <div className="space-y-3">
-              {actividades.map((act) => (
-                <ActividadRow
-                  key={act.id}
-                  act={act}
-                  canCreate={canCreate}
-                  onEditActividad={() => {
-                    setEditActividad(act);
-                    setActividadModalOpen(true);
-                  }}
-                  onDeleteActividad={() => handleDeleteActividad(act)}
-                  onAgregarEvidencia={() => {
-                    setEditEvidencia(null);
-                    setEvidenciaActividad(act);
-                    setEvidenciaModalOpen(true);
-                  }}
-                  onEditEvidencia={(ev) => {
-                    setEditEvidencia(ev);
-                    setEvidenciaActividad(act);
-                    setEvidenciaModalOpen(true);
-                  }}
-                  onDeleteEvidencia={(ev) => handleDeleteEvidencia(act, ev)}
-                />
-              ))}
+            <div className="flex w-full flex-wrap items-center justify-between gap-3">
+              <span>{label}</span>
+              {resumen && (
+                <span className="text-xs font-normal text-slate-500">
+                  {resumen.completadas}/{resumen.total} completadas · Avance {resumen.avance_promedio}%
+                </span>
+              )}
             </div>
+          }
+          icon={<ClipboardList size={16} className="text-blue-600" />}
+        >
+          {resumen && resumen.total > 0 && (
+            <PdmAlert tone="info">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <strong className="block text-slate-800">Actividades</strong>
+                  <p>{resumen.total} registradas</p>
+                </div>
+                <div>
+                  <strong className="block text-slate-800">Avance del trimestre</strong>
+                  <p className="flex flex-wrap items-center gap-2">
+                    {resumen.completadas} / {resumen.total} completadas
+                    <PdmBadge tone={getColorProgreso(resumen.avance_promedio)}>
+                      {resumen.avance_promedio}%
+                    </PdmBadge>
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <PdmProgressBar value={resumen.avance_promedio} tone={getColorProgreso(resumen.avance_promedio)} />
+              </div>
+            </PdmAlert>
           )}
-        </PlanesCard>
+
+          <div className="mt-4">
+            {actividades.length === 0 ? (
+              <div className="py-10 text-center">
+                <Inbox size={48} className="mx-auto mb-3 text-slate-300" />
+                <p className="text-sm text-slate-500">No hay actividades en este trimestre.</p>
+                {canCreate && (
+                  <PdmBtn
+                    className="mt-4"
+                    onClick={() => {
+                      setEditActividad(null);
+                      setActividadModalOpen(true);
+                    }}
+                  >
+                    <Plus size={14} />
+                    Crear actividad
+                  </PdmBtn>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {actividades.map((act) => (
+                  <PlanActividadCard
+                    key={act.id}
+                    act={act}
+                    canCreate={canCreate}
+                    isAdmin={isAdmin}
+                    onEditActividad={() => {
+                      setEditActividad(act);
+                      setActividadModalOpen(true);
+                    }}
+                    onDeleteActividad={() => handleDeleteActividad(act)}
+                    onAgregarEvidencia={() => {
+                      if (!puedeAgregarEvidencia(act)) return;
+                      setEditEvidencia(null);
+                      setEvidenciaActividad(act);
+                      setEvidenciaModalOpen(true);
+                    }}
+                    onEditEvidencia={(ev) => {
+                      setEditEvidencia(ev);
+                      setEvidenciaActividad(act);
+                      setEvidenciaModalOpen(true);
+                    }}
+                    onDeleteEvidencia={(ev) => handleDeleteEvidencia(act, ev)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </PdmCard>
       ))}
 
       <ActividadFormModal
@@ -280,155 +317,4 @@ function planEstadoTone(estado: string): "info" | "success" | "warning" | "slate
   if (estado === "EN_EJECUCION") return "info";
   if (estado === "PUBLICADO") return "warning";
   return "slate";
-}
-
-function ActividadRow({
-  act,
-  canCreate,
-  onEditActividad,
-  onDeleteActividad,
-  onAgregarEvidencia,
-  onEditEvidencia,
-  onDeleteEvidencia,
-}: {
-  act: PlanActividad;
-  canCreate: boolean;
-  onEditActividad: () => void;
-  onDeleteActividad: () => void;
-  onAgregarEvidencia: () => void;
-  onEditEvidencia: (ev: PlanEvidencia) => void;
-  onDeleteEvidencia: (ev: PlanEvidencia) => void;
-}) {
-  const estadoTone =
-    act.estado === "COMPLETADA" ? "success" : act.estado === "EN_PROGRESO" ? "info" : "slate";
-  const evidencias = act.evidencias ?? [];
-  const meta = parseMeta(act.meta || "");
-  const ejecutado = act.total_ejecutado ?? 0;
-  const puedeAgregar = puedeAgregarEvidencia(act);
-
-  return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="font-medium text-slate-900">{act.nombre}</div>
-            {act.tiene_evidencia && (
-              <PlanesBadge tone="success">
-                <CheckCircle2 className="mr-1 inline h-3 w-3" />
-                {evidencias.length} evidencia{evidencias.length === 1 ? "" : "s"}
-              </PlanesBadge>
-            )}
-          </div>
-          {act.descripcion && <p className="mt-1 text-sm text-slate-600">{act.descripcion}</p>}
-          <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-            <PlanesBadge tone={estadoTone}>{act.estado_label}</PlanesBadge>
-            <span>Avance: {act.avance}%</span>
-            {act.meta && <span>· Meta: {act.meta}</span>}
-            {ejecutado > 0 && <span>· Ejecutado: {ejecutado}</span>}
-            {meta && meta > 0 && <span>· Restante: {Math.max(0, meta - ejecutado)}</span>}
-            {act.responsable_secretaria_nombre && <span>· {act.responsable_secretaria_nombre}</span>}
-          </div>
-        </div>
-        {canCreate && (
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <button type="button" onClick={onEditActividad} className={btnSecondary}>
-              <Pencil className="mr-1 inline h-4 w-4" />
-              Editar
-            </button>
-            <button
-              type="button"
-              onClick={onDeleteActividad}
-              className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-            >
-              <Trash2 className="mr-1 h-4 w-4" />
-              Eliminar
-            </button>
-            {puedeAgregar ? (
-              <button type="button" onClick={onAgregarEvidencia} className={btnPrimary}>
-                <ClipboardCheck className="mr-1 inline h-4 w-4" />
-                Agregar evidencia
-              </button>
-            ) : (
-              <span className="self-center text-xs text-emerald-700">Meta cumplida</span>
-            )}
-          </div>
-        )}
-      </div>
-      {evidencias.length > 0 && (
-        <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
-          {evidencias.map((ev) => (
-            <EvidenciaItem
-              key={ev.id}
-              ev={ev}
-              canEdit={canCreate}
-              onEdit={() => onEditEvidencia(ev)}
-              onDelete={() => onDeleteEvidencia(ev)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function EvidenciaItem({
-  ev,
-  canEdit,
-  onEdit,
-  onDelete,
-}: {
-  ev: PlanEvidencia;
-  canEdit: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <div className="rounded-md border border-slate-200 bg-white p-3 text-sm">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1 font-medium text-slate-800">
-          +{ev.cantidad_ejecutada} ejecutado · {ev.descripcion}
-        </div>
-        {canEdit && (
-          <div className="flex shrink-0 gap-1">
-            <button type="button" onClick={onEdit} className={btnSecondary} title="Editar evidencia">
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={onDelete}
-              className="inline-flex items-center rounded-lg border border-red-200 bg-white px-2 py-1.5 text-red-600 hover:bg-red-50"
-              title="Eliminar evidencia"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-      </div>
-      {ev.url_evidencia && (
-        <a
-          href={ev.url_evidencia}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 inline-block text-[#0e7490] hover:underline"
-        >
-          {ev.url_evidencia}
-        </a>
-      )}
-      {ev.archivos?.length > 0 && (
-        <ul className="mt-2 space-y-1">
-          {ev.archivos.map((arch) => (
-            <li key={arch.id}>
-              <button
-                type="button"
-                onClick={() => arch.url && openAuthenticatedFile(arch.url)}
-                className="text-[#0e7490] hover:underline"
-              >
-                {arch.nombre}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 }
