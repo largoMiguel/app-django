@@ -219,10 +219,9 @@ export default function SecopIIPage() {
                   key={key}
                   type="button"
                   onClick={() => toggleVencimiento(key)}
-                  disabled={(bucket?.count ?? 0) === 0}
-                  className={`rounded-xl border border-transparent p-3 text-center transition-all ring-1 ${style.ring} ${
+                  className={`cursor-pointer rounded-xl border border-transparent p-3 text-center transition-all ring-1 ${style.ring} ${
                     active ? style.active : "bg-slate-50 hover:bg-white hover:shadow-sm"
-                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                  } ${(bucket?.count ?? 0) === 0 ? "opacity-60" : ""}`}
                 >
                   <div className={`text-2xl font-bold ${style.text}`}>{bucket?.count ?? 0}</div>
                   <div className="mt-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-slate-500">{label}</div>

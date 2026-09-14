@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from .normalize import _parse_date, _parse_float  # noqa: PLC2701
@@ -20,7 +20,7 @@ def _month_key(iso: str | None) -> str | None:
 
 def _estado_vigencia(rec: dict[str, Any], today: date | None = None) -> str:
     today = today or date.today()
-    fin = _parse_date(rec.get("fecha_fin"))
+    fin = _effective_fecha_fin(rec)
     estado = (rec.get("estado") or "").lower()
     if "ejecuci" in estado or "celebrado" in estado or "terminad" in estado:
         if fin and fin < today:
@@ -38,6 +38,30 @@ def _is_ejecucion(estado: str | None) -> bool:
     return "ejecuci" in e or "celebrado" in e
 
 
+def _contrato_activo_plazo(estado: str | None) -> bool:
+    e = (estado or "").lower()
+    if not e or any(x in e for x in ("liquid", "cancelad", "desiert", "anulad")):
+        return False
+    return any(x in e for x in ("ejecuci", "celebrado", "terminad", "vigente", "suspen"))
+
+
+def _effective_fecha_fin(rec: dict[str, Any]) -> date | None:
+    fin = _parse_date(rec.get("fecha_fin"))
+    if fin:
+        return fin
+    ini = _parse_date(rec.get("fecha_inicio")) or _parse_date(rec.get("fecha_firma"))
+    plazo = rec.get("plazo_ejecucion")
+    if ini and plazo:
+        days = int(float(plazo))
+        unidad = (rec.get("plazo_unidad") or "").lower()
+        if "mes" in unidad:
+            return ini + timedelta(days=days * 30)
+        if "a" in unidad and ("ño" in unidad or "no" in unidad):
+            return ini + timedelta(days=days * 365)
+        return ini + timedelta(days=max(days, 1))
+    return None
+
+
 def _is_liquidado(rec: dict[str, Any]) -> bool:
     liq = str(rec.get("liquidacion") or "").lower()
     estado = (rec.get("estado") or "").lower()
@@ -46,7 +70,7 @@ def _is_liquidado(rec: dict[str, Any]) -> bool:
 
 def _dias_restantes(rec: dict[str, Any], today: date | None = None) -> int | None:
     today = today or date.today()
-    fin = _parse_date(rec.get("fecha_fin"))
+    fin = _effective_fecha_fin(rec)
     if not fin:
         return None
     return (fin - today).days
@@ -55,7 +79,7 @@ def _dias_restantes(rec: dict[str, Any], today: date | None = None) -> int | Non
 def compute_avance(rec: dict[str, Any], today: date | None = None) -> dict[str, Any]:
     today = today or date.today()
     ini = _parse_date(rec.get("fecha_inicio")) or _parse_date(rec.get("fecha_firma"))
-    fin = _parse_date(rec.get("fecha_fin"))
+    fin = _effective_fecha_fin(rec)
     avance_tiempo = None
     if ini and fin and fin > ini:
         total_dias = (fin - ini).days
@@ -202,18 +226,17 @@ def matches_vencimiento_bucket(
     if bucket == "vencidos_sin_liquidar":
         return dias is not None and dias < 0 and not _is_liquidado(record)
     if bucket == "vencidos_ejecucion":
-        return _is_ejecucion(estado) and dias is not None and dias < 0
-    if not _is_ejecucion(estado) or dias is None or dias < 0:
+        return _contrato_activo_plazo(estado) and dias is not None and dias < 0
+    if dias is None or dias < 0 or not _contrato_activo_plazo(estado):
         return False
-    if bucket == "por_vencer_7":
-        return dias <= 7
-    if bucket == "por_vencer_15":
-        return dias <= 15 and dias > 7
-    if bucket == "por_vencer_30":
-        return dias <= 30 and dias > 15
-    if bucket == "por_vencer_60":
-        return dias <= 60 and dias > 30
-    return False
+    limits = {
+        "por_vencer_7": 7,
+        "por_vencer_15": 15,
+        "por_vencer_30": 30,
+        "por_vencer_60": 60,
+    }
+    limit = limits.get(bucket)
+    return limit is not None and dias <= limit
 
 
 def buckets_vencimiento(records: list[dict[str, Any]]) -> dict[str, Any]:

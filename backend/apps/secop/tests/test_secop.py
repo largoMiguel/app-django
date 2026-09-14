@@ -149,7 +149,7 @@ class SecopAnalyticsTests(TestCase):
         self.assertEqual(groups[0]["nombre"], "Juan Pérez")
         self.assertEqual(groups[0]["contratos"], 1)
 
-    def test_matches_vencimiento_bucket_exclusive_ranges(self):
+    def test_matches_vencimiento_bucket_cumulative_ranges(self):
         today = date(2026, 6, 15)
         rec = normalize_secop2_contract(
             {
@@ -161,8 +161,26 @@ class SecopAnalyticsTests(TestCase):
             }
         )
         rec["tipo_registro"] = "contrato"
-        self.assertTrue(matches_vencimiento_bucket(rec, "por_vencer_7", today))
-        self.assertFalse(matches_vencimiento_bucket(rec, "por_vencer_15", today))
+        self.assertFalse(matches_vencimiento_bucket(rec, "por_vencer_7", today))
+        self.assertTrue(matches_vencimiento_bucket(rec, "por_vencer_15", today))
+        self.assertTrue(matches_vencimiento_bucket(rec, "por_vencer_30", today))
+
+    def test_effective_fecha_fin_from_plazo(self):
+        from apps.secop.analytics import _dias_restantes
+
+        rec = normalize_secop2_contract(
+            {
+                "id_contrato": "C2",
+                "referencia_del_contrato": "R2",
+                "estado_contrato": "En ejecución",
+                "valor_del_contrato": "1000",
+                "fecha_de_inicio_del_contrato": "2026-01-01T00:00:00.000",
+                "plazo_de_ejec_del_contrato": "180",
+            }
+        )
+        rec["tipo_registro"] = "contrato"
+        dias = _dias_restantes(rec, date(2026, 6, 15))
+        self.assertIsNotNone(dias)
 
 
 class SecopAlertsTests(TestCase):

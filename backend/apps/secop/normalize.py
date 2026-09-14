@@ -124,6 +124,24 @@ def normalize_secop2_contract(row: dict[str, Any]) -> dict[str, Any]:
     fecha_firma = _parse_date(row.get("fecha_de_firma"))
     fecha_inicio = _parse_date(row.get("fecha_de_inicio_del_contrato"))
     fecha_fin = _parse_date(row.get("fecha_de_fin_del_contrato"))
+    if not fecha_fin and fecha_inicio:
+        plazo = _parse_float(
+            row.get("plazo_de_ejec_del_contrato") or row.get("duracion") or row.get("duracion_en_dias")
+        )
+        if plazo > 0:
+            unidad = str(row.get("unidad_de_duracion") or row.get("rango_de_ejec_del_contrato") or "").lower()
+            if "mes" in unidad:
+                from datetime import timedelta
+
+                fecha_fin = fecha_inicio + timedelta(days=int(plazo * 30))
+            elif "a" in unidad and ("ño" in unidad or "no" in unidad):
+                from datetime import timedelta
+
+                fecha_fin = fecha_inicio + timedelta(days=int(plazo * 365))
+            else:
+                from datetime import timedelta
+
+                fecha_fin = fecha_inicio + timedelta(days=int(plazo))
     recursos = []
     for label, key in (
         ("PGN", "presupuesto_general_de_la_nacion_pgn"),
