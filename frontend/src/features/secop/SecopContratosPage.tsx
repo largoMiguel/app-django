@@ -42,7 +42,6 @@ export default function SecopContratosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [resumen, setResumen] = useState<Awaited<ReturnType<typeof secopApi.resumen>> | null>(null);
-  const [ejecucion, setEjecucion] = useState<SecopRecord[]>([]);
   const [supervisores, setSupervisores] = useState<SecopResponsableGroup[]>([]);
   const [ordenadores, setOrdenadores] = useState<SecopResponsableGroup[]>([]);
   const [list, setList] = useState<PaginatedSecop | null>(null);
@@ -66,20 +65,12 @@ export default function SecopContratosPage() {
         else params.supervisor = responsableFilter;
       }
 
-      const ejParams: Record<string, string | number> = { anio, page: 1, page_size: 200 };
-      if (responsableFilter) {
-        if (depTab === "ordenador") ejParams.ordenador = responsableFilter;
-        else ejParams.supervisor = responsableFilter;
-      }
-
-      const [res, ej, dep, listRes] = await Promise.all([
+      const [res, dep, listRes] = await Promise.all([
         secopApi.resumen(anio),
-        secopApi.ejecucion(ejParams),
         secopApi.dependencias(anio),
         secopApi.listSecop2(params),
       ]);
       setResumen(res);
-      setEjecucion(ej.results);
       setSupervisores(dep.por_supervisor);
       setOrdenadores(dep.por_ordenador);
       setList(listRes);
@@ -338,8 +329,7 @@ export default function SecopContratosPage() {
                 </tr>
               ) : (
                 (list?.results || []).map((row) => {
-                  const avanceRow = ejecucion.find((e) => e.id === row.id && e.fuente === row.fuente);
-                  const avance = avanceRow?.avance || row.avance;
+                  const avance = row.avance;
                   return (
                     <tr
                       key={row.id}

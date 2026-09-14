@@ -262,6 +262,7 @@ class Secop2ListView(SecopBaseView):
         records, meta = load_secop2_unified(self.entity, params["anio"])
         filtered = _filter_records(records, params)
         payload = _paginate(filtered, params["page"], params["page_size"])
+        payload["results"] = _with_avance(payload["results"])
         payload["meta"] = meta
         payload["kpis"] = compute_kpis(records)
         payload["analitica"] = compute_analytics(records)
