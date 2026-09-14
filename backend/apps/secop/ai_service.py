@@ -10,7 +10,7 @@ from typing import Any
 
 from django.core.cache import cache
 
-from apps.ai.client import chat_completion
+from apps.ai.client import chat_completion, get_api_key_for_feature
 from apps.entities.models import Entity
 
 from .access import resolve_nits_secop_i, resolve_nits_secop_ii
@@ -651,7 +651,14 @@ _SEARCH_STOPWORDS = frozenset({
     "y", "de", "el", "la", "los", "las", "un", "una", "por", "con", "que", "cual", "cuál",
     "cuanto", "cuánto", "cualto", "vale", "valor", "contrato", "contratos", "proceso", "precio",
     "muestrame", "muestra", "dame", "busca", "buscar", "encuentra", "listar", "dime", "sobre",
+    "hazme", "haz", "resumen", "resume", "resúmen", "explica", "detalla", "amplia", "analiza",
+    "analisis", "análisis", "riesgo", "riesgos", "alerta", "alertas", "recomienda", "recomendacion",
 })
+
+_FOLLOWUP_HINTS = (
+    "resumen", "resume", "resúmen", "explica", "detalla", "amplia", "mas info", "más info",
+    "y ese", "y eso", "continua", "continúa", "detalle", "desglosa",
+)
 
 
 def _extract_search_text(message: str) -> str | None:
@@ -661,81 +668,257 @@ def _extract_search_text(message: str) -> str | None:
             word = re.sub(r"[^\wáéíóúñ]", "", match.group(1).lower())
             if len(word) >= 3 and word not in _SEARCH_STOPWORDS:
                 return word
-    words = [
-        re.sub(r"[^\wáéíóúñ]", "", w.lower())
-        for w in message.split()
-        if len(re.sub(r"[^\wáéíóúñ]", "", w)) >= 3
-    ]
-    candidates = [w for w in words if w not in _SEARCH_STOPWORDS]
-    return candidates[-1] if candidates else None
+    return None
+
+
+def _is_followup_request(message: str) -> bool:
+    lower = message.lower().strip()
+    return any(hint in lower for hint in _FOLLOWUP_HINTS)
+
+
+def _last_search_term(history: list[dict[str, str]]) -> str | None:
+    for msg in reversed(history):
+        if msg.get("role") != "user":
+            continue
+        term = _extract_search_text(msg.get("content") or "")
+        if term:
+            return term
+    return None
 
 
 def _looks_like_contract_query(message: str) -> bool:
     lower = message.lower()
+    if _is_followup_request(message):
+        return False
     contract_words = (
         "contrato", "valor", "cuanto", "cuánto", "cualto", "vale", "precio",
         "proveedor", "proceso", "adjudic", "pagado", "liquid",
     )
-    texto = _extract_search_text(message)
-    if not texto:
-        return False
-    if any(w in lower for w in contract_words):
+    has_contract_context = any(w in lower for w in contract_words)
+    has_entity_ref = bool(re.search(r"\bde\s+[a-záéíóúñ0-9]", lower, re.I))
+    if has_entity_ref and has_contract_context:
         return True
-    return any(w in lower for w in ("busca", "buscar", "encuentra", "listar", "dime"))
+    if any(w in lower for w in ("busca", "buscar", "encuentra", "listar")) and _extract_search_text(message):
+        return True
+    return False
 
 
 def _format_contract_search_reply(texto: str, registros: list[dict], anio: int) -> str:
     lines = [f"Contratos que coinciden con **{texto}** — vigencia {anio}:\n"]
     for reg in registros[:8]:
-        ref = reg.get("referencia") or reg.get("numero_proceso") or "—"
-        proveedor = reg.get("proveedor") or "Sin proveedor"
-        valor = reg.get("valor")
-        estado = reg.get("estado") or "—"
-        valor_txt = f"${float(valor):,.0f}" if valor is not None else "N/D"
-        pagado = reg.get("valor_pagado")
-        pagado_txt = f" · pagado ${float(pagado):,.0f}" if pagado else ""
-        lines.append(f"- **{ref}** — {proveedor}: {valor_txt}{pagado_txt} ({estado})")
+        lines.append(_format_contract_line(reg))
     if len(registros) > 8:
         lines.append(f"\n_Y {len(registros) - 8} más…_")
     return "\n".join(lines)
 
 
-def _try_fast_text_response(
+def _format_contract_line(reg: dict) -> str:
+    ref = reg.get("referencia") or reg.get("numero_proceso") or "—"
+    proveedor = reg.get("proveedor") or "Sin proveedor"
+    valor = reg.get("valor")
+    estado = reg.get("estado") or "—"
+    valor_txt = f"${float(valor):,.0f}" if valor is not None else "N/D"
+    pagado = reg.get("valor_pagado")
+    pagado_txt = f" · pagado ${float(pagado):,.0f}" if pagado else ""
+    return f"- **{ref}** — {proveedor}: {valor_txt}{pagado_txt} ({estado})"
+
+
+def _format_contract_detail_reply(texto: str, registros: list[dict], anio: int) -> str:
+    reg = registros[0]
+    ref = reg.get("referencia") or reg.get("numero_proceso") or "—"
+    proveedor = reg.get("proveedor") or "Sin proveedor"
+    valor = reg.get("valor")
+    pagado = reg.get("valor_pagado")
+    avance = reg.get("avance_pct")
+    lines = [
+        f"### Resumen — {ref}",
+        f"**Proveedor:** {proveedor}",
+        f"**Estado:** {reg.get('estado') or '—'}",
+        f"**Valor contrato:** ${float(valor):,.0f}" if valor is not None else "**Valor contrato:** N/D",
+    ]
+    if pagado:
+        lines.append(f"**Pagado:** ${float(pagado):,.0f}")
+    if avance is not None:
+        lines.append(f"**Avance financiero:** {float(avance):.0f}%")
+    if reg.get("fecha_fin"):
+        lines.append(f"**Fecha fin:** {reg.get('fecha_fin')}")
+    if reg.get("supervisor"):
+        lines.append(f"**Supervisor:** {reg.get('supervisor')}")
+    if len(registros) > 1:
+        lines.append(f"\n_Otros {len(registros) - 1} contrato(s) relacionados con «{texto}» en {anio}._")
+    return "\n".join(lines)
+
+
+def _format_alerts_reply(alerts: list[dict], anio: int) -> str:
+    if not alerts:
+        return f"No se detectaron alertas relevantes para la vigencia {anio}."
+    lines = [f"### Principales alertas — {anio}\n"]
+    for alert in alerts[:8]:
+        lines.append(
+            f"- **[{alert.get('severidad', '—').upper()}]** {alert.get('titulo', 'Alerta')}"
+            f" — {alert.get('cantidad', 0)} caso(s)"
+        )
+        if alert.get("detalle"):
+            lines.append(f"  {alert['detalle']}")
+    return "\n".join(lines)
+
+
+def _format_top_proveedores_reply(items: list[dict], anio: int) -> str:
+    if not items:
+        return f"No hay proveedores destacados en la vigencia {anio}."
+    lines = [f"### Top proveedores por valor — {anio}\n"]
+    for item in items[:8]:
+        lines.append(
+            f"- **{item.get('proveedor') or '—'}**: "
+            f"${float(item.get('valor') or 0):,.0f} ({item.get('count', 0)} contrato(s))"
+        )
+    return "\n".join(lines)
+
+
+def _format_vigencia_snapshot(ctx: CopilotRunContext) -> str:
+    analytics = ctx.analytics_s2()
+    kpis = analytics.get("kpis", {})
+    lines = [f"### Panorama de contratación — {ctx.anio}\n"]
+    mapping = (
+        ("total_contratos", "Contratos"),
+        ("valor_total", "Valor contratado"),
+        ("valor_pagado", "Valor pagado"),
+        ("contratos_ejecucion", "En ejecución"),
+    )
+    for key, label in mapping:
+        val = kpis.get(key)
+        if val is None:
+            continue
+        if "valor" in key:
+            lines.append(f"- **{label}:** ${float(val):,.0f}")
+        else:
+            lines.append(f"- **{label}:** {val}")
+    modalidades = analytics.get("por_modalidad", [])[:4]
+    if modalidades:
+        lines.append("\n**Por modalidad:**")
+        for item in modalidades:
+            lines.append(f"- {item.get('label') or '—'}: {item.get('count', 0)}")
+    return "\n".join(lines)
+
+
+def _run_tool_and_parse(ctx: CopilotRunContext, tool: str, args: dict) -> tuple[str, Any]:
+    t0 = time.monotonic()
+    result = execute_tool(ctx, tool, args)
+    ctx.timing["tools"].append({"name": tool, "ms": int((time.monotonic() - t0) * 1000)})
+    try:
+        return result, json.loads(result)
+    except json.JSONDecodeError:
+        return result, None
+
+
+def _try_followup_response(
     ctx: CopilotRunContext,
     message: str,
-    *,
-    force: bool = False,
+    history: list[dict[str, str]],
 ) -> dict[str, Any] | None:
-    if _wants_chart(message):
+    if not history or not _is_followup_request(message):
         return None
-    if not force and not _looks_like_contract_query(message):
+    term = _last_search_term(history)
+    if term:
+        raw, registros = _run_tool_and_parse(ctx, "buscar_contratos", {"anio": ctx.anio, "texto": term, "limite": 5})
+        if registros:
+            ctx.timing["fast_path"] = True
+            return {
+                "reply": _format_contract_detail_reply(term, registros, ctx.anio),
+                "sources": [{"tool": "buscar_contratos", "preview": raw[:500]}],
+                "chart": None,
+                "registros": registros,
+            }
+    ctx.timing["fast_path"] = True
+    return {
+        "reply": _format_vigencia_snapshot(ctx),
+        "sources": [{"tool": "analytics_s2", "preview": "snapshot"}],
+        "chart": None,
+        "registros": [],
+    }
+
+
+def _try_tool_intent_response(ctx: CopilotRunContext, message: str) -> dict[str, Any] | None:
+    if _wants_chart(message) or _is_followup_request(message):
+        return None
+    lower = message.lower()
+    anio = ctx.anio
+
+    if any(w in lower for w in ("riesgo", "riesgos", "alerta", "alertas", "problema")):
+        raw, alerts = _run_tool_and_parse(ctx, "listar_alertas", {"anio": anio})
+        if alerts is not None:
+            ctx.timing["fast_path"] = True
+            return {
+                "reply": _format_alerts_reply(alerts, anio),
+                "sources": [{"tool": "listar_alertas", "preview": raw[:500]}],
+                "chart": None,
+                "registros": [],
+            }
+
+    if any(w in lower for w in ("proveedor", "proveedores", "concentra", "top")):
+        raw, tops = _run_tool_and_parse(ctx, "top_proveedores", {"anio": anio, "limite": 8})
+        if tops is not None:
+            ctx.timing["fast_path"] = True
+            return {
+                "reply": _format_top_proveedores_reply(tops, anio),
+                "sources": [{"tool": "top_proveedores", "preview": raw[:500]}],
+                "chart": None,
+                "registros": [],
+            }
+
+    if any(w in lower for w in ("vencer", "vencimiento", "vencen")):
+        dias = 30
+        for candidate in (7, 15, 30, 60):
+            if str(candidate) in lower:
+                dias = candidate
+                break
+        raw, registros = _run_tool_and_parse(ctx, "contratos_por_vencer", {"anio": anio, "dias": dias})
+        if registros is not None:
+            ctx.timing["fast_path"] = True
+            title = f"### Contratos por vencer ({dias} días) — {anio}\n"
+            if not registros:
+                reply = f"No hay contratos por vencer en los próximos {dias} días."
+            else:
+                reply = title + "\n".join(_format_contract_line(r) for r in registros[:10])
+            return {
+                "reply": reply,
+                "sources": [{"tool": "contratos_por_vencer", "preview": raw[:500]}],
+                "chart": None,
+                "registros": registros,
+            }
+
+    if any(w in lower for w in ("panorama", "indicadores", "kpis")) and "modalidad" not in lower:
+        ctx.timing["fast_path"] = True
+        return {
+            "reply": _format_vigencia_snapshot(ctx),
+            "sources": [{"tool": "analytics_s2", "preview": "snapshot"}],
+            "chart": None,
+            "registros": [],
+        }
+
+    return None
+
+
+def _try_fast_text_response(ctx: CopilotRunContext, message: str) -> dict[str, Any] | None:
+    if _wants_chart(message) or not _looks_like_contract_query(message):
         return None
     texto = _extract_search_text(message)
     if not texto:
         return None
-    t0 = time.monotonic()
-    result = execute_tool(ctx, "buscar_contratos", {"anio": ctx.anio, "texto": texto, "limite": 10})
-    ctx.timing["tools"].append({"name": "buscar_contratos", "ms": int((time.monotonic() - t0) * 1000)})
-    try:
-        registros = json.loads(result)
-    except json.JSONDecodeError:
-        registros = []
+    raw, registros = _run_tool_and_parse(ctx, "buscar_contratos", {"anio": ctx.anio, "texto": texto, "limite": 10})
     if not registros:
-        if not force:
-            return None
-        return {
-            "reply": f"No encontré contratos que coincidan con «{texto}» en la vigencia {ctx.anio}.",
-            "sources": [{"tool": "buscar_contratos", "preview": result[:500]}],
-            "chart": None,
-            "registros": [],
-        }
+        return None
     ctx.timing["fast_path"] = True
     return {
         "reply": _format_contract_search_reply(texto, registros, ctx.anio),
-        "sources": [{"tool": "buscar_contratos", "preview": result[:500]}],
+        "sources": [{"tool": "buscar_contratos", "preview": raw[:500]}],
         "chart": None,
         "registros": registros,
     }
+
+
+def _llm_available() -> bool:
+    return bool(get_api_key_for_feature("secop_copilot"))
 
 
 _TOOL_FUNCS = {
@@ -782,6 +965,32 @@ def run_secop_copilot(
         )
         return fast
 
+    history = history or []
+
+    followup = _try_followup_response(ctx, message, history)
+    if followup is not None:
+        ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
+        followup["timing"] = ctx.timing
+        logger.info(
+            "secop_copilot entity=%s anio=%s fast_path=followup timing=%s",
+            entity.id,
+            anio,
+            ctx.timing,
+        )
+        return followup
+
+    intent = _try_tool_intent_response(ctx, message)
+    if intent is not None:
+        ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
+        intent["timing"] = ctx.timing
+        logger.info(
+            "secop_copilot entity=%s anio=%s fast_path=intent timing=%s",
+            entity.id,
+            anio,
+            ctx.timing,
+        )
+        return intent
+
     fast_text = _try_fast_text_response(ctx, message)
     if fast_text is not None:
         ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
@@ -794,7 +1003,18 @@ def run_secop_copilot(
         )
         return fast_text
 
-    history = history or []
+    if not _llm_available():
+        ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
+        return {
+            "reply": (
+                "El copiloto puede responder gráficos, búsqueda de contratos, alertas y resúmenes básicos. "
+                "Para preguntas abiertas configure **SECOP_OPENAI_API_KEY** en el servidor."
+            ),
+            "sources": [],
+            "chart": None,
+            "registros": [],
+            "timing": ctx.timing,
+        }
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": _SYSTEM_COPILOT + f" Año de referencia: {anio}."},
         *history[-8:],
@@ -872,15 +1092,20 @@ def run_secop_copilot(
             reply = _llm_call().choices[0].message.content or ""
     except Exception as exc:
         logger.exception("secop_copilot LLM error entity=%s anio=%s", entity.id, anio)
-        fallback = _try_fast_text_response(ctx, message, force=True)
-        if fallback is not None:
-            ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
-            fallback["timing"] = ctx.timing
-            return fallback
+        for fallback_fn in (
+            lambda: _try_followup_response(ctx, message, history),
+            lambda: _try_tool_intent_response(ctx, message),
+            lambda: _try_fast_text_response(ctx, message),
+        ):
+            fallback = fallback_fn()
+            if fallback is not None:
+                ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
+                fallback["timing"] = ctx.timing
+                fallback["timing"]["llm_error"] = str(exc)[:200]
+                return fallback
         reply = (
             "No pude consultar la IA en este momento. "
-            "Intente una pregunta más específica (por ejemplo: «contrato de [nombre]») "
-            "o verifique la configuración del servicio."
+            "Pruebe preguntas como «contrato de [nombre]», «principales riesgos» o «contratos por vencer»."
         )
         ctx.timing["error"] = str(exc)[:200]
 

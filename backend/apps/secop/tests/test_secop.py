@@ -304,6 +304,54 @@ class SecopCopilotTests(TestCase):
 
     @patch("apps.secop.ai_service.chat_completion")
     @patch("apps.secop.ai_service._load_datasets")
+    def test_followup_resumen_uses_history_not_literal_search(self, mock_load, mock_chat):
+        from apps.secop.ai_service import run_secop_copilot
+
+        record = {
+            "id": "1",
+            "fuente": "secop2",
+            "referencia": "PMT-CD-002-2026",
+            "numero_proceso": "PMT-CD-002-2026",
+            "proveedor": "HECTOR MIGUEL LARROTA ACUÑA",
+            "valor": 15000000,
+            "estado": "En ejecución",
+            "objeto": "Servicios",
+            "fecha_fin": "2026-12-31",
+        }
+        mock_load.return_value = ([], [record])
+        history = [
+            {"role": "user", "content": "Y EL VALOR DE MIGUEL?"},
+            {"role": "assistant", "content": "Contratos que coinciden con **miguel**"},
+        ]
+        result = run_secop_copilot(
+            self.entity,
+            "hazme un resumen",
+            anio=2026,
+            history=history,
+        )
+        mock_chat.assert_not_called()
+        self.assertIn("Resumen", result["reply"])
+        self.assertNotIn("«resumen»", result["reply"])
+
+    @patch("apps.secop.ai_service.chat_completion")
+    @patch("apps.secop.ai_service._load_datasets")
+    def test_riesgos_intent_without_llm(self, mock_load, mock_chat):
+        from apps.secop.ai_service import run_secop_copilot
+
+        mock_load.return_value = ([], self.mock_s2)
+        with patch("apps.secop.ai_service.compute_alerts", return_value=[
+            {"severidad": "alta", "titulo": "Concentración", "cantidad": 2, "detalle": "Un proveedor"},
+        ]):
+            result = run_secop_copilot(
+                self.entity,
+                "¿Cuáles son los principales riesgos?",
+                anio=2026,
+            )
+        mock_chat.assert_not_called()
+        self.assertIn("alertas", result["reply"].lower())
+
+    @patch("apps.secop.ai_service.chat_completion")
+    @patch("apps.secop.ai_service._load_datasets")
     def test_tools_reuse_dataset_cache(self, mock_load, mock_chat):
         from apps.secop.ai_service import CopilotRunContext, execute_tool
 
