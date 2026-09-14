@@ -81,19 +81,73 @@ export function SeverityBadge({ severidad }: { severidad: string }) {
   );
 }
 
-export function ProgressBar({ value, color = "bg-[#3eafd4]", label }: { value: number | null; color?: string; label?: string }) {
+export function ProgressBar({
+  value,
+  color = "bg-[#3eafd4]",
+  label,
+  compact = false,
+}: {
+  value: number | null;
+  color?: string;
+  label?: string;
+  compact?: boolean;
+}) {
   if (value == null) return <span className="text-xs text-slate-400">N/D</span>;
   const pct = Math.min(Math.max(value, 0), 100);
+  const bar = (
+    <div className={`overflow-hidden rounded-full bg-slate-100 ${compact ? "h-1.5 w-14" : "h-2 flex-1"}`}>
+      <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+    </div>
+  );
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1.5" title={label}>
+        {bar}
+        <span className="w-8 text-[10px] font-medium text-slate-600">{pct.toFixed(0)}%</span>
+      </div>
+    );
+  }
   return (
     <div className="space-y-0.5">
       {label && <div className="text-[0.65rem] text-slate-500">{label}</div>}
       <div className="flex items-center gap-2">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-          <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
-        </div>
+        {bar}
         <span className="w-10 text-right text-xs font-medium text-slate-600">{pct.toFixed(0)}%</span>
       </div>
     </div>
+  );
+}
+
+export function SectionHeader({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-3">
+      <div>
+        <h3 className="text-base font-semibold text-slate-800">{title}</h3>
+        {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+export function TipoRegistroBadge({ tipo }: { tipo: "contrato" | "proceso" }) {
+  const isContrato = tipo === "contrato";
+  return (
+    <span
+      className={`inline-flex rounded-md px-2 py-0.5 text-[0.68rem] font-semibold ${
+        isContrato ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100" : "bg-amber-50 text-amber-700 ring-1 ring-amber-100"
+      }`}
+    >
+      {isContrato ? "Contrato" : "Proceso"}
+    </span>
   );
 }
 
