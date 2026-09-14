@@ -5,11 +5,37 @@ import { useSecopYear } from "./SecopYearContext";
 import { DynamicChart, MarkdownContent } from "./components";
 import SecopDetalleModal from "./SecopDetalleModal";
 
+interface CopilotTiming {
+  total_ms: number;
+  data_load_ms: number;
+  llm_ms: number;
+  fast_path: boolean;
+  tools: { name: string; ms: number }[];
+}
+
 interface ChatMsg {
   role: "user" | "assistant";
   content: string;
   chart?: SecopChartSpec | null;
   registros?: Partial<SecopRecord>[];
+  timing?: CopilotTiming;
+}
+
+const LOADING_STEPS = [
+  "Cargando datos SECOP…",
+  "Analizando contratos…",
+  "Generando respuesta…",
+];
+
+function formatTiming(t: CopilotTiming): string {
+  const parts = [`${(t.total_ms / 1000).toFixed(1)}s total`];
+  if (t.data_load_ms > 0) parts.push(`datos ${(t.data_load_ms / 1000).toFixed(1)}s`);
+  if (t.llm_ms > 0) parts.push(`IA ${(t.llm_ms / 1000).toFixed(1)}s`);
+  if (t.fast_path) parts.push("respuesta directa");
+  if (t.tools.length > 0) {
+    parts.push(t.tools.map((tool) => `${tool.name} ${tool.ms}ms`).join(", "));
+  }
+  return parts.join(" · ");
 }
 
 const SUGGESTIONS = [
@@ -25,12 +51,24 @@ export default function SecopCopilotPage() {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const [selected, setSelected] = useState<SecopRecord | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!sending) {
+      setLoadingStep(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setLoadingStep((prev) => (prev + 1) % LOADING_STEPS.length);
+    }, 3500);
+    return () => window.clearInterval(timer);
+  }, [sending]);
 
   async function sendMessage(e?: React.FormEvent, preset?: string) {
     e?.preventDefault();
@@ -53,6 +91,7 @@ export default function SecopCopilotPage() {
           content: res.reply,
           chart: res.chart,
           registros: res.registros,
+          timing: res.timing,
         },
       ]);
     } catch {
@@ -137,14 +176,21 @@ export default function SecopCopilotPage() {
               )}
 
               {m.role === "assistant" && (
-                <button
-                  type="button"
-                  onClick={() => navigator.clipboard.writeText(m.content)}
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
-                >
-                  <Copy className="h-3 w-3" />
-                  Copiar
-                </button>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(m.content)}
+                    className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    <Copy className="h-3 w-3" />
+                    Copiar
+                  </button>
+                  {m.timing && (
+                    <span className="text-[10px] text-slate-400" title="Desglose de tiempo de procesamiento">
+                      {formatTiming(m.timing)}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -153,7 +199,7 @@ export default function SecopCopilotPage() {
         {sending && (
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Consultando datos abiertos…
+            {LOADING_STEPS[loadingStep]}
           </div>
         )}
         <div ref={bottomRef} />

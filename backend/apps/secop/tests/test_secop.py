@@ -224,3 +224,48 @@ class SecopApiAccessTests(TestCase):
         response = view(request)
         self.assertEqual(response.status_code, 200)
         self.assertIn("nits_resueltos_i", response.data)
+
+
+class SecopCopilotTests(TestCase):
+    def setUp(self):
+        self.entity = Entity.objects.create(
+            name="Entidad Copiloto",
+            code="COPILOT",
+            slug="entidad-copiloto",
+            nit="800099642",
+            secop_ii_codigo_entidad="733689657",
+        )
+        self.mock_s2 = [
+            {"modalidad": "Contratación directa", "valor": 1000, "fuente": "secop2"},
+            {"modalidad": "Contratación directa", "valor": 2000, "fuente": "secop2"},
+            {"modalidad": "Licitación pública", "valor": 5000, "fuente": "secop2"},
+        ]
+
+    @patch("apps.secop.ai_service.chat_completion")
+    @patch("apps.secop.ai_service._load_datasets")
+    def test_fast_path_chart_skips_llm(self, mock_load, mock_chat):
+        from apps.secop.ai_service import run_secop_copilot
+
+        mock_load.return_value = ([], self.mock_s2)
+        result = run_secop_copilot(
+            self.entity,
+            "Muéstrame un gráfico por modalidad de contratación",
+            anio=2026,
+        )
+        mock_chat.assert_not_called()
+        self.assertTrue(result["timing"]["fast_path"])
+        self.assertIsNotNone(result["chart"])
+        self.assertEqual(result["chart"]["tipo"], "pie")
+        self.assertEqual(mock_load.call_count, 1)
+
+    @patch("apps.secop.ai_service.chat_completion")
+    @patch("apps.secop.ai_service._load_datasets")
+    def test_tools_reuse_dataset_cache(self, mock_load, mock_chat):
+        from apps.secop.ai_service import CopilotRunContext, execute_tool
+
+        mock_load.return_value = ([], self.mock_s2)
+        ctx = CopilotRunContext(self.entity, 2026)
+        execute_tool(ctx, "por_modalidad", {"anio": 2026})
+        execute_tool(ctx, "top_proveedores", {"anio": 2026, "limite": 3})
+        self.assertEqual(mock_load.call_count, 1)
+        self.assertGreater(ctx.timing["data_load_ms"], 0)

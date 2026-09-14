@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 from typing import Any
 
 from django.core.cache import cache
@@ -142,6 +143,18 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "por_modalidad",
+            "description": "Conteo de contratos SECOP II por modalidad (ligero, ideal para gráficos).",
+            "parameters": {
+                "type": "object",
+                "properties": {"anio": {"type": "integer"}},
+                "required": ["anio"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "generar_grafico",
             "description": "Genera especificación de gráfico para mostrar al usuario.",
             "parameters": {
@@ -184,6 +197,8 @@ _SYSTEM_COPILOT = """Eres el copiloto de contratación de una entidad territoria
 Respondes solo sobre SECOP I/II de esta entidad usando las herramientas disponibles.
 OBLIGATORIO: si el usuario pide un gráfico, diagrama o visualización, debes llamar generar_grafico
 con datos numéricos reales obtenidos de otras herramientas en la misma conversación.
+Para gráficos por modalidad usa por_modalidad; para tendencias mensuales usa serie_mensual.
+Evita resumen_vigencia salvo que el usuario pida un panorama completo de la vigencia.
 No digas que vas a generar un gráfico sin invocar generar_grafico.
 Si listas contratos, sé conciso: número de proceso, proveedor, valor, estado. No repitas URLs largas.
 Si no hay datos, indícalo. Responde en español, de forma ejecutiva con markdown breve."""
@@ -197,8 +212,45 @@ def _load_datasets(entity: Entity, anio: int) -> tuple[list[dict], list[dict]]:
     return secop1, secop2
 
 
-def _build_analysis_context(entity: Entity, anio: int) -> dict[str, Any]:
-    secop1, secop2 = _load_datasets(entity, anio)
+class CopilotRunContext:
+    """Caché de datasets y métricas de tiempo dentro de una sola consulta al copiloto."""
+
+    def __init__(self, entity: Entity, anio: int):
+        self.entity = entity
+        self.anio = anio
+        self._s1: list[dict] | None = None
+        self._s2: list[dict] | None = None
+        self._analytics_s2: dict[str, Any] | None = None
+        self.timing: dict[str, Any] = {
+            "data_load_ms": 0,
+            "llm_ms": 0,
+            "tools": [],
+            "fast_path": False,
+        }
+
+    def datasets(self) -> tuple[list[dict], list[dict]]:
+        if self._s1 is None:
+            t0 = time.monotonic()
+            self._s1, self._s2 = _load_datasets(self.entity, self.anio)
+            self.timing["data_load_ms"] += int((time.monotonic() - t0) * 1000)
+        return self._s1, self._s2
+
+    def analytics_s2(self) -> dict[str, Any]:
+        if self._analytics_s2 is None:
+            _, secop2 = self.datasets()
+            self._analytics_s2 = compute_analytics(secop2) if secop2 else {"kpis": {}}
+        return self._analytics_s2
+
+
+def _build_analysis_context(
+    entity: Entity,
+    anio: int,
+    *,
+    secop1: list[dict] | None = None,
+    secop2: list[dict] | None = None,
+) -> dict[str, Any]:
+    if secop1 is None or secop2 is None:
+        secop1, secop2 = _load_datasets(entity, anio)
     all_recs = secop1 + secop2
     analytics_s1 = compute_analytics(secop1)["kpis"] if secop1 else {}
     analytics_s2 = compute_analytics(secop2) if secop2 else {"kpis": {}}
@@ -336,38 +388,38 @@ def summarize_contract(entity: Entity, record: dict[str, Any], *, user_id: int |
     return {"resumen": response.choices[0].message.content or "", "registro": public}
 
 
-def _tool_resumen_vigencia(entity: Entity, args: dict) -> str:
-    anio = int(args.get("anio") or 0)
-    ctx = _build_analysis_context(entity, anio)
-    return json.dumps(ctx, ensure_ascii=False, default=str)
+def _tool_resumen_vigencia(ctx: CopilotRunContext, args: dict) -> str:
+    anio = int(args.get("anio") or ctx.anio)
+    if anio == ctx.anio:
+        s1, s2 = ctx.datasets()
+        data = _build_analysis_context(ctx.entity, anio, secop1=s1, secop2=s2)
+    else:
+        data = _build_analysis_context(ctx.entity, anio)
+    return json.dumps(data, ensure_ascii=False, default=str)
 
 
-def _tool_listar_alertas(entity: Entity, args: dict) -> str:
-    anio = int(args.get("anio") or 0)
-    s1, s2 = _load_datasets(entity, anio)
+def _tool_listar_alertas(ctx: CopilotRunContext, args: dict) -> str:
+    anio = int(args.get("anio") or ctx.anio)
+    s1, s2 = ctx.datasets()
     alerts = compute_alerts(
         s1, s2,
-        nits_i=resolve_nits_secop_i(entity),
-        nits_ii=resolve_nits_secop_ii(entity),
+        nits_i=resolve_nits_secop_i(ctx.entity),
+        nits_ii=resolve_nits_secop_ii(ctx.entity),
         anio=anio,
     )
     return json.dumps(alerts[:15], ensure_ascii=False, default=str)
 
 
-def _tool_top_proveedores(entity: Entity, args: dict) -> str:
-    anio = int(args.get("anio") or 0)
+def _tool_top_proveedores(ctx: CopilotRunContext, args: dict) -> str:
     limite = int(args.get("limite") or 5)
-    _, s2 = _load_datasets(entity, anio)
-    analytics = compute_analytics(s2)
-    tops = analytics.get("top_proveedores_valor", [])[:limite]
+    tops = ctx.analytics_s2().get("top_proveedores_valor", [])[:limite]
     return json.dumps(tops, ensure_ascii=False, default=str)
 
 
-def _tool_buscar_contratos(entity: Entity, args: dict) -> str:
-    anio = int(args.get("anio") or 0)
+def _tool_buscar_contratos(ctx: CopilotRunContext, args: dict) -> str:
     texto = (args.get("texto") or "").lower().strip()
     limite = int(args.get("limite") or 10)
-    s1, s2 = _load_datasets(entity, anio)
+    s1, s2 = ctx.datasets()
     hits = []
     for r in s1 + s2:
         blob = " ".join(
@@ -380,10 +432,9 @@ def _tool_buscar_contratos(entity: Entity, args: dict) -> str:
     return json.dumps(hits, ensure_ascii=False, default=str)
 
 
-def _tool_contratos_por_vencer(entity: Entity, args: dict) -> str:
-    anio = int(args.get("anio") or 0)
+def _tool_contratos_por_vencer(ctx: CopilotRunContext, args: dict) -> str:
     dias = int(args.get("dias") or 30)
-    s1, s2 = _load_datasets(entity, anio)
+    s1, s2 = ctx.datasets()
     buckets = buckets_vencimiento(s1 + s2)
     out = []
     for key in ("por_vencer_7", "por_vencer_15", "por_vencer_30", "por_vencer_60"):
@@ -392,29 +443,30 @@ def _tool_contratos_por_vencer(entity: Entity, args: dict) -> str:
     return json.dumps(out[:20], ensure_ascii=False, default=str)
 
 
-def _tool_contratos_sin_liquidar(entity: Entity, args: dict) -> str:
-    anio = int(args.get("anio") or 0)
-    s1, s2 = _load_datasets(entity, anio)
+def _tool_contratos_sin_liquidar(ctx: CopilotRunContext, args: dict) -> str:
+    s1, s2 = ctx.datasets()
     buckets = buckets_vencimiento(s1 + s2)
     return json.dumps(buckets.get("vencidos_sin_liquidar", {}).get("registros", [])[:20], ensure_ascii=False, default=str)
 
 
-def _tool_ejecucion_por_responsable(entity: Entity, args: dict) -> str:
-    anio = int(args.get("anio") or 0)
+def _tool_ejecucion_por_responsable(ctx: CopilotRunContext, args: dict) -> str:
     campo = args.get("campo") or "supervisor"
-    s1, s2 = _load_datasets(entity, anio)
+    s1, s2 = ctx.datasets()
     data = agrupar_por_responsable(s1 + s2, campo)
     return json.dumps(data[:15], ensure_ascii=False, default=str)
 
 
-def _tool_serie_mensual(entity: Entity, args: dict) -> str:
-    anio = int(args.get("anio") or 0)
-    s1, s2 = _load_datasets(entity, anio)
-    analytics = compute_analytics(s2)
+def _tool_serie_mensual(ctx: CopilotRunContext, args: dict) -> str:
+    analytics = ctx.analytics_s2()
     return json.dumps({
         "contratacion": analytics.get("serie_mensual", []),
         "pagos": analytics.get("serie_mensual_pagos", []),
     }, ensure_ascii=False, default=str)
+
+
+def _tool_por_modalidad(ctx: CopilotRunContext, args: dict) -> str:
+    items = ctx.analytics_s2().get("por_modalidad", [])
+    return json.dumps(items, ensure_ascii=False, default=str)
 
 
 def _normalize_chart_spec(args: dict) -> dict | None:
@@ -447,7 +499,7 @@ def _normalize_chart_spec(args: dict) -> dict | None:
     }
 
 
-def _tool_generar_grafico(entity: Entity, args: dict) -> str:
+def _tool_generar_grafico(ctx: CopilotRunContext, args: dict) -> str:
     chart = _normalize_chart_spec(args) or args
     return json.dumps(chart, ensure_ascii=False, default=str)
 
@@ -471,10 +523,11 @@ def _wants_chart(message: str) -> bool:
     )
 
 
-def _infer_chart(entity: Entity, anio: int, message: str) -> dict | None:
+def _infer_chart(ctx: CopilotRunContext, message: str) -> dict | None:
     lower = message.lower()
-    _, s2 = _load_datasets(entity, anio)
-    analytics = compute_analytics(s2)
+    anio = ctx.anio
+    _, s2 = ctx.datasets()
+    analytics = ctx.analytics_s2()
 
     if any(word in lower for word in ("modalidad", "modalidades")):
         items = analytics.get("por_modalidad", [])[:8]
@@ -541,6 +594,43 @@ def _infer_chart(entity: Entity, anio: int, message: str) -> dict | None:
     return None
 
 
+def _format_chart_reply(chart: dict, anio: int) -> str:
+    titulo = chart.get("titulo") or f"Gráfico — {anio}"
+    datos = chart.get("datos") or []
+    formato = chart.get("formato") or "numero"
+    total = sum(float(d.get("valor") or 0) for d in datos)
+    lines: list[str] = []
+    for item in datos:
+        label = item.get("label") or "—"
+        val = float(item.get("valor") or 0)
+        if formato == "moneda":
+            val_str = f"${val:,.0f}"
+        elif formato == "porcentaje":
+            val_str = f"{val:.1f}%"
+        else:
+            val_str = f"{val:,.0f}"
+        extra = ""
+        if formato == "numero" and total > 0 and chart.get("tipo") == "pie":
+            extra = f" ({100 * val / total:.0f}%)"
+        lines.append(f"- **{label}**: {val_str}{extra}")
+    return f"### {titulo}\n\n" + "\n".join(lines)
+
+
+def _try_fast_chart_response(ctx: CopilotRunContext, message: str) -> dict[str, Any] | None:
+    if not _wants_chart(message):
+        return None
+    chart = _infer_chart(ctx, message)
+    if not chart:
+        return None
+    ctx.timing["fast_path"] = True
+    return {
+        "reply": _format_chart_reply(chart, ctx.anio),
+        "sources": [{"tool": "fast_chart", "preview": json.dumps(chart.get("datos", [])[:3], ensure_ascii=False)}],
+        "chart": chart,
+        "registros": [],
+    }
+
+
 _TOOL_FUNCS = {
     "resumen_vigencia": _tool_resumen_vigencia,
     "listar_alertas": _tool_listar_alertas,
@@ -550,15 +640,16 @@ _TOOL_FUNCS = {
     "contratos_sin_liquidar": _tool_contratos_sin_liquidar,
     "ejecucion_por_responsable": _tool_ejecucion_por_responsable,
     "serie_mensual": _tool_serie_mensual,
+    "por_modalidad": _tool_por_modalidad,
     "generar_grafico": _tool_generar_grafico,
 }
 
 
-def execute_tool(entity: Entity, name: str, arguments: dict) -> str:
+def execute_tool(ctx: CopilotRunContext, name: str, arguments: dict) -> str:
     fn = _TOOL_FUNCS.get(name)
     if not fn:
         return json.dumps({"error": f"Herramienta desconocida: {name}"})
-    return fn(entity, arguments)
+    return fn(ctx, arguments)
 
 
 def run_secop_copilot(
@@ -569,6 +660,21 @@ def run_secop_copilot(
     history: list[dict[str, str]] | None = None,
     user_id: int | None = None,
 ) -> dict[str, Any]:
+    started = time.monotonic()
+    ctx = CopilotRunContext(entity, anio)
+
+    fast = _try_fast_chart_response(ctx, message)
+    if fast is not None:
+        ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
+        fast["timing"] = ctx.timing
+        logger.info(
+            "secop_copilot entity=%s anio=%s fast_path=true timing=%s",
+            entity.id,
+            anio,
+            ctx.timing,
+        )
+        return fast
+
     history = history or []
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": _SYSTEM_COPILOT + f" Año de referencia: {anio}."},
@@ -581,16 +687,21 @@ def run_secop_copilot(
     registros: list[dict] = []
     reply = ""
 
+    def _llm_call(extra: dict[str, Any] | None = None) -> Any:
+        t0 = time.monotonic()
+        kwargs: dict[str, Any] = {
+            "entity_id": entity.id,
+            "user_id": user_id,
+            "temperature": 0.3,
+        }
+        if extra:
+            kwargs.update(extra)
+        response = chat_completion("secop_copilot", messages, **kwargs)
+        ctx.timing["llm_ms"] += int((time.monotonic() - t0) * 1000)
+        return response
+
     for round_idx in range(MAX_COPILOT_TOOL_ROUNDS):
-        response = chat_completion(
-            "secop_copilot",
-            messages,
-            entity_id=entity.id,
-            user_id=user_id,
-            tools=TOOL_DEFINITIONS,
-            tool_choice="auto",
-            temperature=0.3,
-        )
+        response = _llm_call(tools=TOOL_DEFINITIONS, tool_choice="auto")
         msg = response.choices[0].message
 
         if not msg.tool_calls:
@@ -616,7 +727,10 @@ def run_secop_copilot(
                 args = json.loads(tc.function.arguments or "{}")
             except json.JSONDecodeError:
                 args = {}
-            result = execute_tool(entity, tc.function.name, args)
+            t0 = time.monotonic()
+            result = execute_tool(ctx, tc.function.name, args)
+            tool_ms = int((time.monotonic() - t0) * 1000)
+            ctx.timing["tools"].append({"name": tc.function.name, "ms": tool_ms})
             sources.append({"tool": tc.function.name, "preview": result[:500]})
             if tc.function.name == "generar_grafico":
                 try:
@@ -632,26 +746,26 @@ def run_secop_copilot(
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
         if chart is not None and round_idx >= 1:
-            final = chat_completion(
-                "secop_copilot",
-                messages,
-                entity_id=entity.id,
-                user_id=user_id,
-                temperature=0.3,
-            )
-            reply = final.choices[0].message.content or ""
+            reply = _llm_call().choices[0].message.content or ""
             break
     else:
-        final = chat_completion(
-            "secop_copilot",
-            messages,
-            entity_id=entity.id,
-            user_id=user_id,
-            temperature=0.3,
-        )
-        reply = final.choices[0].message.content or ""
+        reply = _llm_call().choices[0].message.content or ""
 
     if chart is None and _wants_chart(message):
-        chart = _infer_chart(entity, anio, message)
+        chart = _infer_chart(ctx, message)
 
-    return {"reply": reply, "sources": sources, "chart": chart, "registros": registros}
+    ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "secop_copilot entity=%s anio=%s fast_path=false timing=%s tools=%s",
+        entity.id,
+        anio,
+        ctx.timing,
+        [s["tool"] for s in sources],
+    )
+    return {
+        "reply": reply,
+        "sources": sources,
+        "chart": chart,
+        "registros": registros,
+        "timing": ctx.timing,
+    }

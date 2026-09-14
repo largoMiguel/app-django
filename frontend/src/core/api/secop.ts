@@ -322,6 +322,13 @@ export const secopApi = {
         sources: { tool: string; preview: string }[];
         chart?: SecopChartSpec | null;
         registros?: Partial<SecopRecord>[];
+        timing?: {
+          total_ms: number;
+          data_load_ms: number;
+          llm_ms: number;
+          fast_path: boolean;
+          tools: { name: string; ms: number }[];
+        };
       }>("/secop/ai/copilot/", { message, anio, history }, { timeout: SECOP_TIMEOUT_MS })
       .then((r) => r.data),
 
