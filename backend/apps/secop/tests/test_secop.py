@@ -260,6 +260,50 @@ class SecopCopilotTests(TestCase):
 
     @patch("apps.secop.ai_service.chat_completion")
     @patch("apps.secop.ai_service._load_datasets")
+    def test_fast_path_bar_chart_type(self, mock_load, mock_chat):
+        from apps.secop.ai_service import run_secop_copilot
+
+        mock_load.return_value = ([], self.mock_s2)
+        result = run_secop_copilot(
+            self.entity,
+            "grafico de barras por modalidad",
+            anio=2026,
+        )
+        mock_chat.assert_not_called()
+        self.assertEqual(result["chart"]["tipo"], "bar")
+
+    @patch("apps.secop.ai_service.chat_completion")
+    @patch("apps.secop.ai_service._load_datasets")
+    def test_fast_path_contract_search(self, mock_load, mock_chat):
+        from apps.secop.ai_service import run_secop_copilot
+
+        mock_load.return_value = (
+            [],
+            [
+                {
+                    "id": "1",
+                    "fuente": "secop2",
+                    "referencia": "PMT-001",
+                    "numero_proceso": "PMT-001",
+                    "proveedor": "MIGUEL LOPEZ",
+                    "valor": 5000000,
+                    "estado": "En ejecución",
+                    "objeto": "Servicios",
+                },
+            ],
+        )
+        result = run_secop_copilot(
+            self.entity,
+            "y de miguel, cuanto vale el contrato",
+            anio=2026,
+        )
+        mock_chat.assert_not_called()
+        self.assertTrue(result["timing"]["fast_path"])
+        self.assertIn("MIGUEL", result["reply"].upper())
+        self.assertEqual(len(result["registros"]), 1)
+
+    @patch("apps.secop.ai_service.chat_completion")
+    @patch("apps.secop.ai_service._load_datasets")
     def test_tools_reuse_dataset_cache(self, mock_load, mock_chat):
         from apps.secop.ai_service import CopilotRunContext, execute_tool
 

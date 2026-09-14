@@ -205,7 +205,7 @@ REST_FRAMEWORK = {
         "asistencia_kiosk_pair": "20/hour",
         "asistencia_kiosk_punch": "30/min",
         "secop_datos_gov": "600/hour",
-        "secop_ai": "30/hour",
+        "secop_ai": "120/hour",
     },
 }
 

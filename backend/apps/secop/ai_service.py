@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import time
 from typing import Any
 
@@ -519,8 +520,23 @@ def _wants_chart(message: str) -> bool:
             "dona",
             "pastel",
             "barras",
+            "torta",
+            "histograma",
         )
     )
+
+
+def _infer_chart_type(message: str, *, default: str = "bar") -> str:
+    lower = message.lower()
+    if any(w in lower for w in ("torta", "pastel", "pie", "dona", "circular")):
+        return "pie"
+    if any(w in lower for w in ("linea", "línea", "line", "tendencia", "evolución", "evolucion")):
+        return "line"
+    if any(w in lower for w in ("area", "área")):
+        return "area"
+    if any(w in lower for w in ("barra", "barras", "columna", "columnas", "histograma")):
+        return "bar"
+    return default
 
 
 def _infer_chart(ctx: CopilotRunContext, message: str) -> dict | None:
@@ -534,7 +550,7 @@ def _infer_chart(ctx: CopilotRunContext, message: str) -> dict | None:
         if not items:
             return None
         return {
-            "tipo": "pie",
+            "tipo": _infer_chart_type(message, default="pie"),
             "titulo": f"Contratación por modalidad — {anio}",
             "formato": "numero",
             "datos": [{"label": i.get("label") or "Sin modalidad", "valor": i.get("count", 0)} for i in items],
@@ -552,7 +568,7 @@ def _infer_chart(ctx: CopilotRunContext, message: str) -> dict | None:
             pago = next((p.get("valor", 0) for p in pagos if p.get("mes") == mes), 0)
             datos.append({"label": mes, "valor": float(pago or contrato)})
         return {
-            "tipo": "line",
+            "tipo": _infer_chart_type(message, default="line"),
             "titulo": f"Contratación y pagos — {anio}",
             "formato": "moneda",
             "datos": datos,
@@ -564,7 +580,7 @@ def _infer_chart(ctx: CopilotRunContext, message: str) -> dict | None:
         if not groups:
             return None
         return {
-            "tipo": "bar",
+            "tipo": _infer_chart_type(message, default="bar"),
             "titulo": f"Valor contratado por {campo.replace('_', ' ')} — {anio}",
             "formato": "moneda",
             "datos": [{"label": g.get("nombre") or "Sin asignar", "valor": g.get("valor_total", 0)} for g in groups],
@@ -575,7 +591,7 @@ def _infer_chart(ctx: CopilotRunContext, message: str) -> dict | None:
         if not tops:
             return None
         return {
-            "tipo": "bar",
+            "tipo": _infer_chart_type(message, default="bar"),
             "titulo": f"Top proveedores — {anio}",
             "formato": "moneda",
             "datos": [{"label": t.get("proveedor") or "—", "valor": t.get("valor", 0)} for t in tops],
@@ -586,7 +602,7 @@ def _infer_chart(ctx: CopilotRunContext, message: str) -> dict | None:
         if not items:
             return None
         return {
-            "tipo": "pie",
+            "tipo": _infer_chart_type(message, default="bar"),
             "titulo": f"Contratación por modalidad — {anio}",
             "formato": "numero",
             "datos": [{"label": i.get("label") or "Sin modalidad", "valor": i.get("count", 0)} for i in items],
@@ -631,6 +647,97 @@ def _try_fast_chart_response(ctx: CopilotRunContext, message: str) -> dict[str, 
     }
 
 
+_SEARCH_STOPWORDS = frozenset({
+    "y", "de", "el", "la", "los", "las", "un", "una", "por", "con", "que", "cual", "cuál",
+    "cuanto", "cuánto", "cualto", "vale", "valor", "contrato", "contratos", "proceso", "precio",
+    "muestrame", "muestra", "dame", "busca", "buscar", "encuentra", "listar", "dime", "sobre",
+})
+
+
+def _extract_search_text(message: str) -> str | None:
+    for pattern in (r"\bde\s+([a-záéíóúñ0-9]+)", r"\bpor\s+([a-záéíóúñ0-9]+)", r"\bcon\s+([a-záéíóúñ0-9]+)"):
+        match = re.search(pattern, message, re.I)
+        if match:
+            word = re.sub(r"[^\wáéíóúñ]", "", match.group(1).lower())
+            if len(word) >= 3 and word not in _SEARCH_STOPWORDS:
+                return word
+    words = [
+        re.sub(r"[^\wáéíóúñ]", "", w.lower())
+        for w in message.split()
+        if len(re.sub(r"[^\wáéíóúñ]", "", w)) >= 3
+    ]
+    candidates = [w for w in words if w not in _SEARCH_STOPWORDS]
+    return candidates[-1] if candidates else None
+
+
+def _looks_like_contract_query(message: str) -> bool:
+    lower = message.lower()
+    contract_words = (
+        "contrato", "valor", "cuanto", "cuánto", "cualto", "vale", "precio",
+        "proveedor", "proceso", "adjudic", "pagado", "liquid",
+    )
+    texto = _extract_search_text(message)
+    if not texto:
+        return False
+    if any(w in lower for w in contract_words):
+        return True
+    return any(w in lower for w in ("busca", "buscar", "encuentra", "listar", "dime"))
+
+
+def _format_contract_search_reply(texto: str, registros: list[dict], anio: int) -> str:
+    lines = [f"Contratos que coinciden con **{texto}** — vigencia {anio}:\n"]
+    for reg in registros[:8]:
+        ref = reg.get("referencia") or reg.get("numero_proceso") or "—"
+        proveedor = reg.get("proveedor") or "Sin proveedor"
+        valor = reg.get("valor")
+        estado = reg.get("estado") or "—"
+        valor_txt = f"${float(valor):,.0f}" if valor is not None else "N/D"
+        pagado = reg.get("valor_pagado")
+        pagado_txt = f" · pagado ${float(pagado):,.0f}" if pagado else ""
+        lines.append(f"- **{ref}** — {proveedor}: {valor_txt}{pagado_txt} ({estado})")
+    if len(registros) > 8:
+        lines.append(f"\n_Y {len(registros) - 8} más…_")
+    return "\n".join(lines)
+
+
+def _try_fast_text_response(
+    ctx: CopilotRunContext,
+    message: str,
+    *,
+    force: bool = False,
+) -> dict[str, Any] | None:
+    if _wants_chart(message):
+        return None
+    if not force and not _looks_like_contract_query(message):
+        return None
+    texto = _extract_search_text(message)
+    if not texto:
+        return None
+    t0 = time.monotonic()
+    result = execute_tool(ctx, "buscar_contratos", {"anio": ctx.anio, "texto": texto, "limite": 10})
+    ctx.timing["tools"].append({"name": "buscar_contratos", "ms": int((time.monotonic() - t0) * 1000)})
+    try:
+        registros = json.loads(result)
+    except json.JSONDecodeError:
+        registros = []
+    if not registros:
+        if not force:
+            return None
+        return {
+            "reply": f"No encontré contratos que coincidan con «{texto}» en la vigencia {ctx.anio}.",
+            "sources": [{"tool": "buscar_contratos", "preview": result[:500]}],
+            "chart": None,
+            "registros": [],
+        }
+    ctx.timing["fast_path"] = True
+    return {
+        "reply": _format_contract_search_reply(texto, registros, ctx.anio),
+        "sources": [{"tool": "buscar_contratos", "preview": result[:500]}],
+        "chart": None,
+        "registros": registros,
+    }
+
+
 _TOOL_FUNCS = {
     "resumen_vigencia": _tool_resumen_vigencia,
     "listar_alertas": _tool_listar_alertas,
@@ -668,12 +775,24 @@ def run_secop_copilot(
         ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
         fast["timing"] = ctx.timing
         logger.info(
-            "secop_copilot entity=%s anio=%s fast_path=true timing=%s",
+            "secop_copilot entity=%s anio=%s fast_path=chart timing=%s",
             entity.id,
             anio,
             ctx.timing,
         )
         return fast
+
+    fast_text = _try_fast_text_response(ctx, message)
+    if fast_text is not None:
+        ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
+        fast_text["timing"] = ctx.timing
+        logger.info(
+            "secop_copilot entity=%s anio=%s fast_path=text timing=%s",
+            entity.id,
+            anio,
+            ctx.timing,
+        )
+        return fast_text
 
     history = history or []
     messages: list[dict[str, Any]] = [
@@ -700,56 +819,70 @@ def run_secop_copilot(
         ctx.timing["llm_ms"] += int((time.monotonic() - t0) * 1000)
         return response
 
-    for round_idx in range(MAX_COPILOT_TOOL_ROUNDS):
-        response = _llm_call(tools=TOOL_DEFINITIONS, tool_choice="auto")
-        msg = response.choices[0].message
+    try:
+        for round_idx in range(MAX_COPILOT_TOOL_ROUNDS):
+            response = _llm_call(tools=TOOL_DEFINITIONS, tool_choice="auto")
+            msg = response.choices[0].message
 
-        if not msg.tool_calls:
-            reply = msg.content or ""
-            break
+            if not msg.tool_calls:
+                reply = msg.content or ""
+                break
 
-        messages.append(
-            {
-                "role": "assistant",
-                "content": msg.content or "",
-                "tool_calls": [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {"name": tc.function.name, "arguments": tc.function.arguments},
-                    }
-                    for tc in msg.tool_calls
-                ],
-            }
-        )
-        for tc in msg.tool_calls:
-            try:
-                args = json.loads(tc.function.arguments or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            t0 = time.monotonic()
-            result = execute_tool(ctx, tc.function.name, args)
-            tool_ms = int((time.monotonic() - t0) * 1000)
-            ctx.timing["tools"].append({"name": tc.function.name, "ms": tool_ms})
-            sources.append({"tool": tc.function.name, "preview": result[:500]})
-            if tc.function.name == "generar_grafico":
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": msg.content or "",
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                        }
+                        for tc in msg.tool_calls
+                    ],
+                }
+            )
+            for tc in msg.tool_calls:
                 try:
-                    parsed = json.loads(result)
-                    chart = _normalize_chart_spec(parsed) or parsed
+                    args = json.loads(tc.function.arguments or "{}")
                 except json.JSONDecodeError:
-                    chart = _normalize_chart_spec(args)
-            elif tc.function.name == "buscar_contratos":
-                try:
-                    registros = json.loads(result)
-                except json.JSONDecodeError:
-                    pass
-            messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+                    args = {}
+                t0 = time.monotonic()
+                result = execute_tool(ctx, tc.function.name, args)
+                tool_ms = int((time.monotonic() - t0) * 1000)
+                ctx.timing["tools"].append({"name": tc.function.name, "ms": tool_ms})
+                sources.append({"tool": tc.function.name, "preview": result[:500]})
+                if tc.function.name == "generar_grafico":
+                    try:
+                        parsed = json.loads(result)
+                        chart = _normalize_chart_spec(parsed) or parsed
+                    except json.JSONDecodeError:
+                        chart = _normalize_chart_spec(args)
+                elif tc.function.name == "buscar_contratos":
+                    try:
+                        registros = json.loads(result)
+                    except json.JSONDecodeError:
+                        pass
+                messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
-        if chart is not None and round_idx >= 1:
+            if chart is not None and round_idx >= 1:
+                reply = _llm_call().choices[0].message.content or ""
+                break
+        else:
             reply = _llm_call().choices[0].message.content or ""
-            break
-    else:
-        reply = _llm_call().choices[0].message.content or ""
+    except Exception as exc:
+        logger.exception("secop_copilot LLM error entity=%s anio=%s", entity.id, anio)
+        fallback = _try_fast_text_response(ctx, message, force=True)
+        if fallback is not None:
+            ctx.timing["total_ms"] = int((time.monotonic() - started) * 1000)
+            fallback["timing"] = ctx.timing
+            return fallback
+        reply = (
+            "No pude consultar la IA en este momento. "
+            "Intente una pregunta más específica (por ejemplo: «contrato de [nombre]») "
+            "o verifique la configuración del servicio."
+        )
+        ctx.timing["error"] = str(exc)[:200]
 
     if chart is None and _wants_chart(message):
         chart = _infer_chart(ctx, message)
