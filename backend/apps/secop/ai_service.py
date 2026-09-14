@@ -673,7 +673,9 @@ def _extract_search_text(message: str) -> str | None:
 
 def _is_followup_request(message: str) -> bool:
     lower = message.lower().strip()
-    return any(hint in lower for hint in _FOLLOWUP_HINTS)
+    if any(hint in lower for hint in _FOLLOWUP_HINTS):
+        return True
+    return bool(re.search(r"\bresu\w{0,6}\b", lower))
 
 
 def _last_search_term(history: list[dict[str, str]]) -> str | None:
@@ -1041,7 +1043,7 @@ def run_secop_copilot(
 
     try:
         for round_idx in range(MAX_COPILOT_TOOL_ROUNDS):
-            response = _llm_call(tools=TOOL_DEFINITIONS, tool_choice="auto")
+            response = _llm_call({"tools": TOOL_DEFINITIONS, "tool_choice": "auto"})
             msg = response.choices[0].message
 
             if not msg.tool_calls:

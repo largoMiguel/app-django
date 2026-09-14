@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth.models import Group
 from django.test import TestCase
@@ -349,6 +349,35 @@ class SecopCopilotTests(TestCase):
             )
         mock_chat.assert_not_called()
         self.assertIn("alertas", result["reply"].lower())
+
+    @patch("apps.secop.ai_service._llm_available", return_value=True)
+    @patch("apps.secop.ai_service.chat_completion")
+    @patch("apps.secop.ai_service._load_datasets")
+    def test_llm_path_passes_tools_kwarg(self, mock_load, mock_chat, _llm_ok):
+        from apps.secop.ai_service import run_secop_copilot
+
+        mock_load.return_value = ([], self.mock_s2)
+        mock_chat.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(tool_calls=None, content="Panorama general."))]
+        )
+        result = run_secop_copilot(
+            self.entity,
+            "¿Cómo va la contratación este año?",
+            anio=2026,
+        )
+        mock_chat.assert_called_once()
+        self.assertIn("tools", mock_chat.call_args.kwargs)
+        self.assertEqual(result["reply"], "Panorama general.")
+
+    @patch("apps.secop.ai_service.chat_completion")
+    @patch("apps.secop.ai_service._load_datasets")
+    def test_resumen_typo_uses_followup(self, mock_load, mock_chat):
+        from apps.secop.ai_service import run_secop_copilot
+
+        mock_load.return_value = ([], self.mock_s2)
+        result = run_secop_copilot(self.entity, "hazme un resuemn", anio=2026)
+        mock_chat.assert_not_called()
+        self.assertIn("Panorama", result["reply"])
 
     @patch("apps.secop.ai_service.chat_completion")
     @patch("apps.secop.ai_service._load_datasets")
