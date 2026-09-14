@@ -53,6 +53,21 @@ class SecopNormalizeTests(TestCase):
         self.assertIsNone(rec["valor_pagado"])
         self.assertFalse(rec["datos_pago_disponibles"])
 
+    def test_secop2_parse_duracion_colombia(self):
+        rec = normalize_secop2_contract(
+            {
+                "id_contrato": "C1",
+                "referencia_del_contrato": "R1",
+                "estado_contrato": "En ejecución",
+                "valor_del_contrato": "1000",
+                "fecha_de_firma": "2026-01-01T00:00:00.000",
+                "duraci_n_del_contrato": "6 Mes(es)",
+            }
+        )
+        self.assertIsNotNone(rec["fecha_fin"])
+        self.assertEqual(rec["plazo_ejecucion"], 6.0)
+        self.assertEqual(rec["plazo_unidad"], "meses")
+
     def test_unify_links_contract_and_process(self):
         contract_row = {
             "id_contrato": "C1",
@@ -181,6 +196,43 @@ class SecopAnalyticsTests(TestCase):
         rec["tipo_registro"] = "contrato"
         dias = _dias_restantes(rec, date(2026, 6, 15))
         self.assertIsNotNone(dias)
+
+    def test_fecha_fin_from_duracion_texto_secop2(self):
+        from apps.secop.analytics import _dias_restantes, matches_vencimiento_bucket
+
+        rec = normalize_secop2_contract(
+            {
+                "id_contrato": "C3",
+                "referencia_del_contrato": "R3",
+                "estado_contrato": "En ejecución",
+                "valor_del_contrato": "1000",
+                "fecha_de_inicio_del_contrato": "2026-09-01T00:00:00.000",
+                "duraci_n_del_contrato": "169 Dia(s)",
+            }
+        )
+        self.assertIsNotNone(rec.get("fecha_fin"))
+        self.assertEqual(rec.get("plazo_ejecucion"), 169.0)
+        today = date(2026, 9, 14)
+        dias = _dias_restantes(rec, today)
+        self.assertIsNotNone(dias)
+        self.assertTrue(dias > 0)
+        self.assertTrue(matches_vencimiento_bucket(rec, "por_vencer_60", today))
+
+    def test_vencidos_sin_liquidar_cerrado(self):
+        fin = (date.today() - timedelta(days=40)).isoformat()
+        rec = normalize_secop2_contract(
+            {
+                "id_contrato": "C4",
+                "referencia_del_contrato": "R4",
+                "estado_contrato": "Cerrado",
+                "valor_del_contrato": "1000",
+                "fecha_de_fin_del_contrato": f"{fin}T00:00:00.000",
+                "liquidaci_n": "No",
+            }
+        )
+        buckets = buckets_vencimiento([rec])
+        self.assertEqual(buckets["vencidos_sin_liquidar"]["count"], 1)
+        self.assertEqual(buckets["por_vencer_30"]["count"], 0)
 
 
 class SecopAlertsTests(TestCase):

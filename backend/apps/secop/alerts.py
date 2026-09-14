@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
 
+from .analytics import _dias_restantes  # noqa: PLC2701
 from .normalize import _parse_date, _parse_float  # noqa: PLC2701
 
 
@@ -58,13 +59,6 @@ def _is_liquidado(rec: dict[str, Any]) -> bool:
     liq = str(rec.get("liquidacion") or "").lower()
     estado = (rec.get("estado") or "").lower()
     return liq in {"si", "sí", "yes"} or "liquid" in estado
-
-
-def _dias_restantes(rec: dict[str, Any], today: date) -> int | None:
-    fin = _parse_date(rec.get("fecha_fin"))
-    if not fin:
-        return None
-    return (fin - today).days
 
 
 def _modalidad_directa(modalidad: str | None) -> bool:

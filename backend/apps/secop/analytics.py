@@ -5,7 +5,7 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from .normalize import _parse_date, _parse_float  # noqa: PLC2701
+from .normalize import _parse_date, _parse_float, compute_fecha_fin_from_plazo  # noqa: PLC2701
 
 
 def _month_key(iso: str | None) -> str | None:
@@ -20,16 +20,17 @@ def _month_key(iso: str | None) -> str | None:
 
 def _estado_vigencia(rec: dict[str, Any], today: date | None = None) -> str:
     today = today or date.today()
-    fin = _effective_fecha_fin(rec)
-    estado = (rec.get("estado") or "").lower()
-    if "ejecuci" in estado or "celebrado" in estado or "terminad" in estado:
-        if fin and fin < today:
-            return "vencido"
-        if fin and (fin - today).days <= 30:
-            return "por_vencer"
-        return "vigente"
-    if "liquid" in estado:
+    if _is_liquidado(rec):
         return "liquidado"
+    fin = _effective_fecha_fin(rec)
+    if not fin:
+        return "otro"
+    if fin < today:
+        return "vencido"
+    if (fin - today).days <= 30 and _contrato_en_plazo(rec):
+        return "por_vencer"
+    if _contrato_en_plazo(rec):
+        return "vigente"
     return "otro"
 
 
@@ -38,28 +39,37 @@ def _is_ejecucion(estado: str | None) -> bool:
     return "ejecuci" in e or "celebrado" in e
 
 
-def _contrato_activo_plazo(estado: str | None) -> bool:
-    e = (estado or "").lower()
-    if not e or any(x in e for x in ("liquid", "cancelad", "desiert", "anulad")):
+def _contrato_en_plazo(rec: dict[str, Any]) -> bool:
+    estado = rec.get("estado")
+    e = (estado or "").lower().strip()
+    if not e:
+        return True
+    if any(x in e for x in ("liquid", "cancelad", "desiert", "anulad", "rescind")):
         return False
-    return any(x in e for x in ("ejecuci", "celebrado", "terminad", "vigente", "suspen"))
+    if any(x in e for x in ("ejecuci", "celebrado", "terminad", "vigente", "suspen", "modific", "publicad")):
+        return True
+    if "cerrado" in e or "finaliz" in e:
+        return False
+    return not any(x in e for x in ("prepar", "borrador", "proceso de selecci"))
+
+
+def _contrato_activo_plazo(estado: str | None) -> bool:
+    return _contrato_en_plazo({"estado": estado})
 
 
 def _effective_fecha_fin(rec: dict[str, Any]) -> date | None:
     fin = _parse_date(rec.get("fecha_fin"))
-    if fin:
-        return fin
-    ini = _parse_date(rec.get("fecha_inicio")) or _parse_date(rec.get("fecha_firma"))
-    plazo = rec.get("plazo_ejecucion")
-    if ini and plazo:
-        days = int(float(plazo))
-        unidad = (rec.get("plazo_unidad") or "").lower()
-        if "mes" in unidad:
-            return ini + timedelta(days=days * 30)
-        if "a" in unidad and ("ño" in unidad or "no" in unidad):
-            return ini + timedelta(days=days * 365)
-        return ini + timedelta(days=max(days, 1))
-    return None
+    if not fin:
+        ini = _parse_date(rec.get("fecha_inicio")) or _parse_date(rec.get("fecha_firma"))
+        plazo = rec.get("plazo_ejecucion")
+        if ini and plazo:
+            fin = compute_fecha_fin_from_plazo(ini, float(plazo), rec.get("plazo_unidad"))
+    if not fin:
+        return None
+    extra = int(rec.get("dias_prorrogados") or 0) + int(rec.get("dias_adicionados") or 0)
+    if extra > 0:
+        return fin + timedelta(days=extra)
+    return fin
 
 
 def _is_liquidado(rec: dict[str, Any]) -> bool:
@@ -226,8 +236,8 @@ def matches_vencimiento_bucket(
     if bucket == "vencidos_sin_liquidar":
         return dias is not None and dias < 0 and not _is_liquidado(record)
     if bucket == "vencidos_ejecucion":
-        return _contrato_activo_plazo(estado) and dias is not None and dias < 0
-    if dias is None or dias < 0 or not _contrato_activo_plazo(estado):
+        return _contrato_en_plazo(record) and dias is not None and dias < 0
+    if dias is None or dias < 0 or not _contrato_en_plazo(record):
         return False
     limits = {
         "por_vencer_7": 7,

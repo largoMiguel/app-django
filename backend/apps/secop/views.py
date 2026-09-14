@@ -287,7 +287,8 @@ class Secop2PanelView(SecopBaseView):
         payload["anio"] = anio
         payload["kpis"] = compute_kpis(s2)
         payload["analitica"] = compute_analytics(s2)
-        payload["vencimientos"] = buckets_vencimiento(all_recs)
+        contratos = [r for r in all_recs if r.get("tipo_registro") == "contrato"]
+        payload["vencimientos"] = buckets_vencimiento(contratos)
         payload["pagos"] = curva_pagos(all_recs)
         payload["por_supervisor"] = agrupar_por_responsable(all_recs, "supervisor")
         payload["por_ordenador"] = agrupar_por_responsable(all_recs, "ordenador_gasto")

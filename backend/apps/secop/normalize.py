@@ -1,10 +1,16 @@
 """Normalización de filas SECOP I/II a un shape canónico."""
 from __future__ import annotations
 
-from datetime import date, datetime
+import re
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from .datasets import extract_notice_uid
+
+_PLAZO_DURACION_RE = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*(dia|días|dí|mes|meses|año|años|ano|anos)",
+    re.IGNORECASE,
+)
 
 
 def _parse_date(raw: Any) -> date | None:
@@ -13,17 +19,87 @@ def _parse_date(raw: Any) -> date | None:
     text = str(raw).strip()
     if not text or text.lower() in {"no definido", "no definida"}:
         return None
+    if "T" in text:
+        iso = text.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(iso).date()
+        except ValueError:
+            pass
     for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
             return datetime.strptime(text[: len(fmt.replace("%f", "000"))], fmt.replace(".%f", "")).date()
         except ValueError:
             continue
-    if "T" in text:
-        try:
-            return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
-        except ValueError:
-            pass
     return None
+
+
+def _parse_plazo_from_text(raw: Any) -> tuple[float | None, str | None]:
+    """Extrae plazo numérico y unidad de textos SECOP como '169 Dia(s)'."""
+    text = str(raw or "").strip()
+    if not text or text.lower() in {"no definido", "no definida", "no aplica"}:
+        return None, None
+    try:
+        val = float(text.replace(",", "."))
+        if val > 0:
+            return val, "dias"
+    except ValueError:
+        pass
+    match = _PLAZO_DURACION_RE.search(text.replace("(", " ").replace(")", " "))
+    if not match:
+        return None, None
+    amount = float(match.group(1).replace(",", "."))
+    unit = match.group(2).lower()
+    if amount <= 0:
+        return None, None
+    if unit.startswith("mes"):
+        return amount, "meses"
+    if unit.startswith(("año", "años", "ano", "anos")):
+        return amount, "años"
+    return amount, "dias"
+
+
+def _resolve_plazo_secop2(row: dict[str, Any]) -> tuple[float | None, str | None]:
+    plazo_raw = (
+        row.get("plazo_de_ejec_del_contrato")
+        or row.get("duracion")
+        or row.get("duracion_en_dias")
+        or row.get("duraci_n_del_contrato")
+        or row.get("duracion_del_contrato")
+    )
+    if plazo_raw is None:
+        return None, None
+    plazo, unidad = _parse_plazo_from_text(plazo_raw)
+    if plazo:
+        return plazo, unidad
+    val = _parse_float(plazo_raw)
+    if val <= 0:
+        return None, None
+    unidad = str(row.get("unidad_de_duracion") or row.get("rango_de_ejec_del_contrato") or "").strip()
+    return val, unidad or "dias"
+
+
+def compute_fecha_fin_from_plazo(
+    fecha_inicio: date | None,
+    plazo: float | None,
+    unidad: str | None,
+) -> date | None:
+    if not fecha_inicio or not plazo or plazo <= 0:
+        return None
+    unidad_l = (unidad or "dias").lower()
+    if "mes" in unidad_l:
+        return fecha_inicio + timedelta(days=int(plazo * 30))
+    if "a" in unidad_l and ("ño" in unidad_l or "no" in unidad_l):
+        return fecha_inicio + timedelta(days=int(plazo * 365))
+    return fecha_inicio + timedelta(days=max(int(plazo), 1))
+
+
+def _apply_dias_extra(fecha_fin: date | None, *extras: Any) -> date | None:
+    if not fecha_fin:
+        return None
+    extra_days = sum(int(_parse_float(v)) for v in extras if v is not None)
+    if extra_days <= 0:
+        return fecha_fin
+    return fecha_fin + timedelta(days=extra_days)
 
 
 def _parse_float(raw: Any) -> float:
@@ -123,25 +199,13 @@ def normalize_secop2_contract(row: dict[str, Any]) -> dict[str, Any]:
     pendiente = _parse_float(row.get("valor_pendiente_de_pago"))
     fecha_firma = _parse_date(row.get("fecha_de_firma"))
     fecha_inicio = _parse_date(row.get("fecha_de_inicio_del_contrato"))
+    fecha_inicio_efectiva = fecha_inicio or fecha_firma
     fecha_fin = _parse_date(row.get("fecha_de_fin_del_contrato"))
-    if not fecha_fin and fecha_inicio:
-        plazo = _parse_float(
-            row.get("plazo_de_ejec_del_contrato") or row.get("duracion") or row.get("duracion_en_dias")
-        )
-        if plazo > 0:
-            unidad = str(row.get("unidad_de_duracion") or row.get("rango_de_ejec_del_contrato") or "").lower()
-            if "mes" in unidad:
-                from datetime import timedelta
-
-                fecha_fin = fecha_inicio + timedelta(days=int(plazo * 30))
-            elif "a" in unidad and ("ño" in unidad or "no" in unidad):
-                from datetime import timedelta
-
-                fecha_fin = fecha_inicio + timedelta(days=int(plazo * 365))
-            else:
-                from datetime import timedelta
-
-                fecha_fin = fecha_inicio + timedelta(days=int(plazo))
+    plazo, plazo_unidad = _resolve_plazo_secop2(row)
+    if not fecha_fin and fecha_inicio_efectiva and plazo:
+        fecha_fin = compute_fecha_fin_from_plazo(fecha_inicio_efectiva, plazo, plazo_unidad)
+    dias_adicionados = int(_parse_float(row.get("dias_adicionados")))
+    fecha_fin = _apply_dias_extra(fecha_fin, dias_adicionados)
     recursos = []
     for label, key in (
         ("PGN", "presupuesto_general_de_la_nacion_pgn"),
@@ -178,8 +242,11 @@ def normalize_secop2_contract(row: dict[str, Any]) -> dict[str, Any]:
         "modalidad": row.get("modalidad_de_contratacion"),
         "tipo": row.get("tipo_de_contrato"),
         "fecha_firma": fecha_firma.isoformat() if fecha_firma else None,
-        "fecha_inicio": fecha_inicio.isoformat() if fecha_inicio else None,
+        "fecha_inicio": fecha_inicio_efectiva.isoformat() if fecha_inicio_efectiva else None,
         "fecha_fin": fecha_fin.isoformat() if fecha_fin else None,
+        "plazo_ejecucion": plazo if plazo else None,
+        "plazo_unidad": plazo_unidad,
+        "dias_adicionados": dias_adicionados if dias_adicionados > 0 else None,
         "supervisor": _clean_name(row.get("nombre_supervisor")),
         "ordenador_gasto": _clean_name(row.get("nombre_ordenador_del_gasto")),
         "origen_recursos": row.get("origen_de_los_recursos"),
