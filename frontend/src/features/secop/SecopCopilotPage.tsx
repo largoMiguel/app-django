@@ -21,11 +21,11 @@ interface ChatMsg {
   timing?: CopilotTiming;
 }
 
-const LOADING_STEPS = [
-  "Cargando datos SECOP…",
-  "Analizando contratos…",
-  "Generando respuesta…",
-];
+function loadingLabel(elapsedSec: number): string {
+  if (elapsedSec < 4) return "Consultando copiloto…";
+  if (elapsedSec < 15) return "Analizando contratos SECOP…";
+  return "Generando respuesta con IA…";
+}
 
 function formatTiming(t: CopilotTiming): string {
   const parts = [`${(t.total_ms / 1000).toFixed(1)}s total`];
@@ -51,7 +51,7 @@ export default function SecopCopilotPage() {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [loadingStep, setLoadingStep] = useState(0);
+  const [loadingElapsed, setLoadingElapsed] = useState(0);
   const [selected, setSelected] = useState<SecopRecord | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -61,12 +61,14 @@ export default function SecopCopilotPage() {
 
   useEffect(() => {
     if (!sending) {
-      setLoadingStep(0);
+      setLoadingElapsed(0);
       return;
     }
+    const started = Date.now();
+    setLoadingElapsed(0);
     const timer = window.setInterval(() => {
-      setLoadingStep((prev) => (prev + 1) % LOADING_STEPS.length);
-    }, 3500);
+      setLoadingElapsed(Math.floor((Date.now() - started) / 1000));
+    }, 1000);
     return () => window.clearInterval(timer);
   }, [sending]);
 
@@ -214,7 +216,10 @@ export default function SecopCopilotPage() {
         {sending && (
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" />
-            {LOADING_STEPS[loadingStep]}
+            <span>{loadingLabel(loadingElapsed)}</span>
+            {loadingElapsed >= 4 && (
+              <span className="text-xs text-slate-300">({loadingElapsed}s)</span>
+            )}
           </div>
         )}
         <div ref={bottomRef} />

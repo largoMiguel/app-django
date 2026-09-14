@@ -818,9 +818,9 @@ def _try_followup_response(
     message: str,
     history: list[dict[str, str]],
 ) -> dict[str, Any] | None:
-    if not history or not _is_followup_request(message):
+    if not _is_followup_request(message):
         return None
-    term = _last_search_term(history)
+    term = _last_search_term(history) if history else None
     if term:
         raw, registros = _run_tool_and_parse(ctx, "buscar_contratos", {"anio": ctx.anio, "texto": term, "limite": 5})
         if registros:
@@ -890,6 +890,22 @@ def _try_tool_intent_response(ctx: CopilotRunContext, message: str) -> dict[str,
             }
 
     if any(w in lower for w in ("panorama", "indicadores", "kpis")) and "modalidad" not in lower:
+        ctx.timing["fast_path"] = True
+        return {
+            "reply": _format_vigencia_snapshot(ctx),
+            "sources": [{"tool": "analytics_s2", "preview": "snapshot"}],
+            "chart": None,
+            "registros": [],
+        }
+
+    if any(
+        phrase in lower
+        for phrase in (
+            "como va", "cómo va", "como está", "cómo está", "estado de la contrat",
+            "situacion de la contrat", "situación de la contrat", "que tal la contrat",
+            "qué tal la contrat",
+        )
+    ):
         ctx.timing["fast_path"] = True
         return {
             "reply": _format_vigencia_snapshot(ctx),
