@@ -337,7 +337,8 @@ Análisis de contratación pública de la entidad a partir de **datos abiertos**
 
 1. **Superadmin → Entidad → Módulos:** activar **Contratación (SECOP)** (`enable_contratacion`).
 2. Configurar **NIT SECOP I** y/o **NIT SECOP II** (opcional; varios NIT separados por coma). Si están vacíos, se usa el NIT general de la entidad.
-3. En demo/prod, agregar `SECOP_OPENAI_API_KEY` en `.env` del servidor (API key dedicada; **no** commitear al repo).
+3. **Identidad SECOP:** si el NIT es compartido (ej. Alcaldía, Concejo y Personería del mismo municipio), use **Superadmin → Entidad → Buscar entidades** para seleccionar la entidad real en datos.gov.co (`codigo_entidad` + `nombre_entidad`). Esto evita traer contratos de otras dependencias con el mismo NIT.
+4. En demo/prod, agregar `SECOP_OPENAI_API_KEY` en `.env` del servidor (API key dedicada; **no** commitear al repo).
 
 ### Fuentes de datos
 
@@ -346,29 +347,38 @@ Análisis de contratación pública de la entidad a partir de **datos abiertos**
 | SECOP II contratos | `jbjy-vk9h` | Procesos **con** contrato firmado |
 | SECOP II procesos | `p6dx-8zbt` | Procesos **sin** contrato |
 | SECOP I | `f789-7hwg` | Contratos históricos SECOP I |
+| SECOP II facturas | `ibyt-yi2f` | Pagos reales por contrato (fecha, valor, estado) |
+| SECOP II modificaciones | `u8cx-r425` | Adiciones, prórrogas, suspensiones, liquidación |
 
-SECOP II unifica contratos + procesos sin duplicar: enlace por `proceso_de_compra` ↔ `id_del_portafolio` (respaldo: `noticeUID` en URL). Duplicados SECOP I se eliminan por `uid`.
+SECOP II unifica contratos + procesos sin duplicar: enlace por `proceso_de_compra` ↔ `id_del_portafolio` (respaldo: `noticeUID` en URL). Duplicados SECOP I se eliminan por `uid`. Las facturas y modificaciones se enriquecen por `id_contrato` (caché 6 h).
+
+**Nota:** SECOP I no publica pagos por contrato; las alertas financieras solo aplican a SECOP II.
 
 ### Frontend
 
-Ruta: `/contratacion` — pestañas **Resumen**, **SECOP II**, **SECOP I**, **Alertas**, **Análisis IA**. Selector de vigencia (año) global.
+Ruta: `/contratacion` — pestañas **Resumen**, **Ejecución**, **Dependencias** (por supervisor/ordenador), **SECOP II**, **SECOP I**, **Alertas**, **Análisis IA**, **Copiloto**. Selector de vigencia (año) global.
 
 ### Endpoints (`/api/v1/secop/`)
 
 | Método | Endpoint | Descripción |
 |---|---|---|
-| `GET` | `/config/` | NITs, años disponibles, tendencias |
+| `GET` | `/config/` | NITs, identidad SECOP, años disponibles, tendencias |
 | `GET` | `/resumen/?anio=` | KPIs consolidados + comparativo año anterior |
+| `GET` | `/ejecucion/?anio=&supervisor=&semaforo=` | Avance por contrato (tiempo, financiero, semáforo) |
+| `GET` | `/dependencias/?anio=` | Agregados por supervisor y ordenador del gasto |
+| `GET` | `/vencimientos/?anio=` | Buckets: vencidos, por vencer, sin liquidar |
+| `GET` | `/pagos/?anio=` | Curva de pagos, facturas recientes, contratos sin pago |
 | `GET` | `/secop2/?anio=&page=&search=&…` | Lista unificada SECOP II (contratos + procesos sin contrato) |
 | `GET` | `/secop2/analitica/?anio=` | Gráficos y distribuciones SECOP II |
 | `GET` | `/secop1/?anio=&…` | Contratos SECOP I |
 | `GET` | `/secop1/analitica/?anio=` | Analítica SECOP I |
 | `GET` | `/alertas/?anio=` | Alertas de riesgo (vencimientos, financieras, transparencia) |
-| `GET` | `/detalle/?fuente=&id=&anio=` | Ficha de contrato/proceso |
-| `GET` | `/export/?anio=&fuente=` | Excel (unificado, secop1, secop2, alertas) |
+| `GET` | `/detalle/?fuente=&id=&anio=` | Ficha de contrato/proceso (pagos, modificaciones, avance) |
+| `GET` | `/export/?anio=&fuente=` | Excel (unificado, secop1, secop2, alertas, ejecucion, pagos, vencimientos) |
+| `GET` | `/entidades-datos-gov/?nit=` | Selector de entidad real por NIT (superadmin) |
 | `POST` | `/refrescar/` | Invalida caché Redis de la entidad |
-| `POST` | `/ai/analisis/` | Análisis narrativo IA de la vigencia |
-| `POST` | `/ai/copilot/` | Chat copiloto de contratación |
+| `POST` | `/ai/analisis/` | Análisis IA estructurado (JSON + texto) de la vigencia |
+| `POST` | `/ai/copilot/` | Chat copiloto con gráficas dinámicas según la pregunta |
 | `POST` | `/ai/contrato/` | Resumen IA de un contrato |
 
 Roles: `admin`, `secretario`. Throttle: `secop_datos_gov` 120/h, `secop_ai` 30/h.
@@ -383,6 +393,8 @@ Vencidos en ejecución, por vencer (7/15/30 días), sin liquidar (+4 meses), sal
 SECOP_OPENAI_API_KEY=sk-...       # obligatoria para IA SECOP
 SECOP_OPENAI_MODEL=gpt-4o-mini    # opcional
 SECOP_CACHE_TTL=21600             # 6h caché consultas datos.gov.co
+SECOP_ENRICH_ENABLED=true         # enriquecer SECOP II con facturas y modificaciones
+SECOP_ENRICH_MAX_CONTRATOS=500    # límite de contratos a enriquecer por vigencia
 ```
 
 **Demo:** agregar `SECOP_OPENAI_API_KEY` en `/opt/softone-demo/.env` y redeploy (`development`).

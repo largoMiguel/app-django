@@ -6,16 +6,22 @@ import {
   AlertTriangle,
   Sparkles,
   RefreshCw,
+  TrendingUp,
+  Users,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 import { SecopYearProvider, useSecopYear } from "./SecopYearContext";
 
 const tabs = [
   { to: "/contratacion", end: true, label: "Resumen", icon: LayoutDashboard },
+  { to: "/contratacion/ejecucion", end: false, label: "Ejecución", icon: TrendingUp },
+  { to: "/contratacion/dependencias", end: false, label: "Dependencias", icon: Users },
   { to: "/contratacion/secop2", end: false, label: "SECOP II", icon: FileSearch },
   { to: "/contratacion/secop1", end: false, label: "SECOP I", icon: Archive },
   { to: "/contratacion/alertas", end: false, label: "Alertas", icon: AlertTriangle },
   { to: "/contratacion/ia", end: false, label: "Análisis IA", icon: Sparkles },
+  { to: "/contratacion/copiloto", end: false, label: "Copiloto", icon: MessageSquare },
 ];
 
 function SecopLayoutInner() {
@@ -79,7 +85,7 @@ function SecopLayoutInner() {
             to={to}
             end={end}
             className={({ isActive }) =>
-              `inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              `inline-flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors sm:px-4 ${
                 isActive
                   ? "border-[#3eafd4] text-[#0e7490]"
                   : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"

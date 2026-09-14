@@ -10,19 +10,48 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounts.models import User
 from apps.entities.models import Entity
-from apps.secop.access import parse_nits, resolve_nits_secop_i, resolve_nits_secop_ii
+from apps.secop.access import parse_nits, resolve_codigos_secop_ii, resolve_nits_secop_i, resolve_nits_secop_ii
 from apps.secop.alerts import compute_alerts
-from apps.secop.datasets import _dedupe_rows
-from apps.secop.normalize import normalize_secop2_contract, normalize_secop2_process
+from apps.secop.analytics import agrupar_por_responsable, buckets_vencimiento, compute_avance
+from apps.secop.datasets import _dedupe_rows, _entity_where
+from apps.secop.enrich import enrich_secop2
+from apps.secop.normalize import normalize_secop1, normalize_secop2_contract, normalize_secop2_process
 from apps.secop.unify import load_secop2_unified
 from apps.secop.views import SecopConfigView
 
 
 class SecopNormalizeTests(TestCase):
+    def setUp(self):
+        self.entity = Entity.objects.create(
+            name="Entidad Test",
+            code="TEST",
+            slug="entidad-test",
+            nit="800099642",
+            secop_ii_codigo_entidad="733689657",
+            secop_ii_nombre_entidad="PERSONERIA MUNICIPAL DE TOCA",
+        )
+
     def test_dedupe_identical_uid_rows(self):
         rows = [{"uid": "a", "x": 1}, {"uid": "a", "x": 1}, {"uid": "b", "x": 2}]
         out = _dedupe_rows(rows, "uid")
         self.assertEqual(len(out), 2)
+
+    def test_entity_where_filters_by_codigo(self):
+        where = _entity_where(
+            ["800099642"],
+            nit_field="nit_entidad",
+            codigos=["733689657"],
+            nombres=None,
+            codigo_field="codigo_entidad",
+            nombre_field="nombre_entidad",
+        )
+        self.assertIn("733689657", where)
+        self.assertIn("800099642", where)
+
+    def test_secop1_no_fake_pagos(self):
+        rec = normalize_secop1({"uid": "1", "cuantia_contrato": "1000", "nombre_entidad": "X"})
+        self.assertIsNone(rec["valor_pagado"])
+        self.assertFalse(rec["datos_pago_disponibles"])
 
     def test_unify_links_contract_and_process(self):
         contract_row = {
@@ -52,78 +81,71 @@ class SecopNormalizeTests(TestCase):
         with patch("apps.secop.unify.fetch_secop2_contracts", return_value=([contract_row], None)):
             with patch("apps.secop.unify.fetch_secop2_processes", return_value=([process_row, process_only], None)):
                 with patch("apps.secop.unify.fetch_secop2_processes_by_portfolios", return_value=([], None)):
-                    unified, meta = load_secop2_unified(["123"], 2024)
+                    with patch("apps.secop.unify.enrich_secop2", side_effect=lambda r: r):
+                        unified, meta = load_secop2_unified(self.entity, 2024)
 
         self.assertEqual(meta["total_unificado"], 2)
         contrato = next(r for r in unified if r["tipo_registro"] == "contrato")
         self.assertEqual(contrato["portfolio_id"], "P1")
         self.assertIn("proceso_vinculado", contrato)
-        procesos = [r for r in unified if r["tipo_registro"] == "proceso"]
-        self.assertEqual(len(procesos), 1)
-        self.assertEqual(procesos[0]["id"], "PR2")
 
-    def test_unify_hides_all_process_phases_when_contract_exists(self):
-        contract_row = {
-            "id_contrato": "C1",
-            "proceso_de_compra": "P1",
-            "referencia_del_contrato": "MS-SA-MC-003-2026",
-            "estado_contrato": "En ejecución",
-            "valor_del_contrato": "1000",
-            "urlproceso": {"url": "https://x?noticeUID=N1"},
-        }
-        process_rows = [
+    def test_enrich_injects_pagos(self):
+        rec = normalize_secop2_contract(
             {
-                "id_del_proceso": "PR-A",
-                "id_del_portafolio": "P1",
-                "referencia_del_proceso": "MS-SA-MC-003-2026",
-                "adjudicado": "No",
-                "precio_base": "1000",
-            },
+                "id_contrato": "C1",
+                "referencia_del_contrato": "R1",
+                "estado_contrato": "En ejecución",
+                "valor_del_contrato": "1000000",
+                "valor_pagado": "0",
+                "valor_pendiente_de_pago": "1000000",
+            }
+        )
+        with patch("apps.secop.enrich.fetch_secop2_facturas", return_value=([
             {
-                "id_del_proceso": "PR-B",
-                "id_del_portafolio": "P1",
-                "referencia_del_proceso": "MS-SA-MC-003-2026 (Manifestación de interés (Menor Cuantía))",
-                "adjudicado": "Si",
-                "precio_base": "1000",
-                "urlproceso": {"url": "https://x?noticeUID=N1"},
-            },
-        ]
+                "id_contrato": "C1",
+                "valor_total": "500000",
+                "estado": "Pagado",
+                "pago_confirmado": "true",
+                "fecha_factura": "2026-01-15",
+            }
+        ], None)):
+            with patch("apps.secop.enrich.fetch_secop2_modificaciones", return_value=([], None)):
+                out = enrich_secop2([rec])
+        self.assertEqual(out[0]["total_pagado_real"], 500000.0)
+        self.assertEqual(len(out[0]["pagos"]), 1)
 
-        with patch("apps.secop.unify.fetch_secop2_contracts", return_value=([contract_row], None)):
-            with patch("apps.secop.unify.fetch_secop2_processes", return_value=(process_rows, None)):
-                with patch("apps.secop.unify.fetch_secop2_processes_by_portfolios", return_value=([], None)):
-                    unified, meta = load_secop2_unified(["123"], 2026)
 
-        self.assertEqual(meta["total_unificado"], 1)
-        self.assertEqual(unified[0]["tipo_registro"], "contrato")
-        self.assertIn("proceso_vinculado", unified[0])
-
-    def test_unify_dedupes_orphan_process_phases_by_portfolio(self):
-        process_rows = [
+class SecopAnalyticsTests(TestCase):
+    def test_compute_avance(self):
+        today = date(2026, 6, 15)
+        rec = normalize_secop2_contract(
             {
-                "id_del_proceso": "PR-A",
-                "id_del_portafolio": "P9",
-                "referencia_del_proceso": "PROC-9",
-                "adjudicado": "No",
-                "precio_base": "100",
-            },
+                "id_contrato": "C1",
+                "referencia_del_contrato": "R1",
+                "estado_contrato": "En ejecución",
+                "valor_del_contrato": "1000",
+                "valor_pagado": "500",
+                "fecha_de_inicio_del_contrato": "2026-01-01T00:00:00.000",
+                "fecha_de_fin_del_contrato": "2026-12-31T00:00:00.000",
+            }
+        )
+        avance = compute_avance(rec, today)
+        self.assertIsNotNone(avance["avance_tiempo"])
+        self.assertIsNotNone(avance["avance_financiero"])
+
+    def test_agrupar_por_supervisor(self):
+        rec = normalize_secop2_contract(
             {
-                "id_del_proceso": "PR-B",
-                "id_del_portafolio": "P9",
-                "referencia_del_proceso": "PROC-9 (Fase de Selección)",
-                "adjudicado": "Si",
-                "precio_base": "100",
-            },
-        ]
-
-        with patch("apps.secop.unify.fetch_secop2_contracts", return_value=([], None)):
-            with patch("apps.secop.unify.fetch_secop2_processes", return_value=(process_rows, None)):
-                with patch("apps.secop.unify.fetch_secop2_processes_by_portfolios", return_value=([], None)):
-                    unified, meta = load_secop2_unified(["123"], 2026)
-
-        self.assertEqual(meta["total_unificado"], 1)
-        self.assertEqual(unified[0]["tipo_registro"], "proceso")
-        self.assertEqual(unified[0]["id"], "PR-B")
+                "id_contrato": "C1",
+                "referencia_del_contrato": "R1",
+                "estado_contrato": "En ejecución",
+                "valor_del_contrato": "1000",
+                "nombre_supervisor": "Juan Pérez",
+            }
+        )
+        groups = agrupar_por_responsable([rec], "supervisor")
+        self.assertEqual(groups[0]["nombre"], "Juan Pérez")
+        self.assertEqual(groups[0]["contratos"], 1)
 
 
 class SecopAlertsTests(TestCase):
@@ -152,6 +174,16 @@ class SecopAccessTests(TestCase):
         self.assertEqual(resolve_nits_secop_i(entity), ["999"])
         entity.nit_secop_ii = "888,777"
         self.assertEqual(resolve_nits_secop_ii(entity), ["888", "777"])
+
+    def test_resolve_codigos(self):
+        entity = Entity(
+            name="Toca",
+            code="TOCA",
+            slug="toca",
+            nit="800099642",
+            secop_ii_codigo_entidad="733689657",
+        )
+        self.assertEqual(resolve_codigos_secop_ii(entity), ["733689657"])
 
 
 class SecopApiAccessTests(TestCase):

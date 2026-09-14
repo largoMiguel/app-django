@@ -45,9 +45,49 @@ def parse_nits(raw: str | None, fallback: str | None = None) -> list[str]:
     return parts
 
 
+def parse_csv_values(raw: str | None) -> list[str]:
+    """Normaliza valores separados por coma (códigos/nombres de entidad SECOP)."""
+    parts: list[str] = []
+    for chunk in (raw or "").split(","):
+        val = chunk.strip()
+        if val and val not in parts:
+            parts.append(val)
+    return parts
+
+
 def resolve_nits_secop_i(entity: Entity) -> list[str]:
     return parse_nits(entity.nit_secop_i, entity.nit)
 
 
 def resolve_nits_secop_ii(entity: Entity) -> list[str]:
     return parse_nits(entity.nit_secop_ii, entity.nit)
+
+
+def resolve_codigos_secop_i(entity: Entity) -> list[str]:
+    return parse_csv_values(entity.secop_i_codigo_entidad)
+
+
+def resolve_codigos_secop_ii(entity: Entity) -> list[str]:
+    return parse_csv_values(entity.secop_ii_codigo_entidad)
+
+
+def resolve_nombres_secop_i(entity: Entity) -> list[str]:
+    return parse_csv_values(entity.secop_i_nombre_entidad)
+
+
+def resolve_nombres_secop_ii(entity: Entity) -> list[str]:
+    return parse_csv_values(entity.secop_ii_nombre_entidad)
+
+
+def secop_identity_key(entity: Entity) -> str:
+    """Clave estable para caché que incluye discriminadores de entidad."""
+    return "|".join(
+        [
+            ",".join(resolve_nits_secop_i(entity)),
+            ",".join(resolve_nits_secop_ii(entity)),
+            ",".join(resolve_codigos_secop_i(entity)),
+            ",".join(resolve_codigos_secop_ii(entity)),
+            ",".join(resolve_nombres_secop_i(entity)),
+            ",".join(resolve_nombres_secop_ii(entity)),
+        ]
+    )

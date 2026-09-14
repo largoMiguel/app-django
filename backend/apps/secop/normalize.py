@@ -46,6 +46,13 @@ def _url_from_field(raw: Any) -> str | None:
     return None
 
 
+def _clean_name(raw: Any) -> str | None:
+    text = str(raw or "").strip()
+    if not text or text.lower() in {"no definido", "no definida", "no definido."}:
+        return None
+    return text
+
+
 def normalize_secop1(row: dict[str, Any]) -> dict[str, Any]:
     uid = str(row.get("uid") or "").strip()
     valor = _parse_float(row.get("cuantia_contrato") or row.get("cuantia_proceso"))
@@ -53,6 +60,8 @@ def normalize_secop1(row: dict[str, Any]) -> dict[str, Any]:
     fecha_firma = _parse_date(row.get("fecha_de_firma_del_contrato"))
     fecha_inicio = _parse_date(row.get("fecha_ini_ejec_contrato"))
     fecha_fin = _parse_date(row.get("fecha_fin_ejec_contrato"))
+    plazo = _parse_float(row.get("plazo_de_ejec_del_contrato"))
+    rango = str(row.get("rango_de_ejec_del_contrato") or "").strip()
     return {
         "fuente": "secop1",
         "tipo_registro": "contrato",
@@ -62,28 +71,45 @@ def normalize_secop1(row: dict[str, Any]) -> dict[str, Any]:
         "portfolio_id": None,
         "notice_uid": None,
         "entidad": row.get("nombre_entidad"),
+        "codigo_entidad": row.get("c_digo_de_la_entidad"),
         "objeto": row.get("objeto_del_contrato_a_la") or row.get("detalle_del_objeto_a_contratar"),
+        "categoria_objeto": row.get("objeto_a_contratar"),
         "proveedor": row.get("nom_razon_social_contratista"),
         "documento_proveedor": row.get("identificacion_del_contratista"),
+        "representante_legal": row.get("nombre_del_represen_legal"),
         "valor": valor,
-        "valor_pagado": valor,
-        "valor_pendiente": 0.0,
+        "valor_pagado": None,
+        "valor_pendiente": None,
         "valor_adiciones": adiciones,
         "valor_con_adiciones": _parse_float(row.get("valor_contrato_con_adiciones")) or (valor + adiciones),
+        "datos_pago_disponibles": False,
         "estado": row.get("estado_del_proceso") or "Desconocido",
         "modalidad": row.get("modalidad_de_contratacion") or row.get("nombre_regimen_de_contratacion"),
         "tipo": row.get("tipo_de_contrato"),
         "fecha_firma": fecha_firma.isoformat() if fecha_firma else None,
         "fecha_inicio": fecha_inicio.isoformat() if fecha_inicio else None,
         "fecha_fin": fecha_fin.isoformat() if fecha_fin else None,
+        "plazo_ejecucion": plazo if plazo > 0 else None,
+        "plazo_unidad": rango or None,
+        "tiempo_adiciones_dias": int(_parse_float(row.get("tiempo_adiciones_en_dias"))),
+        "tiempo_adiciones_meses": int(_parse_float(row.get("tiempo_adiciones_en_meses"))),
         "supervisor": None,
         "ordenador_gasto": None,
+        "sub_unidad_ejecutora": row.get("nombre_sub_unidad_ejecutora"),
+        "codigo_bpin": row.get("codigo_bpin"),
+        "nombre_rubro": row.get("nombre_rubro"),
+        "valor_rubro": _parse_float(row.get("valor_rubro")),
+        "nivel_entidad": row.get("nivel_entidad"),
+        "municipios_ejecucion": row.get("municipios_ejecucion"),
+        "es_mipyme": row.get("es_mipyme"),
         "origen_recursos": row.get("destino_gasto"),
         "departamento": row.get("departamento_entidad"),
         "ciudad": row.get("municipio_entidad"),
         "liquidacion": None,
         "adjudicado": True,
         "url": _url_from_field(row.get("ruta_proceso_en_secop_i")),
+        "pagos": [],
+        "modificaciones": [],
         "raw": row,
     }
 
@@ -118,6 +144,7 @@ def normalize_secop2_contract(row: dict[str, Any]) -> dict[str, Any]:
         "portfolio_id": portfolio,
         "notice_uid": notice,
         "entidad": row.get("nombre_entidad"),
+        "codigo_entidad": row.get("codigo_entidad"),
         "objeto": row.get("objeto_del_contrato") or row.get("descripcion_del_proceso"),
         "proveedor": row.get("proveedor_adjudicado"),
         "documento_proveedor": row.get("documento_proveedor"),
@@ -126,14 +153,15 @@ def normalize_secop2_contract(row: dict[str, Any]) -> dict[str, Any]:
         "valor_pendiente": pendiente,
         "valor_adiciones": 0.0,
         "valor_con_adiciones": valor,
+        "datos_pago_disponibles": True,
         "estado": row.get("estado_contrato") or "Desconocido",
         "modalidad": row.get("modalidad_de_contratacion"),
         "tipo": row.get("tipo_de_contrato"),
         "fecha_firma": fecha_firma.isoformat() if fecha_firma else None,
         "fecha_inicio": fecha_inicio.isoformat() if fecha_inicio else None,
         "fecha_fin": fecha_fin.isoformat() if fecha_fin else None,
-        "supervisor": row.get("nombre_supervisor"),
-        "ordenador_gasto": row.get("nombre_ordenador_del_gasto"),
+        "supervisor": _clean_name(row.get("nombre_supervisor")),
+        "ordenador_gasto": _clean_name(row.get("nombre_ordenador_del_gasto")),
         "origen_recursos": row.get("origen_de_los_recursos"),
         "recursos_desglose": recursos,
         "departamento": row.get("departamento"),
@@ -142,6 +170,8 @@ def normalize_secop2_contract(row: dict[str, Any]) -> dict[str, Any]:
         "es_pyme": row.get("es_pyme"),
         "adjudicado": True,
         "url": _url_from_field(row.get("urlproceso")),
+        "pagos": [],
+        "modificaciones": [],
         "raw": row,
     }
 
@@ -162,6 +192,7 @@ def normalize_secop2_process(row: dict[str, Any]) -> dict[str, Any]:
         "portfolio_id": portfolio,
         "notice_uid": notice,
         "entidad": row.get("entidad"),
+        "codigo_entidad": row.get("codigo_entidad"),
         "objeto": row.get("descripci_n_del_procedimiento") or row.get("nombre_del_procedimiento"),
         "proveedor": row.get("nombre_del_proveedor") if adjudicado else None,
         "documento_proveedor": row.get("nit_del_proveedor_adjudicado"),
@@ -170,6 +201,7 @@ def normalize_secop2_process(row: dict[str, Any]) -> dict[str, Any]:
         "valor_pendiente": valor,
         "valor_adiciones": 0.0,
         "valor_con_adiciones": valor,
+        "datos_pago_disponibles": False,
         "estado": row.get("estado_resumen") or row.get("estado_del_procedimiento") or "Desconocido",
         "modalidad": row.get("modalidad_de_contratacion"),
         "tipo": row.get("tipo_de_contrato"),
@@ -177,7 +209,8 @@ def normalize_secop2_process(row: dict[str, Any]) -> dict[str, Any]:
         "fecha_inicio": None,
         "fecha_fin": None,
         "supervisor": None,
-        "ordenador_gasto": row.get("nombre_del_adjudicador"),
+        "ordenador_gasto": _clean_name(row.get("nombre_del_adjudicador")),
+        "unidad_contratacion": row.get("nombre_de_la_unidad_de"),
         "origen_recursos": None,
         "recursos_desglose": [],
         "departamento": row.get("departamento_entidad"),
@@ -187,6 +220,8 @@ def normalize_secop2_process(row: dict[str, Any]) -> dict[str, Any]:
         "proveedores_manifestaron": _parse_float(row.get("proveedores_que_manifestaron")),
         "adjudicado": adjudicado,
         "url": _url_from_field(row.get("urlproceso")),
+        "pagos": [],
+        "modificaciones": [],
         "raw": row,
     }
 

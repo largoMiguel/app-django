@@ -7,6 +7,10 @@ export interface Entity {
   nit: string | null;
   nit_secop_i: string | null;
   nit_secop_ii: string | null;
+  secop_i_codigo_entidad: string | null;
+  secop_i_nombre_entidad: string | null;
+  secop_ii_codigo_entidad: string | null;
+  secop_ii_nombre_entidad: string | null;
   slug: string;
   description: string | null;
   address: string | null;

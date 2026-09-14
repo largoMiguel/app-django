@@ -49,11 +49,13 @@ export default function SecopResumen() {
 
   const kpis = data.kpis;
   const trend = data.secop2.analitica?.serie_mensual || [];
+  const pagosTrend = data.pagos?.serie_mensual_pagos || [];
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Valor contratado" value={formatCOP(kpis.valor_total)} icon={<DollarSign className="h-5 w-5" />} />
+        <StatCard label="Valor pagado" value={formatCOP(kpis.valor_pagado_total)} icon={<DollarSign className="h-5 w-5" />} accent="border-l-emerald-500" iconBg="bg-emerald-500" />
         <StatCard
           label="Contratos"
           value={kpis.total_contratos}
@@ -93,14 +95,21 @@ export default function SecopResumen() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title={`Ejecución mensual SECOP II — ${anio}`}>
+        <ChartCard title={`Contratación vs pagos — ${anio}`}>
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={trend}>
+            <LineChart
+              data={trend.map((t, i) => ({
+                mes: t.mes,
+                contratacion: t.valor,
+                pagos: pagosTrend[i]?.valor || 0,
+              }))}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="mes" tick={{ fontSize: 10, fill: "#64748b" }} />
-              <YAxis tick={{ fontSize: 10, fill: "#64748b" }} tickFormatter={(v) => `${Math.round(v / 1e6)}M`} />
+              <YAxis tick={{ fontSize: 10, fill: "#64748b" }} tickFormatter={(v) => `${Math.round(Number(v) / 1e6)}M`} />
               <Tooltip formatter={(v) => formatCOP(Number(v ?? 0))} />
-              <Line type="monotone" dataKey="valor" stroke="#3eafd4" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="contratacion" name="Contratado" stroke="#3eafd4" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="pagos" name="Pagado" stroke="#10b981" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>

@@ -68,6 +68,67 @@ def build_contracts_excel(records: list[dict[str, Any]], titulo: str = "Contrato
     return buf.getvalue()
 
 
+def build_ejecucion_excel(records: list[dict[str, Any]]) -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Ejecución"
+    headers = [
+        "Referencia", "Proveedor", "Estado", "Valor", "Pagado", "Pendiente",
+        "Avance tiempo %", "Avance financiero %", "Desviación", "Días restantes",
+        "Semáforo", "Supervisor", "Fecha fin",
+    ]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = HEADER_FILL
+        cell.font = HEADER_FONT
+    for r in records:
+        avance = r.get("avance") or {}
+        ws.append([
+            r.get("referencia"),
+            r.get("proveedor"),
+            r.get("estado"),
+            r.get("valor"),
+            r.get("valor_pagado"),
+            r.get("valor_pendiente"),
+            avance.get("avance_tiempo"),
+            avance.get("avance_financiero"),
+            avance.get("desviacion"),
+            avance.get("dias_restantes"),
+            avance.get("semaforo"),
+            r.get("supervisor"),
+            r.get("fecha_fin"),
+        ])
+    _autosize(ws)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def build_pagos_excel(pagos_info: dict[str, Any]) -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Pagos"
+    headers = ["Referencia", "Proveedor", "Factura", "Fecha", "Valor", "Estado", "Confirmado"]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = HEADER_FILL
+        cell.font = HEADER_FONT
+    for p in pagos_info.get("pagos_recientes") or []:
+        ws.append([
+            p.get("referencia"),
+            p.get("proveedor"),
+            p.get("numero_factura"),
+            p.get("fecha"),
+            p.get("valor_total"),
+            p.get("estado"),
+            p.get("pago_confirmado"),
+        ])
+    _autosize(ws)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def build_alerts_excel(alerts: list[dict[str, Any]]) -> bytes:
     wb = Workbook()
     ws = wb.active

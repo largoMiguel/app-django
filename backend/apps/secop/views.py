@@ -10,19 +10,39 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
+from apps.common.roles import is_platform_superadmin
 from apps.entities.models import Entity
 
-from .access import ensure_secop_access, resolve_nits_secop_i, resolve_nits_secop_ii
+from .access import (
+    ensure_secop_access,
+    resolve_codigos_secop_i,
+    resolve_codigos_secop_ii,
+    resolve_nits_secop_i,
+    resolve_nits_secop_ii,
+    resolve_nombres_secop_i,
+    resolve_nombres_secop_ii,
+)
 from .ai_service import generate_secop_analysis, run_secop_copilot, summarize_contract
 from .alerts import compute_alerts, filter_alerts
-from .analytics import compare_kpis, compute_analytics, compute_kpis, merge_year_trends
+from .analytics import (
+    agrupar_por_responsable,
+    buckets_vencimiento,
+    compare_kpis,
+    compute_analytics,
+    compute_avance,
+    compute_kpis,
+    curva_pagos,
+    merge_year_trends,
+    public_summary,
+)
 from .datasets import (
     fetch_available_years_secop1,
     fetch_available_years_secop2_contracts,
     fetch_available_years_secop2_processes,
+    fetch_entity_catalog_by_nit,
     invalidate_entity_cache,
 )
-from .export import build_alerts_excel, build_contracts_excel
+from .export import build_alerts_excel, build_contracts_excel, build_ejecucion_excel, build_pagos_excel
 from .normalize import public_record
 from .serializers import (
     SecopAIAnalisisSerializer,
@@ -31,6 +51,8 @@ from .serializers import (
     SecopAlertasQuerySerializer,
     SecopAnioQuerySerializer,
     SecopDetalleQuerySerializer,
+    SecopEjecucionQuerySerializer,
+    SecopEntidadesDatosGovSerializer,
     SecopExportQuerySerializer,
     SecopListQuerySerializer,
     SecopRefrescarSerializer,
@@ -73,6 +95,12 @@ def _validated_anio(ser) -> int:
     return ser.validated_data.get("anio") or _default_anio()
 
 
+def _load_all(entity: Entity, anio: int) -> tuple[list[dict], list[dict]]:
+    s1, _ = load_secop1_normalized(entity, anio)
+    s2, _ = load_secop2_unified(entity, anio)
+    return s1, s2
+
+
 def _filter_records(records: list[dict], params: dict) -> list[dict]:
     out = records
     search = (params.get("search") or "").strip().lower()
@@ -102,6 +130,12 @@ def _filter_records(records: list[dict], params: dict) -> list[dict]:
             if prov in (r.get("proveedor") or "").lower()
             or prov in str(r.get("documento_proveedor") or "")
         ]
+    if params.get("supervisor"):
+        sup = params["supervisor"].lower()
+        out = [r for r in out if sup in (r.get("supervisor") or "Sin asignar").lower()]
+    if params.get("ordenador"):
+        ordg = params["ordenador"].lower()
+        out = [r for r in out if ordg in (r.get("ordenador_gasto") or "Sin asignar").lower()]
     if params.get("valor_min") is not None:
         out = [r for r in out if float(r.get("valor") or 0) >= float(params["valor_min"])]
     if params.get("valor_max") is not None:
@@ -136,13 +170,26 @@ def _paginate(records: list[dict], page: int, page_size: int) -> dict:
     }
 
 
+def _with_avance(records: list[dict]) -> list[dict]:
+    out = []
+    for r in records:
+        pub = public_record(r)
+        pub["avance"] = compute_avance(r)
+        out.append(pub)
+    return out
+
+
 class SecopConfigView(SecopBaseView):
     def get(self, request):
         nits_i = resolve_nits_secop_i(self.entity)
         nits_ii = resolve_nits_secop_ii(self.entity)
-        y1, _ = fetch_available_years_secop1(nits_i)
-        y2c, _ = fetch_available_years_secop2_contracts(nits_ii)
-        y2p, _ = fetch_available_years_secop2_processes(nits_ii)
+        codigos_i = resolve_codigos_secop_i(self.entity)
+        codigos_ii = resolve_codigos_secop_ii(self.entity)
+        nombres_i = resolve_nombres_secop_i(self.entity)
+        nombres_ii = resolve_nombres_secop_ii(self.entity)
+        y1, _ = fetch_available_years_secop1(nits_i, codigos=codigos_i, nombres=nombres_i)
+        y2c, _ = fetch_available_years_secop2_contracts(nits_ii, codigos=codigos_ii, nombres=nombres_ii)
+        y2p, _ = fetch_available_years_secop2_processes(nits_ii, codigos=codigos_ii, nombres=nombres_ii)
         years = sorted(
             {
                 *{int(r["anio"]) for r in merge_year_trends(y2c) if r.get("anio")},
@@ -159,6 +206,10 @@ class SecopConfigView(SecopBaseView):
                 "nit_general": self.entity.nit,
                 "nit_secop_i": self.entity.nit_secop_i or self.entity.nit,
                 "nit_secop_ii": self.entity.nit_secop_ii or self.entity.nit,
+                "secop_i_codigo_entidad": self.entity.secop_i_codigo_entidad,
+                "secop_i_nombre_entidad": self.entity.secop_i_nombre_entidad,
+                "secop_ii_codigo_entidad": self.entity.secop_ii_codigo_entidad,
+                "secop_ii_nombre_entidad": self.entity.secop_ii_nombre_entidad,
                 "nits_resueltos_i": nits_i,
                 "nits_resueltos_ii": nits_ii,
                 "anios_disponibles": years,
@@ -174,27 +225,30 @@ class SecopResumenView(SecopBaseView):
     def get(self, request):
         ser = SecopAnioQuerySerializer(data=request.query_params)
         anio = _validated_anio(ser)
-        nits_i = resolve_nits_secop_i(self.entity)
-        nits_ii = resolve_nits_secop_ii(self.entity)
-        s1, meta1 = load_secop1_normalized(nits_i, anio)
-        s2, meta2 = load_secop2_unified(nits_ii, anio)
+        s1, s2 = _load_all(self.entity, anio)
         all_recs = s1 + s2
         kpis = compute_kpis(all_recs)
         prev_kpis = {}
         if anio > 2000:
-            ps1, _ = load_secop1_normalized(nits_i, anio - 1)
-            ps2, _ = load_secop2_unified(nits_ii, anio - 1)
+            ps1, ps2 = _load_all(self.entity, anio - 1)
             prev_kpis = compute_kpis(ps1 + ps2)
-        alerts = compute_alerts(s1, s2, nits_i=nits_i, nits_ii=nits_ii, anio=anio)
+        alerts = compute_alerts(
+            s1, s2,
+            nits_i=resolve_nits_secop_i(self.entity),
+            nits_ii=resolve_nits_secop_ii(self.entity),
+            anio=anio,
+        )
         return Response(
             {
                 "anio": anio,
                 "kpis": kpis,
                 "comparativo": compare_kpis(kpis, prev_kpis) if prev_kpis else None,
-                "secop1": {"meta": meta1, "kpis": compute_kpis(s1)},
-                "secop2": {"meta": meta2, "kpis": compute_kpis(s2), "analitica": compute_analytics(s2)},
+                "secop1": {"meta": {"total": len(s1)}, "kpis": compute_kpis(s1)},
+                "secop2": {"meta": {"total": len(s2)}, "kpis": compute_kpis(s2), "analitica": compute_analytics(s2)},
                 "alertas_criticas": [a for a in alerts if a["severidad"] in {"critica", "alta"}][:8],
                 "total_alertas": len(alerts),
+                "vencimientos": buckets_vencimiento(all_recs),
+                "pagos": curva_pagos(all_recs),
             }
         )
 
@@ -205,8 +259,7 @@ class Secop2ListView(SecopBaseView):
         ser.is_valid(raise_exception=True)
         params = ser.validated_data
         params["anio"] = params.get("anio") or _default_anio()
-        anio = params["anio"]
-        records, meta = load_secop2_unified(resolve_nits_secop_ii(self.entity), anio)
+        records, meta = load_secop2_unified(self.entity, params["anio"])
         filtered = _filter_records(records, params)
         payload = _paginate(filtered, params["page"], params["page_size"])
         payload["meta"] = meta
@@ -219,7 +272,7 @@ class Secop2AnaliticaView(SecopBaseView):
     def get(self, request):
         ser = SecopAnioQuerySerializer(data=request.query_params)
         anio = _validated_anio(ser)
-        records, meta = load_secop2_unified(resolve_nits_secop_ii(self.entity), anio)
+        records, meta = load_secop2_unified(self.entity, anio)
         return Response({"anio": anio, "meta": meta, **compute_analytics(records)})
 
 
@@ -229,7 +282,7 @@ class Secop1ListView(SecopBaseView):
         ser.is_valid(raise_exception=True)
         params = ser.validated_data
         params["anio"] = params.get("anio") or _default_anio()
-        records, meta = load_secop1_normalized(resolve_nits_secop_i(self.entity), params["anio"])
+        records, meta = load_secop1_normalized(self.entity, params["anio"])
         filtered = _filter_records(records, params)
         payload = _paginate(filtered, params["page"], params["page_size"])
         payload["meta"] = meta
@@ -242,8 +295,66 @@ class Secop1AnaliticaView(SecopBaseView):
     def get(self, request):
         ser = SecopAnioQuerySerializer(data=request.query_params)
         anio = _validated_anio(ser)
-        records, meta = load_secop1_normalized(resolve_nits_secop_i(self.entity), anio)
+        records, meta = load_secop1_normalized(self.entity, anio)
         return Response({"anio": anio, "meta": meta, **compute_analytics(records)})
+
+
+class SecopEjecucionView(SecopBaseView):
+    def get(self, request):
+        ser = SecopEjecucionQuerySerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        params = ser.validated_data
+        anio = params.get("anio") or _default_anio()
+        s1, s2 = _load_all(self.entity, anio)
+        contratos = [r for r in s1 + s2 if r.get("tipo_registro") == "contrato"]
+        params["tipo_registro"] = "contrato"
+        filtered = _filter_records(contratos, params)
+        if params.get("semaforo"):
+            sem = params["semaforo"]
+            filtered = [r for r in filtered if compute_avance(r)["semaforo"] == sem]
+        enriched = _with_avance(filtered)
+        total = len(enriched)
+        page = params["page"]
+        page_size = params["page_size"]
+        start = (page - 1) * page_size
+        end = start + page_size
+        return Response({
+            "anio": anio,
+            "kpis": compute_kpis(contratos),
+            "count": total,
+            "next": page + 1 if end < total else None,
+            "previous": page - 1 if page > 1 else None,
+            "results": enriched[start:end],
+        })
+
+
+class SecopDependenciasView(SecopBaseView):
+    def get(self, request):
+        ser = SecopAnioQuerySerializer(data=request.query_params)
+        anio = _validated_anio(ser)
+        s1, s2 = _load_all(self.entity, anio)
+        all_recs = s1 + s2
+        return Response({
+            "anio": anio,
+            "por_supervisor": agrupar_por_responsable(all_recs, "supervisor"),
+            "por_ordenador": agrupar_por_responsable(all_recs, "ordenador_gasto"),
+        })
+
+
+class SecopVencimientosView(SecopBaseView):
+    def get(self, request):
+        ser = SecopAnioQuerySerializer(data=request.query_params)
+        anio = _validated_anio(ser)
+        s1, s2 = _load_all(self.entity, anio)
+        return Response({"anio": anio, **buckets_vencimiento(s1 + s2)})
+
+
+class SecopPagosView(SecopBaseView):
+    def get(self, request):
+        ser = SecopAnioQuerySerializer(data=request.query_params)
+        anio = _validated_anio(ser)
+        s1, s2 = _load_all(self.entity, anio)
+        return Response({"anio": anio, **curva_pagos(s1 + s2)})
 
 
 class SecopAlertasView(SecopBaseView):
@@ -252,11 +363,13 @@ class SecopAlertasView(SecopBaseView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         anio = data.get("anio") or _default_anio()
-        nits_i = resolve_nits_secop_i(self.entity)
-        nits_ii = resolve_nits_secop_ii(self.entity)
-        s1, _ = load_secop1_normalized(nits_i, anio)
-        s2, _ = load_secop2_unified(nits_ii, anio)
-        alerts = compute_alerts(s1, s2, nits_i=nits_i, nits_ii=nits_ii, anio=anio)
+        s1, s2 = _load_all(self.entity, anio)
+        alerts = compute_alerts(
+            s1, s2,
+            nits_i=resolve_nits_secop_i(self.entity),
+            nits_ii=resolve_nits_secop_ii(self.entity),
+            anio=anio,
+        )
         alerts = filter_alerts(alerts, fuente=data.get("fuente"), severidad=data.get("severidad"))
         resumen = {
             "critica": sum(1 for a in alerts if a["severidad"] == "critica"),
@@ -275,13 +388,31 @@ class SecopDetalleView(SecopBaseView):
         rec_id = ser.validated_data["id"]
         anio = ser.validated_data["anio"]
         if fuente == "secop1":
-            records, _ = load_secop1_normalized(resolve_nits_secop_i(self.entity), anio)
+            records, _ = load_secop1_normalized(self.entity, anio)
         else:
-            records, _ = load_secop2_unified(resolve_nits_secop_ii(self.entity), anio)
+            records, _ = load_secop2_unified(self.entity, anio)
         match = next((r for r in records if r.get("id") == rec_id), None)
         if not match:
             return Response({"detail": "Registro no encontrado."}, status=status.HTTP_404_NOT_FOUND)
-        return Response(public_record(match))
+        pub = public_record(match)
+        pub["avance"] = compute_avance(match)
+        return Response(pub)
+
+
+class SecopEntidadesDatosGovView(APIView):
+    """Selector de entidad SECOP en datos.gov.co (superadmin)."""
+    permission_classes = (permissions.IsAuthenticated,)
+    throttle_classes = (SecopDatosGovThrottle,)
+
+    def get(self, request):
+        if not is_platform_superadmin(request.user):
+            return Response({"detail": "Solo superadmin."}, status=status.HTTP_403_FORBIDDEN)
+        ser = SecopEntidadesDatosGovSerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        rows, err = fetch_entity_catalog_by_nit(ser.validated_data["nit"])
+        if err and not rows:
+            return Response({"detail": err}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"entidades": rows, "error": err})
 
 
 class SecopExportView(SecopBaseView):
@@ -290,26 +421,45 @@ class SecopExportView(SecopBaseView):
         ser.is_valid(raise_exception=True)
         fuente = ser.validated_data["fuente"]
         anio = ser.validated_data.get("anio") or _default_anio()
-        nits_i = resolve_nits_secop_i(self.entity)
-        nits_ii = resolve_nits_secop_ii(self.entity)
 
         if fuente == "alertas":
-            s1, _ = load_secop1_normalized(nits_i, anio)
-            s2, _ = load_secop2_unified(nits_ii, anio)
-            alerts = compute_alerts(s1, s2, nits_i=nits_i, nits_ii=nits_ii, anio=anio)
+            s1, s2 = _load_all(self.entity, anio)
+            alerts = compute_alerts(
+                s1, s2,
+                nits_i=resolve_nits_secop_i(self.entity),
+                nits_ii=resolve_nits_secop_ii(self.entity),
+                anio=anio,
+            )
             content = build_alerts_excel(alerts)
             filename = f"SECOP_alertas_{self.entity.slug}_{anio}.xlsx"
         elif fuente == "secop1":
-            records, _ = load_secop1_normalized(nits_i, anio)
+            records, _ = load_secop1_normalized(self.entity, anio)
             content = build_contracts_excel([public_record(r) for r in records], "SECOP I")
             filename = f"SECOP1_{self.entity.slug}_{anio}.xlsx"
         elif fuente == "secop2":
-            records, _ = load_secop2_unified(nits_ii, anio)
+            records, _ = load_secop2_unified(self.entity, anio)
             content = build_contracts_excel([public_record(r) for r in records], "SECOP II")
             filename = f"SECOP2_{self.entity.slug}_{anio}.xlsx"
+        elif fuente == "ejecucion":
+            s1, s2 = _load_all(self.entity, anio)
+            contratos = [r for r in s1 + s2 if r.get("tipo_registro") == "contrato"]
+            content = build_ejecucion_excel(_with_avance(contratos))
+            filename = f"SECOP_ejecucion_{self.entity.slug}_{anio}.xlsx"
+        elif fuente == "pagos":
+            s1, s2 = _load_all(self.entity, anio)
+            content = build_pagos_excel(curva_pagos(s1 + s2))
+            filename = f"SECOP_pagos_{self.entity.slug}_{anio}.xlsx"
+        elif fuente == "vencimientos":
+            s1, s2 = _load_all(self.entity, anio)
+            buckets = buckets_vencimiento(s1 + s2)
+            flat = []
+            for key, bucket in buckets.items():
+                for reg in bucket.get("registros", []):
+                    flat.append({**reg, "bucket": key})
+            content = build_ejecucion_excel(flat)
+            filename = f"SECOP_vencimientos_{self.entity.slug}_{anio}.xlsx"
         else:
-            s1, _ = load_secop1_normalized(nits_i, anio)
-            s2, _ = load_secop2_unified(nits_ii, anio)
+            s1, s2 = _load_all(self.entity, anio)
             content = build_contracts_excel([public_record(r) for r in s1 + s2], "SECOP unificado")
             filename = f"SECOP_{self.entity.slug}_{anio}.xlsx"
 
@@ -329,6 +479,10 @@ class SecopRefrescarView(SecopBaseView):
         deleted = invalidate_entity_cache(
             resolve_nits_secop_i(self.entity),
             resolve_nits_secop_ii(self.entity),
+            codigos_i=resolve_codigos_secop_i(self.entity),
+            codigos_ii=resolve_codigos_secop_ii(self.entity),
+            nombres_i=resolve_nombres_secop_i(self.entity),
+            nombres_ii=resolve_nombres_secop_ii(self.entity),
             anio=anio,
         )
         return Response({"ok": True, "cache_keys_cleared": deleted})
@@ -378,9 +532,9 @@ class SecopAIContratoView(SecopBaseView):
         rec_id = ser.validated_data["id"]
         anio = ser.validated_data["anio"]
         if fuente == "secop1":
-            records, _ = load_secop1_normalized(resolve_nits_secop_i(self.entity), anio)
+            records, _ = load_secop1_normalized(self.entity, anio)
         else:
-            records, _ = load_secop2_unified(resolve_nits_secop_ii(self.entity), anio)
+            records, _ = load_secop2_unified(self.entity, anio)
         match = next((r for r in records if r.get("id") == rec_id), None)
         if not match:
             return Response({"detail": "Registro no encontrado."}, status=status.HTTP_404_NOT_FOUND)

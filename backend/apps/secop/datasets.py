@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 DATOS_GOV_SECOP2_CONTRATOS = "https://www.datos.gov.co/resource/jbjy-vk9h.json"
 DATOS_GOV_SECOP2_PROCESOS = "https://www.datos.gov.co/resource/p6dx-8zbt.json"
 DATOS_GOV_SECOP1 = "https://www.datos.gov.co/resource/f789-7hwg.json"
+DATOS_GOV_SECOP2_FACTURAS = "https://www.datos.gov.co/resource/ibyt-yi2f.json"
+DATOS_GOV_SECOP2_MODIFICACIONES = "https://www.datos.gov.co/resource/u8cx-r425.json"
 
 PAGE_SIZE = 1000
 MAX_ROWS_PER_YEAR = 15000
@@ -65,6 +67,38 @@ def _nit_where(field: str, nits: list[str]) -> str:
         return f"{field}='{nits[0]}'"
     quoted = ", ".join(f"'{n}'" for n in nits)
     return f"{field} in ({quoted})"
+
+
+def _in_clause(field: str, values: list[str]) -> str:
+    if len(values) == 1:
+        return f"{field}='{values[0].replace(chr(39), chr(39) + chr(39))}'"
+    quoted = ", ".join(f"'{v.replace(chr(39), chr(39) + chr(39))}'" for v in values)
+    return f"{field} in ({quoted})"
+
+
+def _entity_where(
+    nits: list[str],
+    *,
+    nit_field: str,
+    codigos: list[str] | None = None,
+    nombres: list[str] | None = None,
+    codigo_field: str,
+    nombre_field: str,
+) -> str:
+    parts = [_nit_where(nit_field, nits)]
+    if codigos:
+        parts.append(_in_clause(codigo_field, codigos))
+    elif nombres:
+        parts.append(_in_clause(nombre_field, nombres))
+    return " AND ".join(parts)
+
+
+def _identity_suffix(codigos: list[str] | None, nombres: list[str] | None) -> str:
+    if codigos:
+        return f":c:{','.join(codigos)}"
+    if nombres:
+        return f":n:{','.join(nombres)}"
+    return ""
 
 
 def _dedupe_rows(rows: list[dict[str, Any]], key_field: str) -> list[dict[str, Any]]:
@@ -128,22 +162,89 @@ def _fetch_paginated(
     return rows, last_error
 
 
-def fetch_secop1_contracts(nits: list[str], anio: int) -> tuple[list[dict[str, Any]], str | None]:
+def _fetch_by_ids(
+    base: str,
+    id_field: str,
+    ids: list[str],
+    *,
+    cache_prefix: str,
+    batch_size: int = 40,
+) -> tuple[list[dict[str, Any]], str | None]:
+    if not ids:
+        return [], None
+    unique: list[str] = []
+    seen: set[str] = set()
+    for raw in ids:
+        val = (raw or "").strip()
+        if val and val not in seen:
+            seen.add(val)
+            unique.append(val)
+
+    rows: list[dict[str, Any]] = []
+    last_error: str | None = None
+    for i in range(0, len(unique), batch_size):
+        chunk = unique[i : i + batch_size]
+        cache_key = f"{cache_prefix}:{','.join(chunk)}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            rows.extend(cached)
+            continue
+        quoted = ", ".join(f"'{cid}'" for cid in chunk)
+        where = f"{id_field} in ({quoted})"
+        params = {"$where": where, "$limit": str(len(chunk) * 50)}
+        url = _build_url(base, params)
+        try:
+            batch = _fetch_json(url)
+            cache.set(cache_key, batch, CACHE_TTL)
+            rows.extend(batch)
+        except Exception as exc:  # noqa: BLE001
+            last_error = str(exc)
+            logger.warning("SECOP batch fetch error: %s", last_error)
+    return rows, last_error
+
+
+def fetch_secop1_contracts(
+    nits: list[str],
+    anio: int,
+    *,
+    codigos: list[str] | None = None,
+    nombres: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     if not nits:
         return [], "NIT SECOP I no configurado."
-    nit_part = _nit_where("nit_de_la_entidad", nits)
-    where = f"{nit_part} AND anno_firma_contrato='{anio}'"
-    cache_key = f"secop:v1:secop1:{','.join(nits)}:{anio}"
+    entity_part = _entity_where(
+        nits,
+        nit_field="nit_de_la_entidad",
+        codigos=codigos,
+        nombres=nombres,
+        codigo_field="c_digo_de_la_entidad",
+        nombre_field="nombre_entidad",
+    )
+    where = f"{entity_part} AND anno_firma_contrato='{anio}'"
+    cache_key = f"secop:v2:secop1:{','.join(nits)}{_identity_suffix(codigos, nombres)}:{anio}"
     rows, err = _fetch_paginated(DATOS_GOV_SECOP1, where, order="uid", cache_key=cache_key)
     return _dedupe_rows(rows, "uid"), err
 
 
-def fetch_secop2_contracts(nits: list[str], anio: int) -> tuple[list[dict[str, Any]], str | None]:
+def fetch_secop2_contracts(
+    nits: list[str],
+    anio: int,
+    *,
+    codigos: list[str] | None = None,
+    nombres: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     if not nits:
         return [], "NIT SECOP II no configurado."
-    nit_part = _nit_where("nit_entidad", nits)
-    where = f"{nit_part} AND date_extract_y(fecha_de_firma)={anio}"
-    cache_key = f"secop:v1:secop2c:{','.join(nits)}:{anio}"
+    entity_part = _entity_where(
+        nits,
+        nit_field="nit_entidad",
+        codigos=codigos,
+        nombres=nombres,
+        codigo_field="codigo_entidad",
+        nombre_field="nombre_entidad",
+    )
+    where = f"{entity_part} AND date_extract_y(fecha_de_firma)={anio}"
+    cache_key = f"secop:v2:secop2c:{','.join(nits)}{_identity_suffix(codigos, nombres)}:{anio}"
     rows, err = _fetch_paginated(
         DATOS_GOV_SECOP2_CONTRATOS,
         where,
@@ -153,12 +254,25 @@ def fetch_secop2_contracts(nits: list[str], anio: int) -> tuple[list[dict[str, A
     return _dedupe_rows(rows, "id_contrato"), err
 
 
-def fetch_secop2_processes(nits: list[str], anio: int) -> tuple[list[dict[str, Any]], str | None]:
+def fetch_secop2_processes(
+    nits: list[str],
+    anio: int,
+    *,
+    codigos: list[str] | None = None,
+    nombres: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     if not nits:
         return [], "NIT SECOP II no configurado."
-    nit_part = _nit_where("nit_entidad", nits)
-    where = f"{nit_part} AND date_extract_y(fecha_de_publicacion_del)={anio}"
-    cache_key = f"secop:v1:secop2p:{','.join(nits)}:{anio}"
+    entity_part = _entity_where(
+        nits,
+        nit_field="nit_entidad",
+        codigos=codigos,
+        nombres=nombres,
+        codigo_field="codigo_entidad",
+        nombre_field="entidad",
+    )
+    where = f"{entity_part} AND date_extract_y(fecha_de_publicacion_del)={anio}"
+    cache_key = f"secop:v2:secop2p:{','.join(nits)}{_identity_suffix(codigos, nombres)}:{anio}"
     rows, err = _fetch_paginated(
         DATOS_GOV_SECOP2_PROCESOS,
         where,
@@ -171,6 +285,9 @@ def fetch_secop2_processes(nits: list[str], anio: int) -> tuple[list[dict[str, A
 def fetch_secop2_processes_by_portfolios(
     nits: list[str],
     portfolio_ids: list[str],
+    *,
+    codigos: list[str] | None = None,
+    nombres: list[str] | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Consulta puntual de procesos por id_del_portafolio (enlace con contratos)."""
     if not nits or not portfolio_ids:
@@ -185,14 +302,21 @@ def fetch_secop2_processes_by_portfolios(
     if not unique:
         return [], None
 
-    nit_part = _nit_where("nit_entidad", nits)
+    entity_part = _entity_where(
+        nits,
+        nit_field="nit_entidad",
+        codigos=codigos,
+        nombres=nombres,
+        codigo_field="codigo_entidad",
+        nombre_field="entidad",
+    )
     rows: list[dict[str, Any]] = []
     last_error: str | None = None
     batch_size = 40
     for i in range(0, len(unique), batch_size):
         chunk = unique[i : i + batch_size]
         quoted = ", ".join(f"'{p}'" for p in chunk)
-        where = f"{nit_part} AND id_del_portafolio in ({quoted})"
+        where = f"{entity_part} AND id_del_portafolio in ({quoted})"
         params = {"$where": where, "$limit": str(len(chunk) * 2)}
         url = _build_url(DATOS_GOV_SECOP2_PROCESOS, params)
         try:
@@ -203,13 +327,116 @@ def fetch_secop2_processes_by_portfolios(
     return _dedupe_rows(rows, "id_del_proceso"), last_error
 
 
-def fetch_available_years_secop1(nits: list[str]) -> tuple[list[dict[str, Any]], str | None]:
+def fetch_secop2_facturas(id_contratos: list[str]) -> tuple[list[dict[str, Any]], str | None]:
+    return _fetch_by_ids(
+        DATOS_GOV_SECOP2_FACTURAS,
+        "id_contrato",
+        id_contratos,
+        cache_prefix="secop:v2:facturas",
+    )
+
+
+def fetch_secop2_modificaciones(id_contratos: list[str]) -> tuple[list[dict[str, Any]], str | None]:
+    return _fetch_by_ids(
+        DATOS_GOV_SECOP2_MODIFICACIONES,
+        "id_contrato",
+        id_contratos,
+        cache_prefix="secop:v2:mods",
+    )
+
+
+def fetch_entity_catalog_by_nit(nit: str) -> tuple[list[dict[str, Any]], str | None]:
+    """Lista entidades reales en datos.gov.co para un NIT (selector superadmin)."""
+    nit_clean = nit.strip().replace(".", "").replace("-", "")
+    if not nit_clean:
+        return [], "NIT requerido."
+
+    cache_key = f"secop:v2:catalog:{nit_clean}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached, None
+
+    combined: dict[tuple[str, str, str], dict[str, Any]] = {}
+    queries = [
+        (
+            DATOS_GOV_SECOP1,
+            "nit_de_la_entidad",
+            "nombre_entidad",
+            "c_digo_de_la_entidad",
+            "secop1",
+        ),
+        (
+            DATOS_GOV_SECOP2_CONTRATOS,
+            "nit_entidad",
+            "nombre_entidad",
+            "codigo_entidad",
+            "secop2_contratos",
+        ),
+        (
+            DATOS_GOV_SECOP2_PROCESOS,
+            "nit_entidad",
+            "entidad",
+            "codigo_entidad",
+            "secop2_procesos",
+        ),
+    ]
+    last_error: str | None = None
+    for base, nit_field, name_field, code_field, fuente in queries:
+        params = {
+            "$select": f"{name_field} as nombre, {code_field} as codigo, count(1) as total",
+            "$where": f"{nit_field}='{nit_clean}'",
+            "$group": f"nombre, codigo",
+            "$order": "total DESC",
+            "$limit": "50",
+        }
+        url = _build_url(base, params)
+        try:
+            rows = _fetch_json(url)
+        except Exception as exc:  # noqa: BLE001
+            last_error = str(exc)
+            continue
+        for row in rows:
+            nombre = str(row.get("nombre") or "").strip()
+            codigo = str(row.get("codigo") or "").strip()
+            if not nombre:
+                continue
+            key = (fuente, nombre, codigo)
+            total = int(float(row.get("total") or 0))
+            if key in combined:
+                combined[key]["total"] += total
+            else:
+                combined[key] = {
+                    "fuente": fuente,
+                    "nombre_entidad": nombre,
+                    "codigo_entidad": codigo,
+                    "nit": nit_clean,
+                    "total": total,
+                }
+
+    out = sorted(combined.values(), key=lambda x: (-x["total"], x["nombre_entidad"]))
+    cache.set(cache_key, out, CACHE_TTL)
+    return out, last_error
+
+
+def fetch_available_years_secop1(
+    nits: list[str],
+    *,
+    codigos: list[str] | None = None,
+    nombres: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     if not nits:
         return [], None
-    nit_part = _nit_where("nit_de_la_entidad", nits)
+    entity_part = _entity_where(
+        nits,
+        nit_field="nit_de_la_entidad",
+        codigos=codigos,
+        nombres=nombres,
+        codigo_field="c_digo_de_la_entidad",
+        nombre_field="nombre_entidad",
+    )
     params = {
         "$select": "anno_firma_contrato, count(1) as total",
-        "$where": nit_part,
+        "$where": entity_part,
         "$group": "anno_firma_contrato",
         "$order": "anno_firma_contrato DESC",
         "$limit": "30",
@@ -221,13 +448,25 @@ def fetch_available_years_secop1(nits: list[str]) -> tuple[list[dict[str, Any]],
         return [], str(exc)
 
 
-def fetch_available_years_secop2_contracts(nits: list[str]) -> tuple[list[dict[str, Any]], str | None]:
+def fetch_available_years_secop2_contracts(
+    nits: list[str],
+    *,
+    codigos: list[str] | None = None,
+    nombres: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     if not nits:
         return [], None
-    nit_part = _nit_where("nit_entidad", nits)
+    entity_part = _entity_where(
+        nits,
+        nit_field="nit_entidad",
+        codigos=codigos,
+        nombres=nombres,
+        codigo_field="codigo_entidad",
+        nombre_field="nombre_entidad",
+    )
     params = {
         "$select": "date_extract_y(fecha_de_firma) as anio, count(1) as total",
-        "$where": nit_part,
+        "$where": entity_part,
         "$group": "anio",
         "$order": "anio DESC",
         "$limit": "30",
@@ -239,13 +478,25 @@ def fetch_available_years_secop2_contracts(nits: list[str]) -> tuple[list[dict[s
         return [], str(exc)
 
 
-def fetch_available_years_secop2_processes(nits: list[str]) -> tuple[list[dict[str, Any]], str | None]:
+def fetch_available_years_secop2_processes(
+    nits: list[str],
+    *,
+    codigos: list[str] | None = None,
+    nombres: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     if not nits:
         return [], None
-    nit_part = _nit_where("nit_entidad", nits)
+    entity_part = _entity_where(
+        nits,
+        nit_field="nit_entidad",
+        codigos=codigos,
+        nombres=nombres,
+        codigo_field="codigo_entidad",
+        nombre_field="entidad",
+    )
     params = {
         "$select": "date_extract_y(fecha_de_publicacion_del) as anio, count(1) as total",
-        "$where": nit_part,
+        "$where": entity_part,
         "$group": "anio",
         "$order": "anio DESC",
         "$limit": "30",
@@ -257,18 +508,29 @@ def fetch_available_years_secop2_processes(nits: list[str]) -> tuple[list[dict[s
         return [], str(exc)
 
 
-def invalidate_entity_cache(nits_i: list[str], nits_ii: list[str], anio: int | None = None) -> int:
+def invalidate_entity_cache(
+    nits_i: list[str],
+    nits_ii: list[str],
+    *,
+    codigos_i: list[str] | None = None,
+    codigos_ii: list[str] | None = None,
+    nombres_i: list[str] | None = None,
+    nombres_ii: list[str] | None = None,
+    anio: int | None = None,
+) -> int:
     """Elimina claves de caché SECOP para la entidad."""
-    keys: list[str] = []
-    years = [anio] if anio else list(range(2015, 2031))
-    for y in years:
-        if nits_i:
-            keys.append(f"secop:v1:secop1:{','.join(nits_i)}:{y}")
-        if nits_ii:
-            keys.append(f"secop:v1:secop2c:{','.join(nits_ii)}:{y}")
-            keys.append(f"secop:v1:secop2p:{','.join(nits_ii)}:{y}")
     deleted = 0
-    for key in keys:
-        if cache.delete(key):
+    years = [anio] if anio else list(range(2015, 2031))
+    keys = [
+        (f"secop:v2:secop1:{','.join(nits_i)}{_identity_suffix(codigos_i, nombres_i)}", years),
+        (f"secop:v2:secop2c:{','.join(nits_ii)}{_identity_suffix(codigos_ii, nombres_ii)}", years),
+        (f"secop:v2:secop2p:{','.join(nits_ii)}{_identity_suffix(codigos_ii, nombres_ii)}", years),
+    ]
+    for prefix, year_list in keys:
+        for y in year_list:
+            if cache.delete(f"{prefix}:{y}"):
+                deleted += 1
+    for nit in set(nits_i + nits_ii):
+        if cache.delete(f"secop:v2:catalog:{nit}"):
             deleted += 1
     return deleted

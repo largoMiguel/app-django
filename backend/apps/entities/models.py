@@ -23,6 +23,30 @@ class Entity(models.Model):
         null=True,
         help_text="NIT(s) para SECOP II en datos.gov.co; varios separados por coma.",
     )
+    secop_i_codigo_entidad = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Código(s) de entidad SECOP I en datos.gov.co; varios separados por coma.",
+    )
+    secop_i_nombre_entidad = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Nombre(s) exacto(s) de entidad SECOP I; varios separados por coma.",
+    )
+    secop_ii_codigo_entidad = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Código(s) de entidad SECOP II en datos.gov.co; varios separados por coma.",
+    )
+    secop_ii_nombre_entidad = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Nombre(s) exacto(s) de entidad SECOP II; varios separados por coma.",
+    )
     slug = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, null=True)
     address = models.CharField(max_length=300, blank=True, null=True)

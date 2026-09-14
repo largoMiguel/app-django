@@ -50,7 +50,10 @@ import SecopLayout from "@/features/secop/SecopLayout";
 import SecopResumen from "@/features/secop/SecopResumen";
 import SecopListPage from "@/features/secop/SecopListPage";
 import SecopAlertasPage from "@/features/secop/SecopAlertasPage";
-import SecopAnalisisIAPage from "@/features/secop/SecopAnalisisIAPage";
+import SecopAnalisisPage from "@/features/secop/SecopAnalisisPage";
+import SecopCopilotPage from "@/features/secop/SecopCopilotPage";
+import SecopEjecucionPage from "@/features/secop/SecopEjecucionPage";
+import SecopDependenciasPage from "@/features/secop/SecopDependenciasPage";
 import PdmLayout from "@/features/pdm/PdmLayout";
 import PdmDashboardPage from "@/features/pdm/PdmDashboardPage";
 import PdmProductosPage from "@/features/pdm/PdmProductosPage";
@@ -223,10 +226,13 @@ export default function App(): ReactElement {
               <Route element={<ModuleRouteGuard moduleKey="contratacion" />}>
                 <Route path="/contratacion" element={<SecopLayout />}>
                   <Route index element={<SecopResumen />} />
+                  <Route path="ejecucion" element={<SecopEjecucionPage />} />
+                  <Route path="dependencias" element={<SecopDependenciasPage />} />
                   <Route path="secop2" element={<SecopListPage fuente="secop2" />} />
                   <Route path="secop1" element={<SecopListPage fuente="secop1" />} />
                   <Route path="alertas" element={<SecopAlertasPage />} />
-                  <Route path="ia" element={<SecopAnalisisIAPage />} />
+                  <Route path="ia" element={<SecopAnalisisPage />} />
+                  <Route path="copiloto" element={<SecopCopilotPage />} />
                 </Route>
               </Route>
 

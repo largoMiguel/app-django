@@ -184,9 +184,10 @@ def compute_alerts(
             )
         )
 
-    # Financieras
+    # Financieras (solo SECOP II con datos de pago reales)
+    pagables = [r for r in all_contracts if r.get("datos_pago_disponibles")]
     pendiente_pago = [
-        r for r in all_contracts
+        r for r in pagables
         if _is_terminado(r.get("estado")) and _parse_float(r.get("valor_pendiente")) > 0
     ]
     if pendiente_pago:
@@ -203,7 +204,7 @@ def compute_alerts(
         )
 
     sobrepago = [
-        r for r in all_contracts
+        r for r in pagables
         if _parse_float(r.get("valor_pagado")) > _parse_float(r.get("valor")) * 1.01
         and _parse_float(r.get("valor")) > 0
     ]
@@ -237,7 +238,7 @@ def compute_alerts(
         )
 
     baja_ejecucion = [
-        r for r in all_contracts
+        r for r in pagables
         if _is_terminado(r.get("estado"))
         and _parse_float(r.get("valor")) > 0
         and _parse_float(r.get("valor_pagado")) / _parse_float(r.get("valor")) < 0.5

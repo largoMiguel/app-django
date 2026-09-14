@@ -289,6 +289,8 @@ PLANES_REPORTS_OPENAI_MODEL = os.getenv("PLANES_REPORTS_OPENAI_MODEL", "") or OP
 SECOP_OPENAI_API_KEY = os.getenv("SECOP_OPENAI_API_KEY", "")
 SECOP_OPENAI_MODEL = os.getenv("SECOP_OPENAI_MODEL", "") or OPENAI_MODEL
 SECOP_CACHE_TTL = int(os.getenv("SECOP_CACHE_TTL", "21600"))
+SECOP_ENRICH_ENABLED = os.getenv("SECOP_ENRICH_ENABLED", "true").lower() in ("1", "true", "yes")
+SECOP_ENRICH_MAX_CONTRATOS = int(os.getenv("SECOP_ENRICH_MAX_CONTRATOS", "500"))
 
 # Celery (broker Redis)
 CELERY_BROKER_URL = _redis_url or "redis://localhost:6379/1"

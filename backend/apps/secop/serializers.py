@@ -21,9 +21,19 @@ class SecopListQuerySerializer(SecopAnioQuerySerializer):
         default="all",
     )
     proveedor = serializers.CharField(required=False, allow_blank=True)
+    supervisor = serializers.CharField(required=False, allow_blank=True)
+    ordenador = serializers.CharField(required=False, allow_blank=True)
     valor_min = serializers.FloatField(required=False)
     valor_max = serializers.FloatField(required=False)
     ordering = serializers.CharField(required=False, allow_blank=True, default="-valor")
+
+
+class SecopEjecucionQuerySerializer(SecopListQuerySerializer):
+    semaforo = serializers.ChoiceField(
+        choices=["verde", "amarillo", "rojo", "gris"],
+        required=False,
+        allow_blank=True,
+    )
 
 
 class SecopAlertasQuerySerializer(SecopAnioQuerySerializer):
@@ -43,9 +53,13 @@ class SecopDetalleQuerySerializer(serializers.Serializer):
 
 class SecopExportQuerySerializer(SecopAnioQuerySerializer):
     fuente = serializers.ChoiceField(
-        choices=["secop1", "secop2", "unificado", "alertas"],
+        choices=["secop1", "secop2", "unificado", "alertas", "ejecucion", "pagos", "vencimientos"],
         default="unificado",
     )
+
+
+class SecopEntidadesDatosGovSerializer(serializers.Serializer):
+    nit = serializers.CharField(max_length=50)
 
 
 class SecopAIAnalisisSerializer(SecopAnioQuerySerializer):

@@ -4,13 +4,25 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from apps.entities.models import Entity
+
+from .access import (
+    resolve_codigos_secop_i,
+    resolve_codigos_secop_ii,
+    resolve_nits_secop_i,
+    resolve_nits_secop_ii,
+    resolve_nombres_secop_i,
+    resolve_nombres_secop_ii,
+)
 from .datasets import (
+    fetch_secop1_contracts,
     fetch_secop2_contracts,
     fetch_secop2_processes,
     fetch_secop2_processes_by_portfolios,
     extract_notice_uid,
 )
-from .normalize import normalize_secop2_contract, normalize_secop2_process, public_record
+from .enrich import enrich_secop2
+from .normalize import normalize_secop1, normalize_secop2_contract, normalize_secop2_process, public_record
 
 
 def _base_referencia(referencia: str | None) -> str:
@@ -49,23 +61,28 @@ def _index_processes(
 
 
 def load_secop2_unified(
-    nits: list[str],
+    entity: Entity,
     anio: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    contracts_raw, err_c = fetch_secop2_contracts(nits, anio)
-    processes_raw, err_p = fetch_secop2_processes(nits, anio)
+    nits = resolve_nits_secop_ii(entity)
+    codigos = resolve_codigos_secop_ii(entity)
+    nombres = resolve_nombres_secop_ii(entity)
+
+    contracts_raw, err_c = fetch_secop2_contracts(nits, anio, codigos=codigos, nombres=nombres)
+    processes_raw, err_p = fetch_secop2_processes(nits, anio, codigos=codigos, nombres=nombres)
 
     process_rows = list(processes_raw)
     by_portfolio, by_portfolio_best, by_notice = _index_processes(process_rows)
 
-    # Procesos vinculados a contratos del año pero publicados en otro año
     missing_portfolios = []
     for row in contracts_raw:
         portfolio = str(row.get("proceso_de_compra") or "").strip()
         if portfolio and portfolio not in by_portfolio_best:
             missing_portfolios.append(portfolio)
     if missing_portfolios:
-        extra_raw, _ = fetch_secop2_processes_by_portfolios(nits, missing_portfolios)
+        extra_raw, _ = fetch_secop2_processes_by_portfolios(
+            nits, missing_portfolios, codigos=codigos, nombres=nombres,
+        )
         if extra_raw:
             process_rows.extend(extra_raw)
             extra_by_portfolio, extra_best, extra_notice = _index_processes(extra_raw)
@@ -129,25 +146,34 @@ def load_secop2_unified(
 
         unified.append(norm)
 
+    unified = enrich_secop2(unified)
+
     meta = {
         "anio": anio,
         "total_contratos": len(contracts_raw),
         "total_procesos": len(processes_raw),
         "total_unificado": len(unified),
+        "codigos_entidad": codigos,
+        "nombres_entidad": nombres,
         "errors": [e for e in (err_c, err_p) if e],
     }
     return unified, meta
 
 
-def load_secop1_normalized(nits: list[str], anio: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    from .datasets import fetch_secop1_contracts
-    from .normalize import normalize_secop1
-
-    rows, err = fetch_secop1_contracts(nits, anio)
+def load_secop1_normalized(
+    entity: Entity,
+    anio: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    nits = resolve_nits_secop_i(entity)
+    codigos = resolve_codigos_secop_i(entity)
+    nombres = resolve_nombres_secop_i(entity)
+    rows, err = fetch_secop1_contracts(nits, anio, codigos=codigos, nombres=nombres)
     records = [normalize_secop1(r) for r in rows]
     meta = {
         "anio": anio,
         "total": len(records),
+        "codigos_entidad": codigos,
+        "nombres_entidad": nombres,
         "errors": [err] if err else [],
     }
     return records, meta

@@ -24,6 +24,7 @@ import { pdmApi } from "@/core/api/pdm";
 import type { PdmChatAnalytics } from "@/core/api/pdmChatPublic";
 import { formatApiError } from "@/core/api/errors";
 import { entitiesApi, secretariasApi, type Entity, type Secretaria } from "@/core/api/entities";
+import { secopApi, type SecopEntidadDatosGov } from "@/core/api/secop";
 import { usersApi, type AppUser, type CreateUserPayload } from "@/core/api/users";
 import { MODULES, modulesForEntity } from "@/core/modules";
 import { finalizeSlugInput, sanitizeSlugInput } from "@/core/slug";
@@ -262,6 +263,11 @@ function InfoTab({
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
             />
           </Field>
+        </div>
+
+        <SecopEntityPicker form={form} set={set} />
+
+        <div className="mt-3 grid grid-cols-2 gap-3">
           <Field label="Email">
             <input
               value={form.email || ""}
@@ -1402,6 +1408,119 @@ function PdmChatSection({ entity, slug }: { entity: Entity; slug: string }) {
         </>
       )}
     </section>
+  );
+}
+
+function SecopEntityPicker({
+  form,
+  set,
+}: {
+  form: Partial<Entity>;
+  set: <K extends keyof Entity>(key: K, value: Entity[K]) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<SecopEntidadDatosGov[]>([]);
+  const [open, setOpen] = useState(false);
+  const nit = form.nit_secop_ii || form.nit_secop_i || form.nit || "";
+
+  async function search() {
+    if (!nit.trim()) return;
+    setLoading(true);
+    try {
+      const res = await secopApi.entidadesDatosGov(nit.trim());
+      setResults(res.entidades);
+      setOpen(true);
+    } catch {
+      setResults([]);
+      setOpen(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function selectEntidad(row: SecopEntidadDatosGov) {
+    const isSecop1 = row.fuente === "secop1";
+    if (isSecop1) {
+      set("secop_i_codigo_entidad", row.codigo_entidad);
+      set("secop_i_nombre_entidad", row.nombre_entidad);
+    } else {
+      set("secop_ii_codigo_entidad", row.codigo_entidad);
+      set("secop_ii_nombre_entidad", row.nombre_entidad);
+    }
+    setOpen(false);
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-[#3eafd4]/30 bg-[#3eafd4]/5 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-xs font-bold uppercase tracking-wide text-[#0e7490]">Identidad SECOP en datos.gov.co</h4>
+        <button
+          type="button"
+          onClick={search}
+          disabled={loading || !nit.trim()}
+          className="rounded-md bg-[#3eafd4] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2d9bbf] disabled:opacity-50"
+        >
+          {loading ? "Buscando…" : "Buscar entidades"}
+        </button>
+      </div>
+      <p className="mb-3 text-xs text-slate-500">
+        Cuando varias entidades comparten el mismo NIT (ej. Alcaldía, Concejo, Personería), seleccione la suya para filtrar contratos.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Código entidad SECOP I">
+          <input
+            value={form.secop_i_codigo_entidad || ""}
+            onChange={(e) => set("secop_i_codigo_entidad", e.target.value)}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono"
+          />
+        </Field>
+        <Field label="Nombre entidad SECOP I">
+          <input
+            value={form.secop_i_nombre_entidad || ""}
+            onChange={(e) => set("secop_i_nombre_entidad", e.target.value)}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        <Field label="Código entidad SECOP II">
+          <input
+            value={form.secop_ii_codigo_entidad || ""}
+            onChange={(e) => set("secop_ii_codigo_entidad", e.target.value)}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono"
+          />
+        </Field>
+        <Field label="Nombre entidad SECOP II">
+          <input
+            value={form.secop_ii_nombre_entidad || ""}
+            onChange={(e) => set("secop_ii_nombre_entidad", e.target.value)}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+      </div>
+      {open && (
+        <div className="mt-3 max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white">
+          {results.length === 0 ? (
+            <p className="p-3 text-xs text-slate-500">Sin resultados para NIT {nit}.</p>
+          ) : (
+            results.map((row, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => selectEntidad(row)}
+                className="flex w-full items-center justify-between border-b border-slate-50 px-3 py-2 text-left text-xs hover:bg-slate-50"
+              >
+                <span>
+                  <span className="font-medium text-slate-800">{row.nombre_entidad}</span>
+                  <span className="ml-2 text-slate-400">({row.fuente})</span>
+                </span>
+                <span className="text-slate-500">
+                  {row.total} reg. · {row.codigo_entidad}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
