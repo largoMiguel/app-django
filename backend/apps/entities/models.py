@@ -11,18 +11,6 @@ class Entity(models.Model):
     name = models.CharField(max_length=200, unique=True)
     code = models.CharField(max_length=50, unique=True)
     nit = models.CharField(max_length=50, blank=True, null=True, db_index=True)
-    nit_secop_i = models.CharField(
-        max_length=200,
-        blank=True,
-        null=True,
-        help_text="NIT(s) para SECOP I en datos.gov.co; varios separados por coma.",
-    )
-    nit_secop_ii = models.CharField(
-        max_length=200,
-        blank=True,
-        null=True,
-        help_text="NIT(s) para SECOP II en datos.gov.co; varios separados por coma.",
-    )
     secop_i_codigo_entidad = models.CharField(
         max_length=500,
         blank=True,

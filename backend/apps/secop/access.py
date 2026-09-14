@@ -56,11 +56,11 @@ def parse_csv_values(raw: str | None) -> list[str]:
 
 
 def resolve_nits_secop_i(entity: Entity) -> list[str]:
-    return parse_nits(entity.nit_secop_i, entity.nit)
+    return parse_nits(entity.nit)
 
 
 def resolve_nits_secop_ii(entity: Entity) -> list[str]:
-    return parse_nits(entity.nit_secop_ii, entity.nit)
+    return parse_nits(entity.nit)
 
 
 def resolve_codigos_secop_i(entity: Entity) -> list[str]:

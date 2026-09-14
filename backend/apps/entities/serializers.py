@@ -15,8 +15,6 @@ class EntitySerializer(serializers.ModelSerializer):
             "name",
             "code",
             "nit",
-            "nit_secop_i",
-            "nit_secop_ii",
             "secop_i_codigo_entidad",
             "secop_i_nombre_entidad",
             "secop_ii_codigo_entidad",

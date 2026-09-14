@@ -204,8 +204,6 @@ class SecopConfigView(SecopBaseView):
             {
                 "entity": self.entity.name,
                 "nit_general": self.entity.nit,
-                "nit_secop_i": self.entity.nit_secop_i or self.entity.nit,
-                "nit_secop_ii": self.entity.nit_secop_ii or self.entity.nit,
                 "secop_i_codigo_entidad": self.entity.secop_i_codigo_entidad,
                 "secop_i_nombre_entidad": self.entity.secop_i_nombre_entidad,
                 "secop_ii_codigo_entidad": self.entity.secop_ii_codigo_entidad,

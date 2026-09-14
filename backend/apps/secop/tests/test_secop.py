@@ -171,11 +171,10 @@ class SecopAccessTests(TestCase):
     def test_parse_nits_comma_separated(self):
         self.assertEqual(parse_nits("111, 222", "000"), ["111", "222"])
 
-    def test_resolve_nits_fallback(self):
+    def test_resolve_nits_from_entity_nit(self):
         entity = Entity(name="Test", code="T", slug="test", nit="999")
         self.assertEqual(resolve_nits_secop_i(entity), ["999"])
-        entity.nit_secop_ii = "888,777"
-        self.assertEqual(resolve_nits_secop_ii(entity), ["888", "777"])
+        self.assertEqual(resolve_nits_secop_ii(entity), ["999"])
 
     def test_resolve_codigos(self):
         entity = Entity(

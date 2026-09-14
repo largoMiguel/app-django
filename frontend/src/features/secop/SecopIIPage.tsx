@@ -410,7 +410,6 @@ export default function SecopIIPage() {
                 <th className="px-4 py-3">Supervisor</th>
                 <th className="px-4 py-3 text-right">Valor</th>
                 <th className="px-4 py-3 text-right">Pagado</th>
-                <th className="px-4 py-3">Tiempo</th>
                 <th className="px-4 py-3">Financiero</th>
                 <th className="px-4 py-3 text-center">Días</th>
                 <th className="px-4 py-3">Firma</th>
@@ -419,7 +418,7 @@ export default function SecopIIPage() {
             <tbody className="divide-y divide-slate-50">
               {(list?.results || []).length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={12} className="px-4 py-12 text-center text-slate-500">
                     No hay registros para {anio}.
                   </td>
                 </tr>
@@ -454,9 +453,6 @@ export default function SecopIIPage() {
                         {formatCOP(row.valor_con_adiciones || row.valor)}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-slate-600">{pagadoDisplay(row)}</td>
-                      <td className="px-4 py-3">
-                        <ProgressBar value={avance?.avance_tiempo ?? null} color="bg-blue-400" compact />
-                      </td>
                       <td className="px-4 py-3">
                         <ProgressBar value={avance?.avance_financiero ?? null} color="bg-emerald-500" compact />
                       </td>
