@@ -26,6 +26,18 @@ class SecopListQuerySerializer(SecopAnioQuerySerializer):
     valor_min = serializers.FloatField(required=False)
     valor_max = serializers.FloatField(required=False)
     ordering = serializers.CharField(required=False, allow_blank=True, default="-valor")
+    vencimiento = serializers.ChoiceField(
+        choices=[
+            "vencidos_ejecucion",
+            "por_vencer_7",
+            "por_vencer_15",
+            "por_vencer_30",
+            "por_vencer_60",
+            "vencidos_sin_liquidar",
+        ],
+        required=False,
+        allow_blank=True,
+    )
 
 
 class SecopEjecucionQuerySerializer(SecopListQuerySerializer):

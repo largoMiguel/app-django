@@ -12,7 +12,7 @@ from apps.accounts.models import User
 from apps.entities.models import Entity
 from apps.secop.access import parse_nits, resolve_codigos_secop_ii, resolve_nits_secop_i, resolve_nits_secop_ii
 from apps.secop.alerts import compute_alerts
-from apps.secop.analytics import agrupar_por_responsable, buckets_vencimiento, compute_avance
+from apps.secop.analytics import agrupar_por_responsable, buckets_vencimiento, compute_avance, matches_vencimiento_bucket
 from apps.secop.datasets import _dedupe_rows, _entity_where
 from apps.secop.enrich import enrich_secop2
 from apps.secop.normalize import normalize_secop1, normalize_secop2_contract, normalize_secop2_process
@@ -148,6 +148,21 @@ class SecopAnalyticsTests(TestCase):
         groups = agrupar_por_responsable([rec], "supervisor")
         self.assertEqual(groups[0]["nombre"], "Juan Pérez")
         self.assertEqual(groups[0]["contratos"], 1)
+
+    def test_matches_vencimiento_bucket_exclusive_ranges(self):
+        today = date(2026, 6, 15)
+        rec = normalize_secop2_contract(
+            {
+                "id_contrato": "C1",
+                "referencia_del_contrato": "R1",
+                "estado_contrato": "En ejecución",
+                "valor_del_contrato": "1000",
+                "fecha_de_fin_del_contrato": "2026-06-25T00:00:00.000",
+            }
+        )
+        rec["tipo_registro"] = "contrato"
+        self.assertTrue(matches_vencimiento_bucket(rec, "por_vencer_7", today))
+        self.assertFalse(matches_vencimiento_bucket(rec, "por_vencer_15", today))
 
 
 class SecopAlertsTests(TestCase):

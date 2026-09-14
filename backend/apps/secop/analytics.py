@@ -178,34 +178,54 @@ def agrupar_por_responsable(
     return sorted(out, key=lambda x: x["valor_total"], reverse=True)
 
 
+VENCIMIENTO_BUCKET_KEYS = (
+    "vencidos_ejecucion",
+    "por_vencer_7",
+    "por_vencer_15",
+    "por_vencer_30",
+    "por_vencer_60",
+    "vencidos_sin_liquidar",
+)
+
+
+def matches_vencimiento_bucket(
+    record: dict[str, Any],
+    bucket: str,
+    today: date | None = None,
+) -> bool:
+    if record.get("tipo_registro") != "contrato":
+        return False
+    today = today or date.today()
+    dias = _dias_restantes(record, today)
+    estado = record.get("estado")
+
+    if bucket == "vencidos_sin_liquidar":
+        return dias is not None and dias < 0 and not _is_liquidado(record)
+    if bucket == "vencidos_ejecucion":
+        return _is_ejecucion(estado) and dias is not None and dias < 0
+    if not _is_ejecucion(estado) or dias is None or dias < 0:
+        return False
+    if bucket == "por_vencer_7":
+        return dias <= 7
+    if bucket == "por_vencer_15":
+        return dias <= 15 and dias > 7
+    if bucket == "por_vencer_30":
+        return dias <= 30 and dias > 15
+    if bucket == "por_vencer_60":
+        return dias <= 60 and dias > 30
+    return False
+
+
 def buckets_vencimiento(records: list[dict[str, Any]]) -> dict[str, Any]:
     contratos = [r for r in records if r.get("tipo_registro") == "contrato"]
     today = date.today()
-    buckets: dict[str, list[dict]] = {
-        "vencidos_ejecucion": [],
-        "por_vencer_7": [],
-        "por_vencer_15": [],
-        "por_vencer_30": [],
-        "por_vencer_60": [],
-        "vencidos_sin_liquidar": [],
-    }
+    buckets: dict[str, list[dict]] = {key: [] for key in VENCIMIENTO_BUCKET_KEYS}
     for r in contratos:
-        dias = _dias_restantes(r, today)
         avance = compute_avance(r, today)
         pub = public_summary(r, avance)
-        if _is_ejecucion(r.get("estado")) and dias is not None and dias < 0:
-            buckets["vencidos_ejecucion"].append(pub)
-        elif _is_ejecucion(r.get("estado")) and dias is not None:
-            if dias <= 7:
-                buckets["por_vencer_7"].append(pub)
-            elif dias <= 15:
-                buckets["por_vencer_15"].append(pub)
-            elif dias <= 30:
-                buckets["por_vencer_30"].append(pub)
-            elif dias <= 60:
-                buckets["por_vencer_60"].append(pub)
-        if dias is not None and dias < 0 and not _is_liquidado(r):
-            buckets["vencidos_sin_liquidar"].append(pub)
+        for key in VENCIMIENTO_BUCKET_KEYS:
+            if matches_vencimiento_bucket(r, key, today):
+                buckets[key].append(pub)
 
     return {
         key: {"count": len(items), "valor": round(sum(i.get("valor", 0) for i in items), 2), "registros": items[:20]}

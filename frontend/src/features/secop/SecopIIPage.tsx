@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Clock,
@@ -45,13 +45,22 @@ import SecopDetalleModal from "./SecopDetalleModal";
 
 const PIE_COLORS = ["#3eafd4", "#1d4ed8", "#0e7490", "#6366f1", "#8b5cf6", "#f59e0b"];
 
-const VENCIMIENTO_STYLES: Record<string, { ring: string; text: string }> = {
-  vencidos_ejecucion: { ring: "ring-red-200", text: "text-red-700" },
-  por_vencer_7: { ring: "ring-orange-200", text: "text-orange-700" },
-  por_vencer_15: { ring: "ring-amber-200", text: "text-amber-700" },
-  por_vencer_30: { ring: "ring-yellow-200", text: "text-yellow-700" },
-  por_vencer_60: { ring: "ring-lime-200", text: "text-lime-700" },
-  vencidos_sin_liquidar: { ring: "ring-purple-200", text: "text-purple-700" },
+const VENCIMIENTO_CARDS: [string, string][] = [
+  ["vencidos_ejecucion", "Vencidos"],
+  ["por_vencer_7", "≤ 7 días"],
+  ["por_vencer_15", "≤ 15 días"],
+  ["por_vencer_30", "≤ 30 días"],
+  ["por_vencer_60", "≤ 60 días"],
+  ["vencidos_sin_liquidar", "Sin liquidar"],
+];
+
+const VENCIMIENTO_STYLES: Record<string, { ring: string; text: string; active: string }> = {
+  vencidos_ejecucion: { ring: "ring-red-200", text: "text-red-700", active: "border-red-400 bg-red-50 ring-2 ring-red-300" },
+  por_vencer_7: { ring: "ring-orange-200", text: "text-orange-700", active: "border-orange-400 bg-orange-50 ring-2 ring-orange-300" },
+  por_vencer_15: { ring: "ring-amber-200", text: "text-amber-700", active: "border-amber-400 bg-amber-50 ring-2 ring-amber-300" },
+  por_vencer_30: { ring: "ring-yellow-200", text: "text-yellow-700", active: "border-yellow-400 bg-yellow-50 ring-2 ring-yellow-300" },
+  por_vencer_60: { ring: "ring-lime-200", text: "text-lime-700", active: "border-lime-400 bg-lime-50 ring-2 ring-lime-300" },
+  vencidos_sin_liquidar: { ring: "ring-purple-200", text: "text-purple-700", active: "border-purple-400 bg-purple-50 ring-2 ring-purple-300" },
 };
 
 function pagadoDisplay(row: SecopRecord) {
@@ -70,7 +79,9 @@ export default function SecopIIPage() {
   const [search, setSearch] = useState("");
   const [tipoRegistro, setTipoRegistro] = useState("all");
   const [responsableFilter, setResponsableFilter] = useState("");
+  const [vencimientoFilter, setVencimientoFilter] = useState("");
   const [selected, setSelected] = useState<SecopRecord | null>(null);
+  const tableRef = useRef<HTMLElement>(null);
 
   const load = useCallback(async () => {
     if (loadingConfig) return;
@@ -84,6 +95,7 @@ export default function SecopIIPage() {
         if (depTab === "ordenador") params.ordenador = responsableFilter;
         else params.supervisor = responsableFilter;
       }
+      if (vencimientoFilter) params.vencimiento = vencimientoFilter;
 
       const data = await secopApi.panelSecop2(params);
       setPanel(data);
@@ -92,7 +104,13 @@ export default function SecopIIPage() {
     } finally {
       setLoading(false);
     }
-  }, [anio, page, search, tipoRegistro, responsableFilter, depTab, loadingConfig]);
+  }, [anio, page, search, tipoRegistro, responsableFilter, vencimientoFilter, depTab, loadingConfig]);
+
+  function toggleVencimiento(key: string) {
+    setVencimientoFilter((prev) => (prev === key ? "" : key));
+    setPage(1);
+    setTimeout(() => tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  }
 
   useEffect(() => {
     setResponsableFilter("");
@@ -188,24 +206,27 @@ export default function SecopIIPage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <SectionHeader title="Vencimientos" description="Contratos por plazo y liquidación" />
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            {[
-              ["vencidos_ejecucion", "Vencidos"],
-              ["por_vencer_7", "≤ 7 días"],
-              ["por_vencer_15", "≤ 15 días"],
-              ["por_vencer_30", "≤ 30 días"],
-              ["por_vencer_60", "≤ 60 días"],
-              ["vencidos_sin_liquidar", "Sin liquidar"],
-            ].map(([key, label]) => {
+            {VENCIMIENTO_CARDS.map(([key, label]) => {
               const bucket = venc[key];
-              const style = VENCIMIENTO_STYLES[key] || { ring: "ring-slate-200", text: "text-slate-700" };
+              const style = VENCIMIENTO_STYLES[key] || {
+                ring: "ring-slate-200",
+                text: "text-slate-700",
+                active: "border-[#3eafd4] bg-[#3eafd4]/5 ring-2 ring-[#3eafd4]",
+              };
+              const active = vencimientoFilter === key;
               return (
-                <div
+                <button
                   key={key}
-                  className={`rounded-xl bg-slate-50 p-3 text-center ring-1 ${style.ring}`}
+                  type="button"
+                  onClick={() => toggleVencimiento(key)}
+                  disabled={(bucket?.count ?? 0) === 0}
+                  className={`rounded-xl border border-transparent p-3 text-center transition-all ring-1 ${style.ring} ${
+                    active ? style.active : "bg-slate-50 hover:bg-white hover:shadow-sm"
+                  } disabled:cursor-not-allowed disabled:opacity-40`}
                 >
                   <div className={`text-2xl font-bold ${style.text}`}>{bucket?.count ?? 0}</div>
                   <div className="mt-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-slate-500">{label}</div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -341,21 +362,35 @@ export default function SecopIIPage() {
       </div>
 
       {/* Tabla completa */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section ref={tableRef} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 bg-slate-50/80 px-5 py-4">
           <SectionHeader
             title="Registro de procesos y contratos"
             description="Ejecución financiera, plazos y estado por registro"
             action={
-              responsableFilter ? (
-                <button
-                  type="button"
-                  onClick={() => setResponsableFilter("")}
-                  className="inline-flex items-center gap-1 rounded-full bg-[#3eafd4]/10 px-3 py-1 text-xs font-medium text-[#0e7490]"
-                >
-                  {responsableFilter.slice(0, 28)}
-                  <X className="h-3 w-3" />
-                </button>
+              responsableFilter || vencimientoFilter ? (
+                <div className="flex flex-wrap gap-2">
+                  {responsableFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setResponsableFilter("")}
+                      className="inline-flex items-center gap-1 rounded-full bg-[#3eafd4]/10 px-3 py-1 text-xs font-medium text-[#0e7490]"
+                    >
+                      {responsableFilter.slice(0, 28)}
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                  {vencimientoFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setVencimientoFilter("")}
+                      className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-800"
+                    >
+                      {VENCIMIENTO_CARDS.find(([k]) => k === vencimientoFilter)?.[1] || vencimientoFilter}
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               ) : undefined
             }
           />

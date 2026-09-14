@@ -27,6 +27,7 @@ from .alerts import compute_alerts, filter_alerts
 from .analytics import (
     agrupar_por_responsable,
     buckets_vencimiento,
+    matches_vencimiento_bucket,
     compare_kpis,
     compute_analytics,
     compute_avance,
@@ -140,6 +141,9 @@ def _filter_records(records: list[dict], params: dict) -> list[dict]:
         out = [r for r in out if float(r.get("valor") or 0) >= float(params["valor_min"])]
     if params.get("valor_max") is not None:
         out = [r for r in out if float(r.get("valor") or 0) <= float(params["valor_max"])]
+    if params.get("vencimiento"):
+        bucket = params["vencimiento"]
+        out = [r for r in out if matches_vencimiento_bucket(r, bucket)]
 
     ordering = params.get("ordering") or "-valor"
     reverse = ordering.startswith("-")
