@@ -196,6 +196,14 @@ export interface PaginatedSecop {
   analitica?: SecopAnalytics;
 }
 
+export interface Secop2Panel extends PaginatedSecop {
+  anio: number;
+  vencimientos: Record<string, SecopVencimientoBucket>;
+  pagos: SecopPagosResponse;
+  por_supervisor: SecopResponsableGroup[];
+  por_ordenador: SecopResponsableGroup[];
+}
+
 export interface SecopResumen {
   anio: number;
   kpis: SecopKpis;
@@ -229,6 +237,9 @@ export const secopApi = {
 
   listSecop2: (params: Record<string, string | number>) =>
     api.get<PaginatedSecop>("/secop/secop2/", { params, timeout: SECOP_TIMEOUT_MS }).then((r) => r.data),
+
+  panelSecop2: (params: Record<string, string | number>) =>
+    api.get<Secop2Panel>("/secop/secop2/panel/", { params, timeout: SECOP_TIMEOUT_MS }).then((r) => r.data),
 
   analiticaSecop2: (anio: number) =>
     api.get<SecopAnalytics & { anio: number; meta: Record<string, unknown> }>("/secop/secop2/analitica/", {

@@ -28,9 +28,8 @@ import {
 import {
   formatCOP,
   secopApi,
-  type PaginatedSecop,
+  type Secop2Panel,
   type SecopRecord,
-  type SecopResponsableGroup,
 } from "@/core/api/secop";
 import { formatApiError } from "@/core/api/errors";
 import { useSecopYear } from "./SecopYearContext";
@@ -65,10 +64,7 @@ export default function SecopIIPage() {
   const { anio, loadingConfig } = useSecopYear();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [resumen, setResumen] = useState<Awaited<ReturnType<typeof secopApi.resumen>> | null>(null);
-  const [supervisores, setSupervisores] = useState<SecopResponsableGroup[]>([]);
-  const [ordenadores, setOrdenadores] = useState<SecopResponsableGroup[]>([]);
-  const [list, setList] = useState<PaginatedSecop | null>(null);
+  const [panel, setPanel] = useState<Secop2Panel | null>(null);
   const [depTab, setDepTab] = useState<"supervisor" | "ordenador">("supervisor");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -89,15 +85,8 @@ export default function SecopIIPage() {
         else params.supervisor = responsableFilter;
       }
 
-      const [res, dep, listRes] = await Promise.all([
-        secopApi.resumen(anio),
-        secopApi.dependencias(anio),
-        secopApi.listSecop2(params),
-      ]);
-      setResumen(res);
-      setSupervisores(dep.por_supervisor);
-      setOrdenadores(dep.por_ordenador);
-      setList(listRes);
+      const data = await secopApi.panelSecop2(params);
+      setPanel(data);
     } catch (err) {
       setError(formatApiError(err) || "No se pudo cargar SECOP II.");
     } finally {
@@ -114,19 +103,20 @@ export default function SecopIIPage() {
     return () => clearTimeout(t);
   }, [load, search]);
 
-  const kpis = list?.kpis || resumen?.kpis;
-  const venc = resumen?.vencimientos;
-  const analytics = list?.analitica;
-  const groups = depTab === "supervisor" ? supervisores : ordenadores;
-  const totalPages = list ? Math.ceil(list.count / 15) : 1;
+  const kpis = panel?.kpis;
+  const venc = panel?.vencimientos;
+  const pagos = panel?.pagos;
+  const analytics = panel?.analitica;
+  const groups = depTab === "supervisor" ? panel?.por_supervisor || [] : panel?.por_ordenador || [];
+  const totalPages = panel ? Math.ceil(panel.count / 15) : 1;
 
-  const lineData = (resumen?.pagos?.serie_mensual_pagos || []).map((p, i) => ({
+  const lineData = (pagos?.serie_mensual_pagos || []).map((p, i) => ({
     mes: p.mes,
     pagos: p.valor,
-    contratacion: resumen?.secop2.analitica?.serie_mensual?.[i]?.valor || 0,
+    contratacion: analytics?.serie_mensual?.[i]?.valor || 0,
   }));
 
-  if (loading && !list) {
+  if (loading && !panel) {
     return (
       <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-slate-200 bg-white">
         <div className="text-center">
@@ -416,14 +406,14 @@ export default function SecopIIPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {(list?.results || []).length === 0 ? (
+              {(panel?.results || []).length === 0 ? (
                 <tr>
                   <td colSpan={12} className="px-4 py-12 text-center text-slate-500">
                     No hay registros para {anio}.
                   </td>
                 </tr>
               ) : (
-                (list?.results || []).map((row) => {
+                (panel?.results || []).map((row) => {
                   const avance = row.avance;
                   return (
                     <tr
@@ -487,7 +477,7 @@ export default function SecopIIPage() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-5 py-3">
             <span className="text-xs text-slate-500">
-              Página {page} de {totalPages} · {list?.count} registros
+              Página {page} de {totalPages} · {panel?.count} registros
             </span>
             <div className="flex gap-2">
               <button

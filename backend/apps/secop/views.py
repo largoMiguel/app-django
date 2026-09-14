@@ -267,6 +267,29 @@ class Secop2ListView(SecopBaseView):
         return Response(payload)
 
 
+class Secop2PanelView(SecopBaseView):
+    """Panel SECOP II: lista + KPIs + vencimientos + dependencias en una sola petición."""
+
+    def get(self, request):
+        ser = SecopListQuerySerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        params = ser.validated_data
+        anio = params.get("anio") or _default_anio()
+        s1, s2 = _load_all(self.entity, anio)
+        all_recs = s1 + s2
+        filtered = _filter_records(s2, params)
+        payload = _paginate(filtered, params["page"], params["page_size"])
+        payload["results"] = _with_avance(payload["results"])
+        payload["anio"] = anio
+        payload["kpis"] = compute_kpis(s2)
+        payload["analitica"] = compute_analytics(s2)
+        payload["vencimientos"] = buckets_vencimiento(all_recs)
+        payload["pagos"] = curva_pagos(all_recs)
+        payload["por_supervisor"] = agrupar_por_responsable(all_recs, "supervisor")
+        payload["por_ordenador"] = agrupar_por_responsable(all_recs, "ordenador_gasto")
+        return Response(payload)
+
+
 class Secop2AnaliticaView(SecopBaseView):
     def get(self, request):
         ser = SecopAnioQuerySerializer(data=request.query_params)

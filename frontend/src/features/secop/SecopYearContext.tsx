@@ -1,5 +1,28 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { secopApi } from "@/core/api/secop";
+import { secopApi, type SecopConfig } from "@/core/api/secop";
+
+const CONFIG_CACHE_KEY = "secop_config_v1";
+const CONFIG_TTL_MS = 30 * 60 * 1000;
+
+function readCachedConfig(): SecopConfig | null {
+  try {
+    const raw = sessionStorage.getItem(CONFIG_CACHE_KEY);
+    if (!raw) return null;
+    const { savedAt, data } = JSON.parse(raw) as { savedAt: number; data: SecopConfig };
+    if (Date.now() - savedAt > CONFIG_TTL_MS) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedConfig(data: SecopConfig) {
+  try {
+    sessionStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data }));
+  } catch {
+    /* ignore quota errors */
+  }
+}
 
 interface SecopYearContextValue {
   anio: number;
@@ -18,15 +41,22 @@ export function SecopYearProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const cached = readCachedConfig();
+    if (cached) {
+      setAniosDisponibles(cached.anios_disponibles);
+      setAnio(cached.anio_default || new Date().getFullYear());
+      setLoadingConfig(false);
+    }
     secopApi
       .config()
       .then((cfg) => {
         if (cancelled) return;
+        writeCachedConfig(cfg);
         setAniosDisponibles(cfg.anios_disponibles);
         setAnio(cfg.anio_default || new Date().getFullYear());
       })
       .catch(() => {
-        if (!cancelled) setAniosDisponibles([new Date().getFullYear()]);
+        if (!cancelled && !cached) setAniosDisponibles([new Date().getFullYear()]);
       })
       .finally(() => {
         if (!cancelled) setLoadingConfig(false);
@@ -38,6 +68,11 @@ export function SecopYearProvider({ children }: { children: ReactNode }) {
 
   async function refrescar() {
     await secopApi.refrescar(anio);
+    try {
+      sessionStorage.removeItem(CONFIG_CACHE_KEY);
+    } catch {
+      /* ignore */
+    }
   }
 
   return (
