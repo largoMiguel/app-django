@@ -107,7 +107,7 @@ def _filter_records(records: list[dict], params: dict) -> list[dict]:
     if search:
         def match(r: dict) -> bool:
             blob = " ".join(
-                str(r.get(k) or "") for k in ("referencia", "objeto", "proveedor", "estado", "modalidad", "tipo")
+                str(r.get(k) or "") for k in ("referencia", "numero_proceso", "referencia_contrato", "objeto", "proveedor", "estado", "modalidad", "tipo")
             ).lower()
             return search in blob
         out = [r for r in out if match(r)]

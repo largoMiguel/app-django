@@ -88,6 +88,8 @@ class SecopNormalizeTests(TestCase):
         contrato = next(r for r in unified if r["tipo_registro"] == "contrato")
         self.assertEqual(contrato["portfolio_id"], "P1")
         self.assertIn("proceso_vinculado", contrato)
+        self.assertEqual(contrato["referencia"], "PROC-1")
+        self.assertEqual(contrato["referencia_contrato"], "REF-1")
 
     def test_enrich_injects_pagos(self):
         rec = normalize_secop2_contract(

@@ -49,11 +49,10 @@ import GdInformesPage from "@/features/gestion-documental/GdInformesPage";
 import SecopLayout from "@/features/secop/SecopLayout";
 import SecopResumen from "@/features/secop/SecopResumen";
 import SecopListPage from "@/features/secop/SecopListPage";
+import SecopContratosPage from "@/features/secop/SecopContratosPage";
 import SecopAlertasPage from "@/features/secop/SecopAlertasPage";
 import SecopAnalisisPage from "@/features/secop/SecopAnalisisPage";
 import SecopCopilotPage from "@/features/secop/SecopCopilotPage";
-import SecopEjecucionPage from "@/features/secop/SecopEjecucionPage";
-import SecopDependenciasPage from "@/features/secop/SecopDependenciasPage";
 import PdmLayout from "@/features/pdm/PdmLayout";
 import PdmDashboardPage from "@/features/pdm/PdmDashboardPage";
 import PdmProductosPage from "@/features/pdm/PdmProductosPage";
@@ -226,9 +225,10 @@ export default function App(): ReactElement {
               <Route element={<ModuleRouteGuard moduleKey="contratacion" />}>
                 <Route path="/contratacion" element={<SecopLayout />}>
                   <Route index element={<SecopResumen />} />
-                  <Route path="ejecucion" element={<SecopEjecucionPage />} />
-                  <Route path="dependencias" element={<SecopDependenciasPage />} />
-                  <Route path="secop2" element={<SecopListPage fuente="secop2" />} />
+                  <Route path="contratos" element={<SecopContratosPage />} />
+                  <Route path="ejecucion" element={<Navigate to="/contratacion/contratos" replace />} />
+                  <Route path="dependencias" element={<Navigate to="/contratacion/contratos" replace />} />
+                  <Route path="secop2" element={<Navigate to="/contratacion/contratos" replace />} />
                   <Route path="secop1" element={<SecopListPage fuente="secop1" />} />
                   <Route path="alertas" element={<SecopAlertasPage />} />
                   <Route path="ia" element={<SecopAnalisisPage />} />

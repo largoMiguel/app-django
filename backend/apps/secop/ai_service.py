@@ -182,9 +182,13 @@ Usa lenguaje claro para funcionarios públicos. Cita cifras del contexto. No inv
 
 _SYSTEM_COPILOT = """Eres el copiloto de contratación de una entidad territorial colombiana.
 Respondes solo sobre SECOP I/II de esta entidad usando las herramientas disponibles.
-Cuando el usuario pida comparar, tendencias o distribuciones, usa generar_grafico con datos reales.
-Si listas contratos, sé conciso: referencia, proveedor, valor, estado. No repitas URLs largas.
+OBLIGATORIO: si el usuario pide un gráfico, diagrama o visualización, debes llamar generar_grafico
+con datos numéricos reales obtenidos de otras herramientas en la misma conversación.
+No digas que vas a generar un gráfico sin invocar generar_grafico.
+Si listas contratos, sé conciso: número de proceso, proveedor, valor, estado. No repitas URLs largas.
 Si no hay datos, indícalo. Responde en español, de forma ejecutiva con markdown breve."""
+
+MAX_COPILOT_TOOL_ROUNDS = 5
 
 
 def _load_datasets(entity: Entity, anio: int) -> tuple[list[dict], list[dict]]:
@@ -367,7 +371,7 @@ def _tool_buscar_contratos(entity: Entity, args: dict) -> str:
     hits = []
     for r in s1 + s2:
         blob = " ".join(
-            str(r.get(k) or "") for k in ("referencia", "objeto", "proveedor", "estado", "modalidad")
+            str(r.get(k) or "") for k in ("referencia", "numero_proceso", "referencia_contrato", "objeto", "proveedor", "estado", "modalidad")
         ).lower()
         if texto in blob:
             hits.append(public_summary(r, compute_avance(r)))
@@ -413,8 +417,128 @@ def _tool_serie_mensual(entity: Entity, args: dict) -> str:
     }, ensure_ascii=False, default=str)
 
 
+def _normalize_chart_spec(args: dict) -> dict | None:
+    datos = args.get("datos")
+    if not isinstance(datos, list) or not datos:
+        return None
+    normalized: list[dict[str, Any]] = []
+    for item in datos:
+        if not isinstance(item, dict):
+            continue
+        label = item.get("label") or item.get("name") or item.get("modalidad")
+        raw_val = item.get("valor")
+        if raw_val is None:
+            raw_val = item.get("value") or item.get("count")
+        if not label or raw_val is None:
+            continue
+        try:
+            normalized.append({"label": str(label), "valor": float(raw_val)})
+        except (TypeError, ValueError):
+            continue
+    if not normalized:
+        return None
+    return {
+        "tipo": args.get("tipo") or "bar",
+        "titulo": args.get("titulo") or "Gráfico",
+        "formato": args.get("formato") or "numero",
+        "eje_x": args.get("eje_x"),
+        "eje_y": args.get("eje_y"),
+        "datos": normalized,
+    }
+
+
 def _tool_generar_grafico(entity: Entity, args: dict) -> str:
-    return json.dumps(args, ensure_ascii=False, default=str)
+    chart = _normalize_chart_spec(args) or args
+    return json.dumps(chart, ensure_ascii=False, default=str)
+
+
+def _wants_chart(message: str) -> bool:
+    lower = message.lower()
+    return any(
+        word in lower
+        for word in (
+            "gráfico",
+            "grafico",
+            "gráfica",
+            "grafica",
+            "chart",
+            "diagrama",
+            "visualiz",
+            "dona",
+            "pastel",
+            "barras",
+        )
+    )
+
+
+def _infer_chart(entity: Entity, anio: int, message: str) -> dict | None:
+    lower = message.lower()
+    _, s2 = _load_datasets(entity, anio)
+    analytics = compute_analytics(s2)
+
+    if any(word in lower for word in ("modalidad", "modalidades")):
+        items = analytics.get("por_modalidad", [])[:8]
+        if not items:
+            return None
+        return {
+            "tipo": "pie",
+            "titulo": f"Contratación por modalidad — {anio}",
+            "formato": "numero",
+            "datos": [{"label": i.get("label") or "Sin modalidad", "valor": i.get("count", 0)} for i in items],
+        }
+
+    if any(word in lower for word in ("mes", "mensual", "tendencia", "pagos", "contratado")):
+        serie = analytics.get("serie_mensual", [])
+        pagos = analytics.get("serie_mensual_pagos", [])
+        if not serie and not pagos:
+            return None
+        meses = sorted({*(s.get("mes") for s in serie), *(p.get("mes") for p in pagos)})
+        datos = []
+        for mes in meses:
+            contrato = next((s.get("valor", 0) for s in serie if s.get("mes") == mes), 0)
+            pago = next((p.get("valor", 0) for p in pagos if p.get("mes") == mes), 0)
+            datos.append({"label": mes, "valor": float(pago or contrato)})
+        return {
+            "tipo": "line",
+            "titulo": f"Contratación y pagos — {anio}",
+            "formato": "moneda",
+            "datos": datos,
+        }
+
+    if any(word in lower for word in ("supervisor", "ordenador", "responsable", "dependencia")):
+        campo = "ordenador_gasto" if "ordenador" in lower else "supervisor"
+        groups = agrupar_por_responsable(s2, campo)[:8]
+        if not groups:
+            return None
+        return {
+            "tipo": "bar",
+            "titulo": f"Valor contratado por {campo.replace('_', ' ')} — {anio}",
+            "formato": "moneda",
+            "datos": [{"label": g.get("nombre") or "Sin asignar", "valor": g.get("valor_total", 0)} for g in groups],
+        }
+
+    if "proveedor" in lower:
+        tops = analytics.get("top_proveedores_valor", [])[:8]
+        if not tops:
+            return None
+        return {
+            "tipo": "bar",
+            "titulo": f"Top proveedores — {anio}",
+            "formato": "moneda",
+            "datos": [{"label": t.get("proveedor") or "—", "valor": t.get("valor", 0)} for t in tops],
+        }
+
+    if _wants_chart(message):
+        items = analytics.get("por_modalidad", [])[:8]
+        if not items:
+            return None
+        return {
+            "tipo": "pie",
+            "titulo": f"Contratación por modalidad — {anio}",
+            "formato": "numero",
+            "datos": [{"label": i.get("label") or "Sin modalidad", "valor": i.get("count", 0)} for i in items],
+        }
+    return None
 
 
 _TOOL_FUNCS = {
@@ -446,27 +570,33 @@ def run_secop_copilot(
     user_id: int | None = None,
 ) -> dict[str, Any]:
     history = history or []
-    messages: list[dict[str, str]] = [
+    messages: list[dict[str, Any]] = [
         {"role": "system", "content": _SYSTEM_COPILOT + f" Año de referencia: {anio}."},
         *history[-8:],
         {"role": "user", "content": message},
     ]
 
-    response = chat_completion(
-        "secop_copilot",
-        messages,
-        entity_id=entity.id,
-        user_id=user_id,
-        tools=TOOL_DEFINITIONS,
-        tool_choice="auto",
-        temperature=0.3,
-    )
-    msg = response.choices[0].message
     sources: list[dict] = []
     chart: dict | None = None
     registros: list[dict] = []
+    reply = ""
 
-    if msg.tool_calls:
+    for round_idx in range(MAX_COPILOT_TOOL_ROUNDS):
+        response = chat_completion(
+            "secop_copilot",
+            messages,
+            entity_id=entity.id,
+            user_id=user_id,
+            tools=TOOL_DEFINITIONS,
+            tool_choice="auto",
+            temperature=0.3,
+        )
+        msg = response.choices[0].message
+
+        if not msg.tool_calls:
+            reply = msg.content or ""
+            break
+
         messages.append(
             {
                 "role": "assistant",
@@ -490,9 +620,10 @@ def run_secop_copilot(
             sources.append({"tool": tc.function.name, "preview": result[:500]})
             if tc.function.name == "generar_grafico":
                 try:
-                    chart = json.loads(result)
+                    parsed = json.loads(result)
+                    chart = _normalize_chart_spec(parsed) or parsed
                 except json.JSONDecodeError:
-                    pass
+                    chart = _normalize_chart_spec(args)
             elif tc.function.name == "buscar_contratos":
                 try:
                     registros = json.loads(result)
@@ -500,6 +631,17 @@ def run_secop_copilot(
                     pass
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
+        if chart is not None and round_idx >= 1:
+            final = chat_completion(
+                "secop_copilot",
+                messages,
+                entity_id=entity.id,
+                user_id=user_id,
+                temperature=0.3,
+            )
+            reply = final.choices[0].message.content or ""
+            break
+    else:
         final = chat_completion(
             "secop_copilot",
             messages,
@@ -508,7 +650,8 @@ def run_secop_copilot(
             temperature=0.3,
         )
         reply = final.choices[0].message.content or ""
-    else:
-        reply = msg.content or ""
+
+    if chart is None and _wants_chart(message):
+        chart = _infer_chart(entity, anio, message)
 
     return {"reply": reply, "sources": sources, "chart": chart, "registros": registros}

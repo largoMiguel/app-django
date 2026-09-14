@@ -218,7 +218,8 @@ def public_summary(rec: dict[str, Any], avance: dict[str, Any] | None = None) ->
     return {
         "id": rec.get("id"),
         "fuente": rec.get("fuente"),
-        "referencia": rec.get("referencia"),
+        "referencia": rec.get("numero_proceso") or rec.get("referencia"),
+        "numero_proceso": rec.get("numero_proceso") or rec.get("referencia"),
         "proveedor": rec.get("proveedor"),
         "estado": rec.get("estado"),
         "valor": _parse_float(rec.get("valor_con_adiciones") or rec.get("valor")),

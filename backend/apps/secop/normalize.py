@@ -140,6 +140,8 @@ def normalize_secop2_contract(row: dict[str, Any]) -> dict[str, Any]:
         "tipo_registro": "contrato",
         "id": cid,
         "referencia": row.get("referencia_del_contrato") or cid,
+        "referencia_contrato": row.get("referencia_del_contrato") or cid,
+        "numero_proceso": None,
         "proceso_id": row.get("proceso_de_compra"),
         "portfolio_id": portfolio,
         "notice_uid": notice,

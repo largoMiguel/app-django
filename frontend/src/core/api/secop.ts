@@ -40,6 +40,8 @@ export interface SecopRecord {
   tipo_registro: "contrato" | "proceso";
   id: string;
   referencia: string;
+  referencia_contrato?: string | null;
+  numero_proceso?: string | null;
   objeto: string | null;
   proveedor: string | null;
   documento_proveedor: string | null;
