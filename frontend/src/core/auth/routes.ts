@@ -17,7 +17,8 @@ export type AppModuleKey =
   | "asistencia"
   | "correspondencia"
   | "gestion_documental"
-  | "contratacion";
+  | "contratacion"
+  | "pic";
 
 export interface AppModuleRoute {
   moduleKey: AppModuleKey;
@@ -63,6 +64,16 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
     paths: ["/planes"],
     label: "Planes Institucionales",
     module: "enable_planes_institucionales",
+    access: { roles: ["admin", "secretario", "contratista"] },
+    showInNav: true,
+    navSection: "main",
+  },
+  {
+    moduleKey: "pic",
+    path: "/pic",
+    paths: ["/pic"],
+    label: "PIC",
+    module: "enable_pic",
     access: { roles: ["admin", "secretario", "contratista"] },
     showInNav: true,
     navSection: "main",

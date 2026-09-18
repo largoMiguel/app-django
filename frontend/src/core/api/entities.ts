@@ -33,6 +33,7 @@ export interface Entity {
   enable_correspondencia: boolean;
   enable_presupuesto: boolean;
   enable_gestion_documental: boolean;
+  enable_pic: boolean;
   enabled_modules: string[];
   plan_name: string | null;
   pdf_template_url: string | null;

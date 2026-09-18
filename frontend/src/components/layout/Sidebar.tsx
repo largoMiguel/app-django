@@ -1,4 +1,4 @@
-import { FileText, Building2, Users, BarChart3, LogOut, Clock, Mail, FileSearch, ClipboardList, Archive, House, type LucideIcon } from "lucide-react";
+import { FileText, Building2, Users, BarChart3, LogOut, Clock, Mail, FileSearch, ClipboardList, Archive, HeartPulse, House, type LucideIcon } from "lucide-react";
 import { useClerk } from "@clerk/react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
@@ -13,6 +13,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   asistencia: Clock,
   correspondencia: Mail,
   gestion_documental: Archive,
+  pic: HeartPulse,
   contratacion: FileSearch,
   users_admin: Users,
 };

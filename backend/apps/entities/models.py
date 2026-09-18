@@ -65,6 +65,7 @@ class Entity(models.Model):
     enable_correspondencia = models.BooleanField(default=True)
     enable_presupuesto = models.BooleanField(default=True)
     enable_gestion_documental = models.BooleanField(default=False)
+    enable_pic = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)
@@ -99,6 +100,7 @@ class Entity(models.Model):
             "correspondencia": self.enable_correspondencia,
             "presupuesto": self.enable_presupuesto,
             "gestion_documental": self.enable_gestion_documental,
+            "pic": self.enable_pic,
         }
         for k, v in flags.items():
             if v:

@@ -42,12 +42,17 @@ class B2GestionDocumentalStorage(_B2Storage):
     bucket_name = settings.B2_BUCKET_GESTION_DOCUMENTAL
 
 
+class B2PicStorage(_B2Storage):
+    bucket_name = settings.B2_BUCKET_PIC
+
+
 b2_pqrs_storage = B2PqrsStorage()
 b2_pdm_storage = B2PdmStorage()
 b2_asistencia_storage = B2AsistenciaStorage()
 b2_correspondencia_storage = B2CorrespondenciaStorage()
 b2_planes_storage = B2PlanesStorage()
 b2_gestion_documental_storage = B2GestionDocumentalStorage()
+b2_pic_storage = B2PicStorage()
 
 
 def pqrs_file_storage():
@@ -84,6 +89,19 @@ def gestion_documental_file_storage():
     if settings.USE_B2_STORAGE:
         return b2_gestion_documental_storage
     return default_storage
+
+
+def pic_file_storage():
+    if settings.USE_B2_STORAGE:
+        return b2_pic_storage
+    return default_storage
+
+
+def pic_storage_for_paths() -> B2PicStorage | FileSystemStorage:
+    """Storage used for PIC paths stored as plain strings."""
+    if settings.USE_B2_STORAGE:
+        return b2_pic_storage
+    return FileSystemStorage(location=settings.MEDIA_ROOT)
 
 
 def pdm_storage_for_paths() -> B2PdmStorage | FileSystemStorage:

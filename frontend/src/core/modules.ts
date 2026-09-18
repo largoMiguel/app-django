@@ -22,6 +22,7 @@ export const MODULES: ModuleDef[] = [
   { key: "correspondencia", label: "Correspondencia", flag: "enable_correspondencia", scope: "all" },
   { key: "gestion_documental", label: "Gestión documental", flag: "enable_gestion_documental", scope: "all" },
   { key: "presupuesto", label: "Presupuesto", flag: "enable_presupuesto", scope: "all" },
+  { key: "pic", label: "PIC", flag: "enable_pic", scope: "all" },
 ];
 
 export function modulesForEntity(entity: Entity | null | undefined): ModuleDef[] {

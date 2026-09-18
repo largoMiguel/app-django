@@ -106,6 +106,36 @@ def cleanup_planes_evidencia_files(evidencia) -> None:
         shutil.rmtree(folder, ignore_errors=True)
 
 
+def cleanup_pic_ejecucion_files(ejecucion) -> None:
+    """Borra archivos PDF de una ejecución PIC."""
+    from apps.pic.storage_paths import pic_ejecucion_prefix
+
+    for arch in ejecucion.archivos.all():
+        if arch.archivo:
+            arch.archivo.delete(save=False)
+
+    if settings.USE_B2_STORAGE:
+        delete_prefix(settings.B2_BUCKET_PIC, f"{pic_ejecucion_prefix(ejecucion)}/")
+        return
+
+    media_root = Path(settings.MEDIA_ROOT)
+    folder = media_root / pic_ejecucion_prefix(ejecucion)
+    if folder.exists():
+        import shutil
+
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def delete_pic_storage_key(key: str | None) -> None:
+    if not key or not settings.USE_B2_STORAGE:
+        return
+    client = get_b2_client()
+    try:
+        client.delete_object(Bucket=settings.B2_BUCKET_PIC, Key=key.lstrip("/"))
+    except ClientError as exc:
+        logger.warning("No se pudo borrar %s en %s: %s", key, settings.B2_BUCKET_PIC, exc)
+
+
 def cleanup_pdm_evidencia_files(evidencia) -> None:
     """Borra archivos de evidencia PDM y sus carpetas (nueva ruta y legacy)."""
     from apps.pdm.storage_paths import pdm_evidencia_legacy_prefix, pdm_evidencia_prefix

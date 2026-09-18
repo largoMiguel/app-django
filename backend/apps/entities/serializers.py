@@ -45,6 +45,7 @@ class EntitySerializer(serializers.ModelSerializer):
             "enable_correspondencia",
             "enable_presupuesto",
             "enable_gestion_documental",
+            "enable_pic",
             "enabled_modules",
             "created_at",
             "updated_at",

@@ -37,6 +37,11 @@ import PlanDetailPage from "@/features/planes/PlanDetailPage";
 import PlanesCronogramaPage from "@/features/planes/PlanesCronogramaPage";
 import PlanesInformesPage from "@/features/planes/PlanesInformesPage";
 import PlanesInformeTrimestralPage from "@/features/planes/PlanesInformeTrimestralPage";
+import PicLayout from "@/features/pic/PicLayout";
+import PicDashboard from "@/features/pic/PicDashboard";
+import PicActividadesPage from "@/features/pic/PicActividadesPage";
+import PicActividadDetailPage from "@/features/pic/PicActividadDetailPage";
+import PicEncargadosPage from "@/features/pic/PicEncargadosPage";
 import GestionDocumentalLayout from "@/features/gestion-documental/GestionDocumentalLayout";
 import GdDashboard from "@/features/gestion-documental/GdDashboard";
 import GdInstrumentosPage from "@/features/gestion-documental/GdInstrumentosPage";
@@ -206,6 +211,15 @@ export default function App(): ReactElement {
                   <Route path="informes/seguimiento" element={<Navigate to="/planes/informes" replace />} />
                   <Route path="informes/trimestral" element={<PlanesInformeTrimestralPage />} />
                   <Route path=":id" element={<PlanDetailPage />} />
+                </Route>
+              </Route>
+
+              <Route element={<ModuleRouteGuard moduleKey="pic" />}>
+                <Route path="/pic" element={<PicLayout />}>
+                  <Route index element={<PicDashboard />} />
+                  <Route path="actividades" element={<PicActividadesPage />} />
+                  <Route path="actividades/:id" element={<PicActividadDetailPage />} />
+                  <Route path="encargados" element={<PicEncargadosPage />} />
                 </Route>
               </Route>
 
