@@ -189,7 +189,7 @@ export const picApi = {
 
   deleteEjecucion: (id: number) => api.delete(`/pic/ejecuciones/${id}/`),
 
-  listCargos: (params?: { search?: string; page?: number }) =>
+  listCargos: (params?: { search?: string; page?: number; page_size?: number }) =>
     api.get<PaginatedResponse<PicCargo>>("/pic/cargos/", { params }).then((r) => r.data),
 
   createCargo: (data: { etiqueta: string; secretaria_id?: number | null; usuarios: number[] }) =>
@@ -203,9 +203,17 @@ export const picApi = {
   aplicarCargos: (anio: number) =>
     api.post<{ actualizadas: number; sin_mapeo_encargado: string[] }>("/pic/cargos/aplicar/", { anio }).then((r) => r.data),
 
-  downloadExport: (anio: number, trimestre?: number) => {
-    const qs = new URLSearchParams({ anio: String(anio) });
-    if (trimestre) qs.set("trimestre", String(trimestre));
-    return downloadAuthenticatedFile(`/pic/export/?${qs.toString()}`);
+  exportUrl: (params: Record<string, string>) => {
+    const qs = new URLSearchParams(params).toString();
+    const base = import.meta.env.VITE_API_URL || "/api/v1";
+    return `${base}/pic/export/?${qs}`;
+  },
+
+  downloadExport: async (anio: number, trimestre?: number) => {
+    const params: Record<string, string> = { anio: String(anio) };
+    if (trimestre) params.trimestre = String(trimestre);
+    const triSuffix = trimestre ? `_T${trimestre}` : "";
+    const filename = `PIC_${anio}${triSuffix}.xlsx`;
+    await downloadAuthenticatedFile(picApi.exportUrl(params), filename);
   },
 };
