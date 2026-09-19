@@ -8,6 +8,7 @@ from apps.common.file_delivery import signed_pic_url
 
 from .calculos import actividad_metrics, calcular_valor_cobrado, disponible_ejecucion, total_ejecutado
 from .models import PicActividad, PicCargo, PicEjecucion, PicEjecucionArchivo, PicPlan
+from .utils import user_display_name
 
 
 class PicEjecucionArchivoSerializer(serializers.ModelSerializer):
@@ -64,7 +65,7 @@ class PicEjecucionSerializer(serializers.ModelSerializer):
         if not obj.registrado_por_id:
             return None
         u = obj.registrado_por
-        return u.get_full_name() or u.email
+        return user_display_name(u)
 
 
 class PicActividadListSerializer(serializers.ModelSerializer):
@@ -124,7 +125,7 @@ class PicActividadListSerializer(serializers.ModelSerializer):
         return self._metrics(obj)["avance_pct"]
 
     def get_responsables_nombres(self, obj) -> list[str]:
-        return [u.get_full_name() or u.email for u in obj.responsables.all()]
+        return [user_display_name(u) for u in obj.responsables.all()]
 
     def get_responsable_secretaria_nombre(self, obj) -> str | None:
         if obj.responsable_secretaria_id:
@@ -209,7 +210,7 @@ class PicCargoSerializer(serializers.ModelSerializer):
         read_only_fields = ("etiqueta_norm",)
 
     def get_usuarios_nombres(self, obj) -> list[str]:
-        return [u.get_full_name() or u.email for u in obj.usuarios.all()]
+        return [user_display_name(u) for u in obj.usuarios.all()]
 
 
 class PicCargoWriteSerializer(serializers.Serializer):

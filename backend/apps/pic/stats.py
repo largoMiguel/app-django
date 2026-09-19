@@ -10,7 +10,8 @@ from apps.entities.models import Entity
 
 from .access import actividades_queryset_for_user
 from .calculos import actividad_metrics, total_ejecutado
-from .models import PicActividad, PicPlan, Trimestre
+from .models import PicPlan, Trimestre
+from .utils import user_display_name
 
 
 def compute_pic_stats(user, entity: Entity, *, anio: int | None = None) -> dict:
@@ -57,7 +58,7 @@ def compute_pic_stats(user, entity: Entity, *, anio: int | None = None) -> dict:
                 u.id,
                 {
                     "usuario_id": u.id,
-                    "nombre": u.get_full_name() or u.email,
+                    "nombre": user_display_name(u),
                     "actividades": 0,
                     "total_ejecutado": 0,
                     "valor_cobrado": Decimal("0"),
@@ -69,17 +70,25 @@ def compute_pic_stats(user, entity: Entity, *, anio: int | None = None) -> dict:
 
     sin_responsables = act_qs.annotate(rc=Count("responsables")).filter(rc=0).count()
 
+    por_responsable_out = [
+        {
+            **entry,
+            "valor_cobrado": str(entry["valor_cobrado"]),
+        }
+        for entry in por_responsable.values()
+    ]
+
     return {
         "anio": anio,
         "plan_id": plan.id if plan else None,
         "tiene_plan": plan is not None,
         "actividades_total": act_qs.count(),
-        "valor_total_pic": valor_total_pic,
-        "valor_cobrado_total": valor_cobrado_total,
+        "valor_total_pic": str(valor_total_pic),
+        "valor_cobrado_total": str(valor_cobrado_total),
         "total_programado": total_programado,
         "total_ejecutado": total_ejecutado_sum,
         "avance_pct": avance_pct,
         "por_trimestre": por_trimestre,
-        "por_responsable": list(por_responsable.values()),
+        "por_responsable": por_responsable_out,
         "sin_responsables": sin_responsables,
     }

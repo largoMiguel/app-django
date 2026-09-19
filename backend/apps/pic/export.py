@@ -11,6 +11,7 @@ from apps.entities.models import Entity
 from .access import actividades_queryset_for_user
 from .calculos import actividad_metrics
 from .models import Trimestre
+from .utils import user_display_name
 
 HEADER_FILL = PatternFill(start_color="0E7490", end_color="0E7490", fill_type="solid")
 HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
@@ -70,7 +71,7 @@ def build_seguimiento_excel(
     row_idx = 2
     for act in act_qs.prefetch_related("responsables"):
         m = actividad_metrics(act)
-        responsables = ", ".join(u.get_full_name() or u.email for u in act.responsables.all())
+        responsables = ", ".join(user_display_name(u) for u in act.responsables.all())
         values = [
             act.numero,
             act.eje_estrategico,
