@@ -224,7 +224,9 @@ export default function PQRSDashboard() {
           </Link>
         </div>
       </div>
-      <PqrsAICommandBar />
+      <PqrsAICommandBar
+        onResultClick={(r) => navigate(`/pqrs?id=${r.object_id}`)}
+      />
       <PqrsAIInsights
         title="Insights IA PQRS"
         onInsightClick={(insight) => {

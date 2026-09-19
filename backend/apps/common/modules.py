@@ -44,6 +44,9 @@ def user_has_module(user, module_key: str) -> bool:
         return module_key in user_modules
     if role == "contratista":
         if not user_modules:
+            supervisor_modules = getattr(user, "_supervisor_enabled_modules", None) or []
+            if supervisor_modules:
+                return module_key in supervisor_modules
             return False
         return module_key in user_modules
     if user_modules:

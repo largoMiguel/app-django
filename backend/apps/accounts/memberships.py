@@ -57,6 +57,7 @@ def apply_membership_context(user, membership: UserEntityMembership | None) -> N
         user.secretaria = None
         user.secretaria_id = None
         user.enabled_modules = []
+        user._supervisor_enabled_modules = []
         return
 
     user._active_membership = membership
@@ -68,6 +69,19 @@ def apply_membership_context(user, membership: UserEntityMembership | None) -> N
     user.secretaria = membership.secretaria
     user.secretaria_id = membership.secretaria_id
     user.enabled_modules = list(membership.enabled_modules or [])
+    user._supervisor_enabled_modules = []
+    if membership.supervisor_id:
+        sup = (
+            UserEntityMembership.objects.filter(
+                user_id=membership.supervisor_id,
+                entity_id=membership.entity_id,
+                is_active=True,
+            )
+            .only("enabled_modules")
+            .first()
+        )
+        if sup:
+            user._supervisor_enabled_modules = list(sup.enabled_modules or [])
 
 
 def apply_request_entity_context(request, user) -> None:
@@ -223,13 +237,16 @@ def contratista_user_ids_for_secretario(user) -> list[int]:
 
 
 def cascade_modules_to_supervised(supervisor_membership: UserEntityMembership) -> None:
-    """Si un secretario pierde módulos, los contratistas bajo su supervisión también."""
+    """Si un secretario pierde módulos, los contratistas bajo su supervisión directa también."""
     allowed = set(supervisor_membership.enabled_modules or [])
+    if not allowed:
+        return
     subs = UserEntityMembership.objects.filter(
         entity=supervisor_membership.entity,
         role="contratista",
         is_active=True,
-    ).filter(contratista_membership_filter_for_secretario(supervisor_membership.user))
+        supervisor_id=supervisor_membership.user_id,
+    )
     for sub in subs:
         current = set(sub.enabled_modules or [])
         trimmed = sorted(current & allowed)

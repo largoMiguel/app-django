@@ -35,7 +35,7 @@ export default function AICommandBar({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!query.trim() || query.length < 3) {
+    if (!query.trim() || query.length < 2) {
       setResults([]);
       setOpen(false);
       setHint(null);
@@ -70,7 +70,7 @@ export default function AICommandBar({
     };
   }, [query, contentTypes, searchFn]);
 
-  const showDropdown = open && query.length >= 3 && !loading;
+  const showDropdown = open && query.length >= 2 && !loading;
 
   return (
     <div className={`relative ${className}`}>
@@ -106,27 +106,46 @@ export default function AICommandBar({
               {searchMode === "none" && " Prueba con palabras del asunto o radicado."}
             </p>
           ) : (
-            results.map((r) => (
-              <button
-                key={`${r.content_type}-${r.object_id}`}
-                type="button"
-                onClick={() => {
-                  onResultClick?.(r);
-                  setOpen(false);
-                }}
-                className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-blue-600">
-                    {r.metadata?.numero_radicado as string | undefined ?? r.content_type}
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    {Math.round(r.similarity * 100)}% match
-                  </span>
-                </div>
-                <p className="text-sm text-slate-700 mt-0.5 line-clamp-2">{r.texto}</p>
-              </button>
-            ))
+            results.map((r) => {
+              const radicado = r.metadata?.numero_radicado as string | undefined;
+              const estado = r.metadata?.estado as string | undefined;
+              const tipo = r.metadata?.tipo as string | undefined;
+              return (
+                <button
+                  key={`${r.content_type}-${r.object_id}`}
+                  type="button"
+                  onClick={() => {
+                    onResultClick?.(r);
+                    setOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-blue-600 font-mono">
+                      {radicado ?? r.content_type}
+                    </span>
+                    <span className="text-xs text-slate-400 shrink-0">
+                      {Math.round(r.similarity * 100)}% match
+                    </span>
+                  </div>
+                  {(estado || tipo) && (
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {estado && (
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[0.65rem] text-slate-600 capitalize">
+                          {estado.replace(/_/g, " ")}
+                        </span>
+                      )}
+                      {tipo && (
+                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[0.65rem] text-blue-700 capitalize">
+                          {tipo.replace(/_/g, " ")}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-sm text-slate-700 mt-1 line-clamp-2">{r.texto}</p>
+                </button>
+              );
+            })
           )}
         </div>
       )}

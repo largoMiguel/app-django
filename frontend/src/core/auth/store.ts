@@ -90,6 +90,7 @@ export interface AuthUser {
   secretaria?: AuthSecretaria | null;
   email_firma?: string;
   enabled_modules?: string[];
+  supervisor_enabled_modules?: string[];
   active_entity_id?: number | null;
   memberships?: AuthMembership[];
   capabilities?: {

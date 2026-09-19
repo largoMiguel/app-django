@@ -1,5 +1,5 @@
 import {
-  Search, ChevronLeft, ChevronRight, Plus, FileText, Eye, Trash2,
+  ChevronLeft, ChevronRight, Plus, FileText, Eye, Trash2,
   AlertTriangle, ArrowLeft, SlidersHorizontal, Users, ListFilter, Tag, RotateCcw, Info, BellRing, Clock, Mail,
 } from "lucide-react";
 import { useMemo } from "react";
@@ -69,7 +69,6 @@ export default function PQRSPage() {
   const isAdminCorreo = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_CHANGE] });
 
   const urlParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const searchTerm = urlParams.get("q") || "";
   const filterEstado = (urlParams.get("estado") as EstadoPQRS) || "";
   const filterTipo = (urlParams.get("tipo") as TipoSolicitud) || "";
   const filterSecretaria = urlParams.get("secretaria") || "";
@@ -98,14 +97,13 @@ export default function PQRSPage() {
       page: currentPage,
       page_size: PAGE_SIZE,
     };
-    if (searchTerm.trim()) p.search = searchTerm.trim();
     if (filterTipo) p.tipo_solicitud = filterTipo;
     if (filterSecretaria) p.assigned_to = filterSecretaria;
     if (filterPendientes) p.pendientes = true;
     else if (modoAlerta) p.alerta = true;
     else if (filterEstado) p.estado = filterEstado;
     return p;
-  }, [currentPage, searchTerm, filterEstado, filterTipo, filterSecretaria, filterPendientes, modoAlerta]);
+  }, [currentPage, filterEstado, filterTipo, filterSecretaria, filterPendientes, modoAlerta]);
 
   const { data, isLoading, isError, error } = usePqrsList(listParams);
   const { data: complianceData } = usePqrsCompliance(canAdmin && !isLoading);
@@ -217,7 +215,9 @@ export default function PQRSPage() {
         </div>
       </div>
 
-      <PqrsAICommandBar onResultClick={(r) => navigate(`?id=${r.object_id}`)} />
+      <PqrsAICommandBar
+        onResultClick={(r) => updateParams({ id: String(r.object_id) }, { resetPage: false })}
+      />
 
       {modoAlerta && (
         <PqrsAIInsights
@@ -320,28 +320,7 @@ export default function PQRSPage() {
           <SlidersHorizontal className="h-4 w-4" />
           Filtros de Búsqueda
         </div>
-        <div className="grid grid-cols-1 gap-x-4 gap-y-3 p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
-          <div>
-            <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-500">
-              <Search className="h-3.5 w-3.5" /> Buscar
-            </label>
-            <input
-              type="text"
-              placeholder="Radicado, ciudadano, asunto..."
-              defaultValue={searchTerm}
-              key={`q-${searchTerm}`}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  updateParams({ q: (e.target as HTMLInputElement).value || null });
-                }
-              }}
-              onBlur={(e) => {
-                const v = e.target.value.trim();
-                if (v !== searchTerm) updateParams({ q: v || null });
-              }}
-              className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
-            />
-          </div>
+        <div className="grid grid-cols-1 gap-x-4 gap-y-3 p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
           <div>
             <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-500">
               <Users className="h-3.5 w-3.5" /> Secretaría
@@ -405,7 +384,6 @@ export default function PQRSPage() {
             <button
               onClick={() =>
                 updateParams({
-                  q: null,
                   estado: null,
                   tipo: null,
                   secretaria: null,
@@ -438,7 +416,11 @@ export default function PQRSPage() {
           {items.map((p) => {
             const t = tiempoRestante(p);
             return (
-              <div key={p.id} className="space-y-2 p-4">
+              <div
+                key={p.id}
+                className="cursor-pointer space-y-2 p-4 hover:bg-slate-50/60"
+                onClick={() => updateParams({ id: String(p.id) }, { resetPage: false })}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-mono text-sm font-semibold text-slate-800">{p.numero_radicado}</div>
@@ -456,13 +438,22 @@ export default function PQRSPage() {
                 </div>
                 <div className="flex justify-end gap-1">
                   <button
-                    onClick={() => updateParams({ id: String(p.id) }, { resetPage: false })}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateParams({ id: String(p.id) }, { resetPage: false });
+                    }}
                     className="rounded p-1.5 text-slate-500 hover:bg-slate-100"
                   >
                     <Eye className="h-4 w-4" />
                   </button>
                   {canDelete && (
-                    <button onClick={() => handleDelete(p)} className="rounded p-1.5 text-slate-500 hover:bg-red-50">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(p);
+                      }}
+                      className="rounded p-1.5 text-slate-500 hover:bg-red-50"
+                    >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
@@ -508,7 +499,11 @@ export default function PQRSPage() {
                 </tr>
               )}
               {items.map((p) => (
-                <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50/60">
+                <tr
+                  key={p.id}
+                  className="cursor-pointer border-t border-slate-100 hover:bg-slate-50/60"
+                  onClick={() => updateParams({ id: String(p.id) }, { resetPage: false })}
+                >
                   <td className="px-4 py-3 font-mono text-[0.78rem] font-medium text-slate-800">
                     <span className="inline-flex items-center gap-1.5">
                       {p.numero_radicado}
@@ -563,7 +558,10 @@ export default function PQRSPage() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1">
                       <button
-                        onClick={() => updateParams({ id: String(p.id) }, { resetPage: false })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateParams({ id: String(p.id) }, { resetPage: false });
+                        }}
                         className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-[#0e7490]"
                         title="Ver detalle"
                       >
@@ -571,7 +569,10 @@ export default function PQRSPage() {
                       </button>
                       {canDelete && (
                         <button
-                          onClick={() => handleDelete(p)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(p);
+                          }}
                           className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
                           title="Eliminar"
                         >

@@ -56,15 +56,26 @@ export function primaryRole(user: { roles?: string[]; role?: string } | null | u
 
 /** Secretario: lista vacía = ningún módulo (asignación explícita). Admin/otros: vacía = todos los de la entidad. */
 export function isUserModuleEnabled(
-  user: { enabled_modules?: string[]; roles?: string[]; role?: string } | null | undefined,
+  user: {
+    enabled_modules?: string[];
+    supervisor_enabled_modules?: string[];
+    roles?: string[];
+    role?: string;
+  } | null | undefined,
   module: EntityModuleFlag,
 ): boolean {
   if (!user) return false;
   const enabled = user.enabled_modules ?? [];
   const role = primaryRole(user);
-  if (role === "secretario" || role === "contratista") {
+  if (role === "secretario") {
     if (enabled.length === 0) return false;
     return enabled.includes(MODULE_FLAG_TO_KEY[module]);
+  }
+  if (role === "contratista") {
+    const effective =
+      enabled.length > 0 ? enabled : (user.supervisor_enabled_modules ?? []);
+    if (effective.length === 0) return false;
+    return effective.includes(MODULE_FLAG_TO_KEY[module]);
   }
   if (enabled.length === 0) return true;
   return enabled.includes(MODULE_FLAG_TO_KEY[module]);
