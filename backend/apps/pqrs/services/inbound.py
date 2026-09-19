@@ -320,6 +320,7 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
                 user=user,
                 forward_meta=forward_meta,
                 subject_line=subject_line,
+                radicado=radicado_detectado,
             )
             correo = _registrar_correo(
                 parsed,

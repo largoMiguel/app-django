@@ -47,9 +47,10 @@ def extract_radicado_from_email(
     subject: str = "",
     forward_subject: str | None = None,
     body: str = "",
+    forward_body: str | None = None,
 ) -> str | None:
     """Detecta radicado en asunto del reenvío, asunto original o cuerpo."""
-    return extract_radicado_from_text(subject, forward_subject, body)
+    return extract_radicado_from_text(subject, forward_subject, body, forward_body)
 
 
 def _save_respuesta_archivo(
@@ -93,13 +94,16 @@ def procesar_respuesta_inbound(
     user: User,
     forward_meta: ForwardedEmailMeta,
     subject_line: str,
+    radicado: str | None = None,
 ) -> PQRS:
     """Marca PQRS como respondida desde correo reenviado al buzón PQRS."""
-    radicado = extract_radicado_from_email(
-        subject=subject_line,
-        forward_subject=forward_meta.subject,
-        body=forward_meta.body or parsed.texto,
-    )
+    if not radicado:
+        radicado = extract_radicado_from_email(
+            subject=parsed.asunto,
+            forward_subject=forward_meta.subject,
+            body=parsed.texto,
+            forward_body=forward_meta.body,
+        )
     if not radicado:
         raise ValueError(
             "No se encontró radicado PQRS en el asunto ni en el cuerpo del correo."
