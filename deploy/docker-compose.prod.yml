@@ -122,6 +122,7 @@ services:
       B2_BUCKET_CORRESPONDENCIA: ${B2_BUCKET_CORRESPONDENCIA:-softone-correspondence}
       B2_BUCKET_PLANES: ${B2_BUCKET_PLANES:-softone-planes-612}
       B2_BUCKET_GESTION_DOCUMENTAL: ${B2_BUCKET_GESTION_DOCUMENTAL:-softone-document-management}
+      B2_BUCKET_PIC: ${B2_BUCKET_PIC:-softone-pic}
       B2_BUCKET_DB: ${B2_BUCKET_DB:-softone-db}
     volumes:
       - media_data:/app/media
@@ -233,6 +234,7 @@ services:
       B2_BUCKET_CORRESPONDENCIA: ${B2_BUCKET_CORRESPONDENCIA:-softone-correspondence}
       B2_BUCKET_PLANES: ${B2_BUCKET_PLANES:-softone-planes-612}
       B2_BUCKET_GESTION_DOCUMENTAL: ${B2_BUCKET_GESTION_DOCUMENTAL:-softone-document-management}
+      B2_BUCKET_PIC: ${B2_BUCKET_PIC:-softone-pic}
       B2_BUCKET_DB: ${B2_BUCKET_DB:-softone-db}
       FILE_DELIVERY_BASE_URL: ${FILE_DELIVERY_BASE_URL:-https://files.softone360.com}
       FILE_DELIVERY_SIGNING_KEY: ${FILE_DELIVERY_SIGNING_KEY:-}

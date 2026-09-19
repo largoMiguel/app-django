@@ -2,14 +2,14 @@
 
 Documento de referencia para migrar el módulo **Gestión documental** validado en **demo** (`development`) hacia **producción** (`main`).
 
-> **Estado al 2 sep 2026**
+> **Estado al 19 sep 2026**
 >
-> | Rama | URL | Notas |
-> |------|-----|-------|
-> | `development` | https://demo.softone360.com | En sync con `main` + WIP **Gestión documental** (solo demo) |
-> | `main` | https://app.softone360.com | PDM ejecución mensual / PIIP + `fecha_ejecucion` + página de bienvenida |
+> | Rama | Commit | URL | Notas |
+> |------|--------|-----|-------|
+> | `main` | `6dbfe42` | https://app.softone360.com | Prod desplegada: PQRS (pestañas/vistas), Gestión documental, PIC, SECOP, PDM/Planes, etc. |
+> | `development` | `6dbfe42` | https://demo.softone360.com | **En sync con `main`** (mismo despliegue funcional) |
 >
-> **Pendiente de prod:** módulo Gestión documental (no mergear a `main` hasta validar en demo).
+> **Prod (LAN, validado):** `/healthz` 200; contenedores healthy; migraciones `gestion_documental.0001`, `pic.0001`, `entities.0010_enable_pic`, `pqrs.0017` aplicadas. En `/opt/softone-app/.env`: `B2_BUCKET_GESTION_DOCUMENTAL`, `B2_BUCKET_PIC`.
 
 ---
 
