@@ -1,6 +1,4 @@
-import { useMemo, useState } from "react";
-import ModuleAIAlertsBanner from "@/components/ai/ModuleAIAlertsBanner";
-import PqrsAICommandBar from "@/components/ai/PqrsAICommandBar";
+import { useMemo } from "react";
 import PqrsAIInsights from "@/components/ai/PqrsAIInsights";
 import {
   PieChart,
@@ -17,8 +15,8 @@ import {
   Line,
   Legend,
 } from "recharts";
-import { ClipboardList, CheckCircle2, XCircle, FileText, ArrowRight, TrendingUp, AlertTriangle, Clock, Users as UsersIcon, FileBarChart2 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { ClipboardList, CheckCircle2, XCircle, AlertTriangle, Clock, Users as UsersIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import type { EstadoPQRS, TipoSolicitud } from "@/core/api/pqrs";
 import {
   ESTADO_CHART_COLORS,
@@ -29,8 +27,6 @@ import {
 import { usePqrsStats } from "@/core/api/hooks/usePqrs";
 import { formatApiError } from "@/core/api/errors";
 import { useAuthStore, canAccess, PERM } from "@/core/auth/store";
-import PQRSInformesPage from "./PQRSInformesPage";
-
 const BAR_COLOR = "#6366f1";
 
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -94,7 +90,6 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: { name
 export default function PQRSDashboard() {
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
-  const [showInformes, setShowInformes] = useState(false);
   const canSeePqrs = canAccess(user, {
     roles: ["admin", "secretario", "ciudadano"],
     permissions: [PERM.PQRS_VIEW],
@@ -102,10 +97,6 @@ export default function PQRSDashboard() {
 
   const isAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_VIEW] });
   const isSecretario = canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_VIEW] }) && !isAdmin;
-  const canSeeInformes =
-    canAccess(user, { roles: ["admin", "secretario"], permissions: [PERM.PQRS_VIEW] }) &&
-    Boolean(user?.entity?.enable_reports_pdf);
-
   const {
     data: stats,
     isLoading: loading,
@@ -187,51 +178,11 @@ export default function PQRSDashboard() {
 
   return (
     <div className="space-y-6">
-      <ModuleAIAlertsBanner
-        module="pqrs"
-        onAlertClick={(a) => a.object_id && navigate(`/pqrs?id=${a.object_id}`)}
-      />
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#1d4ed8]/10 text-[#1d4ed8]">
-            <TrendingUp className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-[#111827] sm:text-2xl">Análisis del Panel</h1>
-            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-              {totalPqrs} PQRS en total · {thisMonth} este mes
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {canSeeInformes && (
-            <button
-              onClick={() => setShowInformes(true)}
-              className="flex items-center gap-2 rounded-[0.3rem] border border-[#3eafd4] px-4 py-2 text-sm font-medium text-[#3eafd4] transition-colors hover:bg-[#3eafd4] hover:text-white"
-            >
-              <FileBarChart2 className="h-4 w-4" />
-              Informes
-            </button>
-          )}
-          <Link
-            to="/pqrs"
-            className="flex items-center gap-2 rounded-[0.3rem] bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2f9fc2]"
-          >
-            <FileText className="h-4 w-4" />
-            Mis PQRS
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </div>
-      <PqrsAICommandBar
-        onResultClick={(r) => navigate(`/pqrs?id=${r.object_id}`)}
-      />
       <PqrsAIInsights
         title="Insights IA PQRS"
         onInsightClick={(insight) => {
           const id = insight.metadata?.pqrs_id as number | undefined;
-          if (id) navigate(`/pqrs?id=${id}`);
+          if (id) navigate(`/pqrs/${id}`);
         }}
       />
       {/* Stats — 4 tarjetas principales clickeables */}
@@ -243,7 +194,7 @@ export default function PQRSDashboard() {
           sub={`${thisMonth} este mes`}
           accent="border-[#1d4ed8]"
           iconBg="bg-[#1d4ed8]"
-          onClick={() => navigate("/pqrs")}
+          onClick={() => navigate("/pqrs/solicitudes")}
         />
         <StatCard
           icon={<AlertTriangle className="h-5 w-5" />}
@@ -252,7 +203,7 @@ export default function PQRSDashboard() {
           sub="Sin responder"
           accent="border-amber-500"
           iconBg="bg-amber-500"
-          onClick={() => navigate("/pqrs?filtro=pendientes")}
+          onClick={() => navigate("/pqrs/solicitudes?filtro=pendientes")}
         />
         <StatCard
           icon={<CheckCircle2 className="h-5 w-5" />}
@@ -261,7 +212,7 @@ export default function PQRSDashboard() {
           sub="Aguardan cierre"
           accent="border-emerald-500"
           iconBg="bg-emerald-500"
-          onClick={() => navigate("/pqrs?estado=respondida")}
+          onClick={() => navigate("/pqrs/solicitudes?estado=respondida")}
         />
         <StatCard
           icon={<XCircle className="h-5 w-5" />}
@@ -270,7 +221,7 @@ export default function PQRSDashboard() {
           sub="Completadas"
           accent="border-gray-400"
           iconBg="bg-gray-400"
-          onClick={() => navigate("/pqrs?estado=cerrada")}
+          onClick={() => navigate("/pqrs/solicitudes?estado=cerrada")}
         />
       </div>
 
@@ -579,18 +530,6 @@ export default function PQRSDashboard() {
         </div>
       )}
 
-      {/* Modal Informes */}
-      {canSeeInformes && showInformes && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4">
-          <div className="w-full max-w-4xl max-h-[95vh] sm:max-h-[90vh] bg-white rounded-lg shadow-lg overflow-hidden flex flex-col">
-            <div className="flex-1 overflow-y-auto bg-[#f0f2f5]">
-              <div className="p-3 sm:p-6">
-                <PQRSInformesPage onClose={() => setShowInformes(false)} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

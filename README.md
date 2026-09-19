@@ -52,6 +52,7 @@ app_django/
 │   │   ├── secop/                  # Módulo Contratación SECOP I/II
 │   │   ├── planes/                 # Planes Institucionales (Decreto 612)
 │   │   ├── gestion_documental/    # Gestión documental SGDEA (Ley 594 / AGN 001-2024)
+│   │   ├── pic/                   # PIC — Plan de Intervenciones Colectivas
 │   │   └── common/
 │   │       └── management/commands/bootstrap_app.py
 │   ├── requirements.txt · pyproject.toml
@@ -68,7 +69,7 @@ app_django/
 │   │   ├── features/
 │   │   │   ├── auth/LoginPage.tsx
 │   │   │   ├── pdmchat/           # PublicPdmChatPage (chat IA PDM público)
-│   │   │   ├── pqrs/              # Dashboard · PQRSPage · Informes · modales · PublicPQRSPortal
+│   │   │   ├── pqrs/              # PqrsLayout · Dashboard · List/Detail/Nueva/Edit · Informes · PublicPQRSPortal
 │   │   │   ├── users/UsersPage.tsx
 │   │   │   └── superadmin/        # EntitiesPage · EntityDetailPage
 │   │   └── components/layout/
@@ -161,6 +162,19 @@ Query params soportados en `GET /api/v1/pqrs/`:
 | `pendientes=true` | Excluye respondidas y cerradas |
 | `alerta=true` | Vencen en ≤5 días y siguen abiertas |
 
+
+Rutas frontend (módulo con pestañas, sin modales):
+
+| Ruta | Descripción |
+|---|---|
+| `/pqrs` | Resumen (dashboard de indicadores) |
+| `/pqrs/solicitudes` | Listado, filtros y paginación |
+| `/pqrs/nueva` | Crear PQRS (manual o IA) |
+| `/pqrs/:id` | Detalle, respuesta, asignación e historial |
+| `/pqrs/:id/editar` | Editar datos de la solicitud (admin) |
+| `/pqrs/informes` | Informes PDF (requiere `enable_reports_pdf`) |
+
+Compatibilidad: `/dashboard` → `/pqrs` · `/informes` → `/pqrs/informes`.
 
 - Máximo **4 archivos** por PQRS (campo `archivos` en multipart).
 - Ruta de almacenamiento (B2 `softone-pqrs`):
@@ -598,6 +612,81 @@ Ruta frontend: `/gestion-documental` (Resumen · Instrumentos · Clasificación 
 
 ---
 
+## Módulo PIC — Plan de Intervenciones Colectivas
+
+Seguimiento trimestral a actividades PIC cargadas desde Excel (`SEGUIMINETO A PIC.xlsx`): programación por trimestre, ejecución con evidencia PDF, valor a cobrar automático y asignación de responsables.
+
+### Flujo
+
+```
+Admin activa módulo → configura mapeo cargo → usuario (Encargados)
+  └─→ Carga Excel por vigencia (año)
+       └─→ Actividades materializadas (número único por fila)
+            └─→ Responsables asignados automáticamente desde mapeo
+                 └─→ Funcionario registra ejecución + PDF
+                      └─→ Valor a cobrar calculado (tope = total programado)
+```
+
+### Reglas de negocio
+
+- `valor_unitario = valor_total / total_programado` (columna N del Excel se ignora).
+- Valor a cobrar por ejecución: proporcional al acumulado para que la suma cierre con `valor_total`.
+- No se puede ejecutar más del total programado.
+- Trimestres acumulativos: pendiente = programado acumulado − ejecutado acumulado.
+- Re-carga del Excel: upsert por `numero`; preserva ejecuciones y asignaciones manuales (opción `reasignar_encargados`).
+
+### Roles
+
+| Rol | Permisos |
+|---|---|
+| `admin` | Cargar Excel, mapeo de encargados, exportar, ver todo, eliminar ejecuciones |
+| `secretario` | Ver actividades de su secretaría, exportar, eliminar ejecuciones |
+| `contratista` | Ver actividades asignadas, registrar ejecución + PDF |
+| `superadmin` | Activa `enable_pic`; no opera el módulo |
+
+### Endpoints (`/api/v1/pic/`)
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/pic/plan/?anio=` | Plan PIC por vigencia |
+| `POST` | `/pic/plan/upload/` | Cargar Excel (`file`, `anio`, opcional `reasignar_encargados`) |
+| `DELETE` | `/pic/plan/<anio>/` | Eliminar plan sin ejecuciones |
+| `GET` | `/pic/stats/?anio=` | Dashboard KPIs |
+| `GET` | `/pic/actividades/` | Listar actividades (paginado) |
+| `GET` | `/pic/actividades/<id>/` | Detalle + ejecuciones |
+| `PATCH` | `/pic/actividades/<id>/responsables/` | Asignar responsables |
+| `GET/POST` | `/pic/actividades/<id>/ejecuciones/` | Listar / registrar ejecución (multipart PDF) |
+| `POST` | `/pic/actividades/<id>/preview-valor/` | Preview valor a cobrar |
+| `DELETE` | `/pic/ejecuciones/<id>/` | Eliminar ejecución |
+| `GET/POST/PATCH/DELETE` | `/pic/cargos/` | Mapeo cargo Excel → usuarios |
+| `POST` | `/pic/cargos/aplicar/` | Reasignar en bloque `{anio}` |
+| `GET` | `/pic/export/?anio=&trimestre=` | Excel seguimiento (descarga inmediata) |
+
+### Almacenamiento evidencias (B2)
+
+| Entorno | Bucket |
+|---|---|
+| Demo | `storage-demo` (`B2_BUCKET_PIC=storage-demo`) |
+| Prod | `softone-pic` |
+
+Ruta:
+
+```
+entities/<entity_id>/pic/<anio>/actividad-<numero>/T<trimestre>/<uuid>_<nombre>.pdf
+```
+
+URLs firmadas vía `files.softone360.com` (prod) o `files-demo.softone360.com` (demo).
+
+### Activación
+
+Superadmin → Entidad → Módulos: activar **PIC** (`enable_pic`).
+
+Ruta frontend: `/pic` (Resumen · Actividades · Encargados).
+
+**Demo:** push a `development`. Agregar `B2_BUCKET_PIC=storage-demo` en `/opt/softone-demo/.env`.
+
+---
+
 ## Módulo Chat IA del PDM (público)
 
 Chat ciudadano **sin autenticación** para consultar el Plan de Desarrollo Municipal de cada entidad en **tiempo real** (datos leídos directamente de PostgreSQL vía herramientas OpenAI). Un chat por entidad; solo responde sobre el PDM de esa entidad.
@@ -748,7 +837,10 @@ class ReporteViewSet(viewsets.ReadOnlyModelViewSet):
 ```tsx
 <Route element={<RequireRole roles={["admin"]} />}>
   <Route element={<RequireModule module="enable_pqrs" />}>
-    <Route path="/pqrs" element={<PQRSPage />} />
+    <Route path="/pqrs" element={<PqrsLayout />}>
+      <Route index element={<PQRSDashboard />} />
+      <Route path="solicitudes" element={<PQRSListPage />} />
+    </Route>
   </Route>
 </Route>
 ```
@@ -824,7 +916,7 @@ Archivos firmados:
 
 | Entorno | Worker | Bucket(s) B2 |
 |---|---|---|
-| Prod | https://files.softone360.com | `softone-pqrs`, `softone-pdm`, `softone-th`, `softone-correspondence`, `softone-planes-612`, `softone-document-management` |
+| Prod | https://files.softone360.com | `softone-pqrs`, `softone-pdm`, `softone-th`, `softone-correspondence`, `softone-planes-612`, `softone-document-management`, `softone-pic` |
 | Demo | https://files-demo.softone360.com | `storage-demo` (todos los módulos) |
 
 Demo y prod comparten el **mismo servidor** (`192.168.1.2`) y el **mismo par B2** (`B2_KEY_ID` / `B2_APP_KEY`); solo cambian bucket y signing key. Merge `development` → `main` no migra archivos entre buckets.
@@ -1166,6 +1258,7 @@ B2_BUCKET_ASISTENCIA=softone-th
 B2_BUCKET_CORRESPONDENCIA=softone-correspondence
 B2_BUCKET_PLANES=softone-planes-612
 B2_BUCKET_GESTION_DOCUMENTAL=softone-document-management
+B2_BUCKET_PIC=softone-pic
 B2_BUCKET_DB=softone-db
 
 # Entrega firmada vía Cloudflare Worker

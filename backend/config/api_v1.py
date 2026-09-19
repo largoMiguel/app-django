@@ -18,5 +18,6 @@ urlpatterns = [
     path("", include("apps.secop.urls")),
     path("", include("apps.planes.urls")),
     path("", include("apps.gestion_documental.urls")),
+    path("", include("apps.pic.urls")),
     path("users/", include("apps.accounts.user_urls")),
 ]

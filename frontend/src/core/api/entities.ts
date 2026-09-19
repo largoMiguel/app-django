@@ -5,8 +5,6 @@ export interface Entity {
   name: string;
   code: string;
   nit: string | null;
-  nit_secop_i: string | null;
-  nit_secop_ii: string | null;
   secop_i_codigo_entidad: string | null;
   secop_i_nombre_entidad: string | null;
   secop_ii_codigo_entidad: string | null;
@@ -35,6 +33,7 @@ export interface Entity {
   enable_correspondencia: boolean;
   enable_presupuesto: boolean;
   enable_gestion_documental: boolean;
+  enable_pic: boolean;
   enabled_modules: string[];
   plan_name: string | null;
   pdf_template_url: string | null;

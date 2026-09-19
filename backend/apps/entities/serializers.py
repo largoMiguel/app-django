@@ -15,8 +15,6 @@ class EntitySerializer(serializers.ModelSerializer):
             "name",
             "code",
             "nit",
-            "nit_secop_i",
-            "nit_secop_ii",
             "secop_i_codigo_entidad",
             "secop_i_nombre_entidad",
             "secop_ii_codigo_entidad",
@@ -47,6 +45,7 @@ class EntitySerializer(serializers.ModelSerializer):
             "enable_correspondencia",
             "enable_presupuesto",
             "enable_gestion_documental",
+            "enable_pic",
             "enabled_modules",
             "created_at",
             "updated_at",
@@ -68,6 +67,9 @@ class SecretariaSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         request = self.context.get("request")
-        if self.instance and request and not is_platform_superadmin(request.user):
+        user = getattr(request, "user", None) if request else None
+        if self.instance and user and not is_platform_superadmin(user):
             attrs.pop("entity", None)
+        if not self.instance and user and is_platform_superadmin(user) and not attrs.get("entity"):
+            raise serializers.ValidationError({"entity": "Debe indicar la entidad de la secretaría."})
         return attrs

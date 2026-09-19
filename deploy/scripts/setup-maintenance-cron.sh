@@ -12,9 +12,9 @@ filtered=$(printf '%s\n' "$existing" | grep -Fv "$MARKER" | grep -Fv "deploy/scr
 
 {
   printf '%s\n' "$filtered" | sed '/^$/d'
-  echo "0 3 * * * cd $ROOT && deploy/scripts/backup-db.sh >> $LOG_DIR/softone-backup.log 2>&1 $MARKER"
-  echo "15 4 * * 0 cd $ROOT && deploy/scripts/maintenance.sh >> $LOG_DIR/softone-maintenance.log 2>&1 $MARKER"
-  echo "*/3 * * * * cd $ROOT && deploy/scripts/ingest-pqrs-email.sh >> $LOG_DIR/softone-pqrs-inbox.log 2>&1 $MARKER"
+  echo "0 3 * * * mkdir -p $LOG_DIR && cd $ROOT && deploy/scripts/backup-db.sh >> $LOG_DIR/softone-backup.log 2>&1 $MARKER"
+  echo "15 4 * * 0 mkdir -p $LOG_DIR && cd $ROOT && deploy/scripts/maintenance.sh >> $LOG_DIR/softone-maintenance.log 2>&1 $MARKER"
+  echo "*/3 * * * * mkdir -p $LOG_DIR && cd $ROOT && deploy/scripts/ingest-pqrs-email.sh >> $LOG_DIR/softone-pqrs-inbox.log 2>&1 $MARKER"
 } | crontab -
 
 echo "OK. Cron instalado:"

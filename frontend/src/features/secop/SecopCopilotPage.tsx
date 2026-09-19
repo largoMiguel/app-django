@@ -5,11 +5,37 @@ import { useSecopYear } from "./SecopYearContext";
 import { DynamicChart, MarkdownContent } from "./components";
 import SecopDetalleModal from "./SecopDetalleModal";
 
+interface CopilotTiming {
+  total_ms: number;
+  data_load_ms: number;
+  llm_ms: number;
+  fast_path: boolean;
+  tools: { name: string; ms: number }[];
+}
+
 interface ChatMsg {
   role: "user" | "assistant";
   content: string;
   chart?: SecopChartSpec | null;
   registros?: Partial<SecopRecord>[];
+  timing?: CopilotTiming;
+}
+
+function loadingLabel(elapsedSec: number): string {
+  if (elapsedSec < 4) return "Consultando copiloto…";
+  if (elapsedSec < 15) return "Analizando contratos SECOP…";
+  return "Generando respuesta con IA…";
+}
+
+function formatTiming(t: CopilotTiming): string {
+  const parts = [`${(t.total_ms / 1000).toFixed(1)}s total`];
+  if (t.data_load_ms > 0) parts.push(`datos ${(t.data_load_ms / 1000).toFixed(1)}s`);
+  if (t.llm_ms > 0) parts.push(`IA ${(t.llm_ms / 1000).toFixed(1)}s`);
+  if (t.fast_path) parts.push("respuesta directa");
+  if (t.tools.length > 0) {
+    parts.push(t.tools.map((tool) => `${tool.name} ${tool.ms}ms`).join(", "));
+  }
+  return parts.join(" · ");
 }
 
 const SUGGESTIONS = [
@@ -25,12 +51,26 @@ export default function SecopCopilotPage() {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadingElapsed, setLoadingElapsed] = useState(0);
   const [selected, setSelected] = useState<SecopRecord | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!sending) {
+      setLoadingElapsed(0);
+      return;
+    }
+    const started = Date.now();
+    setLoadingElapsed(0);
+    const timer = window.setInterval(() => {
+      setLoadingElapsed(Math.floor((Date.now() - started) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [sending]);
 
   async function sendMessage(e?: React.FormEvent, preset?: string) {
     e?.preventDefault();
@@ -53,12 +93,23 @@ export default function SecopCopilotPage() {
           content: res.reply,
           chart: res.chart,
           registros: res.registros,
+          timing: res.timing,
         },
       ]);
-    } catch {
+    } catch (err: unknown) {
+      const detail =
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof (err as { response?: { data?: { detail?: string } } }).response?.data?.detail === "string"
+          ? (err as { response: { data: { detail: string } } }).response.data.detail
+          : null;
       setMessages([
         ...nextHistory,
-        { role: "assistant", content: "Error al consultar el copiloto. Intente de nuevo." },
+        {
+          role: "assistant",
+          content: detail || "Error al consultar el copiloto. Intente de nuevo.",
+        },
       ]);
     } finally {
       setSending(false);
@@ -72,7 +123,7 @@ export default function SecopCopilotPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] min-h-[480px] flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex h-[calc(100vh-8rem)] min-h-[560px] flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 px-5 py-4">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-[#111827]">
           <Sparkles className="h-5 w-5 text-[#3eafd4]" />
@@ -81,7 +132,7 @@ export default function SecopCopilotPage() {
         <p className="text-xs text-slate-500">Pregunte sobre contratos, proveedores, pagos y alertas — vigencia {anio}</p>
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="flex-1 space-y-4 overflow-y-auto p-4 md:p-6">
         {messages.length === 0 && (
           <div className="space-y-3 py-8 text-center">
             <p className="text-sm text-slate-400">Ejemplos de preguntas:</p>
@@ -101,12 +152,17 @@ export default function SecopCopilotPage() {
         )}
 
         {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+          <div
+            key={i}
+            className={`flex w-full ${m.role === "user" ? "justify-end" : "justify-start"}`}
+          >
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+              className={`rounded-2xl px-4 py-3 md:px-5 md:py-4 ${
                 m.role === "user"
-                  ? "bg-[#3eafd4] text-white"
-                  : "border border-slate-100 bg-slate-50 text-slate-800"
+                  ? "max-w-[75%] bg-[#3eafd4] text-white"
+                  : m.chart
+                    ? "w-full max-w-none border border-slate-100 bg-slate-50 text-slate-800"
+                    : "max-w-[min(100%,920px)] border border-slate-100 bg-slate-50 text-slate-800"
               }`}
             >
               {m.role === "assistant" ? (
@@ -116,8 +172,8 @@ export default function SecopCopilotPage() {
               )}
 
               {m.chart && m.chart.datos?.length > 0 && (
-                <div className="mt-3 overflow-hidden rounded-lg bg-white">
-                  <DynamicChart spec={m.chart} />
+                <div className="mt-4 w-full min-w-0 overflow-hidden rounded-lg bg-white">
+                  <DynamicChart spec={m.chart} wide />
                 </div>
               )}
 
@@ -137,14 +193,21 @@ export default function SecopCopilotPage() {
               )}
 
               {m.role === "assistant" && (
-                <button
-                  type="button"
-                  onClick={() => navigator.clipboard.writeText(m.content)}
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
-                >
-                  <Copy className="h-3 w-3" />
-                  Copiar
-                </button>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(m.content)}
+                    className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    <Copy className="h-3 w-3" />
+                    Copiar
+                  </button>
+                  {m.timing && (
+                    <span className="text-[10px] text-slate-400" title="Desglose de tiempo de procesamiento">
+                      {formatTiming(m.timing)}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -153,7 +216,10 @@ export default function SecopCopilotPage() {
         {sending && (
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Consultando datos abiertos…
+            <span>{loadingLabel(loadingElapsed)}</span>
+            {loadingElapsed >= 4 && (
+              <span className="text-xs text-slate-300">({loadingElapsed}s)</span>
+            )}
           </div>
         )}
         <div ref={bottomRef} />

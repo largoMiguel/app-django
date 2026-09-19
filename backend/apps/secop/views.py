@@ -27,6 +27,7 @@ from .alerts import compute_alerts, filter_alerts
 from .analytics import (
     agrupar_por_responsable,
     buckets_vencimiento,
+    matches_vencimiento_bucket,
     compare_kpis,
     compute_analytics,
     compute_avance,
@@ -107,7 +108,7 @@ def _filter_records(records: list[dict], params: dict) -> list[dict]:
     if search:
         def match(r: dict) -> bool:
             blob = " ".join(
-                str(r.get(k) or "") for k in ("referencia", "objeto", "proveedor", "estado", "modalidad", "tipo")
+                str(r.get(k) or "") for k in ("referencia", "numero_proceso", "referencia_contrato", "objeto", "proveedor", "estado", "modalidad", "tipo")
             ).lower()
             return search in blob
         out = [r for r in out if match(r)]
@@ -140,6 +141,9 @@ def _filter_records(records: list[dict], params: dict) -> list[dict]:
         out = [r for r in out if float(r.get("valor") or 0) >= float(params["valor_min"])]
     if params.get("valor_max") is not None:
         out = [r for r in out if float(r.get("valor") or 0) <= float(params["valor_max"])]
+    if params.get("vencimiento"):
+        bucket = params["vencimiento"]
+        out = [r for r in out if matches_vencimiento_bucket(r, bucket)]
 
     ordering = params.get("ordering") or "-valor"
     reverse = ordering.startswith("-")
@@ -204,8 +208,6 @@ class SecopConfigView(SecopBaseView):
             {
                 "entity": self.entity.name,
                 "nit_general": self.entity.nit,
-                "nit_secop_i": self.entity.nit_secop_i or self.entity.nit,
-                "nit_secop_ii": self.entity.nit_secop_ii or self.entity.nit,
                 "secop_i_codigo_entidad": self.entity.secop_i_codigo_entidad,
                 "secop_i_nombre_entidad": self.entity.secop_i_nombre_entidad,
                 "secop_ii_codigo_entidad": self.entity.secop_ii_codigo_entidad,
@@ -262,9 +264,34 @@ class Secop2ListView(SecopBaseView):
         records, meta = load_secop2_unified(self.entity, params["anio"])
         filtered = _filter_records(records, params)
         payload = _paginate(filtered, params["page"], params["page_size"])
+        payload["results"] = _with_avance(payload["results"])
         payload["meta"] = meta
         payload["kpis"] = compute_kpis(records)
         payload["analitica"] = compute_analytics(records)
+        return Response(payload)
+
+
+class Secop2PanelView(SecopBaseView):
+    """Panel SECOP II: lista + KPIs + vencimientos + dependencias en una sola petición."""
+
+    def get(self, request):
+        ser = SecopListQuerySerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        params = ser.validated_data
+        anio = params.get("anio") or _default_anio()
+        s1, s2 = _load_all(self.entity, anio)
+        all_recs = s1 + s2
+        filtered = _filter_records(s2, params)
+        payload = _paginate(filtered, params["page"], params["page_size"])
+        payload["results"] = _with_avance(payload["results"])
+        payload["anio"] = anio
+        payload["kpis"] = compute_kpis(s2)
+        payload["analitica"] = compute_analytics(s2)
+        contratos = [r for r in all_recs if r.get("tipo_registro") == "contrato"]
+        payload["vencimientos"] = buckets_vencimiento(contratos)
+        payload["pagos"] = curva_pagos(all_recs)
+        payload["por_supervisor"] = agrupar_por_responsable(all_recs, "supervisor")
+        payload["por_ordenador"] = agrupar_por_responsable(all_recs, "ordenador_gasto")
         return Response(payload)
 
 

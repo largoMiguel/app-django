@@ -7,8 +7,12 @@ import LoginPage from "@/features/auth/LoginPage";
 import WelcomePage from "@/features/auth/WelcomePage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
 import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
+import PqrsLayout from "@/features/pqrs/PqrsLayout";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
-import PQRSPage from "@/features/pqrs/PQRSPage";
+import PQRSListPage from "@/features/pqrs/PQRSListPage";
+import PQRSNuevaPage from "@/features/pqrs/PQRSNuevaPage";
+import PQRSDetailPage from "@/features/pqrs/PQRSDetailPage";
+import PQRSEditPage from "@/features/pqrs/PQRSEditPage";
 import PQRSInformesPage from "@/features/pqrs/PQRSInformesPage";
 import UsersPage from "@/features/users/UsersPage";
 import SuperAdminEntitiesPage from "@/features/superadmin/EntitiesPage";
@@ -37,6 +41,11 @@ import PlanDetailPage from "@/features/planes/PlanDetailPage";
 import PlanesCronogramaPage from "@/features/planes/PlanesCronogramaPage";
 import PlanesInformesPage from "@/features/planes/PlanesInformesPage";
 import PlanesInformeTrimestralPage from "@/features/planes/PlanesInformeTrimestralPage";
+import PicLayout from "@/features/pic/PicLayout";
+import PicDashboard from "@/features/pic/PicDashboard";
+import PicActividadesPage from "@/features/pic/PicActividadesPage";
+import PicActividadDetailPage from "@/features/pic/PicActividadDetailPage";
+import PicEncargadosPage from "@/features/pic/PicEncargadosPage";
 import GestionDocumentalLayout from "@/features/gestion-documental/GestionDocumentalLayout";
 import GdDashboard from "@/features/gestion-documental/GdDashboard";
 import GdInstrumentosPage from "@/features/gestion-documental/GdInstrumentosPage";
@@ -49,11 +58,10 @@ import GdInformesPage from "@/features/gestion-documental/GdInformesPage";
 import SecopLayout from "@/features/secop/SecopLayout";
 import SecopResumen from "@/features/secop/SecopResumen";
 import SecopListPage from "@/features/secop/SecopListPage";
+import SecopIIPage from "@/features/secop/SecopIIPage";
 import SecopAlertasPage from "@/features/secop/SecopAlertasPage";
 import SecopAnalisisPage from "@/features/secop/SecopAnalisisPage";
 import SecopCopilotPage from "@/features/secop/SecopCopilotPage";
-import SecopEjecucionPage from "@/features/secop/SecopEjecucionPage";
-import SecopDependenciasPage from "@/features/secop/SecopDependenciasPage";
 import PdmLayout from "@/features/pdm/PdmLayout";
 import PdmDashboardPage from "@/features/pdm/PdmDashboardPage";
 import PdmProductosPage from "@/features/pdm/PdmProductosPage";
@@ -157,8 +165,17 @@ export default function App(): ReactElement {
               <Route path="/sin-acceso" element={<SinAccesoPage />} />
 
               <Route element={<ModuleRouteGuard moduleKey="pqrs" />}>
-                <Route path="/dashboard" element={<PQRSDashboard />} />
-                <Route path="/pqrs" element={<PQRSPage />} />
+                <Route path="/pqrs" element={<PqrsLayout />}>
+                  <Route index element={<PQRSDashboard />} />
+                  <Route path="solicitudes" element={<PQRSListPage />} />
+                  <Route path="nueva" element={<PQRSNuevaPage />} />
+                  <Route element={<ModuleRouteGuard moduleKey="reports_pdf" />}>
+                    <Route path="informes" element={<PQRSInformesPage />} />
+                  </Route>
+                  <Route path=":id/editar" element={<PQRSEditPage />} />
+                  <Route path=":id" element={<PQRSDetailPage />} />
+                </Route>
+                <Route path="/dashboard" element={<Navigate to="/pqrs" replace />} />
               </Route>
 
               <Route element={<ModuleRouteGuard moduleKey="pdm" />}>
@@ -174,9 +191,7 @@ export default function App(): ReactElement {
                 </Route>
               </Route>
 
-              <Route element={<ModuleRouteGuard moduleKey="reports_pdf" />}>
-                <Route path="/informes" element={<PQRSInformesPage />} />
-              </Route>
+              <Route path="/informes" element={<Navigate to="/pqrs/informes" replace />} />
 
               <Route element={<ModuleRouteGuard moduleKey="asistencia" />}>
                 <Route path="/asistencia" element={<AsistenciaLayout />}>
@@ -210,6 +225,15 @@ export default function App(): ReactElement {
                 </Route>
               </Route>
 
+              <Route element={<ModuleRouteGuard moduleKey="pic" />}>
+                <Route path="/pic" element={<PicLayout />}>
+                  <Route index element={<PicDashboard />} />
+                  <Route path="actividades" element={<PicActividadesPage />} />
+                  <Route path="actividades/:id" element={<PicActividadDetailPage />} />
+                  <Route path="encargados" element={<PicEncargadosPage />} />
+                </Route>
+              </Route>
+
               <Route element={<ModuleRouteGuard moduleKey="gestion_documental" />}>
                 <Route path="/gestion-documental" element={<GestionDocumentalLayout />}>
                   <Route index element={<GdDashboard />} />
@@ -226,9 +250,10 @@ export default function App(): ReactElement {
               <Route element={<ModuleRouteGuard moduleKey="contratacion" />}>
                 <Route path="/contratacion" element={<SecopLayout />}>
                   <Route index element={<SecopResumen />} />
-                  <Route path="ejecucion" element={<SecopEjecucionPage />} />
-                  <Route path="dependencias" element={<SecopDependenciasPage />} />
-                  <Route path="secop2" element={<SecopListPage fuente="secop2" />} />
+                  <Route path="secop2" element={<SecopIIPage />} />
+                  <Route path="contratos" element={<Navigate to="/contratacion/secop2" replace />} />
+                  <Route path="ejecucion" element={<Navigate to="/contratacion/secop2" replace />} />
+                  <Route path="dependencias" element={<Navigate to="/contratacion/secop2" replace />} />
                   <Route path="secop1" element={<SecopListPage fuente="secop1" />} />
                   <Route path="alertas" element={<SecopAlertasPage />} />
                   <Route path="ia" element={<SecopAnalisisPage />} />

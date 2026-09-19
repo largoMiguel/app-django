@@ -1,12 +1,11 @@
 import {
-  ChevronLeft, ChevronRight, Plus, FileText, Eye, Trash2,
-  AlertTriangle, ArrowLeft, SlidersHorizontal, Users, ListFilter, Tag, RotateCcw, Info, BellRing, Clock, Mail,
+  ChevronLeft, ChevronRight, Plus, FileText, Trash2,
+  AlertTriangle, SlidersHorizontal, Users, ListFilter, Tag, RotateCcw, Info, BellRing, Clock, Mail,
 } from "lucide-react";
-import { useMemo } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useMemo } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import NuevaPQRSModal from "./NuevaPQRSModal";
-import PQRSDetailModal from "./PQRSDetailModal";
+import { usePqrsHeaderActions } from "./PqrsHeaderActionsContext";
 import {
   pqrsApi,
   type PQRS,
@@ -20,8 +19,6 @@ import { formatFechaCO } from "@/core/datetime";
 import { usePqrsList, usePqrsStats, useInvalidatePqrs } from "@/core/api/hooks/usePqrs";
 import { formatApiError } from "@/core/api/errors";
 import { useAuthStore, canAccess, PERM } from "@/core/auth/store";
-import ModuleAIAlertsBanner from "@/components/ai/ModuleAIAlertsBanner";
-import PqrsAICommandBar from "@/components/ai/PqrsAICommandBar";
 import PqrsAIInsights from "@/components/ai/PqrsAIInsights";
 import ConfidenceBadge from "@/components/ai/ConfidenceBadge";
 import { usePqrsCompliance } from "@/core/api/hooks/usePqrsAi";
@@ -47,12 +44,13 @@ function pageNumbers(totalPages: number, currentPage: number): (number | "...")[
   return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
 }
 
-export default function PQRSPage() {
+export default function PQRSListPage() {
   const { user } = useAuthStore();
   const canAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_CHANGE] });
   const navigate = useNavigate();
   const location = useLocation();
   const invalidatePqrs = useInvalidatePqrs();
+  const { setHeaderActions } = usePqrsHeaderActions();
 
   const canCreate = canAccess(user, {
     roles: ["admin", "secretario", "ciudadano"],
@@ -75,9 +73,6 @@ export default function PQRSPage() {
   const filterPendientes = urlParams.get("filtro") === "pendientes";
   const modoAlerta = urlParams.get("filtro") === "alerta";
   const currentPage = Math.max(1, Number(urlParams.get("page") || "1") || 1);
-  const selectedId = urlParams.get("id") ? Number(urlParams.get("id")) : null;
-  const showNuevaModal = urlParams.get("nueva") === "1";
-
   function updateParams(
     patch: Record<string, string | null | undefined>,
     opts?: { resetPage?: boolean },
@@ -89,7 +84,7 @@ export default function PQRSPage() {
     }
     if (opts?.resetPage !== false && !("page" in patch)) next.delete("page");
     const qs = next.toString();
-    navigate({ pathname: "/pqrs", search: qs ? `?${qs}` : "" }, { replace: true });
+    navigate({ pathname: "/pqrs/solicitudes", search: qs ? `?${qs}` : "" }, { replace: true });
   }
 
   const listParams = useMemo(() => {
@@ -119,6 +114,51 @@ export default function PQRSPage() {
 
   const { data: statsData } = usePqrsStats({ enabled: true });
   const alertCount = statsData?.alerta_count ?? 0;
+
+  useEffect(() => {
+    setHeaderActions(
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            updateParams({ filtro: modoAlerta ? null : "alerta", estado: null }, { resetPage: true })
+          }
+          className={`flex items-center gap-1.5 rounded-[0.3rem] border px-4 py-2 text-sm font-medium transition-all ${
+            modoAlerta
+              ? "border-amber-500 bg-transparent text-amber-600 ring-2 ring-amber-400/50 ring-offset-1 animate-amber-glow"
+              : alertCount > 0
+                ? "border-amber-400 bg-transparent text-amber-700 hover:bg-amber-50"
+                : "border-slate-200 bg-transparent text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <span className={modoAlerta || alertCount > 0 ? "animate-bounce" : ""}>
+            <BellRing className="h-4 w-4" />
+          </span>
+          Modo Alerta
+          {alertCount > 0 && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[0.65rem] font-bold leading-none ${
+                modoAlerta ? "animate-pulse bg-amber-500 text-white" : "bg-amber-400 text-white"
+              }`}
+            >
+              {alertCount}
+            </span>
+          )}
+        </button>
+        {canCreate && (
+          <Link
+            to="/pqrs/nueva"
+            className="flex items-center gap-2 rounded-[0.3rem] bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2f9fc2]"
+          >
+            <Plus className="h-4 w-4" />
+            Nueva PQRS
+          </Link>
+        )}
+      </div>,
+    );
+    return () => setHeaderActions(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setHeaderActions, modoAlerta, alertCount, canCreate]);
 
   const { data: rechazadasData } = usePqrsList(
     { estado: "rechazada_asignacion", page: 1, page_size: 5 },
@@ -154,95 +194,13 @@ export default function PQRSPage() {
 
   return (
     <div className="space-y-6">
-      <ModuleAIAlertsBanner
-        module="pqrs"
-        onAlertClick={(a) => a.object_id && navigate(`?id=${a.object_id}`)}
-      />
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#3eafd4]/10 text-[#3eafd4]">
-            <FileText className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-[#111827] sm:text-2xl">PQRS</h1>
-            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-              Gestión de Peticiones, Quejas, Reclamos y Sugerencias
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="flex items-center gap-1.5 rounded-[0.3rem] border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          >
-            <ArrowLeft className="h-4 w-4" /> Volver
-          </button>
-          <button
-            onClick={() =>
-              updateParams({ filtro: modoAlerta ? null : "alerta", estado: null }, { resetPage: true })
-            }
-            className={`flex items-center gap-1.5 rounded-[0.3rem] border px-4 py-2 text-sm font-medium transition-all ${
-              modoAlerta
-                ? "border-amber-500 bg-transparent text-amber-600 ring-2 ring-amber-400/50 ring-offset-1 animate-amber-glow"
-                : alertCount > 0
-                ? "border-amber-400 bg-transparent text-amber-700 hover:bg-amber-50"
-                : "border-slate-200 bg-transparent text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <span className={modoAlerta || alertCount > 0 ? "animate-bounce" : ""}>
-              <BellRing className="h-4 w-4" />
-            </span>
-            Modo Alerta
-            {alertCount > 0 && (
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-[0.65rem] font-bold leading-none ${
-                  modoAlerta ? "animate-pulse bg-amber-500 text-white" : "bg-amber-400 text-white"
-                }`}
-              >
-                {alertCount}
-              </span>
-            )}
-          </button>
-          {canCreate && (
-            <button
-              onClick={() => updateParams({ nueva: "1" }, { resetPage: false })}
-              className="flex items-center gap-2 rounded-[0.3rem] bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2f9fc2]"
-            >
-              <Plus className="h-4 w-4" />
-              Nueva PQRS
-            </button>
-          )}
-        </div>
-      </div>
-
-      <PqrsAICommandBar
-        onResultClick={(r) => updateParams({ id: String(r.object_id) }, { resetPage: false })}
-      />
-
       {modoAlerta && (
         <PqrsAIInsights
           title="Insights IA PQRS"
           onInsightClick={(insight) => {
             const id = insight.metadata?.pqrs_id as number | undefined;
-            if (id) navigate(`?id=${id}`, { replace: false });
+            if (id) navigate(`/pqrs/${id}`);
           }}
-        />
-      )}
-
-      {showNuevaModal && (
-        <NuevaPQRSModal
-          onClose={() => updateParams({ nueva: null }, { resetPage: false })}
-          onCreated={() => {
-            updateParams({ nueva: null });
-            invalidatePqrs();
-          }}
-        />
-      )}
-      {selectedId && Number.isFinite(selectedId) && (
-        <PQRSDetailModal
-          pqrsId={selectedId}
-          onClose={() => updateParams({ id: null }, { resetPage: false })}
-          onUpdated={() => invalidatePqrs()}
         />
       )}
 
@@ -250,7 +208,7 @@ export default function PQRSPage() {
         rechazadas.length > 0 && (
         <button
           type="button"
-          onClick={() => updateParams({ id: String(rechazadas[0].id) }, { resetPage: false })}
+          onClick={() => navigate(`/pqrs/${rechazadas[0].id}`)}
           className="flex w-full items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-left transition-colors hover:bg-amber-100"
         >
           <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600" />
@@ -280,7 +238,7 @@ export default function PQRSPage() {
       {canVerCorreoAlerta && correoAlertas.length > 0 && (
         <button
           type="button"
-          onClick={() => updateParams({ id: String(correoAlertas[0].id) }, { resetPage: false })}
+          onClick={() => navigate(`/pqrs/${correoAlertas[0].id}`)}
           className="flex w-full items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-left transition-colors hover:bg-amber-100"
         >
           <Mail className="h-5 w-5 flex-shrink-0 text-amber-600" />
@@ -419,7 +377,7 @@ export default function PQRSPage() {
               <div
                 key={p.id}
                 className="cursor-pointer space-y-2 p-4 hover:bg-slate-50/60"
-                onClick={() => updateParams({ id: String(p.id) }, { resetPage: false })}
+                onClick={() => navigate(`/pqrs/${p.id}`)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -436,17 +394,8 @@ export default function PQRSPage() {
                   <span>{p.assigned_to_nombre || "Sin asignar"}</span>
                   <span className={t.cls}>{t.text}</span>
                 </div>
-                <div className="flex justify-end gap-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateParams({ id: String(p.id) }, { resetPage: false });
-                    }}
-                    className="rounded p-1.5 text-slate-500 hover:bg-slate-100"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-                  {canDelete && (
+                {canDelete && (
+                  <div className="flex justify-end gap-1">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -456,8 +405,8 @@ export default function PQRSPage() {
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -502,7 +451,7 @@ export default function PQRSPage() {
                 <tr
                   key={p.id}
                   className="cursor-pointer border-t border-slate-100 hover:bg-slate-50/60"
-                  onClick={() => updateParams({ id: String(p.id) }, { resetPage: false })}
+                  onClick={() => navigate(`/pqrs/${p.id}`)}
                 >
                   <td className="px-4 py-3 font-mono text-[0.78rem] font-medium text-slate-800">
                     <span className="inline-flex items-center gap-1.5">
@@ -556,30 +505,18 @@ export default function PQRSPage() {
                     })()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-1">
+                    {canDelete && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          updateParams({ id: String(p.id) }, { resetPage: false });
+                          handleDelete(p);
                         }}
-                        className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-[#0e7490]"
-                        title="Ver detalle"
+                        className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                        title="Eliminar"
                       >
-                        <Eye className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
-                      {canDelete && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(p);
-                          }}
-                          className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </td>
                 </tr>
               ))}

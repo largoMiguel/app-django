@@ -57,6 +57,7 @@ export interface AuthEntity {
   enable_correspondencia: boolean;
   enable_presupuesto: boolean;
   enable_gestion_documental: boolean;
+  enable_pic: boolean;
   enabled_modules: string[];
 }
 

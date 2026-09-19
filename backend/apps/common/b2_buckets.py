@@ -14,6 +14,7 @@ def configured_b2_buckets() -> frozenset[str]:
             settings.B2_BUCKET_CORRESPONDENCIA,
             settings.B2_BUCKET_PLANES,
             settings.B2_BUCKET_GESTION_DOCUMENTAL,
+            settings.B2_BUCKET_PIC,
             settings.B2_BUCKET_DB,
         }
     )

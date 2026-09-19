@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   FileBarChart2,
@@ -16,8 +16,8 @@ import {
   Loader2,
   CheckCircle2,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 import { informesApi, type GenerarInformePayload, type InformePQRS } from "@/core/api/pqrs";
+import { usePqrsHeaderActions } from "./PqrsHeaderActionsContext";
 import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import { formatFechaCO, formatFechaHoraCO } from "@/core/datetime";
 import { usersApi, type AppUser } from "@/core/api/users";
@@ -36,7 +36,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-interface ModalProps {
+interface ReportFormProps {
   onClose: () => void;
   onSubmit: (payload: GenerarInformePayload) => void;
   users: AppUser[];
@@ -45,7 +45,7 @@ interface ModalProps {
   submitting: boolean;
 }
 
-function ReportModal({ onClose, onSubmit, users, secretarias, enableAi, submitting }: ModalProps) {
+function ReportFormPanel({ onClose, onSubmit, users, secretarias, enableAi, submitting }: ReportFormProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
@@ -75,13 +75,7 @@ function ReportModal({ onClose, onSubmit, users, secretarias, enableAi, submitti
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="w-full max-w-xl rounded-xl bg-white shadow-2xl overflow-hidden">
+      <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between bg-[#1d4ed8] px-6 py-4 text-white">
           <div className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -248,14 +242,14 @@ function ReportModal({ onClose, onSubmit, users, secretarias, enableAi, submitti
           </button>
         </div>
       </div>
-    </div>
   );
 }
 
-export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) {
+export default function PQRSInformesPage() {
   const user = useAuthStore((s) => s.user);
   const entity = user?.entity;
   const queryClient = useQueryClient();
+  const { setHeaderActions } = usePqrsHeaderActions();
   const [showModal, setShowModal] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
@@ -302,6 +296,40 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
   const loadError = informesError
     ? formatApiError(informesErr, "No se pudieron cargar los informes.")
     : null;
+
+  useEffect(() => {
+    if (!canGenerate) {
+      setHeaderActions(null);
+      return () => setHeaderActions(null);
+    }
+    setHeaderActions(
+      <button
+        type="button"
+        onClick={() => setShowModal(true)}
+        disabled={genState === "generating"}
+        className={`flex items-center gap-2 rounded-[0.3rem] px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-70 ${
+          genState === "done"
+            ? "bg-emerald-600 hover:bg-emerald-700"
+            : "bg-[#3eafd4] hover:bg-[#2f9fc2]"
+        }`}
+      >
+        {genState === "generating" ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" /> Generando…
+          </>
+        ) : genState === "done" ? (
+          <>
+            <CheckCircle2 className="h-4 w-4" /> Informe listo
+          </>
+        ) : (
+          <>
+            <Plus className="h-4 w-4" /> Crear Informe
+          </>
+        )}
+      </button>,
+    );
+    return () => setHeaderActions(null);
+  }, [canGenerate, genState, setHeaderActions]);
 
   if (!canViewPage) {
     return (
@@ -371,66 +399,16 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 flex-shrink-0">
-            <FileBarChart2 className="h-4 w-4 sm:h-5 sm:w-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-[#111827] sm:text-2xl truncate">
-              Informes PQRS
-            </h1>
-            <p className="mt-0.5 text-xs text-slate-500 truncate">
-              {informes.length} informe{informes.length !== 1 ? "s" : ""} disponible
-              {informes.length !== 1 ? "s" : ""} · expiran en 7 días
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-          {!onClose && (
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-1.5 rounded-[0.3rem] border border-slate-200 bg-white px-2 sm:px-3 py-2 text-xs sm:text-sm text-slate-600 hover:bg-slate-50 shadow-sm whitespace-nowrap"
-            >
-              ← Panel
-            </Link>
-          )}
-          {canGenerate && (
-            <button
-              onClick={() => setShowModal(true)}
-              disabled={genState === "generating"}
-              className={`flex items-center gap-2 rounded-[0.3rem] px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition-colors shadow-sm whitespace-nowrap disabled:opacity-70 ${
-                genState === "done"
-                  ? "bg-emerald-600 hover:bg-emerald-700"
-                  : "bg-[#1d4ed8] hover:bg-[#1a44c0]"
-              }`}
-            >
-              {genState === "generating" ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> Generando…
-                </>
-              ) : genState === "done" ? (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> ¡Informe listo!
-                </>
-              ) : (
-                <>
-                  <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Crear Informe
-                </>
-              )}
-            </button>
-          )}
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="flex items-center justify-center rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-              title="Cerrar"
-            >
-              <X className="h-4 w-4 sm:h-5 sm:w-5" />
-            </button>
-          )}
-        </div>
-      </div>
+      {showModal && canGenerate && (
+        <ReportFormPanel
+          onClose={() => setShowModal(false)}
+          onSubmit={handleGenerate}
+          users={users}
+          secretarias={secretarias}
+          enableAi={Boolean(entity?.enable_ai_reports)}
+          submitting={submitting}
+        />
+      )}
 
       {genState === "generating" && (
         <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
@@ -539,16 +517,6 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
         </div>
       )}
 
-      {showModal && canGenerate && (
-        <ReportModal
-          onClose={() => setShowModal(false)}
-          onSubmit={handleGenerate}
-          users={users}
-          secretarias={secretarias}
-          enableAi={Boolean(entity?.enable_ai_reports)}
-          submitting={submitting}
-        />
-      )}
     </div>
   );
 }

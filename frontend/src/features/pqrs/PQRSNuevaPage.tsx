@@ -29,10 +29,13 @@ import {
   Users,
   Globe,
   Briefcase,
+  ArrowLeft,
 } from "lucide-react";
 import { useForm } from "react-hook-form";import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useState, useRef, useEffect, useMemo } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useInvalidatePqrs } from "@/core/api/hooks/usePqrs";
 import { formatApiError } from "@/core/api/errors";
 import { dateInputValueToIsoCO, todayDateInputValueCO } from "@/core/datetime";
 import { useAuthStore } from "@/core/auth/store";
@@ -143,14 +146,18 @@ const CANALES_LLEGADA = [
   { value: "web",            label: "Portal web",          Icon: Globe },
 ];
 
-// ─── Props ────────────────────────────────────────────────────────────
-interface Props {
-  onClose: () => void;
-  onCreated?: () => void;
-}
-
 // ─── Componente ───────────────────────────────────────────────────────
-export default function NuevaPQRSModal({ onClose, onCreated }: Props) {
+export default function PQRSNuevaPage() {
+  const navigate = useNavigate();
+  const invalidatePqrs = useInvalidatePqrs();
+
+  function onClose() {
+    navigate(-1);
+  }
+  function onCreated() {
+    invalidatePqrs();
+    navigate("/pqrs/solicitudes");
+  }
   const user = useAuthStore((s) => s.user);
   const aiEnabled = useMemo(
     () =>
@@ -319,19 +326,15 @@ export default function NuevaPQRSModal({ onClose, onCreated }: Props) {
   }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div
-          className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-slate-50 shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
+    <div className="mx-auto w-full max-w-3xl space-y-4">
+        <Link
+          to="/pqrs/solicitudes"
+          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-[#0e7490]"
         >
+          <ArrowLeft className="h-4 w-4" />
+          Volver a solicitudes
+        </Link>
+        <div className="relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm">
           {/* ── Header ── */}
           <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-6 py-4 shadow-sm">
             <div>
@@ -804,8 +807,7 @@ export default function NuevaPQRSModal({ onClose, onCreated }: Props) {
             </form>
           )}
         </div>
-      </div>
-    </>
+    </div>
   );
 }
 

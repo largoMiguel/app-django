@@ -108,6 +108,7 @@ class UserMeSerializer(serializers.ModelSerializer):
             "enable_correspondencia": e.enable_correspondencia,
             "enable_presupuesto": e.enable_presupuesto,
             "enable_gestion_documental": e.enable_gestion_documental,
+            "enable_pic": e.enable_pic,
             "enabled_modules": e.enabled_modules,
             "is_active": e.is_active,
             "logo_url": e.logo_url,

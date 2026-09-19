@@ -45,6 +45,9 @@ export default function SecopDetalleModal({ record, anio, onClose }: Props) {
             </div>
             <p className="text-xs text-slate-500">
               {record.fuente.toUpperCase()} · {record.tipo_registro} · {record.estado}
+              {record.referencia_contrato && record.referencia_contrato !== record.referencia && (
+                <> · Contrato {record.referencia_contrato}</>
+              )}
             </p>
           </div>
           <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100">

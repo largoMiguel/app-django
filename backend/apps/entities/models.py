@@ -11,18 +11,6 @@ class Entity(models.Model):
     name = models.CharField(max_length=200, unique=True)
     code = models.CharField(max_length=50, unique=True)
     nit = models.CharField(max_length=50, blank=True, null=True, db_index=True)
-    nit_secop_i = models.CharField(
-        max_length=200,
-        blank=True,
-        null=True,
-        help_text="NIT(s) para SECOP I en datos.gov.co; varios separados por coma.",
-    )
-    nit_secop_ii = models.CharField(
-        max_length=200,
-        blank=True,
-        null=True,
-        help_text="NIT(s) para SECOP II en datos.gov.co; varios separados por coma.",
-    )
     secop_i_codigo_entidad = models.CharField(
         max_length=500,
         blank=True,
@@ -77,6 +65,7 @@ class Entity(models.Model):
     enable_correspondencia = models.BooleanField(default=True)
     enable_presupuesto = models.BooleanField(default=True)
     enable_gestion_documental = models.BooleanField(default=False)
+    enable_pic = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)
@@ -111,6 +100,7 @@ class Entity(models.Model):
             "correspondencia": self.enable_correspondencia,
             "presupuesto": self.enable_presupuesto,
             "gestion_documental": self.enable_gestion_documental,
+            "pic": self.enable_pic,
         }
         for k, v in flags.items():
             if v:

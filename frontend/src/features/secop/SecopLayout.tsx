@@ -6,8 +6,6 @@ import {
   AlertTriangle,
   Sparkles,
   RefreshCw,
-  TrendingUp,
-  Users,
   MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
@@ -15,8 +13,6 @@ import { SecopYearProvider, useSecopYear } from "./SecopYearContext";
 
 const tabs = [
   { to: "/contratacion", end: true, label: "Resumen", icon: LayoutDashboard },
-  { to: "/contratacion/ejecucion", end: false, label: "Ejecución", icon: TrendingUp },
-  { to: "/contratacion/dependencias", end: false, label: "Dependencias", icon: Users },
   { to: "/contratacion/secop2", end: false, label: "SECOP II", icon: FileSearch },
   { to: "/contratacion/secop1", end: false, label: "SECOP I", icon: Archive },
   { to: "/contratacion/alertas", end: false, label: "Alertas", icon: AlertTriangle },

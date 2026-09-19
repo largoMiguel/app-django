@@ -10,9 +10,82 @@ import {
   modalOverlayClass,
   modalPanelSmClass,
 } from "@/components/ui/modalShell";
+import SecretariasPanel from "@/features/users/SecretariasPanel";
 
 interface Props {
   isSuperAdmin?: boolean;
+}
+
+function UsersPageHeader({
+  superMode,
+  secretarioMode,
+  adminMode,
+  view,
+  onViewChange,
+  onNewUser,
+}: {
+  superMode: boolean;
+  secretarioMode: boolean;
+  adminMode: boolean;
+  view: "users" | "secretarias";
+  onViewChange: (view: "users" | "secretarias") => void;
+  onNewUser: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-[#111827] sm:text-2xl flex items-center gap-2">
+            <Users className="h-6 w-6 text-[#3eafd4]" />{" "}
+            {superMode ? "Usuarios (todos)" : secretarioMode ? "Contratistas" : "Usuarios"}
+          </h1>
+          <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+            {superMode
+              ? "Vista global de usuarios del sistema."
+              : secretarioMode
+                ? "Gestiona los contratistas de tu secretaría."
+                : "Gestiona los usuarios y secretarías de tu entidad."}
+          </p>
+        </div>
+        {view === "users" && (
+          <button
+            onClick={onNewUser}
+            className="flex items-center gap-2 rounded-md bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2] self-start sm:self-auto"
+          >
+            <Plus className="h-4 w-4" /> {secretarioMode ? "Nuevo contratista" : "Nuevo usuario"}
+          </button>
+        )}
+      </div>
+      {adminMode && (
+        <div className="border-b border-slate-200">
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => onViewChange("users")}
+              className={`border-b-2 px-3 py-2 text-sm transition-colors ${
+                view === "users"
+                  ? "border-[#3eafd4] font-semibold text-[#0e7490]"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Usuarios
+            </button>
+            <button
+              type="button"
+              onClick={() => onViewChange("secretarias")}
+              className={`border-b-2 px-3 py-2 text-sm transition-colors ${
+                view === "secretarias"
+                  ? "border-[#3eafd4] font-semibold text-[#0e7490]"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Secretarías
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function UsersPage({ isSuperAdmin = false }: Props) {
@@ -20,8 +93,10 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
   const role = primaryRole(user);
   const superMode = isSuperAdmin || role === "superadmin";
   const secretarioMode = role === "secretario" && !superMode;
+  const adminMode = role === "admin" && !superMode;
   const actorEntityId = user?.entity?.id ?? null;
 
+  const [view, setView] = useState<"users" | "secretarias">("users");
   const [items, setItems] = useState<AppUser[]>([]);
   const [secretarias, setSecretarias] = useState<Secretaria[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -92,29 +167,32 @@ export default function UsersPage({ isSuperAdmin = false }: Props) {
     }
   }
 
+  if (adminMode && view === "secretarias" && actorEntityId) {
+    return (
+      <div className="space-y-6">
+        <UsersPageHeader
+          superMode={superMode}
+          secretarioMode={secretarioMode}
+          adminMode={adminMode}
+          view={view}
+          onViewChange={setView}
+          onNewUser={() => setShowNew(true)}
+        />
+        <SecretariasPanel entityId={actorEntityId} entityName={user?.entity?.name} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-[#111827] sm:text-2xl flex items-center gap-2">
-            <Users className="h-6 w-6 text-[#3eafd4]" />{" "}
-            {superMode ? "Usuarios (todos)" : secretarioMode ? "Contratistas" : "Usuarios"}
-          </h1>
-          <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-            {superMode
-              ? "Vista global de usuarios del sistema."
-              : secretarioMode
-                ? "Gestiona los contratistas de tu secretaría."
-                : "Gestiona los usuarios de tu entidad."}
-          </p>
-        </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="flex items-center gap-2 rounded-md bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2] self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" /> {secretarioMode ? "Nuevo contratista" : "Nuevo usuario"}
-        </button>
-      </div>
+      <UsersPageHeader
+        superMode={superMode}
+        secretarioMode={secretarioMode}
+        adminMode={adminMode}
+        view={view}
+        onViewChange={setView}
+        onNewUser={() => setShowNew(true)}
+      />
 
       <div className="rounded-[0.6rem] border border-[#e9ecef] bg-white p-4">
         <div className="relative">

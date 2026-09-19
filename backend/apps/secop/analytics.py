@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from .normalize import _parse_date, _parse_float  # noqa: PLC2701
+from .normalize import _parse_date, _parse_float, compute_fecha_fin_from_plazo  # noqa: PLC2701
 
 
 def _month_key(iso: str | None) -> str | None:
@@ -20,22 +20,56 @@ def _month_key(iso: str | None) -> str | None:
 
 def _estado_vigencia(rec: dict[str, Any], today: date | None = None) -> str:
     today = today or date.today()
-    fin = _parse_date(rec.get("fecha_fin"))
-    estado = (rec.get("estado") or "").lower()
-    if "ejecuci" in estado or "celebrado" in estado or "terminad" in estado:
-        if fin and fin < today:
-            return "vencido"
-        if fin and (fin - today).days <= 30:
-            return "por_vencer"
-        return "vigente"
-    if "liquid" in estado:
+    if _is_liquidado(rec):
         return "liquidado"
+    fin = _effective_fecha_fin(rec)
+    if not fin:
+        return "otro"
+    if fin < today:
+        return "vencido"
+    if (fin - today).days <= 30 and _contrato_en_plazo(rec):
+        return "por_vencer"
+    if _contrato_en_plazo(rec):
+        return "vigente"
     return "otro"
 
 
 def _is_ejecucion(estado: str | None) -> bool:
     e = (estado or "").lower()
     return "ejecuci" in e or "celebrado" in e
+
+
+def _contrato_en_plazo(rec: dict[str, Any]) -> bool:
+    estado = rec.get("estado")
+    e = (estado or "").lower().strip()
+    if not e:
+        return True
+    if any(x in e for x in ("liquid", "cancelad", "desiert", "anulad", "rescind")):
+        return False
+    if any(x in e for x in ("ejecuci", "celebrado", "terminad", "vigente", "suspen", "modific", "publicad")):
+        return True
+    if "cerrado" in e or "finaliz" in e:
+        return False
+    return not any(x in e for x in ("prepar", "borrador", "proceso de selecci"))
+
+
+def _contrato_activo_plazo(estado: str | None) -> bool:
+    return _contrato_en_plazo({"estado": estado})
+
+
+def _effective_fecha_fin(rec: dict[str, Any]) -> date | None:
+    fin = _parse_date(rec.get("fecha_fin"))
+    if not fin:
+        ini = _parse_date(rec.get("fecha_inicio")) or _parse_date(rec.get("fecha_firma"))
+        plazo = rec.get("plazo_ejecucion")
+        if ini and plazo:
+            fin = compute_fecha_fin_from_plazo(ini, float(plazo), rec.get("plazo_unidad"))
+    if not fin:
+        return None
+    extra = int(rec.get("dias_prorrogados") or 0) + int(rec.get("dias_adicionados") or 0)
+    if extra > 0:
+        return fin + timedelta(days=extra)
+    return fin
 
 
 def _is_liquidado(rec: dict[str, Any]) -> bool:
@@ -46,7 +80,7 @@ def _is_liquidado(rec: dict[str, Any]) -> bool:
 
 def _dias_restantes(rec: dict[str, Any], today: date | None = None) -> int | None:
     today = today or date.today()
-    fin = _parse_date(rec.get("fecha_fin"))
+    fin = _effective_fecha_fin(rec)
     if not fin:
         return None
     return (fin - today).days
@@ -55,7 +89,7 @@ def _dias_restantes(rec: dict[str, Any], today: date | None = None) -> int | Non
 def compute_avance(rec: dict[str, Any], today: date | None = None) -> dict[str, Any]:
     today = today or date.today()
     ini = _parse_date(rec.get("fecha_inicio")) or _parse_date(rec.get("fecha_firma"))
-    fin = _parse_date(rec.get("fecha_fin"))
+    fin = _effective_fecha_fin(rec)
     avance_tiempo = None
     if ini and fin and fin > ini:
         total_dias = (fin - ini).days
@@ -178,34 +212,53 @@ def agrupar_por_responsable(
     return sorted(out, key=lambda x: x["valor_total"], reverse=True)
 
 
+VENCIMIENTO_BUCKET_KEYS = (
+    "vencidos_ejecucion",
+    "por_vencer_7",
+    "por_vencer_15",
+    "por_vencer_30",
+    "por_vencer_60",
+    "vencidos_sin_liquidar",
+)
+
+
+def matches_vencimiento_bucket(
+    record: dict[str, Any],
+    bucket: str,
+    today: date | None = None,
+) -> bool:
+    if record.get("tipo_registro") != "contrato":
+        return False
+    today = today or date.today()
+    dias = _dias_restantes(record, today)
+    estado = record.get("estado")
+
+    if bucket == "vencidos_sin_liquidar":
+        return dias is not None and dias < 0 and not _is_liquidado(record)
+    if bucket == "vencidos_ejecucion":
+        return _contrato_en_plazo(record) and dias is not None and dias < 0
+    if dias is None or dias < 0 or not _contrato_en_plazo(record):
+        return False
+    limits = {
+        "por_vencer_7": 7,
+        "por_vencer_15": 15,
+        "por_vencer_30": 30,
+        "por_vencer_60": 60,
+    }
+    limit = limits.get(bucket)
+    return limit is not None and dias <= limit
+
+
 def buckets_vencimiento(records: list[dict[str, Any]]) -> dict[str, Any]:
     contratos = [r for r in records if r.get("tipo_registro") == "contrato"]
     today = date.today()
-    buckets: dict[str, list[dict]] = {
-        "vencidos_ejecucion": [],
-        "por_vencer_7": [],
-        "por_vencer_15": [],
-        "por_vencer_30": [],
-        "por_vencer_60": [],
-        "vencidos_sin_liquidar": [],
-    }
+    buckets: dict[str, list[dict]] = {key: [] for key in VENCIMIENTO_BUCKET_KEYS}
     for r in contratos:
-        dias = _dias_restantes(r, today)
         avance = compute_avance(r, today)
         pub = public_summary(r, avance)
-        if _is_ejecucion(r.get("estado")) and dias is not None and dias < 0:
-            buckets["vencidos_ejecucion"].append(pub)
-        elif _is_ejecucion(r.get("estado")) and dias is not None:
-            if dias <= 7:
-                buckets["por_vencer_7"].append(pub)
-            elif dias <= 15:
-                buckets["por_vencer_15"].append(pub)
-            elif dias <= 30:
-                buckets["por_vencer_30"].append(pub)
-            elif dias <= 60:
-                buckets["por_vencer_60"].append(pub)
-        if dias is not None and dias < 0 and not _is_liquidado(r):
-            buckets["vencidos_sin_liquidar"].append(pub)
+        for key in VENCIMIENTO_BUCKET_KEYS:
+            if matches_vencimiento_bucket(r, key, today):
+                buckets[key].append(pub)
 
     return {
         key: {"count": len(items), "valor": round(sum(i.get("valor", 0) for i in items), 2), "registros": items[:20]}
@@ -218,7 +271,8 @@ def public_summary(rec: dict[str, Any], avance: dict[str, Any] | None = None) ->
     return {
         "id": rec.get("id"),
         "fuente": rec.get("fuente"),
-        "referencia": rec.get("referencia"),
+        "referencia": rec.get("numero_proceso") or rec.get("referencia"),
+        "numero_proceso": rec.get("numero_proceso") or rec.get("referencia"),
         "proveedor": rec.get("proveedor"),
         "estado": rec.get("estado"),
         "valor": _parse_float(rec.get("valor_con_adiciones") or rec.get("valor")),

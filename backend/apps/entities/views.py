@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 
 from django.core.files.base import ContentFile
+from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -135,3 +136,16 @@ class SecretariaViewSet(viewsets.ModelViewSet):
             serializer.save()
         else:
             serializer.save(entity_id=user.entity_id)
+
+    def perform_destroy(self, instance):
+        try:
+            instance.delete()
+        except ProtectedError:
+            raise ValidationError(
+                {
+                    "detail": (
+                        "No se puede eliminar esta secretaría porque tiene registros "
+                        "vinculados (por ejemplo correspondencia). Desactívela en su lugar."
+                    )
+                }
+            ) from None

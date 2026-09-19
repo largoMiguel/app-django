@@ -118,6 +118,10 @@ def load_secop2_unified(
             proc = by_notice[notice]
         if proc:
             norm["proceso_vinculado"] = public_record(proc)
+            proc_ref = proc.get("referencia")
+            if proc_ref:
+                norm["numero_proceso"] = proc_ref
+                norm["referencia"] = proc_ref
             linked_process_ids.add(proc["id"])
             mark_portfolio_linked(proc.get("portfolio_id"))
         if portfolio:

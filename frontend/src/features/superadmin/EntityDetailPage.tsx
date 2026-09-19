@@ -24,6 +24,7 @@ import { pdmApi } from "@/core/api/pdm";
 import type { PdmChatAnalytics } from "@/core/api/pdmChatPublic";
 import { formatApiError } from "@/core/api/errors";
 import { entitiesApi, secretariasApi, type Entity, type Secretaria } from "@/core/api/entities";
+import SecretariasPanel from "@/features/users/SecretariasPanel";
 import { secopApi, type SecopEntidadDatosGov } from "@/core/api/secop";
 import { usersApi, type AppUser, type CreateUserPayload } from "@/core/api/users";
 import { MODULES, modulesForEntity } from "@/core/modules";
@@ -244,22 +245,6 @@ function InfoTab({
             <input
               value={form.nit || ""}
               onChange={(e) => set("nit", e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
-            />
-          </Field>
-          <Field label="NIT SECOP I" hint="Opcional. Varios NIT separados por coma. Si vacío, usa el NIT general.">
-            <input
-              value={form.nit_secop_i || ""}
-              onChange={(e) => set("nit_secop_i", e.target.value)}
-              placeholder="891855735"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
-            />
-          </Field>
-          <Field label="NIT SECOP II" hint="Opcional. Varios NIT separados por coma. Si vacío, usa el NIT general.">
-            <input
-              value={form.nit_secop_ii || ""}
-              onChange={(e) => set("nit_secop_ii", e.target.value)}
-              placeholder="891855735"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
             />
           </Field>
@@ -772,7 +757,9 @@ function UserModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [form, setForm] = useState<CreateUserPayload & { is_active?: boolean }>(
+  const [form, setForm] = useState<
+    CreateUserPayload & { is_active?: boolean; nueva_secretaria_nombre?: string }
+  >(
     initial
       ? {
           email: initial.email,
@@ -803,6 +790,7 @@ function UserModal({
     role: string;
     payload: CreateUserPayload & { is_active?: boolean };
   } | null>(null);
+  const [createNewSec, setCreateNewSec] = useState(false);
 
   const modulosDisponibles = useMemo(
     () => modulesForEntity(entity).filter((m) => m.scope === "all"),
@@ -865,10 +853,18 @@ function UserModal({
     setSaving(true);
     setError(null);
     try {
-      const payload: CreateUserPayload & { is_active?: boolean } = { ...form, entity: entity.id };
+      const payload: CreateUserPayload & { is_active?: boolean; nueva_secretaria_nombre?: string } = {
+        ...form,
+        entity: entity.id,
+      };
       if (payload.role !== "secretario" && payload.role !== "contratista") {
         delete payload.secretaria;
+        delete payload.nueva_secretaria_nombre;
         payload.enabled_modules = [];
+      } else if (createNewSec) {
+        delete payload.secretaria;
+      } else {
+        delete payload.nueva_secretaria_nombre;
       }
       if (!payload.password) delete payload.password;
       if (initial) {
@@ -1022,25 +1018,86 @@ function UserModal({
               )}
             </div>
 
-            {(form.role === "secretario" || form.role === "contratista") && (
-              <>
-                <Field label="Secretaría *">
+            {form.role === "secretario" && (
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 space-y-2">
+                <div className="flex items-center gap-3 text-sm">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={!createNewSec}
+                      onChange={() => setCreateNewSec(false)}
+                      className="accent-[#3eafd4]"
+                    />
+                    Seleccionar existente
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={createNewSec}
+                      onChange={() => setCreateNewSec(true)}
+                      className="accent-[#3eafd4]"
+                    />
+                    Crear nueva
+                  </label>
+                </div>
+                {!createNewSec ? (
                   <select
                     required
                     value={form.secretaria ?? ""}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, secretaria: Number(e.target.value) }))
+                      setForm((f) => ({
+                        ...f,
+                        secretaria: e.target.value ? Number(e.target.value) : null,
+                      }))
                     }
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
                   >
-                    <option value="">— Selecciona —</option>
+                    <option value="">— Selecciona secretaría —</option>
                     {secretarias.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.nombre}
                       </option>
                     ))}
                   </select>
-                </Field>
+                ) : (
+                  <input
+                    required
+                    value={form.nueva_secretaria_nombre || ""}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, nueva_secretaria_nombre: e.target.value }))
+                    }
+                    placeholder="Nombre de la nueva secretaría"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+                  />
+                )}
+              </div>
+            )}
+
+            {form.role === "contratista" && (
+              <Field label="Secretaría *">
+                <select
+                  required
+                  value={form.secretaria ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      secretaria: e.target.value ? Number(e.target.value) : null,
+                    }))
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+                >
+                  <option value="">— Selecciona secretaría —</option>
+                  {secretarias.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+
+            {(form.role === "secretario" || form.role === "contratista") && (
+              <>
                 {modulosDisponibles.length > 0 && (
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                     <div className="mb-2 text-xs font-semibold text-slate-600">
@@ -1142,111 +1199,7 @@ function UserModal({
 // ---------------- SECRETARIAS TAB ----------------
 
 function SecretariasTab({ entity }: { entity: Entity }) {
-  const [items, setItems] = useState<Secretaria[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newName, setNewName] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function load() {
-    setLoading(true);
-    try {
-      setItems(await secretariasApi.list(entity.id));
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entity.id]);
-
-  async function create() {
-    if (!newName.trim()) return;
-    setSaving(true);
-    try {
-      await secretariasApi.create({ entity: entity.id, nombre: newName.trim(), is_active: true });
-      setNewName("");
-      load();
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function rename(s: Secretaria) {
-    const nombre = prompt("Nuevo nombre", s.nombre);
-    if (!nombre || nombre === s.nombre) return;
-    await secretariasApi.update(s.id, { nombre });
-    load();
-  }
-
-  async function remove(s: Secretaria) {
-    if (!confirm(`¿Eliminar la secretaría "${s.nombre}"?`)) return;
-    await secretariasApi.remove(s.id);
-    load();
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
-        <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder="Nombre de la nueva secretaría"
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              create();
-            }
-          }}
-        />
-        <button
-          onClick={create}
-          disabled={saving || !newName.trim()}
-          className="flex items-center gap-1.5 rounded-md bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f9fc2] disabled:opacity-60"
-        >
-          <Plus className="h-4 w-4" /> Crear
-        </button>
-      </div>
-
-      <div className="rounded-[0.6rem] border border-[#e9ecef] bg-white">
-        {loading ? (
-          <div className="p-6 text-center text-slate-500">Cargando…</div>
-        ) : items.length === 0 ? (
-          <div className="p-6 text-center text-slate-500">No hay secretarías para esta entidad.</div>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {items.map((s) => (
-              <li key={s.id} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <div className="font-medium text-slate-800">{s.nombre}</div>
-                  <div className="text-xs text-slate-500">
-                    {s.is_active ? "Activa" : "Inactiva"}
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => rename(s)}
-                    className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-[#0e7490]"
-                    title="Renombrar"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => remove(s)}
-                    className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                    title="Eliminar"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
+  return <SecretariasPanel entityId={entity.id} entityName={entity.name} />;
 }
 
 function PdmChatSection({ entity, slug }: { entity: Entity; slug: string }) {
@@ -1421,7 +1374,7 @@ function SecopEntityPicker({
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SecopEntidadDatosGov[]>([]);
   const [open, setOpen] = useState(false);
-  const nit = form.nit_secop_ii || form.nit_secop_i || form.nit || "";
+  const nit = form.nit || "";
 
   async function search() {
     if (!nit.trim()) return;

@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "apps.secop",
     "apps.planes",
     "apps.gestion_documental",
+    "apps.pic",
 ]
 
 MIDDLEWARE = [
@@ -147,6 +148,7 @@ B2_BUCKET_ASISTENCIA = os.getenv("B2_BUCKET_ASISTENCIA", "softone-th")
 B2_BUCKET_CORRESPONDENCIA = os.getenv("B2_BUCKET_CORRESPONDENCIA", "softone-correspondence")
 B2_BUCKET_PLANES = os.getenv("B2_BUCKET_PLANES", "softone-planes-612")
 B2_BUCKET_GESTION_DOCUMENTAL = os.getenv("B2_BUCKET_GESTION_DOCUMENTAL", "softone-document-management")
+B2_BUCKET_PIC = os.getenv("B2_BUCKET_PIC", "softone-pic")
 B2_BUCKET_DB = os.getenv("B2_BUCKET_DB", "softone-db")
 USE_B2_STORAGE = env_bool("USE_B2_STORAGE", bool(B2_KEY_ID and B2_APP_KEY))
 
@@ -204,8 +206,8 @@ REST_FRAMEWORK = {
         "pdm_chat_public": "60/hour",
         "asistencia_kiosk_pair": "20/hour",
         "asistencia_kiosk_punch": "30/min",
-        "secop_datos_gov": "120/hour",
-        "secop_ai": "30/hour",
+        "secop_datos_gov": "600/hour",
+        "secop_ai": "120/hour",
     },
 }
 
