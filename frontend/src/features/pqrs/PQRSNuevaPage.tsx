@@ -807,7 +807,6 @@ export default function PQRSNuevaPage() {
             </form>
           )}
         </div>
-        </div>
     </div>
   );
 }
