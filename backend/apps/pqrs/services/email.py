@@ -224,11 +224,11 @@ def _zeptomail_recipients(addrs: list[str]) -> list[dict[str, Any]]:
 
 
 def _cc_respondedor(enviado_por) -> list[str]:
-    """Copia al correo del funcionario que responde (admin o secretario)."""
+    """Copia al correo del funcionario que responde."""
     if not enviado_por:
         return []
     roles = user_roles(enviado_por)
-    if not (roles & {"admin", "secretario"}):
+    if not (roles & {"admin", "secretario", "contratista"}):
         return []
     email = (getattr(enviado_por, "email", None) or "").strip()
     return [email] if email else []
@@ -340,7 +340,6 @@ def _build_radicacion_bodies(pqrs: PQRS) -> tuple[str, str, str]:
         if pqrs.fecha_solicitud
         else format_now_fecha_hora_co()
     )
-    fecha_venc = format_fecha_co(pqrs.fecha_vencimiento)
     nombre = pqrs.nombre_ciudadano or "Ciudadano/a"
 
     text_body = (
@@ -348,8 +347,7 @@ def _build_radicacion_bodies(pqrs: PQRS) -> tuple[str, str, str]:
         f"Su {tipo_label} ha sido radicada exitosamente ante {entity_name}.\n\n"
         f"Número de radicado: {pqrs.numero_radicado}\n"
         f"Asunto: {pqrs.asunto}\n"
-        f"Fecha de radicación: {fecha_sol}\n"
-        f"Fecha límite de respuesta (Ley 1755/2015): {fecha_venc}\n\n"
+        f"Fecha de radicación: {fecha_sol}\n\n"
         f"Conserve este número de radicado para futuras consultas.\n\n"
         f"Atentamente,\n{entity_name}"
     )
@@ -368,8 +366,6 @@ def _build_radicacion_bodies(pqrs: PQRS) -> tuple[str, str, str]:
           <td>{html.escape(pqrs.asunto)}</td></tr>
       <tr><td style="padding:4px 0;font-weight:600;">Fecha radicación:</td>
           <td>{html.escape(fecha_sol)}</td></tr>
-      <tr><td style="padding:4px 0;font-weight:600;">Plazo de respuesta:</td>
-          <td>{html.escape(fecha_venc)}</td></tr>
     </table>
     <p style="color:#64748b;font-size:12px;margin-top:16px;">
       Conserve este número de radicado para futuras consultas.

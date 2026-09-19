@@ -40,7 +40,11 @@ from apps.pqrs.validators import validate_inbound_attachment
 logger = logging.getLogger(__name__)
 
 GOVCO_SUFFIX = ".gov.co"
-ROLES_PERMITIDOS = frozenset({"admin", "secretario"})
+ROLES_CREACION = frozenset({"admin", "secretario"})
+ROLES_RESPUESTA = frozenset({"admin", "secretario", "contratista"})
+ESTADOS_PROCESADOS = frozenset(
+    {EstadoCorreoEntrante.PROCESADO, EstadoCorreoEntrante.PROCESADO_RESPUESTA}
+)
 
 
 @dataclass
@@ -171,7 +175,7 @@ def _is_govco_email(address: str) -> bool:
     return domain.endswith(GOVCO_SUFFIX)
 
 
-def _resolve_remitente_user(email_addr: str) -> User | None:
+def _resolve_remitente_user(email_addr: str, *, roles_permitidos: frozenset[str]) -> User | None:
     if not email_addr:
         return None
     user = (
@@ -182,7 +186,7 @@ def _resolve_remitente_user(email_addr: str) -> User | None:
     if not user:
         return None
     roles = user_roles(user)
-    if not ROLES_PERMITIDOS & roles:
+    if not roles_permitidos & roles:
         return None
     return user
 
@@ -212,12 +216,12 @@ def _registrar_correo(
     return obj
 
 
-def _ensure_entity_ready(entity: Entity) -> str | None:
+def _ensure_entity_ready(entity: Entity, *, require_ai: bool = False) -> str | None:
     if not entity.is_active:
         return "Entidad inactiva."
     if not entity.enable_pqrs:
         return "Módulo PQRS deshabilitado para la entidad."
-    if not entity.enable_ai_reports:
+    if require_ai and not entity.enable_ai_reports:
         return "Módulo de IA no habilitado para la entidad."
     return None
 
@@ -234,7 +238,7 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
     """Procesa un correo ya parseado. Idempotente por message_id."""
     if CorreoEntrantePQRS.objects.filter(
         message_id=parsed.message_id,
-        estado=EstadoCorreoEntrante.PROCESADO,
+        estado__in=ESTADOS_PROCESADOS,
     ).exists():
         correo = _registrar_correo(
             parsed,
@@ -252,12 +256,27 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
         )
         return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
 
-    user = _resolve_remitente_user(parsed.remitente)
+    forward_meta_preview = None
+    subject_line = parsed.asunto
+    user_preview = _resolve_remitente_user(parsed.remitente, roles_permitidos=ROLES_RESPUESTA)
+    if user_preview and user_preview.entity:
+        forward_meta_preview = prepare_inbound_email_text(
+            parsed.texto.strip(), user_preview.entity, user_preview
+        )
+        subject_line = forward_meta_preview.subject or parsed.asunto
+
+    from apps.pqrs.services.inbound_respuesta import extract_radicado_from_subject
+
+    radicado_en_asunto = extract_radicado_from_subject(subject_line)
+    roles_permitidos = ROLES_RESPUESTA if radicado_en_asunto else ROLES_CREACION
+
+    user = _resolve_remitente_user(parsed.remitente, roles_permitidos=roles_permitidos)
     if not user:
+        rol_txt = "admin/secretario/contratista" if radicado_en_asunto else "admin/secretario"
         correo = _registrar_correo(
             parsed,
             estado=EstadoCorreoEntrante.IGNORADO_NO_REGISTRADO,
-            motivo=f"Remitente no registrado como admin/secretario: {parsed.remitente}",
+            motivo=f"Remitente no registrado como {rol_txt}: {parsed.remitente}",
         )
         return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
 
@@ -271,7 +290,7 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
         )
         return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
 
-    entity_error = _ensure_entity_ready(entity)
+    entity_error = _ensure_entity_ready(entity, require_ai=not radicado_en_asunto)
     if entity_error:
         correo = _registrar_correo(
             parsed,
@@ -282,13 +301,84 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
         )
         return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
 
-    forward_meta = prepare_inbound_email_text(parsed.texto.strip(), entity, user)
+    forward_meta = forward_meta_preview or prepare_inbound_email_text(
+        parsed.texto.strip(), entity, user
+    )
+    subject_line = forward_meta.subject or parsed.asunto
+
+    if radicado_en_asunto:
+        from apps.pqrs.services.inbound_respuesta import procesar_respuesta_inbound
+
+        try:
+            pqrs = procesar_respuesta_inbound(
+                parsed,
+                entity=entity,
+                user=user,
+                forward_meta=forward_meta,
+                subject_line=subject_line,
+            )
+            correo = _registrar_correo(
+                parsed,
+                estado=EstadoCorreoEntrante.PROCESADO_RESPUESTA,
+                motivo=f"Respuesta registrada {pqrs.numero_radicado}",
+                entity=entity,
+                pqrs=pqrs,
+                user=user,
+            )
+            return InboundResult(
+                estado=correo.estado,
+                motivo=correo.motivo,
+                pqrs=pqrs,
+                correo=correo,
+            )
+        except LookupError as exc:
+            correo = _registrar_correo(
+                parsed,
+                estado=EstadoCorreoEntrante.IGNORADO_RADICADO_NO_ENCONTRADO,
+                motivo=str(exc),
+                entity=entity,
+                user=user,
+            )
+            return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
+        except ValueError as exc:
+            estado = (
+                EstadoCorreoEntrante.IGNORADO_YA_RESPONDIDA
+                if "ya fue respondida" in str(exc).lower()
+                else EstadoCorreoEntrante.ERROR
+            )
+            correo = _registrar_correo(
+                parsed,
+                estado=estado,
+                motivo=str(exc),
+                entity=entity,
+                user=user,
+            )
+            return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
+        except PermissionError as exc:
+            correo = _registrar_correo(
+                parsed,
+                estado=EstadoCorreoEntrante.ERROR,
+                motivo=str(exc),
+                entity=entity,
+                user=user,
+            )
+            return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Error procesando respuesta por correo %s", parsed.message_id)
+            correo = _registrar_correo(
+                parsed,
+                estado=EstadoCorreoEntrante.ERROR,
+                motivo=f"Error respuesta: {exc}",
+                entity=entity,
+                user=user,
+            )
+            return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
+
     texto = forward_meta.body
     ia_hint = build_inbound_ia_context(forward_meta)
     if ia_hint:
         texto = f"{ia_hint}\n\n{texto}".strip()
 
-    subject_line = forward_meta.subject or parsed.asunto
     if subject_line and subject_line.lower() not in texto.lower()[:300]:
         texto = f"Asunto: {subject_line}\n\n{texto}".strip()
 

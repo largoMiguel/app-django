@@ -72,10 +72,11 @@ class Command(BaseCommand):
                     continue
 
                 result = procesar_correo(parsed)
-                if result.estado == "procesado":
+                if result.estado in ("procesado", "procesado_respuesta"):
                     procesados += 1
+                    label = "RESPUESTA" if result.estado == "procesado_respuesta" else "OK"
                     self.stdout.write(self.style.SUCCESS(
-                        f"  OK {parsed.remitente} → {result.pqrs.numero_radicado if result.pqrs else '?'}"
+                        f"  {label} {parsed.remitente} → {result.pqrs.numero_radicado if result.pqrs else '?'}"
                     ))
                 elif result.estado.startswith("ignorado"):
                     ignorados += 1

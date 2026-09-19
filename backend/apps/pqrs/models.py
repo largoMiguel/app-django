@@ -437,10 +437,13 @@ class PQRSCorreo(models.Model):
 
 class EstadoCorreoEntrante(models.TextChoices):
     PROCESADO = "procesado", "Procesado"
+    PROCESADO_RESPUESTA = "procesado_respuesta", "Respuesta registrada"
     IGNORADO_NO_REGISTRADO = "ignorado_no_registrado", "Remitente no registrado"
     IGNORADO_SIN_ENTIDAD = "ignorado_sin_entidad", "Usuario sin entidad"
     IGNORADO_NO_GOVCO = "ignorado_no_govco", "Dominio no gov.co"
     IGNORADO_DUPLICADO = "ignorado_duplicado", "Duplicado"
+    IGNORADO_RADICADO_NO_ENCONTRADO = "ignorado_radicado_no_encontrado", "Radicado no encontrado"
+    IGNORADO_YA_RESPONDIDA = "ignorado_ya_respondida", "PQRS ya respondida"
     ERROR = "error", "Error"
 
 

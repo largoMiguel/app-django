@@ -145,6 +145,7 @@ class UserMeSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["enabled_modules"] = instance.enabled_modules or []
+        data["supervisor_enabled_modules"] = getattr(instance, "_supervisor_enabled_modules", None) or []
         return data
 
 

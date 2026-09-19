@@ -1041,10 +1041,10 @@ function UserModal({
                     ))}
                   </select>
                 </Field>
-                {form.role === "secretario" && modulosDisponibles.length > 0 && (
+                {modulosDisponibles.length > 0 && (
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                     <div className="mb-2 text-xs font-semibold text-slate-600">
-                      Módulos asignados al secretario
+                      Módulos asignados al {form.role}
                     </div>
                     <div className="grid grid-cols-2 gap-1.5">
                       {modulosDisponibles.map((m) => (
