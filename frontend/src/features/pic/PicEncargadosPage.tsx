@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Plus, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { RefreshCw, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { picApi, type PicCargo } from "@/core/api/pic";
 import { api } from "@/core/api/client";
 import { formatApiError } from "@/core/api/errors";
@@ -10,14 +11,29 @@ interface UserOption {
   id: number;
   full_name: string;
   email: string;
+  role?: string;
+}
+
+interface EncargadoPendiente {
+  token: string;
+  actividades: number;
+}
+
+function formatAplicacion(res: { actualizadas: number; sin_mapeo_encargado: string[] }) {
+  const sin = res.sin_mapeo_encargado.length
+    ? `\nSin mapeo en Excel: ${res.sin_mapeo_encargado.join(", ")}`
+    : "";
+  return `Asignadas ${res.actualizadas} actividades.${sin}`;
 }
 
 export default function PicEncargadosPage() {
   const { anio } = usePicYear();
   const [cargos, setCargos] = useState<PicCargo[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [pendientes, setPendientes] = useState<EncargadoPendiente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [etiqueta, setEtiqueta] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
@@ -26,15 +42,17 @@ export default function PicEncargadosPage() {
     setLoading(true);
     Promise.all([
       picApi.listCargos({ page_size: 100 }),
-      api.get<{ results: UserOption[] }>("/users/", { params: { page_size: 200 } }),
+      api.get<{ results: UserOption[] }>("/users/", { params: { page_size: 200, role: "contratista" } }),
+      picApi.encargadosPendientes(anio),
     ])
-      .then(([c, u]) => {
+      .then(([c, u, p]) => {
         setCargos(c.results);
         setUsers(u.data.results ?? []);
+        setPendientes(p.encargados_pendientes);
       })
       .catch((err) => setError(formatApiError(err)))
       .finally(() => setLoading(false));
-  }, []);
+  }, [anio]);
 
   useEffect(() => {
     load();
@@ -44,13 +62,18 @@ export default function PicEncargadosPage() {
     e.preventDefault();
     if (!etiqueta.trim()) return;
     setSaving(true);
+    setError(null);
+    setInfo(null);
     try {
-      await picApi.createCargo({ etiqueta: etiqueta.trim(), usuarios: selectedUsers });
+      const res = await picApi.createCargo({ etiqueta: etiqueta.trim(), usuarios: selectedUsers });
       setEtiqueta("");
       setSelectedUsers([]);
+      if (res.aplicacion) {
+        setInfo(formatAplicacion(res.aplicacion));
+      }
       load();
     } catch (err) {
-      alert(formatApiError(err));
+      setError(formatApiError(err));
     } finally {
       setSaving(false);
     }
@@ -60,44 +83,101 @@ export default function PicEncargadosPage() {
     const next = cargo.usuarios.includes(userId)
       ? cargo.usuarios.filter((id) => id !== userId)
       : [...cargo.usuarios, userId];
+    setError(null);
+    setInfo(null);
     try {
-      await picApi.updateCargo(cargo.id, { usuarios: next });
+      const res = await picApi.updateCargo(cargo.id, { usuarios: next });
+      if (res.aplicacion) {
+        setInfo(formatAplicacion(res.aplicacion));
+      }
       load();
     } catch (err) {
-      alert(formatApiError(err));
+      setError(formatApiError(err));
     }
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("¿Eliminar este mapeo de cargo?")) return;
+    if (!confirm("¿Eliminar este mapeo de cargo? Las actividades ya asignadas conservan al responsable actual.")) {
+      return;
+    }
     try {
       await picApi.deleteCargo(id);
       load();
     } catch (err) {
-      alert(formatApiError(err));
+      setError(formatApiError(err));
     }
   }
 
   async function handleAplicar() {
+    setError(null);
+    setInfo(null);
     try {
       const res = await picApi.aplicarCargos(anio);
-      alert(`Actualizadas ${res.actualizadas} actividades.${res.sin_mapeo_encargado.length ? ` Sin mapeo: ${res.sin_mapeo_encargado.join(", ")}` : ""}`);
+      setInfo(formatAplicacion(res));
+      load();
     } catch (err) {
-      alert(formatApiError(err));
+      setError(formatApiError(err));
     }
+  }
+
+  function prefill(token: string) {
+    setEtiqueta(token);
+    setSelectedUsers([]);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   if (loading) return <PicLoading />;
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-[#b8e4ef] bg-[#f0f9fc] px-4 py-3 text-sm text-[#0d4f61]">
-        Configure el mapeo entre el texto del Excel (<strong>ENCARGADO DE LA ACTIVIDAD</strong>) y los usuarios del
-        sistema. Ej.: <code>ENFERMERA</code>, <code>PSICOLOGIA</code>, <code>ENFERMERA/ PSICOLGIA</code> (asigna varios).
+      <div className="rounded-lg border border-[#b8e4ef] bg-[#f0f9fc] px-4 py-3 text-sm text-[#0d4f61] space-y-2">
+        <p>
+          <strong>Paso 1.</strong> Mapee el texto de la columna D del Excel (<strong>ENCARGADO DE LA ACTIVIDAD</strong>)
+          al contratista que debe ejecutar esas actividades.
+        </p>
+        <p>
+          <strong>Paso 2.</strong> Al guardar un cargo, las actividades se asignan automáticamente. También puede usar{" "}
+          <strong>Aplicar mapeo</strong> para recalcular todo {anio}.
+        </p>
+        <p className="text-xs text-[#0d4f61]/80">
+          El texto debe coincidir: <code>PSICOLOGA</code>, <code>ENFERMERA</code>,{" "}
+          <code>ENFERMERA/ PSICOLOGIA</code> (asigna varios contratistas).
+        </p>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 whitespace-pre-wrap">
+          {error}
+        </div>
+      )}
+      {info && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 whitespace-pre-wrap">
+          {info}
+        </div>
+      )}
+
+      {pendientes.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="mb-2 flex items-center gap-2 font-semibold">
+            <AlertTriangle className="h-4 w-4" />
+            Encargados del Excel sin mapear ({pendientes.length})
+          </div>
+          <p className="mb-3 text-xs text-amber-800">
+            Cree un cargo por cada etiqueta y asigne el contratista. Clic en una etiqueta para usarla en el formulario.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {pendientes.map((p) => (
+              <button
+                key={p.token}
+                type="button"
+                onClick={() => prefill(p.token)}
+                className="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+              >
+                {p.token} · {p.actividades} act.
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <button
@@ -114,32 +194,45 @@ export default function PicEncargadosPage() {
         <input
           value={etiqueta}
           onChange={(e) => setEtiqueta(e.target.value)}
-          placeholder="Etiqueta exacta del Excel (ej. ENFERMERA)"
+          placeholder="Etiqueta del Excel (ej. ENFERMERA, PSICOLOGA)"
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
-        <div className="max-h-40 overflow-y-auto rounded border border-slate-200 p-2 space-y-1">
-          {users.map((u) => (
-            <label key={u.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={selectedUsers.includes(u.id)}
-                onChange={() =>
-                  setSelectedUsers((prev) =>
-                    prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id],
-                  )
-                }
-              />
-              {u.full_name || u.email}
-            </label>
-          ))}
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-600">Contratistas asignados</div>
+          {users.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No hay contratistas.{" "}
+              <Link to="/users" className="text-[#0e7490] hover:underline">
+                Créelos en Usuarios
+              </Link>{" "}
+              con módulo PIC activo.
+            </p>
+          ) : (
+            <div className="max-h-40 overflow-y-auto rounded border border-slate-200 p-2 space-y-1">
+              {users.map((u) => (
+                <label key={u.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedUsers.includes(u.id)}
+                    onChange={() =>
+                      setSelectedUsers((prev) =>
+                        prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id],
+                      )
+                    }
+                  />
+                  {u.full_name || u.email}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || !etiqueta.trim() || selectedUsers.length === 0}
           className="inline-flex items-center gap-2 rounded-lg bg-[#0e7490] px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
-          Agregar cargo
+          {saving ? "Guardando…" : "Agregar cargo y asignar actividades"}
         </button>
       </form>
 
@@ -149,7 +242,7 @@ export default function PicEncargadosPage() {
             <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="font-semibold text-slate-900">{c.etiqueta}</div>
-                <div className="text-xs text-slate-500">{c.etiqueta_norm}</div>
+                <div className="text-xs text-slate-500">Normalizado: {c.etiqueta_norm}</div>
               </div>
               <button type="button" onClick={() => handleDelete(c.id)} className="text-red-500 hover:bg-red-50 rounded p-1">
                 <Trash2 className="h-4 w-4" />
@@ -169,7 +262,9 @@ export default function PicEncargadosPage() {
             </div>
           </div>
         ))}
-        {cargos.length === 0 && <p className="text-sm text-slate-500">No hay cargos configurados.</p>}
+        {cargos.length === 0 && (
+          <p className="text-sm text-slate-500">No hay cargos configurados. Use el formulario de arriba o un encargado pendiente.</p>
+        )}
       </div>
     </div>
   );

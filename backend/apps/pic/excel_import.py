@@ -276,3 +276,29 @@ def aplicar_cargos_a_actividades(entity, plan: PicPlan) -> dict:
                 act.responsables.set(user_ids)
                 actualizadas += 1
     return {"actualizadas": actualizadas, "sin_mapeo_encargado": sorted(sin_mapeo)}
+
+
+def aplicar_cargos_entity(entity) -> dict:
+    """Aplica mapeo PicCargo a todos los planes de la entidad."""
+    total = 0
+    sin_mapeo: set[str] = set()
+    for plan in PicPlan.objects.filter(entity=entity).only("id", "anio"):
+        result = aplicar_cargos_a_actividades(entity, plan)
+        total += result["actualizadas"]
+        sin_mapeo.update(result["sin_mapeo_encargado"])
+    return {"actualizadas": total, "sin_mapeo_encargado": sorted(sin_mapeo)}
+
+
+def encargados_pendientes_resumen(entity, plan: PicPlan | None) -> list[dict]:
+    """Tokens del Excel (columna D) que aún no tienen cargo PicCargo configurado."""
+    if plan is None:
+        return []
+    cargos_norm = set(
+        PicCargo.objects.filter(entity=entity).values_list("etiqueta_norm", flat=True)
+    )
+    counts: dict[str, int] = {}
+    for act in PicActividad.objects.filter(entity=entity, plan=plan).only("encargado_texto"):
+        for token in tokenizar_encargado(act.encargado_texto):
+            if token not in cargos_norm:
+                counts[token] = counts.get(token, 0) + 1
+    return [{"token": token, "actividades": count} for token, count in sorted(counts.items())]

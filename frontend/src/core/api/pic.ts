@@ -102,6 +102,13 @@ export interface PicStats {
     valor_cobrado: string;
   }>;
   sin_responsables: number;
+  encargados_pendientes: Array<{ token: string; actividades: number }>;
+}
+
+export interface PicAplicacionResult {
+  actualizadas: number;
+  sin_mapeo_encargado: string[];
+  encargados_pendientes?: Array<{ token: string; actividades: number }>;
 }
 
 export interface PicCargo {
@@ -193,15 +200,25 @@ export const picApi = {
     api.get<PaginatedResponse<PicCargo>>("/pic/cargos/", { params }).then((r) => r.data),
 
   createCargo: (data: { etiqueta: string; secretaria_id?: number | null; usuarios: number[] }) =>
-    api.post<PicCargo>("/pic/cargos/", data).then((r) => r.data),
+    api.post<PicCargo & { aplicacion?: PicAplicacionResult }>("/pic/cargos/", data).then((r) => r.data),
 
   updateCargo: (id: number, data: Partial<{ etiqueta: string; secretaria_id: number | null; usuarios: number[] }>) =>
-    api.patch<PicCargo>(`/pic/cargos/${id}/`, data).then((r) => r.data),
+    api
+      .patch<PicCargo & { aplicacion?: PicAplicacionResult }>(`/pic/cargos/${id}/`, data)
+      .then((r) => r.data),
 
   deleteCargo: (id: number) => api.delete(`/pic/cargos/${id}/`),
 
   aplicarCargos: (anio: number) =>
-    api.post<{ actualizadas: number; sin_mapeo_encargado: string[] }>("/pic/cargos/aplicar/", { anio }).then((r) => r.data),
+    api.post<PicAplicacionResult>("/pic/cargos/aplicar/", { anio }).then((r) => r.data),
+
+  encargadosPendientes: (anio: number) =>
+    api
+      .get<{ encargados_pendientes: Array<{ token: string; actividades: number }> }>(
+        "/pic/cargos/pendientes/",
+        { params: { anio } },
+      )
+      .then((r) => r.data),
 
   exportUrl: (params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();

@@ -75,9 +75,18 @@ export default function PicDashboard() {
       </div>
 
       {stats.sin_responsables > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <AlertTriangle className="mr-1 inline h-4 w-4" />
-          {stats.sin_responsables} actividad(es) sin responsables asignados. Configure los encargados en la pestaña Encargados.
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 space-y-2">
+          <p>
+            <AlertTriangle className="mr-1 inline h-4 w-4" />
+            {stats.sin_responsables} actividad(es) sin responsables asignados.
+            {role === "admin" ? " Vaya a Encargados, mapee cada cargo del Excel y asigne contratistas." : " Contacte al administrador."}
+          </p>
+          {role === "admin" && stats.encargados_pendientes?.length > 0 && (
+            <p className="text-xs">
+              Sin mapear en Excel:{" "}
+              <strong>{stats.encargados_pendientes.map((p) => `${p.token} (${p.actividades})`).join(", ")}</strong>
+            </p>
+          )}
         </div>
       )}
 

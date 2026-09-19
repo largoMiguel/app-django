@@ -30,7 +30,13 @@ from .calculos import (
     trimestre_from_date,
 )
 from .evidencia_storage import attach_ejecucion_archivos
-from .excel_import import aplicar_cargos_a_actividades, import_pic_excel, normalizar_etiqueta
+from .excel_import import (
+    aplicar_cargos_a_actividades,
+    aplicar_cargos_entity,
+    encargados_pendientes_resumen,
+    import_pic_excel,
+    normalizar_etiqueta,
+)
 from .export import build_seguimiento_excel
 from .filters import PicActividadFilterSet, PicCargoFilterSet
 from .models import PicActividad, PicCargo, PicEjecucion, PicPlan
@@ -318,7 +324,11 @@ class PicCargoViewSet(PicBaseMixin, viewsets.ModelViewSet):
             secretaria_id=ser.validated_data.get("secretaria_id"),
         )
         self._set_usuarios(cargo, ser.validated_data.get("usuarios", []))
-        return Response(PicCargoSerializer(cargo).data, status=status.HTTP_201_CREATED)
+        aplicacion = aplicar_cargos_entity(self.entity)
+        return Response(
+            {**PicCargoSerializer(cargo).data, "aplicacion": aplicacion},
+            status=status.HTTP_201_CREATED,
+        )
 
     def partial_update(self, request, *args, **kwargs):
         if not _is_admin(request.user):
@@ -340,7 +350,8 @@ class PicCargoViewSet(PicBaseMixin, viewsets.ModelViewSet):
         cargo.save()
         if "usuarios" in ser.validated_data:
             self._set_usuarios(cargo, ser.validated_data["usuarios"])
-        return Response(PicCargoSerializer(cargo).data)
+        aplicacion = aplicar_cargos_entity(self.entity)
+        return Response({**PicCargoSerializer(cargo).data, "aplicacion": aplicacion})
 
     def destroy(self, request, *args, **kwargs):
         if not _is_admin(request.user):
@@ -371,4 +382,15 @@ class PicCargoViewSet(PicBaseMixin, viewsets.ModelViewSet):
             raise ValidationError({"anio": "Año requerido."})
         plan = get_object_or_404(PicPlan, entity=self.entity, anio=int(anio_raw))
         result = aplicar_cargos_a_actividades(self.entity, plan)
+        result["encargados_pendientes"] = encargados_pendientes_resumen(self.entity, plan)
         return Response(result)
+
+    @action(detail=False, methods=["get"], url_path="pendientes")
+    def pendientes(self, request):
+        if not _is_admin(request.user):
+            raise PermissionDenied("Solo admin puede ver encargados pendientes.")
+        anio_raw = request.query_params.get("anio")
+        if not anio_raw or not str(anio_raw).isdigit():
+            raise ValidationError({"anio": "Año requerido."})
+        plan = PicPlan.objects.filter(entity=self.entity, anio=int(anio_raw)).first()
+        return Response({"encargados_pendientes": encargados_pendientes_resumen(self.entity, plan)})

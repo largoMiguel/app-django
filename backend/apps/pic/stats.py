@@ -11,6 +11,7 @@ from apps.entities.models import Entity
 from .access import actividades_queryset_for_user
 from .calculos import actividad_metrics, total_ejecutado
 from .models import PicPlan, Trimestre
+from .excel_import import encargados_pendientes_resumen
 from .utils import user_display_name
 
 
@@ -69,6 +70,7 @@ def compute_pic_stats(user, entity: Entity, *, anio: int | None = None) -> dict:
             entry["valor_cobrado"] += m["valor_cobrado_total"]
 
     sin_responsables = act_qs.annotate(rc=Count("responsables")).filter(rc=0).count()
+    encargados_pendientes = encargados_pendientes_resumen(entity, plan)
 
     por_responsable_out = [
         {
@@ -91,4 +93,5 @@ def compute_pic_stats(user, entity: Entity, *, anio: int | None = None) -> dict:
         "por_trimestre": por_trimestre,
         "por_responsable": por_responsable_out,
         "sin_responsables": sin_responsables,
+        "encargados_pendientes": encargados_pendientes,
     }
