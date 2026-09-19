@@ -5,8 +5,10 @@ import { formatApiError } from "@/core/api/errors";
 
 interface SearchResponse {
   results: SemanticSearchResult[];
+  total?: number;
+  summary?: string;
   indexed_count?: number;
-  search_mode?: "semantic" | "keyword" | "none";
+  search_mode?: "semantic" | "keyword" | "hybrid" | "none";
   hint?: string | null;
 }
 
@@ -32,7 +34,15 @@ export default function AICommandBar({
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [searchMode, setSearchMode] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const modeLabel = (mode: string | null) => {
+    if (mode === "hybrid") return "Texto + significado";
+    if (mode === "semantic") return "Por significado";
+    if (mode === "keyword") return "Por coincidencia exacta";
+    return null;
+  };
 
   useEffect(() => {
     if (!query.trim() || query.length < 2) {
@@ -40,6 +50,7 @@ export default function AICommandBar({
       setOpen(false);
       setHint(null);
       setSearchMode(null);
+      setSummary(null);
       return;
     }
 
@@ -56,6 +67,7 @@ export default function AICommandBar({
         setResults(data.results);
         setHint(data.hint ?? null);
         setSearchMode(data.search_mode ?? null);
+        setSummary(data.summary ?? null);
         setOpen(true);
       } catch (err) {
         setError(formatApiError(err));
@@ -95,6 +107,14 @@ export default function AICommandBar({
 
       {showDropdown && (
         <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+          {(summary || modeLabel(searchMode)) && (
+            <div className="px-4 py-2 text-xs border-b border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-slate-700 font-medium">{summary}</span>
+              {modeLabel(searchMode) && (
+                <span className="text-slate-500">{modeLabel(searchMode)}</span>
+              )}
+            </div>
+          )}
           {hint && (
             <p className="px-4 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
               {hint}
@@ -102,17 +122,25 @@ export default function AICommandBar({
           )}
           {results.length === 0 ? (
             <p className="px-4 py-3 text-sm text-slate-500">
-              Sin resultados para &quot;{query}&quot;.
-              {searchMode === "none" && " Prueba con palabras del asunto o radicado."}
+              {summary ?? (
+                <>
+                  Sin resultados para &quot;{query}&quot;.
+                  {searchMode === "none" && " Prueba con radicado, asunto, nombre o cédula del ciudadano."}
+                </>
+              )}
             </p>
           ) : (
             results.map((r) => {
-              const radicado = r.metadata?.numero_radicado as string | undefined;
-              const estado = r.metadata?.estado as string | undefined;
-              const tipo = r.metadata?.tipo as string | undefined;
+              const meta = r.metadata ?? {};
+              const radicado = meta.numero_radicado;
+              const estado = meta.estado;
+              const tipo = meta.tipo;
+              const asunto = meta.asunto;
+              const matchSummary = meta.match_summary;
+              const matchedFields = meta.matched_fields;
               return (
                 <button
-                  key={`${r.content_type}-${r.object_id}`}
+                  key={`pqrs-${r.object_id}`}
                   type="button"
                   onClick={() => {
                     onResultClick?.(r);
@@ -122,27 +150,38 @@ export default function AICommandBar({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold text-blue-600 font-mono">
-                      {radicado ?? r.content_type}
+                      {radicado ?? `PQRS #${r.object_id}`}
                     </span>
                     <span className="text-xs text-slate-400 shrink-0">
-                      {Math.round(r.similarity * 100)}% match
+                      {Math.round(r.similarity * 100)}% relevancia
                     </span>
                   </div>
+                  {asunto && (
+                    <p className="text-sm font-medium text-slate-800 mt-1 line-clamp-1">{asunto}</p>
+                  )}
                   {(estado || tipo) && (
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {estado && (
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[0.65rem] text-slate-600 capitalize">
-                          {estado.replace(/_/g, " ")}
+                          {String(estado).replace(/_/g, " ")}
                         </span>
                       )}
                       {tipo && (
                         <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[0.65rem] text-blue-700 capitalize">
-                          {tipo.replace(/_/g, " ")}
+                          {String(tipo).replace(/_/g, " ")}
                         </span>
                       )}
                     </div>
                   )}
-                  <p className="text-sm text-slate-700 mt-1 line-clamp-2">{r.texto}</p>
+                  {matchSummary && (
+                    <p className="text-xs text-emerald-700 mt-1.5">{matchSummary}</p>
+                  )}
+                  {matchedFields && matchedFields.length > 0 && !matchSummary && (
+                    <p className="text-xs text-emerald-700 mt-1.5">
+                      Coincide en: {matchedFields.join(", ")}
+                    </p>
+                  )}
+                  <p className="text-sm text-slate-600 mt-1 line-clamp-2">{r.texto}</p>
                 </button>
               );
             })

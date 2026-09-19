@@ -29,8 +29,10 @@ export const pqrsAiApi = {
   search: (query: string, contentTypes?: string[], limit = 10) =>
     api.post<{
       results: SemanticSearchResult[];
+      total?: number;
+      summary?: string;
       indexed_count?: number;
-      search_mode?: "semantic" | "keyword" | "none";
+      search_mode?: "semantic" | "keyword" | "hybrid" | "none";
       hint?: string | null;
     }>("/ai/search/", {
       query,

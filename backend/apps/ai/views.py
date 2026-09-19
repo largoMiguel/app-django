@@ -354,21 +354,42 @@ class SemanticSearchView(APIView):
         if indexed == 0:
             reindex_all_embeddings.delay(entity_id=entity_id)
 
+        query = ser.validated_data["query"]
+        limit = ser.validated_data.get("limit", 10)
         results = semantic_search(
             entity_id,
-            ser.validated_data["query"],
+            query,
             content_types=ser.validated_data.get("content_types"),
-            limit=ser.validated_data.get("limit", 10),
+            limit=limit,
         )
-        mode = "semantic" if results and results[0].get("metadata", {}).get("search_mode") == "semantic" else (
-            "keyword" if results else "none"
-        )
+        modes = {r.get("metadata", {}).get("search_mode") for r in results}
+        modes.discard(None)
+        if "hybrid" in modes or ({"semantic", "keyword"} <= modes):
+            mode = "hybrid"
+        elif "semantic" in modes:
+            mode = "semantic"
+        elif "keyword" in modes:
+            mode = "keyword"
+        else:
+            mode = "none"
+
+        total = len(results)
+        if total == 0:
+            summary = f'No hay PQRS que coincidan con "{query}". Prueba radicado, asunto o palabras del ciudadano.'
+        elif total == 1:
+            rad = (results[0].get("metadata") or {}).get("numero_radicado") or "1 solicitud"
+            summary = f"1 PQRS relacionada ({rad})."
+        else:
+            summary = f"{total} PQRS con coincidencias para \"{query}\"."
+
         return Response({
             "results": results,
+            "total": total,
+            "summary": summary,
             "indexed_count": indexed,
             "search_mode": mode,
             "hint": (
-                "Indexando PQRS en segundo plano. La búsqueda semántica estará lista en unos minutos."
+                "Indexando PQRS en segundo plano. Mientras tanto se usan coincidencias por texto."
                 if indexed == 0
                 else None
             ),

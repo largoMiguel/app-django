@@ -22,13 +22,19 @@ def index_pqrs_embedding(self, pqrs_id: int):
         return
 
     texto = f"{pqrs.asunto}\n{pqrs.descripcion}"
+    base_meta = {
+        "numero_radicado": pqrs.numero_radicado,
+        "tipo": pqrs.tipo_solicitud,
+        "estado": pqrs.estado,
+        "asunto": (pqrs.asunto or "")[:120],
+    }
     if pqrs.respuesta:
         index_text(
             pqrs.entity_id,
             ContentEmbedding.ContentType.PQRS_RESPUESTA,
             pqrs.id,
             pqrs.respuesta,
-            {"numero_radicado": pqrs.numero_radicado},
+            base_meta,
         )
 
     index_text(
@@ -36,7 +42,7 @@ def index_pqrs_embedding(self, pqrs_id: int):
         ContentEmbedding.ContentType.PQRS_DESCRIPCION,
         pqrs.id,
         texto,
-        {"numero_radicado": pqrs.numero_radicado, "tipo": pqrs.tipo_solicitud},
+        base_meta,
     )
 
 

@@ -71,7 +71,15 @@ export interface SemanticSearchResult {
   object_id: number;
   texto: string;
   similarity: number;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, unknown> & {
+    numero_radicado?: string;
+    estado?: string;
+    tipo?: string;
+    asunto?: string;
+    search_mode?: "semantic" | "keyword" | "hybrid";
+    matched_fields?: string[];
+    match_summary?: string;
+  };
 }
 
 export interface PQRSStatusLookup {
