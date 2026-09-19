@@ -22,6 +22,8 @@ rsync -az --delete \
     --exclude 'staticfiles' \
     --exclude '.DS_Store' \
     --exclude '.env' \
+    --exclude 'logs' \
+    --exclude 'venv' \
     --exclude 'deploy/cloudflared/*.json' \
     --exclude 'deploy/sites/lavonia/www' \
     -e "$RSYNC_SSH" \

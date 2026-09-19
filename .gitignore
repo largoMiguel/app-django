@@ -35,6 +35,9 @@ deploy/keys/*
 !deploy/keys/README.md
 !deploy/keys/*.pub
 
+# Logs de cron en el servidor (rsync --delete no debe borrarlos)
+logs/
+
 # Local venv at repo root
 venv/
 
