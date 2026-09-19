@@ -1,4 +1,5 @@
-import { Loader2, type ReactNode } from "lucide-react";
+import type { ReactNode } from "react";
+import { Loader2 } from "lucide-react";
 
 export const inputClass =
   "h-10 w-full rounded-[0.3rem] border border-slate-300 px-3 text-sm text-slate-700 focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]";
