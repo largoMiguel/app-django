@@ -272,9 +272,8 @@ def aplicar_cargos_a_actividades(entity, plan: PicPlan) -> dict:
         for act in PicActividad.objects.filter(plan=plan, entity=entity):
             user_ids, tokens = _usuarios_para_encargado(entity, act.encargado_texto)
             sin_mapeo.update(tokens)
-            if user_ids:
-                act.responsables.set(user_ids)
-                actualizadas += 1
+            act.responsables.set(user_ids)
+            actualizadas += 1
     return {"actualizadas": actualizadas, "sin_mapeo_encargado": sorted(sin_mapeo)}
 
 

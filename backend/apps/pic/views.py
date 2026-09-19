@@ -358,6 +358,7 @@ class PicCargoViewSet(PicBaseMixin, viewsets.ModelViewSet):
             raise PermissionDenied("Solo admin puede gestionar cargos PIC.")
         cargo = get_object_or_404(self.get_queryset(), pk=kwargs["pk"])
         cargo.delete()
+        aplicar_cargos_entity(self.entity)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def _set_usuarios(self, cargo: PicCargo, user_ids: list[int]) -> None:

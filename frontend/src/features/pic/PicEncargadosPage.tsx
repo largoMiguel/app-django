@@ -42,7 +42,9 @@ export default function PicEncargadosPage() {
     setLoading(true);
     Promise.all([
       picApi.listCargos({ page_size: 100 }),
-      api.get<{ results: UserOption[] }>("/users/", { params: { page_size: 200, role: "contratista" } }),
+      api.get<{ results: UserOption[] }>("/users/", {
+        params: { page_size: 200, role: "contratista", is_active: true },
+      }),
       picApi.encargadosPendientes(anio),
     ])
       .then(([c, u, p]) => {
@@ -97,7 +99,7 @@ export default function PicEncargadosPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("¿Eliminar este mapeo de cargo? Las actividades ya asignadas conservan al responsable actual.")) {
+    if (!confirm("¿Eliminar este mapeo de cargo? Se recalcularán las asignaciones de actividades.")) {
       return;
     }
     try {
@@ -130,21 +132,6 @@ export default function PicEncargadosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-[#b8e4ef] bg-[#f0f9fc] px-4 py-3 text-sm text-[#0d4f61] space-y-2">
-        <p>
-          <strong>Paso 1.</strong> Mapee el texto de la columna D del Excel (<strong>ENCARGADO DE LA ACTIVIDAD</strong>)
-          al contratista que debe ejecutar esas actividades.
-        </p>
-        <p>
-          <strong>Paso 2.</strong> Al guardar un cargo, las actividades se asignan automáticamente. También puede usar{" "}
-          <strong>Aplicar mapeo</strong> para recalcular todo {anio}.
-        </p>
-        <p className="text-xs text-[#0d4f61]/80">
-          El texto debe coincidir: <code>PSICOLOGA</code>, <code>ENFERMERA</code>,{" "}
-          <code>ENFERMERA/ PSICOLOGIA</code> (asigna varios contratistas).
-        </p>
-      </div>
-
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 whitespace-pre-wrap">
           {error}
@@ -242,7 +229,6 @@ export default function PicEncargadosPage() {
             <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="font-semibold text-slate-900">{c.etiqueta}</div>
-                <div className="text-xs text-slate-500">Normalizado: {c.etiqueta_norm}</div>
               </div>
               <button type="button" onClick={() => handleDelete(c.id)} className="text-red-500 hover:bg-red-50 rounded p-1">
                 <Trash2 className="h-4 w-4" />
