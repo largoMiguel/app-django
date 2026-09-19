@@ -15,8 +15,8 @@ import {
   Line,
   Legend,
 } from "recharts";
-import { ClipboardList, CheckCircle2, XCircle, FileText, ArrowRight, TrendingUp, AlertTriangle, Clock, Users as UsersIcon } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { ClipboardList, CheckCircle2, XCircle, AlertTriangle, Clock, Users as UsersIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import type { EstadoPQRS, TipoSolicitud } from "@/core/api/pqrs";
 import {
   ESTADO_CHART_COLORS,
@@ -178,30 +178,6 @@ export default function PQRSDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#1d4ed8]/10 text-[#1d4ed8]">
-            <TrendingUp className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-[#111827] sm:text-2xl">Análisis del Panel</h1>
-            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-              {totalPqrs} PQRS en total · {thisMonth} este mes
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <Link
-            to="/pqrs/solicitudes"
-            className="flex items-center gap-2 rounded-[0.3rem] bg-[#3eafd4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2f9fc2]"
-          >
-            <FileText className="h-4 w-4" />
-            Mis PQRS
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </div>
       <PqrsAIInsights
         title="Insights IA PQRS"
         onInsightClick={(insight) => {

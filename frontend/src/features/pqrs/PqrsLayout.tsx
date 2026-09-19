@@ -73,32 +73,41 @@ function PqrsLayoutInner() {
             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">{subtitle}</p>
           </div>
         </div>
-        {headerActions ? <div className="flex flex-wrap items-center gap-2">{headerActions}</div> : null}
+        {isDetailOrForm && headerActions ? (
+          <div className="flex flex-wrap items-center gap-2">{headerActions}</div>
+        ) : null}
       </div>
 
       {!isDetailOrForm && (
-        <nav className="flex flex-wrap gap-1 border-b border-slate-200">
-          {tabs.map(({ to, end, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                `inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "border-[#3eafd4] text-[#0e7490]"
-                    : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
-                }`
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
+        <div className="flex flex-col gap-2 border-b border-slate-200 sm:flex-row sm:items-end sm:justify-between">
+          <nav className="flex flex-wrap gap-1">
+            {tabs.map(({ to, end, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  `inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "border-[#3eafd4] text-[#0e7490]"
+                      : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
+                  }`
+                }
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+          {headerActions ? (
+            <div className="flex flex-wrap items-center gap-2 pb-2 sm:pb-2.5">{headerActions}</div>
+          ) : null}
+        </div>
       )}
 
-      <PqrsAICommandBar onResultClick={(r) => navigate(`/pqrs/${r.object_id}`)} />
+      {path.includes("/solicitudes") && (
+        <PqrsAICommandBar onResultClick={(r) => navigate(`/pqrs/${r.object_id}`)} />
+      )}
 
       <Outlet />
     </div>

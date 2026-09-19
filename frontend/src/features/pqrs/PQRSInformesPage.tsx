@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   FileBarChart2,
@@ -16,8 +16,8 @@ import {
   Loader2,
   CheckCircle2,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 import { informesApi, type GenerarInformePayload, type InformePQRS } from "@/core/api/pqrs";
+import { usePqrsHeaderActions } from "./PqrsHeaderActionsContext";
 import { secretariasApi, type Secretaria } from "@/core/api/entities";
 import { formatFechaCO, formatFechaHoraCO } from "@/core/datetime";
 import { usersApi, type AppUser } from "@/core/api/users";
@@ -249,6 +249,7 @@ export default function PQRSInformesPage() {
   const user = useAuthStore((s) => s.user);
   const entity = user?.entity;
   const queryClient = useQueryClient();
+  const { setHeaderActions } = usePqrsHeaderActions();
   const [showModal, setShowModal] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
@@ -295,6 +296,40 @@ export default function PQRSInformesPage() {
   const loadError = informesError
     ? formatApiError(informesErr, "No se pudieron cargar los informes.")
     : null;
+
+  useEffect(() => {
+    if (!canGenerate) {
+      setHeaderActions(null);
+      return () => setHeaderActions(null);
+    }
+    setHeaderActions(
+      <button
+        type="button"
+        onClick={() => setShowModal(true)}
+        disabled={genState === "generating"}
+        className={`flex items-center gap-2 rounded-[0.3rem] px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-70 ${
+          genState === "done"
+            ? "bg-emerald-600 hover:bg-emerald-700"
+            : "bg-[#3eafd4] hover:bg-[#2f9fc2]"
+        }`}
+      >
+        {genState === "generating" ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" /> Generando…
+          </>
+        ) : genState === "done" ? (
+          <>
+            <CheckCircle2 className="h-4 w-4" /> Informe listo
+          </>
+        ) : (
+          <>
+            <Plus className="h-4 w-4" /> Crear Informe
+          </>
+        )}
+      </button>,
+    );
+    return () => setHeaderActions(null);
+  }, [canGenerate, genState, setHeaderActions]);
 
   if (!canViewPage) {
     return (
@@ -364,56 +399,6 @@ export default function PQRSInformesPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 flex-shrink-0">
-            <FileBarChart2 className="h-4 w-4 sm:h-5 sm:w-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-[#111827] sm:text-2xl truncate">
-              Informes PQRS
-            </h1>
-            <p className="mt-0.5 text-xs text-slate-500 truncate">
-              {informes.length} informe{informes.length !== 1 ? "s" : ""} disponible
-              {informes.length !== 1 ? "s" : ""} · expiran en 7 días
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-          <Link
-            to="/pqrs"
-            className="flex items-center gap-1.5 rounded-[0.3rem] border border-slate-200 bg-white px-2 sm:px-3 py-2 text-xs sm:text-sm text-slate-600 hover:bg-slate-50 shadow-sm whitespace-nowrap"
-          >
-            ← Resumen
-          </Link>
-          {canGenerate && (
-            <button
-              onClick={() => setShowModal(true)}
-              disabled={genState === "generating"}
-              className={`flex items-center gap-2 rounded-[0.3rem] px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white transition-colors shadow-sm whitespace-nowrap disabled:opacity-70 ${
-                genState === "done"
-                  ? "bg-emerald-600 hover:bg-emerald-700"
-                  : "bg-[#1d4ed8] hover:bg-[#1a44c0]"
-              }`}
-            >
-              {genState === "generating" ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> Generando…
-                </>
-              ) : genState === "done" ? (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> ¡Informe listo!
-                </>
-              ) : (
-                <>
-                  <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Crear Informe
-                </>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-
       {showModal && canGenerate && (
         <ReportFormPanel
           onClose={() => setShowModal(false)}

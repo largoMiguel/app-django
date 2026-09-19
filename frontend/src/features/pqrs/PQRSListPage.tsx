@@ -1,6 +1,6 @@
 import {
-  ChevronLeft, ChevronRight, Plus, FileText, Eye, Trash2,
-  AlertTriangle, ArrowLeft, SlidersHorizontal, Users, ListFilter, Tag, RotateCcw, Info, BellRing, Clock, Mail,
+  ChevronLeft, ChevronRight, Plus, FileText, Trash2,
+  AlertTriangle, SlidersHorizontal, Users, ListFilter, Tag, RotateCcw, Info, BellRing, Clock, Mail,
 } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
@@ -118,12 +118,6 @@ export default function PQRSListPage() {
   useEffect(() => {
     setHeaderActions(
       <div className="flex flex-wrap items-center gap-2">
-        <Link
-          to="/pqrs"
-          className="flex items-center gap-1.5 rounded-[0.3rem] border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-        >
-          <ArrowLeft className="h-4 w-4" /> Volver
-        </Link>
         <button
           type="button"
           onClick={() =>
@@ -400,17 +394,8 @@ export default function PQRSListPage() {
                   <span>{p.assigned_to_nombre || "Sin asignar"}</span>
                   <span className={t.cls}>{t.text}</span>
                 </div>
-                <div className="flex justify-end gap-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/pqrs/${p.id}`);
-                    }}
-                    className="rounded p-1.5 text-slate-500 hover:bg-slate-100"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-                  {canDelete && (
+                {canDelete && (
+                  <div className="flex justify-end gap-1">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -420,8 +405,8 @@ export default function PQRSListPage() {
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -520,30 +505,18 @@ export default function PQRSListPage() {
                     })()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-1">
+                    {canDelete && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/pqrs/${p.id}`);
+                          handleDelete(p);
                         }}
-                        className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-[#0e7490]"
-                        title="Ver detalle"
+                        className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                        title="Eliminar"
                       >
-                        <Eye className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
-                      {canDelete && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(p);
-                          }}
-                          className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </td>
                 </tr>
               ))}
