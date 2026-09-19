@@ -7,8 +7,12 @@ import LoginPage from "@/features/auth/LoginPage";
 import WelcomePage from "@/features/auth/WelcomePage";
 import SinAccesoPage from "@/features/auth/SinAccesoPage";
 import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
+import PqrsLayout from "@/features/pqrs/PqrsLayout";
 import PQRSDashboard from "@/features/pqrs/PQRSDashboard";
-import PQRSPage from "@/features/pqrs/PQRSPage";
+import PQRSListPage from "@/features/pqrs/PQRSListPage";
+import PQRSNuevaPage from "@/features/pqrs/PQRSNuevaPage";
+import PQRSDetailPage from "@/features/pqrs/PQRSDetailPage";
+import PQRSEditPage from "@/features/pqrs/PQRSEditPage";
 import PQRSInformesPage from "@/features/pqrs/PQRSInformesPage";
 import UsersPage from "@/features/users/UsersPage";
 import SuperAdminEntitiesPage from "@/features/superadmin/EntitiesPage";
@@ -161,8 +165,17 @@ export default function App(): ReactElement {
               <Route path="/sin-acceso" element={<SinAccesoPage />} />
 
               <Route element={<ModuleRouteGuard moduleKey="pqrs" />}>
-                <Route path="/dashboard" element={<PQRSDashboard />} />
-                <Route path="/pqrs" element={<PQRSPage />} />
+                <Route path="/pqrs" element={<PqrsLayout />}>
+                  <Route index element={<PQRSDashboard />} />
+                  <Route path="solicitudes" element={<PQRSListPage />} />
+                  <Route path="nueva" element={<PQRSNuevaPage />} />
+                  <Route element={<ModuleRouteGuard moduleKey="reports_pdf" />}>
+                    <Route path="informes" element={<PQRSInformesPage />} />
+                  </Route>
+                  <Route path=":id/editar" element={<PQRSEditPage />} />
+                  <Route path=":id" element={<PQRSDetailPage />} />
+                </Route>
+                <Route path="/dashboard" element={<Navigate to="/pqrs" replace />} />
               </Route>
 
               <Route element={<ModuleRouteGuard moduleKey="pdm" />}>
@@ -178,9 +191,7 @@ export default function App(): ReactElement {
                 </Route>
               </Route>
 
-              <Route element={<ModuleRouteGuard moduleKey="reports_pdf" />}>
-                <Route path="/informes" element={<PQRSInformesPage />} />
-              </Route>
+              <Route path="/informes" element={<Navigate to="/pqrs/informes" replace />} />
 
               <Route element={<ModuleRouteGuard moduleKey="asistencia" />}>
                 <Route path="/asistencia" element={<AsistenciaLayout />}>

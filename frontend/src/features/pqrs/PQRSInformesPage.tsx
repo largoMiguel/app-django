@@ -36,7 +36,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-interface ModalProps {
+interface ReportFormProps {
   onClose: () => void;
   onSubmit: (payload: GenerarInformePayload) => void;
   users: AppUser[];
@@ -45,7 +45,7 @@ interface ModalProps {
   submitting: boolean;
 }
 
-function ReportModal({ onClose, onSubmit, users, secretarias, enableAi, submitting }: ModalProps) {
+function ReportFormPanel({ onClose, onSubmit, users, secretarias, enableAi, submitting }: ReportFormProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
@@ -75,13 +75,7 @@ function ReportModal({ onClose, onSubmit, users, secretarias, enableAi, submitti
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="w-full max-w-xl rounded-xl bg-white shadow-2xl overflow-hidden">
+      <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between bg-[#1d4ed8] px-6 py-4 text-white">
           <div className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -248,11 +242,10 @@ function ReportModal({ onClose, onSubmit, users, secretarias, enableAi, submitti
           </button>
         </div>
       </div>
-    </div>
   );
 }
 
-export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) {
+export default function PQRSInformesPage() {
   const user = useAuthStore((s) => s.user);
   const entity = user?.entity;
   const queryClient = useQueryClient();
@@ -387,14 +380,12 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
           </div>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-          {!onClose && (
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-1.5 rounded-[0.3rem] border border-slate-200 bg-white px-2 sm:px-3 py-2 text-xs sm:text-sm text-slate-600 hover:bg-slate-50 shadow-sm whitespace-nowrap"
-            >
-              ← Panel
-            </Link>
-          )}
+          <Link
+            to="/pqrs"
+            className="flex items-center gap-1.5 rounded-[0.3rem] border border-slate-200 bg-white px-2 sm:px-3 py-2 text-xs sm:text-sm text-slate-600 hover:bg-slate-50 shadow-sm whitespace-nowrap"
+          >
+            ← Resumen
+          </Link>
           {canGenerate && (
             <button
               onClick={() => setShowModal(true)}
@@ -420,17 +411,19 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
               )}
             </button>
           )}
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="flex items-center justify-center rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-              title="Cerrar"
-            >
-              <X className="h-4 w-4 sm:h-5 sm:w-5" />
-            </button>
-          )}
         </div>
       </div>
+
+      {showModal && canGenerate && (
+        <ReportFormPanel
+          onClose={() => setShowModal(false)}
+          onSubmit={handleGenerate}
+          users={users}
+          secretarias={secretarias}
+          enableAi={Boolean(entity?.enable_ai_reports)}
+          submitting={submitting}
+        />
+      )}
 
       {genState === "generating" && (
         <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
@@ -539,16 +532,6 @@ export default function PQRSInformesPage({ onClose }: { onClose?: () => void }) 
         </div>
       )}
 
-      {showModal && canGenerate && (
-        <ReportModal
-          onClose={() => setShowModal(false)}
-          onSubmit={handleGenerate}
-          users={users}
-          secretarias={secretarias}
-          enableAi={Boolean(entity?.enable_ai_reports)}
-          submitting={submitting}
-        />
-      )}
     </div>
   );
 }

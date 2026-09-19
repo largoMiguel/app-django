@@ -22,6 +22,7 @@ import {
   AlignLeft,
   Send,
   Pencil,
+  ArrowLeft,
   CalendarDays,
   Inbox,
   Package,
@@ -32,6 +33,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useState, useRef, useEffect } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { PqrsLoading } from "./components/PqrsUi";
 import { formatApiError } from "@/core/api/errors";
 import { dateInputValueToIsoCO, todayDateInputValueCO, toDateInputValueCO } from "@/core/datetime";
 import { TIPO_SOLICITUD_LABEL } from "@/features/pqrs/labels";
@@ -137,7 +140,47 @@ interface Props {
   onSaved: (updated: PQRS) => void;
 }
 
-export default function EditPQRSModal({ pqrs, onClose, onSaved }: Props) {
+export default function PQRSEditPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const pqrsId = Number(id);
+  const [pqrs, setPqrs] = useState<PQRS | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!Number.isFinite(pqrsId)) {
+      setLoadError("Identificador inválido.");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    pqrsApi
+      .get(pqrsId)
+      .then(setPqrs)
+      .catch(() => setLoadError("No se pudo cargar la PQRS."))
+      .finally(() => setLoading(false));
+  }, [pqrsId]);
+
+  if (loading) return <PqrsLoading />;
+  if (loadError || !pqrs) {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {loadError || "PQRS no encontrada."}
+      </div>
+    );
+  }
+
+  return (
+    <EditPQRSForm
+      pqrs={pqrs}
+      onClose={() => navigate(`/pqrs/${pqrs.id}`)}
+      onSaved={(updated) => navigate(`/pqrs/${updated.id}`)}
+    />
+  );
+}
+
+function EditPQRSForm({ pqrs, onClose, onSaved }: Props) {
   const esAnonima =
     pqrs.is_anonima ?? !(pqrs.nombre_ciudadano && pqrs.nombre_ciudadano.trim());
 
@@ -266,13 +309,17 @@ export default function EditPQRSModal({ pqrs, onClose, onSaved }: Props) {
   }
 
   return (
-    <>
-      <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className="mx-auto w-full max-w-3xl space-y-4">
+      <Link
+        to={`/pqrs/${pqrs.id}`}
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-[#0e7490]"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Volver al detalle
+      </Link>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          onClick={(e) => e.stopPropagation()}
-          className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-slate-50 shadow-2xl"
+          className="relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm"
           noValidate
         >
           {/* Header */}
@@ -640,8 +687,7 @@ export default function EditPQRSModal({ pqrs, onClose, onSaved }: Props) {
             </button>
           </div>
         </form>
-      </div>
-    </>
+    </div>
   );
 }
 

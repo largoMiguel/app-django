@@ -37,8 +37,8 @@ export interface AppModuleRoute {
 export const APP_MODULE_ROUTES: AppModuleRoute[] = [
   {
     moduleKey: "pqrs",
-    path: "/dashboard",
-    paths: ["/dashboard", "/pqrs"],
+    path: "/pqrs",
+    paths: ["/pqrs", "/dashboard"],
     label: "PQRS",
     module: "enable_pqrs",
     access: {
@@ -129,7 +129,8 @@ export const APP_MODULE_ROUTES: AppModuleRoute[] = [
   },
   {
     moduleKey: "reports_pdf",
-    path: "/informes",
+    path: "/pqrs/informes",
+    paths: ["/pqrs/informes", "/informes"],
     label: "Informes",
     module: "enable_reports_pdf",
     alsoRequires: ["enable_pqrs"],

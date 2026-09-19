@@ -69,7 +69,7 @@ app_django/
 │   │   ├── features/
 │   │   │   ├── auth/LoginPage.tsx
 │   │   │   ├── pdmchat/           # PublicPdmChatPage (chat IA PDM público)
-│   │   │   ├── pqrs/              # Dashboard · PQRSPage · Informes · modales · PublicPQRSPortal
+│   │   │   ├── pqrs/              # PqrsLayout · Dashboard · List/Detail/Nueva/Edit · Informes · PublicPQRSPortal
 │   │   │   ├── users/UsersPage.tsx
 │   │   │   └── superadmin/        # EntitiesPage · EntityDetailPage
 │   │   └── components/layout/
@@ -162,6 +162,19 @@ Query params soportados en `GET /api/v1/pqrs/`:
 | `pendientes=true` | Excluye respondidas y cerradas |
 | `alerta=true` | Vencen en ≤5 días y siguen abiertas |
 
+
+Rutas frontend (módulo con pestañas, sin modales):
+
+| Ruta | Descripción |
+|---|---|
+| `/pqrs` | Resumen (dashboard de indicadores) |
+| `/pqrs/solicitudes` | Listado, filtros y paginación |
+| `/pqrs/nueva` | Crear PQRS (manual o IA) |
+| `/pqrs/:id` | Detalle, respuesta, asignación e historial |
+| `/pqrs/:id/editar` | Editar datos de la solicitud (admin) |
+| `/pqrs/informes` | Informes PDF (requiere `enable_reports_pdf`) |
+
+Compatibilidad: `/dashboard` → `/pqrs` · `/informes` → `/pqrs/informes`.
 
 - Máximo **4 archivos** por PQRS (campo `archivos` en multipart).
 - Ruta de almacenamiento (B2 `softone-pqrs`):
@@ -824,7 +837,10 @@ class ReporteViewSet(viewsets.ReadOnlyModelViewSet):
 ```tsx
 <Route element={<RequireRole roles={["admin"]} />}>
   <Route element={<RequireModule module="enable_pqrs" />}>
-    <Route path="/pqrs" element={<PQRSPage />} />
+    <Route path="/pqrs" element={<PqrsLayout />}>
+      <Route index element={<PQRSDashboard />} />
+      <Route path="solicitudes" element={<PQRSListPage />} />
+    </Route>
   </Route>
 </Route>
 ```
