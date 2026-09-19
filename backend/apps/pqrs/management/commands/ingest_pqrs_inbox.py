@@ -40,7 +40,18 @@ class Command(BaseCommand):
         context = ssl.create_default_context()
         mail = imaplib.IMAP4_SSL(host, port, ssl_context=context)
         try:
-            mail.login(user, password)
+            try:
+                mail.login(user, password)
+            except imaplib.IMAP4.error as exc:
+                msg = str(exc)
+                if "AUTHENTICATIONFAILED" in msg.upper():
+                    raise CommandError(
+                        "IMAP rechazó usuario/contraseña. "
+                        "En Gmail genera una App Password nueva (Seguridad → "
+                        "Verificación en 2 pasos → Contraseñas de aplicaciones) "
+                        "y actualiza IMAP_PASSWORD en .env."
+                    ) from exc
+                raise CommandError(f"No se pudo autenticar en IMAP ({host}): {msg}") from exc
             status, _ = mail.select(mailbox, readonly=options["dry_run"])
             if status != "OK":
                 raise CommandError(f"No se pudo abrir buzón {mailbox}.")

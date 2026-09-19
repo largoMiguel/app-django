@@ -265,14 +265,18 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
         )
         subject_line = forward_meta_preview.subject or parsed.asunto
 
-    from apps.pqrs.services.inbound_respuesta import extract_radicado_from_subject
+    from apps.pqrs.services.inbound_respuesta import extract_radicado_from_email
 
-    radicado_en_asunto = extract_radicado_from_subject(subject_line)
-    roles_permitidos = ROLES_RESPUESTA if radicado_en_asunto else ROLES_CREACION
+    radicado_detectado = extract_radicado_from_email(
+        subject=parsed.asunto,
+        forward_subject=forward_meta_preview.subject if forward_meta_preview else None,
+        body=parsed.texto,
+    )
+    roles_permitidos = ROLES_RESPUESTA if radicado_detectado else ROLES_CREACION
 
     user = _resolve_remitente_user(parsed.remitente, roles_permitidos=roles_permitidos)
     if not user:
-        rol_txt = "admin/secretario/contratista" if radicado_en_asunto else "admin/secretario"
+        rol_txt = "admin/secretario/contratista" if radicado_detectado else "admin/secretario"
         correo = _registrar_correo(
             parsed,
             estado=EstadoCorreoEntrante.IGNORADO_NO_REGISTRADO,
@@ -290,7 +294,7 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
         )
         return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
 
-    entity_error = _ensure_entity_ready(entity, require_ai=not radicado_en_asunto)
+    entity_error = _ensure_entity_ready(entity, require_ai=not radicado_detectado)
     if entity_error:
         correo = _registrar_correo(
             parsed,
@@ -306,7 +310,7 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
     )
     subject_line = forward_meta.subject or parsed.asunto
 
-    if radicado_en_asunto:
+    if radicado_detectado:
         from apps.pqrs.services.inbound_respuesta import procesar_respuesta_inbound
 
         try:

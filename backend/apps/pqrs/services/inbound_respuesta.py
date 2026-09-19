@@ -27,9 +27,29 @@ logger = logging.getLogger(__name__)
 RADICADO_RE = re.compile(r"PQRS-\d+-\d{8}-\d{3}", re.IGNORECASE)
 
 
+def extract_radicado_from_text(*texts: str | None) -> str | None:
+    """Busca PQRS-ENTIDAD-FECHA-SEC en cualquier fragmento de texto."""
+    for text in texts:
+        if not text:
+            continue
+        match = RADICADO_RE.search(text)
+        if match:
+            return match.group(0).upper()
+    return None
+
+
 def extract_radicado_from_subject(subject: str) -> str | None:
-    match = RADICADO_RE.search(subject or "")
-    return match.group(0).upper() if match else None
+    return extract_radicado_from_text(subject)
+
+
+def extract_radicado_from_email(
+    *,
+    subject: str = "",
+    forward_subject: str | None = None,
+    body: str = "",
+) -> str | None:
+    """Detecta radicado en asunto del reenvío, asunto original o cuerpo."""
+    return extract_radicado_from_text(subject, forward_subject, body)
 
 
 def _save_respuesta_archivo(
@@ -75,9 +95,15 @@ def procesar_respuesta_inbound(
     subject_line: str,
 ) -> PQRS:
     """Marca PQRS como respondida desde correo reenviado al buzón PQRS."""
-    radicado = extract_radicado_from_subject(subject_line)
+    radicado = extract_radicado_from_email(
+        subject=subject_line,
+        forward_subject=forward_meta.subject,
+        body=forward_meta.body or parsed.texto,
+    )
     if not radicado:
-        raise ValueError("No se encontró radicado en el asunto.")
+        raise ValueError(
+            "No se encontró radicado PQRS en el asunto ni en el cuerpo del correo."
+        )
 
     pqrs = PQRS.objects.filter(entity=entity, numero_radicado__iexact=radicado).first()
     if not pqrs:

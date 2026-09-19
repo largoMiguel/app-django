@@ -18,6 +18,7 @@ import {
   File as FileIcon,
   XCircle,
   Sparkles,
+  Copy,
 } from "lucide-react";
 import { pqrsAiApi } from "@/core/api/ai/pqrs";
 import AIDraftPanel from "@/components/ai/AIDraftPanel";
@@ -44,6 +45,8 @@ import EditPQRSModal from "./EditPQRSModal";
 import PQRSAssignmentPanel from "./PQRSAssignmentPanel";
 import PQRSUserAssignmentPanel from "./PQRSUserAssignmentPanel";
 import EmailFirmaPanel from "./EmailFirmaPanel";
+
+const PQRS_INBOX_EMAIL = "pqrssoftone@gmail.com";
 
 function formatBytes(bytes?: number): string {
   if (!bytes && bytes !== 0) return "";
@@ -484,6 +487,49 @@ export default function PQRSDetailModal({ pqrsId, onClose, onUpdated }: Props) {
                         Esta PQRS no está asignada. Como administrador, puedes responder directamente.
                       </p>
                     )}
+                    <details className="mb-3 rounded-md border border-emerald-200 bg-white/80 p-2.5 text-xs text-emerald-900">
+                      <summary className="cursor-pointer font-medium">
+                        Registrar respuesta reenviando correo al buzón PQRS
+                      </summary>
+                      <div className="mt-2 space-y-2 text-emerald-800">
+                        <p>
+                          Reenvíe desde su correo <strong>@gov.co</strong> a{" "}
+                          <span className="font-mono text-[0.7rem]">{PQRS_INBOX_EMAIL}</span>.
+                          El sistema busca el radicado en el asunto o en el cuerpo del mensaje.
+                        </p>
+                        <ul className="list-disc space-y-1 pl-4">
+                          <li>
+                            Reenvíe el correo de <strong>asignación PQRS</strong> (ya incluye el
+                            radicado).
+                          </li>
+                          <li>
+                            O ponga{" "}
+                            <strong className="font-mono">{data.numero_radicado}</strong> en el
+                            asunto al reenviar.
+                          </li>
+                          <li>O escríbalo en la primera línea del mensaje reenviado.</li>
+                        </ul>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(data.numero_radicado);
+                            }}
+                            className="inline-flex items-center gap-1 rounded border border-emerald-300 bg-white px-2 py-1 text-xs font-medium hover:bg-emerald-50"
+                          >
+                            <Copy className="h-3 w-3" />
+                            Copiar radicado
+                          </button>
+                          <a
+                            href={`mailto:${PQRS_INBOX_EMAIL}?subject=${encodeURIComponent(`Respuesta ${data.numero_radicado}`)}`}
+                            className="inline-flex items-center gap-1 rounded border border-emerald-300 bg-white px-2 py-1 text-xs font-medium hover:bg-emerald-50"
+                          >
+                            <Mail className="h-3 w-3" />
+                            Abrir borrador en correo
+                          </a>
+                        </div>
+                      </div>
+                    </details>
                     <div className="mb-3 flex items-center gap-2">
                       <button
                         type="button"
