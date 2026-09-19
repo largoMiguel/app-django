@@ -67,6 +67,9 @@ class SecretariaSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         request = self.context.get("request")
-        if self.instance and request and not is_platform_superadmin(request.user):
+        user = getattr(request, "user", None) if request else None
+        if self.instance and user and not is_platform_superadmin(user):
             attrs.pop("entity", None)
+        if not self.instance and user and is_platform_superadmin(user) and not attrs.get("entity"):
+            raise serializers.ValidationError({"entity": "Debe indicar la entidad de la secretaría."})
         return attrs
