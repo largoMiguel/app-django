@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { picApi, type PicActividad } from "@/core/api/pic";
 import { formatApiError } from "@/core/api/errors";
@@ -7,6 +7,7 @@ import { PicLoading, formatCOP } from "./components/PicUi";
 import { usePicYear } from "./PicYearContext";
 
 export default function PicActividadesPage() {
+  const navigate = useNavigate();
   const { anio } = usePicYear();
   const [items, setItems] = useState<PicActividad[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,12 +88,20 @@ export default function PicActividadesPage() {
           </thead>
           <tbody>
             {items.map((a) => (
-              <tr key={a.id} className="border-t border-slate-100 hover:bg-slate-50/50">
-                <td className="px-4 py-3 font-medium">
-                  <Link to={`/pic/actividades/${a.id}`} className="text-[#0e7490] hover:underline">
-                    {a.numero}
-                  </Link>
-                </td>
+              <tr
+                key={a.id}
+                role="link"
+                tabIndex={0}
+                onClick={() => navigate(`/pic/actividades/${a.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigate(`/pic/actividades/${a.id}`);
+                  }
+                }}
+                className="cursor-pointer border-t border-slate-100 hover:bg-[#0e7490]/5 focus:bg-[#0e7490]/5 focus:outline-none"
+              >
+                <td className="px-4 py-3 font-medium text-[#0e7490]">{a.numero}</td>
                 <td className="max-w-xs truncate px-4 py-3" title={a.actividad}>
                   {a.actividad}
                 </td>
