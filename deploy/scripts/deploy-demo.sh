@@ -39,10 +39,19 @@ compose_up() {
     return 1
 }
 
+dump_backend_logs() {
+    echo "==> Logs demo-backend (diagnóstico):" >&2
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps demo-backend >&2 || true
+    docker logs --tail 200 softone-demo-backend >&2 || true
+}
+
 echo "==> Levantando servicios demo…"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" stop celery-worker celery-beat demo-backend demo-frontend 2>/dev/null || true
 sleep 2
-compose_up
+if ! compose_up; then
+    dump_backend_logs
+    exit 1
+fi
 
 echo "==> Recargando nginx demo…"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T demo-nginx nginx -s reload
@@ -62,6 +71,7 @@ for _ in $(seq 1 24); do
 done
 if [[ "$healthy" -ne 1 ]]; then
   echo "ERROR: backend demo no respondió healthy tras 120s" >&2
+  dump_backend_logs
   exit 1
 fi
 
