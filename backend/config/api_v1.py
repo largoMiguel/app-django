@@ -20,4 +20,6 @@ urlpatterns = [
     path("", include("apps.gestion_documental.urls")),
     path("", include("apps.pic.urls")),
     path("users/", include("apps.accounts.user_urls")),
+    path("google-addon/", include("apps.google_integration.addon_urls")),
+    path("integrations/google/", include("apps.google_integration.oauth_urls")),
 ]

@@ -404,6 +404,12 @@ class PQRSCorreo(models.Model):
     asunto = models.CharField(max_length=255)
     cuerpo_resumen = models.TextField(blank=True, default="")
     request_id = models.CharField(max_length=128, blank=True, null=True, db_index=True)
+    proveedor = models.CharField(
+        max_length=20,
+        default="zeptomail",
+        help_text="zeptomail | gmail",
+    )
+    gmail_message_id = models.CharField(max_length=255, blank=True, default="")
     estado = models.CharField(
         max_length=20,
         choices=EstadoCorreoPQRS.choices,

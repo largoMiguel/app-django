@@ -24,6 +24,7 @@ class EntitySerializer(serializers.ModelSerializer):
             "address",
             "phone",
             "email",
+            "email_domains",
             "logo_url",
             "horario_atencion",
             "tiempo_respuesta",

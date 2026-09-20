@@ -91,6 +91,8 @@ class PQRSCorreoSerializer(serializers.ModelSerializer):
             "estado",
             "error",
             "request_id",
+            "proveedor",
+            "gmail_message_id",
             "destinatarios",
             "created_at",
             "updated_at",

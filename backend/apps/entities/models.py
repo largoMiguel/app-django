@@ -40,6 +40,12 @@ class Entity(models.Model):
     address = models.CharField(max_length=300, blank=True, null=True)
     phone = models.CharField(max_length=50, blank=True, null=True)
     email = models.CharField(max_length=150, blank=True, null=True)
+    email_domains = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Dominios institucionales (CSV) para resolver entidad desde Gmail Add-on.",
+    )
     logo_url = models.CharField(max_length=500, blank=True, null=True)
     horario_atencion = models.CharField(max_length=200, blank=True, null=True)
     tiempo_respuesta = models.CharField(max_length=100, blank=True, null=True)

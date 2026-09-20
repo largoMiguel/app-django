@@ -499,44 +499,28 @@ class PQRSViewSet(viewsets.ModelViewSet):
             storage = pqrs_storage_for_paths()
             archivo_path = storage.save(safe_name, ContentFile(archivo.read()))
 
-        with transaction.atomic():
-            AsignacionAuditoria.objects.create(
-                pqrs=pqrs,
-                secretaria_anterior=pqrs.assigned_to,
-                usuario_anterior=user,
-                accion="respuesta",
-                justificacion=ser.validated_data["respuesta"][:500],
-            )
-            pqrs.respuesta = ser.validated_data["respuesta"]
-            if archivo_path is not None:
-                pqrs.archivo_respuesta = archivo_path
-            pqrs.estado = EstadoPQRS.RESPONDIDA
-            pqrs.fecha_respuesta = timezone.now()
-            pqrs.save(
-                update_fields=[
-                    "respuesta",
-                    "archivo_respuesta",
-                    "estado",
-                    "fecha_respuesta",
-                    "updated_at",
-                ]
-            )
-
-        # Notificación por email (opcional)
         enviar_email_flag = ser.validated_data.get("enviar_email", False)
         email_destino = (ser.validated_data.get("email_destino") or "").strip()
         if not email_destino:
             email_destino = (pqrs.email_ciudadano or "").strip()
-        if enviar_email_flag:
+
+        from apps.google_integration.services.send import user_has_gmail_send
+
+        use_gmail_send = bool(enviar_email_flag and user_has_gmail_send(user))
+
+        if use_gmail_send:
             if not email_destino:
                 raise ValidationError(
                     {"email_destino": "La PQRS no tiene email de ciudadano registrado."}
                 )
+            pqrs.respuesta = ser.validated_data["respuesta"]
+            if archivo_path is not None:
+                pqrs.archivo_respuesta = archivo_path
             if email_destino != (pqrs.email_ciudadano or "").strip():
                 pqrs.email_ciudadano = email_destino
                 pqrs.save(update_fields=["email_ciudadano", "updated_at"])
             try:
-                enviar_respuesta(
+                _registro, ok, err = enviar_respuesta(
                     pqrs,
                     ser.validated_data["respuesta"],
                     email_destino,
@@ -544,6 +528,68 @@ class PQRSViewSet(viewsets.ModelViewSet):
                 )
             except ValueError as exc:
                 raise ValidationError({"email_destino": str(exc)}) from exc
+            if not ok:
+                raise ValidationError({"email_destino": err or "No se pudo enviar por Gmail."})
+            with transaction.atomic():
+                AsignacionAuditoria.objects.create(
+                    pqrs=pqrs,
+                    secretaria_anterior=pqrs.assigned_to,
+                    usuario_anterior=user,
+                    accion="respuesta",
+                    justificacion=ser.validated_data["respuesta"][:500],
+                )
+                pqrs.estado = EstadoPQRS.RESPONDIDA
+                pqrs.fecha_respuesta = timezone.now()
+                pqrs.save(
+                    update_fields=[
+                        "respuesta",
+                        "archivo_respuesta",
+                        "estado",
+                        "fecha_respuesta",
+                        "updated_at",
+                    ]
+                )
+        else:
+            with transaction.atomic():
+                AsignacionAuditoria.objects.create(
+                    pqrs=pqrs,
+                    secretaria_anterior=pqrs.assigned_to,
+                    usuario_anterior=user,
+                    accion="respuesta",
+                    justificacion=ser.validated_data["respuesta"][:500],
+                )
+                pqrs.respuesta = ser.validated_data["respuesta"]
+                if archivo_path is not None:
+                    pqrs.archivo_respuesta = archivo_path
+                pqrs.estado = EstadoPQRS.RESPONDIDA
+                pqrs.fecha_respuesta = timezone.now()
+                pqrs.save(
+                    update_fields=[
+                        "respuesta",
+                        "archivo_respuesta",
+                        "estado",
+                        "fecha_respuesta",
+                        "updated_at",
+                    ]
+                )
+
+            if enviar_email_flag:
+                if not email_destino:
+                    raise ValidationError(
+                        {"email_destino": "La PQRS no tiene email de ciudadano registrado."}
+                    )
+                if email_destino != (pqrs.email_ciudadano or "").strip():
+                    pqrs.email_ciudadano = email_destino
+                    pqrs.save(update_fields=["email_ciudadano", "updated_at"])
+                try:
+                    enviar_respuesta(
+                        pqrs,
+                        ser.validated_data["respuesta"],
+                        email_destino,
+                        enviado_por=user,
+                    )
+                except ValueError as exc:
+                    raise ValidationError({"email_destino": str(exc)}) from exc
 
         pqrs.refresh_from_db()
         return Response(PQRSSerializer(pqrs, context={"request": request}).data)

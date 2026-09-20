@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "apps.planes",
     "apps.gestion_documental",
     "apps.pic",
+    "apps.google_integration",
 ]
 
 MIDDLEWARE = [
@@ -208,6 +209,8 @@ REST_FRAMEWORK = {
         "asistencia_kiosk_punch": "30/min",
         "secop_datos_gov": "600/hour",
         "secop_ai": "120/hour",
+        "google_addon": "120/hour",
+        "gmail_send": "60/hour",
     },
 }
 
@@ -333,6 +336,18 @@ IMAP_PORT = int(os.getenv("IMAP_PORT", "993"))
 IMAP_USER = (os.getenv("IMAP_USER", "") or "").strip()
 IMAP_PASSWORD = (os.getenv("IMAP_PASSWORD", "") or "").strip()
 IMAP_MAILBOX = (os.getenv("IMAP_MAILBOX", "INBOX") or "INBOX").strip()
+
+# Google Gmail (Add-on + OAuth gmail.send)
+GOOGLE_CLIENT_ID = (os.getenv("GOOGLE_CLIENT_ID", "") or "").strip()
+GOOGLE_CLIENT_SECRET = (os.getenv("GOOGLE_CLIENT_SECRET", "") or "").strip()
+GOOGLE_REDIRECT_URI = (os.getenv("GOOGLE_REDIRECT_URI", "") or "").strip()
+GOOGLE_ADDON_SERVICE_ACCOUNT_EMAIL = (
+    os.getenv("GOOGLE_ADDON_SERVICE_ACCOUNT_EMAIL", "") or ""
+).strip()
+GOOGLE_ADDON_CLIENT_ID = (os.getenv("GOOGLE_ADDON_CLIENT_ID", "") or "").strip()
+GOOGLE_TOKEN_ENCRYPTION_KEY = (os.getenv("GOOGLE_TOKEN_ENCRYPTION_KEY", "") or "").strip()
+GOOGLE_GMAIL_SEND_ENABLED = env_bool("GOOGLE_GMAIL_SEND_ENABLED", False)
+APP_PUBLIC_URL = (os.getenv("APP_PUBLIC_URL", "") or APP_BASE_URL or "").strip()
 
 LOGGING = {
     "version": 1,

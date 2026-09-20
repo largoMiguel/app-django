@@ -44,6 +44,10 @@ import { usePqrsHeaderActions } from "./PqrsHeaderActionsContext";
 import PQRSAssignmentPanel from "./PQRSAssignmentPanel";
 import PQRSUserAssignmentPanel from "./PQRSUserAssignmentPanel";
 import EmailFirmaPanel from "./EmailFirmaPanel";
+import {
+  googleIntegrationApi,
+  type GoogleGmailStatus,
+} from "@/core/api/googleIntegration";
 
 const PQRS_INBOX_EMAIL = "pqrssoftone@gmail.com";
 
@@ -85,6 +89,27 @@ export default function PQRSDetailPage() {
   const [draftText, setDraftText] = useState("");
   const [draftNormativa, setDraftNormativa] = useState("");
   const [showDraft, setShowDraft] = useState(false);
+  const [gmailStatus, setGmailStatus] = useState<GoogleGmailStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    googleIntegrationApi
+      .status()
+      .then((s) => {
+        if (!cancelled) setGmailStatus(s);
+      })
+      .catch(() => {
+        if (!cancelled) setGmailStatus({ connected: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const gmailListo =
+    gmailStatus?.connected &&
+    !gmailStatus.requires_reauthorization &&
+    Boolean(gmailStatus.google_email);
 
   async function generarBorrador() {
     if (!data) return;
@@ -653,6 +678,25 @@ export default function PQRSDetailPage() {
                           Notificar al ciudadano por email
                         </span>
                       </label>
+                      {enviarEmail && gmailListo && gmailStatus?.google_email && (
+                        <p className="text-xs font-medium text-emerald-900">
+                          Enviar desde: {gmailStatus.google_email}
+                        </p>
+                      )}
+                      {enviarEmail && !gmailListo && (
+                        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                          Debes conectar tu correo institucional para enviar la respuesta desde
+                          Gmail.{" "}
+                          <Link
+                            to="/configuracion/correo"
+                            className="font-semibold underline hover:text-amber-950"
+                          >
+                            CONECTAR GMAIL
+                          </Link>
+                          . Si no conectas, se usará el envío del sistema (ZeptoMail) cuando
+                          aplique.
+                        </div>
+                      )}
                       {enviarEmail && (
                         <p className="text-xs text-emerald-800">
                           Puede indicar varios correos separados por coma.

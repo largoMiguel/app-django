@@ -220,6 +220,15 @@ IMAP_MAILBOX=INBOX
 
 Log del cron: `logs/softone-pqrs-inbox.log` (en `/opt/softone-app/logs/`).
 
+### Integración Gmail (Add-on + OAuth, opcional)
+
+Complemento al IMAP/ZeptoMail: radicar desde Gmail con add-on HTTP y enviar respuestas desde la cuenta institucional del funcionario (`gmail.send`). Documentación completa: [docs/google-gmail-pqrs.md](docs/google-gmail-pqrs.md).
+
+- Add-on: `POST /api/v1/google-addon/gmail/{open|preview|radicate}`
+- OAuth: `/api/v1/integrations/google/*`
+- Frontend: `/configuracion/correo`
+- Activar envío: `GOOGLE_GMAIL_SEND_ENABLED=true` + credenciales Google en `.env`
+
 ---
 
 ## Módulo PDM — Productos con varios indicadores

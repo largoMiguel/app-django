@@ -24,6 +24,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import PublicPQRSPortal from "@/features/pqrs/PublicPQRSPortal";
 import PublicPdmChatPage from "@/features/pdmchat/PublicPdmChatPage";
 import KioskPage from "@/features/kiosk/KioskPage";
+import CorreoInstitucionalPage from "@/features/settings/CorreoInstitucionalPage";
 import AsistenciaLayout from "@/features/asistencia/AsistenciaLayout";
 import AsistenciaDashboard from "@/features/asistencia/AsistenciaDashboard";
 import FuncionariosPage from "@/features/asistencia/FuncionariosPage";
@@ -163,6 +164,7 @@ export default function App(): ReactElement {
             <Route element={<AppLayout />}>
               <Route path="/app" element={<WelcomePage />} />
               <Route path="/sin-acceso" element={<SinAccesoPage />} />
+              <Route path="/configuracion/correo" element={<CorreoInstitucionalPage />} />
 
               <Route element={<ModuleRouteGuard moduleKey="pqrs" />}>
                 <Route path="/pqrs" element={<PqrsLayout />}>

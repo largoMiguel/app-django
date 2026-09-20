@@ -12,27 +12,21 @@ from email.utils import getaddresses, parsedate_to_datetime
 from typing import Any
 
 from django.conf import settings
-from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.common.roles import user_roles
 from apps.entities.models import Entity
 from apps.pqrs.models import (
-    CanalLlegada,
     CorreoEntrantePQRS,
     EstadoCorreoEntrante,
     PQRS,
 )
 from apps.pqrs.services.email_sanitize import (
-    apply_original_sender_to_extraction,
     build_inbound_ia_context,
     prepare_inbound_email_text,
-    scrub_entity_from_extraction,
 )
-from apps.pqrs.services.email_print import email_meta_from_forward
-from apps.pqrs.services.creation import crear_pqrs_desde_ia
-from apps.pqrs.services.email import enviar_radicacion
+from apps.pqrs.services.email_input import EmailPqrsInput, crear_pqrs_desde_email
 from rest_framework.exceptions import ValidationError
 
 from apps.pqrs.validators import validate_inbound_attachment
@@ -399,78 +393,43 @@ def procesar_correo(parsed: ParsedEmail) -> InboundResult:
         )
         return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
 
-    try:
-        from apps.pqrs.services.ai import extraer_pqrs_con_ia
-
-        extraido = extraer_pqrs_con_ia(
-            texto,
-            archivos_ia,
-            entity.id,
-            inbound_entity_name=entity.name,
-        )
-        extraido = scrub_entity_from_extraction(extraido, entity, user)
-        extraido = apply_original_sender_to_extraction(extraido, forward_meta, entity, user)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Error IA procesando correo %s", parsed.message_id)
-        correo = _registrar_correo(
-            parsed,
-            estado=EstadoCorreoEntrante.ERROR,
-            motivo=f"Error IA: {exc}",
-            entity=entity,
-            user=user,
-        )
-        return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
-
-    extraido["canal_llegada"] = CanalLlegada.EMAIL
     fecha_base = parsed.recibido_at or timezone.now()
-
     try:
-        with transaction.atomic():
-            pqrs = crear_pqrs_desde_ia(
-                entity,
-                extraido,
+        pqrs = crear_pqrs_desde_email(
+            EmailPqrsInput(
+                entity=entity,
                 created_by=user,
                 texto=texto,
-                files_bytes=archivos_ia or None,
-                files_content_types=content_types or None,
-                canal_llegada=CanalLlegada.EMAIL,
+                subject_line=subject_line,
+                archivos=archivos_ia,
+                content_types=content_types,
                 fecha_base=fecha_base,
+                forward_meta=forward_meta,
+                entity_email=(entity.email or "").strip(),
                 auditoria_creacion="PQRS creada automáticamente desde correo reenviado (IA).",
                 secretaria_fallback=user.secretaria,
                 limit_archivos=False,
-                email_meta={
-                    **email_meta_from_forward(
-                        forward_meta,
-                        entity_email=(entity.email or "").strip(),
-                    ),
-                    "subject": subject_line,
-                    "date": fecha_base,
-                },
             )
-            correo = _registrar_correo(
-                parsed,
-                estado=EstadoCorreoEntrante.PROCESADO,
-                motivo=f"Radicado {pqrs.numero_radicado}",
-                entity=entity,
-                pqrs=pqrs,
-                user=user,
-            )
+        )
+        correo = _registrar_correo(
+            parsed,
+            estado=EstadoCorreoEntrante.PROCESADO,
+            motivo=f"Radicado {pqrs.numero_radicado}",
+            entity=entity,
+            pqrs=pqrs,
+            user=user,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.exception("Error creando PQRS desde correo %s", parsed.message_id)
+        motivo = f"Error IA: {exc}" if "IA" in str(exc) or "parseable" in str(exc).lower() else f"Error creación: {exc}"
         correo = _registrar_correo(
             parsed,
             estado=EstadoCorreoEntrante.ERROR,
-            motivo=f"Error creación: {exc}",
+            motivo=str(exc)[:2000],
             entity=entity,
             user=user,
         )
         return InboundResult(estado=correo.estado, motivo=correo.motivo, correo=correo)
-
-    if pqrs.email_ciudadano:
-        try:
-            enviar_radicacion(pqrs)
-        except Exception:  # noqa: BLE001
-            logger.exception("Error enviando radicación PQRS %s", pqrs.numero_radicado)
 
     logger.info(
         "PQRS %s creada desde correo de %s (entity=%s)",

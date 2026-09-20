@@ -787,7 +787,18 @@ def enviar_respuesta(
     *,
     enviado_por=None,
 ) -> tuple[PQRSCorreo, bool, str | None]:
-    """Envía respuesta PQRS a uno o varios destinatarios."""
+    """Envía respuesta PQRS a uno o varios destinatarios (Gmail si está conectado)."""
+    from apps.google_integration.services.send import enviar_respuesta_gmail, user_has_gmail_send
+
+    if enviado_por and user_has_gmail_send(enviado_por):
+        return enviar_respuesta_gmail(
+            pqrs,
+            texto_respuesta,
+            destinatarios_raw,
+            enviado_por=enviado_por,
+            archivo_path_set=bool(pqrs.archivo_respuesta),
+        )
+
     recipients = parse_email_list(destinatarios_raw)
     if not recipients:
         raise ValueError("No hay destinatarios válidos.")
