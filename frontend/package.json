@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsx scripts/generate-legal-static.ts && tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier -w ."
@@ -46,6 +46,7 @@
     "prettier": "^3.4.2",
     "sass": "^1.100.0",
     "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"
   }

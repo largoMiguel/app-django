@@ -1,6 +1,6 @@
 import type { LegalSection } from "./LegalDocumentPage";
 
-export const PRIVACIDAD_UPDATED = "23 de septiembre de 2026";
+export const PRIVACIDAD_UPDATED = "24 de septiembre de 2026";
 
 export const PRIVACIDAD_SECTIONS: LegalSection[] = [
   {
@@ -104,8 +104,54 @@ export const PRIVACIDAD_SECTIONS: LegalSection[] = [
     ],
   },
   {
+    id: "google-disclosure",
+    title: "5. Divulgación sobre datos de usuario de Google (OAuth y Gmail)",
+    blocks: [
+      {
+        type: "p",
+        text: "SoftOne360 solicita acceso a datos de Google únicamente cuando un funcionario o usuario autorizado de una entidad cliente conecta su cuenta Gmail/Google Workspace o usa el complemento (add-on) de Gmail para radicar PQRS. Usted puede denegar o revocar ese acceso en cualquier momento desde la configuración de su cuenta Google o en SoftOne360 → Configuración → Correo institucional.",
+      },
+      {
+        type: "p",
+        text: "The use of information received from Google APIs by SoftOne360 adheres to the Google API Services User Data Policy, including the Limited Use requirements. We do not use Google user data for serving advertisements, and we do not sell Google user data. Human access to Google user data is limited to support, security, or legal compliance when necessary, with appropriate authorization.",
+      },
+      { type: "h3", text: "5.1 Datos de Google que accedemos y para qué" },
+      {
+        type: "ul",
+        items: [
+          "Dirección de correo (userinfo.email): identificar qué cuenta institucional está conectada y asociar acciones de envío o radicación al usuario registrado en SoftOne360.",
+          "Envío de correo (gmail.send): enviar únicamente las respuestas de PQRS que el funcionario redacta y confirma en la plataforma, desde su buzón institucional conectado.",
+          "Complemento Gmail (gmail.addons.execute, gmail.addons.current.message.action): leer el mensaje de correo que el usuario tiene abierto en Gmail cuando pulsa explícitamente «Radicar como PQRS», para extraer asunto, cuerpo, remitente, destinatarios, identificadores de hilo y adjuntos necesarios a la radicación.",
+          "Idioma (script.locale): mostrar la interfaz del complemento en el idioma del usuario.",
+        ],
+      },
+      { type: "h3", text: "5.2 Qué no hacemos con datos de Gmail" },
+      {
+        type: "ul",
+        items: [
+          "No leemos el buzón completo ni sincronizamos historial de correo fuera de la acción iniciada en el complemento.",
+          "No usamos contenido de Gmail para entrenar modelos de IA genéricos ni para perfilar usuarios con fines comerciales.",
+          "No compartimos contenido de Gmail con anunciantes ni con terceros ajenos a los encargados del tratamiento listados en esta política, salvo obligación legal.",
+        ],
+      },
+      { type: "h3", text: "5.3 Almacenamiento y eliminación de datos vinculados a Google" },
+      {
+        type: "ul",
+        items: [
+          "Tokens OAuth (access y refresh) se almacenan cifrados en nuestros servidores mientras la cuenta permanezca conectada.",
+          "Contenido de correo usado en radicación se guarda como parte del expediente PQRS de la entidad, según las políticas de archivo de la entidad cliente.",
+          "Al desconectar Gmail en SoftOne360 o revocar permisos en Google, eliminamos los tokens almacenados; el contenido ya radicado en PQRS permanece en custodia de la entidad conforme a la ley de archivo.",
+        ],
+      },
+      {
+        type: "p",
+        text: "Para solicitar eliminación de tokens o consultas sobre datos obtenidos vía Google: contactenos@softone360.com (asunto: «Datos Google / Gmail»).",
+      },
+    ],
+  },
+  {
     id: "google",
-    title: "5. Uso de datos de Google / Gmail API",
+    title: "6. Scopes OAuth de Google (referencia técnica)",
     blocks: [
       {
         type: "p",
@@ -128,7 +174,7 @@ export const PRIVACIDAD_SECTIONS: LegalSection[] = [
   },
   {
     id: "encargados",
-    title: "6. Encargados y transferencias",
+    title: "7. Encargados y transferencias",
     blocks: [
       {
         type: "p",
@@ -154,7 +200,7 @@ export const PRIVACIDAD_SECTIONS: LegalSection[] = [
   },
   {
     id: "conservacion",
-    title: "7. Conservación",
+    title: "8. Conservación",
     blocks: [
       {
         type: "p",
@@ -164,7 +210,7 @@ export const PRIVACIDAD_SECTIONS: LegalSection[] = [
   },
   {
     id: "seguridad",
-    title: "8. Seguridad",
+    title: "9. Seguridad",
     blocks: [
       {
         type: "ul",
@@ -180,7 +226,7 @@ export const PRIVACIDAD_SECTIONS: LegalSection[] = [
   },
   {
     id: "derechos",
-    title: "9. Derechos de los titulares (Colombia)",
+    title: "10. Derechos de los titulares (Colombia)",
     blocks: [
       {
         type: "p",
@@ -204,7 +250,7 @@ export const PRIVACIDAD_SECTIONS: LegalSection[] = [
   },
   {
     id: "menores",
-    title: "10. Menores de edad",
+    title: "11. Menores de edad",
     blocks: [
       {
         type: "p",
@@ -214,7 +260,7 @@ export const PRIVACIDAD_SECTIONS: LegalSection[] = [
   },
   {
     id: "cookies",
-    title: "11. Cookies y tecnologías similares",
+    title: "12. Cookies y tecnologías similares",
     blocks: [
       {
         type: "p",
@@ -224,7 +270,7 @@ export const PRIVACIDAD_SECTIONS: LegalSection[] = [
   },
   {
     id: "cambios",
-    title: "12. Cambios a esta política",
+    title: "13. Cambios a esta política",
     blocks: [
       {
         type: "p",
