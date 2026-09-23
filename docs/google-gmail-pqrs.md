@@ -189,6 +189,8 @@ Threading: si existe `PQRSGmailOrigin`, se envían `threadId`, `In-Reply-To`, `R
 
 | Síntoma | Causa probable | Acción |
 |---|---|---|
+| Configuración Gmail → Complementos vacío | Normal para add-ons **HTTP** (GCP); esa pantalla es sobre todo **Apps Script** | Instalar desde GCP → HTTP Deployments → **Install** (no buscar en Ajustes) |
+| No icono en barra derecha de Gmail | Install con otra cuenta / logo URL roto | Misma cuenta en Gmail y consola; `logoUrl` debe responder **200** (`/addon-icon.png`) |
 | Add-on: usuario no registrado | Email Google ≠ usuario en SoftOne | Crear usuario con mismo email |
 | Add-on: IA no habilitada | `enable_ai_reports=false` | Superadmin → módulos entidad |
 | Entidad ambigua | Varios dominios / membresías | Completar `email_domains` y membresía default |

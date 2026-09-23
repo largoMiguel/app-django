@@ -87,6 +87,13 @@ class GmailAddonOpenView(APIView):
     throttle_classes = (GoogleAddonThrottle,)
 
     def post(self, request):
+        event = _parse_event(request)
+        if event:
+            logger.info(
+                "Gmail addon open: host=%s msg=%s",
+                (event.get("commonEventObject") or {}).get("hostApp"),
+                (event.get("gmail") or {}).get("messageId"),
+            )
         return Response(open_card())
 
 

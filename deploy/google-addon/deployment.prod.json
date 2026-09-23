@@ -7,7 +7,7 @@
   "addOns": {
     "common": {
       "name": "SoftOne PQRS",
-      "logoUrl": "https://app.softone360.com/favicon.ico",
+      "logoUrl": "https://app.softone360.com/addon-icon.png",
       "layoutProperties": {
         "primaryColor": "#3eafd4",
         "secondaryColor": "#1c2536"
@@ -19,6 +19,9 @@
       "openLinkUrlPrefixes": ["https://app.softone360.com/"]
     },
     "gmail": {
+      "homepageTrigger": {
+        "runFunction": "https://app.softone360.com/api/v1/google-addon/gmail/open"
+      },
       "contextualTriggers": [
         {
           "unconditional": {},

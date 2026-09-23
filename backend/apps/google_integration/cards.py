@@ -28,6 +28,11 @@ def card_update(*sections: dict[str, Any]) -> dict[str, Any]:
     return {"renderActions": {"action": {"navigations": [{"updateCard": {"sections": list(sections)}}]}}}
 
 
+def card_render(*sections: dict[str, Any]) -> dict[str, Any]:
+    """Primera tarjeta (p. ej. abrir correo): renderActions + pushCard."""
+    return {"renderActions": {"action": {"navigations": [{"pushCard": {"sections": list(sections)}}]}}}
+
+
 def section_header(title: str, subtitle: str = "") -> dict[str, Any]:
     widgets: list[dict[str, Any]] = [{"textParagraph": {"text": f"<b>{title}</b>"}}]
     if subtitle:
@@ -54,8 +59,7 @@ def button_text(text: str, function_name: str, parameters: list[dict[str, str]] 
 
 
 def open_card() -> dict[str, Any]:
-    # contextualTrigger (abrir correo) exige renderActions, no action.pushCard
-    return card_update(
+    return card_render(
         section_header("Sistema PQRS", "Radique el correo abierto como PQRS en su entidad."),
         section_widgets(
             "Acción",
