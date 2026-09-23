@@ -47,9 +47,32 @@ def button_text(text: str, function_name: str, parameters: list[dict[str, str]] 
     if parameters:
         action["parameters"] = parameters
     return {
-        "textButton": {
-            "text": text,
-            "onClick": {"action": action},
+        "buttonList": {
+            "buttons": [
+                {
+                    "text": text,
+                    "onClick": {"action": action},
+                }
+            ]
+        }
+    }
+
+
+def button_open_link(text: str, url: str) -> dict[str, Any]:
+    return {
+        "buttonList": {
+            "buttons": [
+                {
+                    "text": text,
+                    "onClick": {
+                        "openLink": {
+                            "url": url,
+                            "openAs": "FULL_SIZE",
+                            "onClose": "NOTHING",
+                        }
+                    },
+                }
+            ]
         }
     }
 
@@ -121,14 +144,8 @@ def success_card(radicado: str, pqrs_id: int) -> dict[str, Any]:
         section_widgets(
             "Siguiente paso",
             [
-                {
-                    "openLink": {
-                        "url": url,
-                        "openAs": "FULL_SIZE",
-                        "onClose": "NOTHING",
-                    }
-                },
-                {"textParagraph": {"text": f'<a href="{url}">ABRIR EN SISTEMA</a>'}},
+                button_open_link("ABRIR EN SISTEMA", url),
+                {"textParagraph": {"text": f"Radicado registrado. También puede copiar: {url}"}},
             ],
         ),
     )
@@ -138,7 +155,7 @@ def duplicate_card(radicado: str, pqrs_id: int) -> dict[str, Any]:
     url = f"{_app_base()}/pqrs/{pqrs_id}"
     return card_update(
         section_header("Este correo ya fue radicado", f"Radicado: <b>{radicado}</b>"),
-        section_widgets("PQRS existente", [{"openLink": {"url": url}}]),
+        section_widgets("PQRS existente", [button_open_link("Ver PQRS en SoftOne", url)]),
     )
 
 
