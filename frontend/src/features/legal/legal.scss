@@ -1,0 +1,107 @@
+.legal-page {
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.legal-page__header {
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 1rem 1.5rem;
+}
+
+.legal-page__header-inner {
+  max-width: 52rem;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.legal-page__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.legal-page__brand strong {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.legal-page__brand small {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.legal-page__main {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.legal-page__meta {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-bottom: 1.5rem;
+}
+
+.legal-page__main h1 {
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+.legal-page__intro {
+  font-size: 1.05rem;
+  color: #334155;
+  margin-bottom: 2rem;
+  line-height: 1.65;
+}
+
+.legal-page__section {
+  margin-bottom: 2rem;
+}
+
+.legal-page__section h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  color: #0f172a;
+}
+
+.legal-page__section h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+}
+
+.legal-page__section p,
+.legal-page__section li {
+  line-height: 1.7;
+  color: #334155;
+  margin-bottom: 0.65rem;
+}
+
+.legal-page__section ul,
+.legal-page__section ol {
+  padding-left: 1.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.legal-page__footer {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.legal-page__footer a {
+  color: #1a5f8c;
+  text-decoration: underline;
+}

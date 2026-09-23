@@ -370,6 +370,12 @@ export default function ShowcasePage({ onLoginClick }: ShowcasePageProps) {
                 <Link to="/nosotros" className="sc-footer-link">
                   Nosotros
                 </Link>
+                <Link to="/privacidad" className="sc-footer-link">
+                  Privacidad
+                </Link>
+                <Link to="/condiciones" className="sc-footer-link">
+                  Condiciones
+                </Link>
               </nav>
             </div>
 

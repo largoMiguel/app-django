@@ -74,6 +74,8 @@ import { firstAccessibleRoute, needsEntitySelection, useAuthStore } from "@/core
 
 const HomePage = lazy(() => import("@/features/showcase/HomePage"));
 const NosotrosPage = lazy(() => import("@/features/nosotros/NosotrosPage"));
+const PrivacidadPage = lazy(() => import("@/features/legal/PrivacidadPage"));
+const CondicionesPage = lazy(() => import("@/features/legal/CondicionesPage"));
 
 const suspenseFallback = (
   <div className="flex min-h-screen items-center justify-center text-slate-500">Cargando…</div>
@@ -128,6 +130,25 @@ const nosotrosPage = (
   </Suspense>
 );
 
+const privacidadPage = (
+  <Suspense fallback={suspenseFallback}>
+    <PrivacidadPage />
+  </Suspense>
+);
+
+const condicionesPage = (
+  <Suspense fallback={suspenseFallback}>
+    <CondicionesPage />
+  </Suspense>
+);
+
+const legalMarketingRoutes = (
+  <>
+    <Route path="/privacidad" element={privacidadPage} />
+    <Route path="/condiciones" element={condicionesPage} />
+  </>
+);
+
 export default function App(): ReactElement {
   const marketing = isMarketingHost();
   const showcase = isShowcaseHost();
@@ -139,6 +160,7 @@ export default function App(): ReactElement {
         <Routes>
           <Route path="/" element={showcaseHome} />
           <Route path="/nosotros" element={nosotrosPage} />
+          {legalMarketingRoutes}
           <Route path="*" element={<RedirectToAppHost />} />
         </Routes>
       ) : (
@@ -147,11 +169,14 @@ export default function App(): ReactElement {
             <>
               <Route path="/" element={showcaseHome} />
               <Route path="/nosotros" element={nosotrosPage} />
+              {legalMarketingRoutes}
             </>
           ) : (
             <>
               <Route path="/" element={<AppRootEntry />} />
               <Route path="/nosotros" element={<RedirectToMarketingHost />} />
+              <Route path="/privacidad" element={<RedirectToMarketingHost />} />
+              <Route path="/condiciones" element={<RedirectToMarketingHost />} />
             </>
           )}
           <Route path="/login/*" element={<LoginPage />} />
