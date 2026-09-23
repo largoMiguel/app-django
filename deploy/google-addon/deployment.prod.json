@@ -7,22 +7,22 @@
   "addOns": {
     "common": {
       "name": "SoftOne PQRS",
-      "logoUrl": "https://demo.softone360.com/favicon.ico",
+      "logoUrl": "https://app.softone360.com/favicon.ico",
       "layoutProperties": {
         "primaryColor": "#3eafd4",
         "secondaryColor": "#1c2536"
       },
       "useLocaleFromApp": true,
       "homepageTrigger": {
-        "runFunction": "https://demo.softone360.com/api/v1/google-addon/gmail/open"
+        "runFunction": "https://app.softone360.com/api/v1/google-addon/gmail/open"
       },
-      "openLinkUrlPrefixes": ["https://demo.softone360.com/"]
+      "openLinkUrlPrefixes": ["https://app.softone360.com/"]
     },
     "gmail": {
       "contextualTriggers": [
         {
           "unconditional": {},
-          "onTriggerFunction": "https://demo.softone360.com/api/v1/google-addon/gmail/open"
+          "onTriggerFunction": "https://app.softone360.com/api/v1/google-addon/gmail/open"
         }
       ]
     },

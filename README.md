@@ -229,6 +229,30 @@ Complemento al IMAP/ZeptoMail: radicar desde Gmail con add-on HTTP y enviar resp
 - Frontend: `/configuracion/correo`
 - Activar envío: `GOOGLE_GMAIL_SEND_ENABLED=true` + credenciales Google en `.env`
 
+**Demo (servidor `192.168.1.2`, `/opt/softone-demo/.env`):** Gmail operativo en demo (2026-09-23).
+
+| Variable | Valor (demo) |
+|---|---|
+| OAuth web (`gmail.send`) | `762289632417-52omj9cddrb5hfrsksck1ditd65lubr3.apps.googleusercontent.com` |
+| Add-on HTTP (tokens Gmail) | `762289632417-9r0uq8vd7ed57tvfkkrcqk1vkjhpa5hs.apps.googleusercontent.com` → `GOOGLE_ADDON_CLIENT_ID` |
+| Redirect | `https://demo.softone360.com/api/v1/integrations/google/callback` |
+| Envío | `GOOGLE_GMAIL_SEND_ENABLED=true` |
+
+El **client secret** OAuth web solo en `.env` del servidor (no en el repo).
+
+Clave Fernet tokens OAuth en PostgreSQL (demo):
+
+```
+GOOGLE_TOKEN_ENCRYPTION_KEY=2FVBMQhCRrHxVmUCkbUluRp37fY/YnIFmpIONNQDBOM=
+```
+
+Manifiesto add-on: [`deploy/google-addon/deployment.json`](deploy/google-addon/deployment.json) (HTTP Deployments en GCP + **Install**).
+
+Tras cambiar variables Google: `docker compose -f deploy/docker-compose.demo.yml --env-file .env up -d --build demo-backend` en `/opt/softone-demo`.
+
+- Envío: https://demo.softone360.com/configuracion/correo → **Conectar con Google**
+- Radicación: Gmail → correo abierto → complemento **SoftOne PQRS** → **RADICAR COMO PQRS** (`email_domains`, `enable_ai_reports`, mismo email en Usuarios)
+
 ---
 
 ## Módulo PDM — Productos con varios indicadores

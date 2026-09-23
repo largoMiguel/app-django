@@ -12,6 +12,12 @@ def _app_base() -> str:
     return "https://app.softone360.com"
 
 
+def _addon_endpoint(path: str) -> str:
+    """URL HTTPS completa exigida por add-ons HTTP (no rutas relativas)."""
+    segment = (path or "").lstrip("/")
+    return f"{_app_base()}/api/v1/google-addon/{segment}"
+
+
 def card_response(*sections: dict[str, Any]) -> dict[str, Any]:
     return {
         "action": {"navigations": [{"pushCard": {"sections": list(sections)}}]},
@@ -48,12 +54,13 @@ def button_text(text: str, function_name: str, parameters: list[dict[str, str]] 
 
 
 def open_card() -> dict[str, Any]:
-    return card_response(
+    # contextualTrigger (abrir correo) exige renderActions, no action.pushCard
+    return card_update(
         section_header("Sistema PQRS", "Radique el correo abierto como PQRS en su entidad."),
         section_widgets(
             "Acción",
             [
-                button_text("RADICAR COMO PQRS", "gmail/preview"),
+                button_text("RADICAR COMO PQRS", _addon_endpoint("gmail/preview")),
             ],
         ),
     )
@@ -96,7 +103,7 @@ def preview_card(
     widgets.append(
         button_text(
             "Confirmar radicación",
-            "gmail/radicate",
+            _addon_endpoint("gmail/radicate"),
             [{"key": "preview_token", "value": preview_token}],
         )
     )

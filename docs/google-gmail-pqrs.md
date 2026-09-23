@@ -37,36 +37,81 @@ No se usan `gmail.readonly`, `gmail.modify` ni `mail.google.com`.
    - Demo: `https://demo.softone360.com/api/v1/integrations/google/callback`
    - Prod: `https://app.softone360.com/api/v1/integrations/google/callback`
 
-## Workspace Add-on HTTP
+## Workspace Add-on HTTP (radicación desde Gmail)
 
 Manifiesto: [`deploy/google-addon/deployment.json`](../deploy/google-addon/deployment.json)
 
-Ajuste `httpOptions.rootUrl` al entorno:
+Cada `runFunction` / `onTriggerFunction` debe ser una **URL HTTPS completa** (la API de deployments **no** admite `httpOptions.rootUrl`). Manifiestos:
 
-- Demo: `https://demo.softone360.com/api/v1/google-addon`
-- Prod: `https://app.softone360.com/api/v1/google-addon`
+- Demo: [`deploy/google-addon/deployment.json`](../deploy/google-addon/deployment.json)
+- Prod: [`deploy/google-addon/deployment.prod.json`](../deploy/google-addon/deployment.prod.json)
 
-Endpoints (POST):
-
-| Función | URL |
-|---|---|
-| Abrir tarjeta | `/gmail/open` |
-| Vista previa IA | `/gmail/preview` |
-| Radicar | `/gmail/radicate` |
-
-Despliegue del add-on (CLI Google):
+Comprobación rápida (debe responder **200**):
 
 ```bash
-# Requiere clasp / gcloud según su flujo Workspace
-# Subir deployment.json y publicar en prueba interna o Marketplace
+curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+  https://demo.softone360.com/api/v1/google-addon/gmail/open \
+  -H "Content-Type: application/json" -d '{}'
 ```
 
-### Instalación de prueba
+### Requisitos en SoftOne (antes de probar en Gmail)
 
-1. Admin Workspace → Apps → Google Workspace Marketplace → Add-ons internos.
-2. Desplegar versión de prueba apuntando al `rootUrl` de demo.
-3. Asignar add-on a usuarios `@*.gov.co` de prueba.
-4. Abrir un correo en Gmail → panel del add-on → **RADICAR COMO PQRS**.
+1. Usuario en SoftOne con **el mismo email** que Gmail (admin o secretario).
+2. Entidad: **`email_domains`** incluye el dominio del correo (ej. `viracacha-boyaca.gov.co`).
+3. Módulos entidad: **PQRS** + **`enable_ai_reports`** (el add-on usa IA en vista previa).
+4. OAuth envío ya probado (opcional para radicar; útil para responder después).
+
+### Google Cloud — publicar el add-on HTTP
+
+Proyecto: el mismo del Client ID OAuth (`project-ff608399-0088-434c-b2e` o el suyo).
+
+1. **APIs habilitadas**
+   - Gmail API (ya)
+   - **Google Workspace Marketplace API**
+   - **Google Workspace Add-ons API** (si aparece en la biblioteca)
+
+2. **Pantalla de consentimiento OAuth**
+   - Los scopes del add-on van en `deployment.json` (`gmail.addons.execute`, etc.), no hace falta añadirlos a mano en “Editar app” como en `gmail.send`.
+   - Sigue en **Prueba**: cada cuenta que use el add-on debe estar en **Usuarios de prueba** (igual que para OAuth web).
+
+3. **HTTP Deployments** (consola)
+   - [APIs y servicios](https://console.cloud.google.com/apis/dashboard) → **Google Workspace Marketplace SDK** → pestaña **HTTP Deployments**  
+     (o buscar “HTTP Deployments” en el proyecto).
+   - **Create new deployment** → nombre ej. `softone-pqrs-demo`.
+   - Pegar el JSON de [`deploy/google-addon/deployment.json`](../deploy/google-addon/deployment.json) (demo: `rootUrl` demo).
+   - **Submit**.
+
+4. **Client ID del add-on** (audience de `userIdToken` / `systemIdToken`)
+
+   Tras crear el deployment, en la misma pantalla o con Cloud Shell:
+
+   ```bash
+   gcloud workspace-add-ons get-authorization --project=TU_PROJECT_ID
+   ```
+
+   Copiar el **Client ID** que devuelve Google y ponerlo en el servidor:
+
+   ```env
+   GOOGLE_ADDON_CLIENT_ID=<client-id-del-add-on>
+   ```
+
+   Reiniciar `demo-backend`. (Si no lo configuras, el backend acepta también `GOOGLE_CLIENT_ID` web; en producción conviene el ID del add-on.)
+
+5. **Instalar en tu cuenta**
+   - HTTP Deployments → junto al deployment → **Install**.
+   - Inicia sesión con la cuenta institucional de prueba (`@…gov.co`).
+
+6. **Instalar para el municipio (opcional)**
+   - Admin de **Google Workspace** del dominio → **Apps** → **Google Workspace Marketplace** → complementos / apps internas, según la UI de su consola.
+   - Asignar el add-on a la O.U. de funcionarios que radicarán.
+
+### Uso en Gmail
+
+1. Abrir un **correo** (no solo la bandeja).
+2. Panel derecho → icono del complemento **SoftOne PQRS** (o “Complementos”).
+3. **RADICAR COMO PQRS** → vista previa IA → editar → confirmar radicación.
+
+Si no aparece el panel: recargar Gmail, comprobar **Install** en GCP y que la cuenta esté en usuarios de prueba.
 
 ## Variables de entorno
 

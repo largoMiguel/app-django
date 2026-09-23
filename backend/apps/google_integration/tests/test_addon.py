@@ -23,7 +23,7 @@ class AddonTests(TestCase):
         request = self.factory.post("/google-addon/gmail/open", {}, format="json")
         response = GmailAddonOpenView.as_view()(request)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("action", response.data)
+        self.assertIn("renderActions", response.data)
 
     @patch("apps.google_integration.addon_views.verify_google_id_token")
     @patch("apps.google_integration.addon_views.resolve_user_for_addon")
