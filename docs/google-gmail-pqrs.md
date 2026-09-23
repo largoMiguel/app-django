@@ -17,6 +17,7 @@ Esta integración **coexiste** con el ingreso IMAP (`ingest_pqrs_inbox`) y el en
 - `https://www.googleapis.com/auth/gmail.addons.execute`
 - `https://www.googleapis.com/auth/gmail.addons.current.message.action`
 - `https://www.googleapis.com/auth/userinfo.email`
+- `https://www.googleapis.com/auth/script.locale` (requerido si `useLocaleFromApp: true`)
 
 No se usan `gmail.readonly`, `gmail.modify` ni `mail.google.com`.
 
