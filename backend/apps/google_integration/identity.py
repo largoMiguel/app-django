@@ -21,6 +21,7 @@ def _audiences() -> list[str]:
 
 
 def verify_google_id_token(token: str) -> dict[str, Any]:
+    """Legacy: prueba client IDs OAuth (userIdToken del add-on)."""
     if not token:
         raise ValueError("Token vacío.")
     audiences = _audiences()
@@ -38,6 +39,57 @@ def verify_google_id_token(token: str) -> dict[str, Any]:
             last_exc = exc
             continue
     raise ValueError("Token de Google inválido.") from last_exc
+
+
+def verify_user_id_token(token: str) -> dict[str, Any]:
+    """userIdToken: audience = OAuth client ID del add-on (HTTP Deployments)."""
+    addon_id = (getattr(settings, "GOOGLE_ADDON_CLIENT_ID", "") or "").strip()
+    if addon_id:
+        try:
+            return id_token.verify_oauth2_token(
+                token,
+                google_requests.Request(),
+                audience=addon_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("userIdToken con GOOGLE_ADDON_CLIENT_ID falló: %s", exc)
+    return verify_google_id_token(token)
+
+
+def verify_system_id_token(token: str, http_endpoint: str) -> dict[str, Any]:
+    """systemIdToken: audience = URL HTTPS del endpoint invocado + email SA del add-on."""
+    if not token:
+        raise ValueError("Token vacío.")
+    endpoint = (http_endpoint or "").strip()
+    if not endpoint:
+        raise ValueError("Falta URL del endpoint para validar systemIdToken.")
+    endpoint = endpoint.split("?", 1)[0].rstrip("/")
+    candidates = [endpoint]
+    if not endpoint.endswith("/"):
+        candidates.append(endpoint + "/")
+
+    last_exc: Exception | None = None
+    claims: dict[str, Any] | None = None
+    for aud in candidates:
+        try:
+            claims = id_token.verify_oauth2_token(
+                token,
+                google_requests.Request(),
+                audience=aud,
+            )
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            continue
+    if claims is None:
+        raise ValueError("Token de Google inválido (systemIdToken).") from last_exc
+
+    expected_sa = (getattr(settings, "GOOGLE_ADDON_SERVICE_ACCOUNT_EMAIL", "") or "").strip().lower()
+    if expected_sa:
+        email = (claims.get("email") or "").strip().lower()
+        if email != expected_sa:
+            raise ValueError("systemIdToken: cuenta de servicio del add-on no coincide.")
+    return claims
 
 
 def email_from_id_token_claims(claims: dict[str, Any]) -> str:

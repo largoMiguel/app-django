@@ -27,7 +27,8 @@ class AddonTests(TestCase):
         nav = response.data["action"]["navigations"][0]
         self.assertIn("pushCard", nav)
 
-    @patch("apps.google_integration.addon_views.verify_google_id_token")
+    @patch("apps.google_integration.addon_views.verify_system_id_token")
+    @patch("apps.google_integration.addon_views.verify_user_id_token")
     @patch("apps.google_integration.addon_views.resolve_user_for_addon")
     @patch("apps.google_integration.addon_views.ensure_entity")
     @patch("apps.google_integration.addon_views.fetch_and_parse_message")
@@ -42,13 +43,15 @@ class AddonTests(TestCase):
         mock_fetch,
         mock_entity,
         mock_user,
-        mock_verify,
+        mock_user_token,
+        mock_system_token,
     ):
         from apps.entities.models import Entity
         from apps.google_integration.mime_parse import ParsedGmailMessage
 
         entity = Entity.objects.create(name="E", code="E", slug="e-slug", enable_ai_reports=True)
-        mock_verify.return_value = {"email": "a@gov.co", "email_verified": True}
+        mock_system_token.return_value = {"email": "service@gcp-sa-gsuiteaddons.iam.gserviceaccount.com"}
+        mock_user_token.return_value = {"email": "a@gov.co", "email_verified": True}
         mock_user.return_value = User.objects.create_user(email="a@gov.co", password="x")
         mock_entity.return_value = entity
         mock_fetch.return_value = (

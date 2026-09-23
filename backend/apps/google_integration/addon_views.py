@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 
+from django.conf import settings
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.permissions import AllowAny
@@ -22,7 +23,8 @@ from apps.google_integration.identity import (
     email_from_id_token_claims,
     extract_addon_auth,
     extract_gmail_message_context,
-    verify_google_id_token,
+    verify_system_id_token,
+    verify_user_id_token,
 )
 from apps.google_integration.preview_cache import load_preview, store_preview
 from apps.google_integration.services.radicar import (
@@ -71,10 +73,22 @@ def _form_inputs(event: dict) -> dict:
     return out
 
 
-def _addon_context(event: dict) -> tuple[str, str, str, str, str]:
+def _addon_http_endpoint(request) -> str:
+    path = (getattr(request, "path", "") or "").split("?", 1)[0]
+    public = (getattr(settings, "APP_PUBLIC_URL", "") or "").strip().rstrip("/")
+    if public and path:
+        return f"{public}{path}"
+    uri = request.build_absolute_uri().split("?", 1)[0]
+    if uri.startswith("http://"):
+        uri = "https://" + uri[len("http://") :]
+    return uri
+
+
+def _addon_context(event: dict, request) -> tuple[str, str, str, str, str]:
     _user_oauth, user_id_token, system_id_token = extract_addon_auth(event)
-    verify_google_id_token(system_id_token)
-    claims = verify_google_id_token(user_id_token)
+    endpoint = _addon_http_endpoint(request)
+    verify_system_id_token(system_id_token, endpoint)
+    claims = verify_user_id_token(user_id_token)
     google_email = email_from_id_token_claims(claims)
     message_id, thread_id, access_token = extract_gmail_message_context(event)
     return google_email, message_id, thread_id, access_token, user_id_token
@@ -106,7 +120,7 @@ class GmailAddonPreviewView(APIView):
     def post(self, request):
         event = _parse_event(request)
         try:
-            google_email, message_id, _thread, access_token, _ = _addon_context(event)
+            google_email, message_id, _thread, access_token, _ = _addon_context(event, request)
             user = resolve_user_for_addon(google_email)
             entity = ensure_entity(user, google_email)
 
@@ -192,7 +206,7 @@ class GmailAddonRadicateView(APIView):
             return Response(error_card("La vista previa expiró. Analice el correo nuevamente."))
 
         try:
-            google_email, message_id, _thread, access_token, _ = _addon_context(event)
+            google_email, message_id, _thread, access_token, _ = _addon_context(event, request)
             if preview_payload.get("message_id") != message_id:
                 return Response(error_card("El mensaje cambió. Genere la vista previa de nuevo."))
             if preview_payload.get("google_email", "").lower() != google_email.lower():
