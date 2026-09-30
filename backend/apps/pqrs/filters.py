@@ -17,6 +17,7 @@ class PQRSFilterSet(django_filters.FilterSet):
     fecha_desde = django_filters.DateFilter(field_name="fecha_solicitud", lookup_expr="date__gte")
     fecha_hasta = django_filters.DateFilter(method="filter_fecha_hasta")
     assigned_to = django_filters.NumberFilter(method="filter_assigned_to")
+    assigned_user = django_filters.NumberFilter(method="filter_assigned_user")
 
     class Meta:
         model = PQRS
@@ -26,6 +27,11 @@ class PQRSFilterSet(django_filters.FilterSet):
         if value is None:
             return queryset
         return queryset.filter(assigned_secretarias__id=value).distinct()
+
+    def filter_assigned_user(self, queryset, name, value):
+        if not value:
+            return queryset
+        return queryset.filter(assigned_users__id=value).distinct()
 
     def filter_pendientes(self, queryset, name, value):
         if value:

@@ -728,6 +728,155 @@ def enviar_notificacion_asignacion(
     return registro
 
 
+def _emails_usuarios(users, *, excluir=None) -> list[str]:
+    excluir_email = (getattr(excluir, "email", "") or "").strip().lower()
+    recipients: list[str] = []
+    seen: set[str] = set()
+    for user in users:
+        email = (getattr(user, "email", "") or "").strip()
+        lower = email.lower()
+        if not email or lower in seen or lower == excluir_email:
+            continue
+        recipients.append(email)
+        seen.add(lower)
+    return recipients
+
+
+def _build_delegacion_contratista_bodies(
+    pqrs: PQRS,
+    *,
+    justificacion: str = "",
+    asignado_por=None,
+) -> tuple[str, str, str]:
+    entity_name = _entity_name(pqrs)
+    tipo_label = _tipo_label(pqrs)
+    subject = f"PQRS delegada — {pqrs.numero_radicado}"
+    fecha_sol = (
+        format_fecha_hora_co(pqrs.fecha_solicitud)
+        if pqrs.fecha_solicitud
+        else format_now_fecha_hora_co()
+    )
+    fecha_venc = format_fecha_co(pqrs.fecha_vencimiento)
+    asignador = ""
+    if asignado_por is not None:
+        asignador = getattr(asignado_por, "full_name", None) or getattr(asignado_por, "email", "") or ""
+    secretaria = getattr(pqrs, "assigned_to", None)
+    secretaria_nombre = secretaria.nombre if secretaria else "su dependencia"
+    just_txt = (justificacion or "").strip()
+    detail_url = _pqrs_detail_url(pqrs)
+
+    text_body = (
+        f"Se le ha delegado una {tipo_label} en {entity_name}.\n\n"
+        f"Dependencia: {secretaria_nombre}\n"
+        f"Radicado: {pqrs.numero_radicado}\n"
+        f"Asunto: {pqrs.asunto}\n"
+        f"Fecha de solicitud: {fecha_sol}\n"
+        f"Plazo de respuesta (Ley 1755/2015): {fecha_venc}\n"
+    )
+    if asignador:
+        text_body += f"Delegado por: {asignador}\n"
+    if just_txt:
+        text_body += f"Justificación: {just_txt}\n"
+    text_body += f"\nVer y gestionar la PQRS: {detail_url}\n"
+
+    inner = f"""
+    <p style="color:#475569;font-size:14px;">
+      Su secretario le delegó una <strong>{html.escape(tipo_label)}</strong> de
+      <strong>{html.escape(secretaria_nombre)}</strong>.
+    </p>
+    <div style="background:#f1f5f9;border-radius:6px;padding:12px 16px;margin:12px 0;
+                font-size:15px;font-weight:bold;color:#1e293b;text-align:center;">
+      {html.escape(pqrs.numero_radicado)}
+    </div>
+    <table style="width:100%;font-size:13px;color:#475569;margin-top:12px;">
+      <tr><td style="padding:4px 0;font-weight:600;">Asunto:</td>
+          <td>{html.escape(pqrs.asunto)}</td></tr>
+      <tr><td style="padding:4px 0;font-weight:600;">Fecha solicitud:</td>
+          <td>{html.escape(fecha_sol)}</td></tr>
+      <tr><td style="padding:4px 0;font-weight:600;">Plazo de respuesta:</td>
+          <td>{html.escape(fecha_venc)}</td></tr>
+    """
+    if asignador:
+        inner += f"""
+      <tr><td style="padding:4px 0;font-weight:600;">Delegado por:</td>
+          <td>{html.escape(asignador)}</td></tr>
+        """
+    if just_txt:
+        inner += f"""
+      <tr><td style="padding:4px 0;font-weight:600;vertical-align:top;">Justificación:</td>
+          <td>{html.escape(just_txt)}</td></tr>
+        """
+    inner += "</table>"
+    inner += _email_cta_button(detail_url, "Ver PQRS delegada")
+    inner += f"""
+    <p style="color:#64748b;font-size:12px;text-align:center;margin-top:8px;">
+      Si el botón no funciona, copie este enlace:<br>
+      <a href="{html.escape(detail_url, quote=True)}" style="color:#0e7490;word-break:break-all;">
+        {html.escape(detail_url)}
+      </a>
+    </p>
+    """
+    html_body = _wrap_html(entity_name, "Notificación de asignación PQRS", inner)
+    return subject, text_body, html_body
+
+
+def enviar_notificacion_delegacion_contratista(
+    pqrs: PQRS,
+    contratistas,
+    *,
+    asignado_por=None,
+    justificacion: str = "",
+) -> PQRSCorreo | None:
+    """Avisa por correo a los contratistas recién delegados. Queda como notificación de asignación."""
+    recipients = _emails_usuarios(contratistas, excluir=asignado_por)
+    subject, text_body, html_body = _build_delegacion_contratista_bodies(
+        pqrs,
+        justificacion=justificacion,
+        asignado_por=asignado_por,
+    )
+    if not recipients:
+        logger.info(
+            "PQRS %s — delegación sin correo: los contratistas no tienen email distinto al remitente.",
+            pqrs.numero_radicado,
+        )
+        return None
+
+    registro = _crear_registro_correo(
+        pqrs=pqrs,
+        tipo=TipoCorreoPQRS.ASIGNACION,
+        asunto=subject,
+        cuerpo_resumen=text_body,
+        destinatarios=recipients,
+        enviado_por=asignado_por,
+    )
+    ok, request_id, error = _post_zeptomail(
+        from_name=_from_name(pqrs),
+        recipients=recipients,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+        reply_to=_reply_to(pqrs),
+    )
+    if ok:
+        registro.estado = EstadoCorreoPQRS.ENVIADO
+        registro.request_id = request_id
+        for d in registro.destinatarios:
+            d["estado"] = "enviado"
+    else:
+        registro.estado = EstadoCorreoPQRS.ERROR
+        registro.error = error
+        for d in registro.destinatarios:
+            d["estado"] = "error"
+            d["motivo"] = error
+    registro.save(update_fields=["estado", "request_id", "error", "destinatarios", "updated_at"])
+    logger.info(
+        "Delegación PQRS %s — correo a contratistas (%s)",
+        pqrs.numero_radicado,
+        ", ".join(recipients) if ok else f"error: {error}",
+    )
+    return registro
+
+
 def enviar_radicacion(pqrs: PQRS) -> PQRSCorreo | None:
     """Envía confirmación de radicación al ciudadano (portal público)."""
     email = (pqrs.email_ciudadano or "").strip()

@@ -86,7 +86,7 @@ export default function PQRSUserAssignmentPanel({
               {isAssigned ? "Contratistas asignados" : "Asignar a contratista"}
             </h3>
             <p className="mt-0.5 text-xs text-white/70">
-              Paso 2: delegue la gestión a uno o más contratistas de su secretaría.
+              Paso 2: delegue la gestión a uno o más contratistas. Cada uno nuevo recibe correo.
             </p>
           </div>
           {isAssigned && !editing && (

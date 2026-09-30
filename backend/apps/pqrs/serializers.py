@@ -231,6 +231,7 @@ class PQRSListSerializer(serializers.ModelSerializer):
         source="assigned_to.nombre", read_only=True, default=None
     )
     assigned_secretarias = serializers.SerializerMethodField()
+    assigned_users = serializers.SerializerMethodField()
     is_anonima = serializers.SerializerMethodField()
     archivos_count = serializers.IntegerField(read_only=True)
 
@@ -243,6 +244,7 @@ class PQRSListSerializer(serializers.ModelSerializer):
             "assigned_to",
             "assigned_to_nombre",
             "assigned_secretarias",
+            "assigned_users",
             "numero_radicado",
             "tipo_solicitud",
             "asunto",
@@ -263,6 +265,15 @@ class PQRSListSerializer(serializers.ModelSerializer):
         if secretarias is None:
             secretarias = obj.assigned_secretarias.order_by("nombre", "id")
         return [{"id": s.id, "nombre": s.nombre} for s in secretarias]
+
+    def get_assigned_users(self, obj) -> list[dict]:
+        users = getattr(obj, "_prefetched_objects_cache", {}).get("assigned_users")
+        if users is None:
+            users = obj.assigned_users.order_by("full_name", "email")
+        return [
+            {"id": u.id, "email": u.email, "full_name": u.full_name or ""}
+            for u in users
+        ]
 
     def get_is_anonima(self, obj) -> bool:
         return not (obj.nombre_ciudadano and obj.nombre_ciudadano.strip())
@@ -328,7 +339,7 @@ class AsignarSerializer(serializers.Serializer):
 
 
 class AsignarUsuarioSerializer(serializers.Serializer):
-    user_ids = serializers.ListField(child=serializers.IntegerField(), min_length=1)
+    user_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=True)
     justificacion = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def validate_user_ids(self, value):

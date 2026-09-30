@@ -15,6 +15,7 @@ import {
   ESTADO_LABEL,
 } from "@/core/api/pqrs";
 import { secretariasApi } from "@/core/api/entities";
+import { usersApi } from "@/core/api/users";
 import { formatFechaCO } from "@/core/datetime";
 import { usePqrsList, usePqrsStats, useInvalidatePqrs } from "@/core/api/hooks/usePqrs";
 import { formatApiError } from "@/core/api/errors";
@@ -35,6 +36,12 @@ function tiempoRestante(p: PQRS): { text: string; cls: string } {
   return { text: `${dias}d`, cls: "text-slate-500" };
 }
 
+function nombresContratistas(p: PQRS): string {
+  const users = p.assigned_users ?? [];
+  if (users.length === 0) return "Sin delegar";
+  return users.map((u) => u.full_name || u.email).join(", ");
+}
+
 function pageNumbers(totalPages: number, currentPage: number): (number | "...")[] {
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
   if (currentPage <= 4) return [1, 2, 3, 4, 5, "...", totalPages];
@@ -47,6 +54,8 @@ function pageNumbers(totalPages: number, currentPage: number): (number | "...")[
 export default function PQRSListPage() {
   const { user } = useAuthStore();
   const canAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_CHANGE] });
+  const isSecretario =
+    canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_VIEW] }) && !canAdmin;
   const navigate = useNavigate();
   const location = useLocation();
   const invalidatePqrs = useInvalidatePqrs();
@@ -70,6 +79,7 @@ export default function PQRSListPage() {
   const filterEstado = (urlParams.get("estado") as EstadoPQRS) || "";
   const filterTipo = (urlParams.get("tipo") as TipoSolicitud) || "";
   const filterSecretaria = urlParams.get("secretaria") || "";
+  const filterContratista = urlParams.get("contratista") || "";
   const filterPendientes = urlParams.get("filtro") === "pendientes";
   const modoAlerta = urlParams.get("filtro") === "alerta";
   const currentPage = Math.max(1, Number(urlParams.get("page") || "1") || 1);
@@ -94,11 +104,12 @@ export default function PQRSListPage() {
     };
     if (filterTipo) p.tipo_solicitud = filterTipo;
     if (filterSecretaria) p.assigned_to = filterSecretaria;
+    if (filterContratista) p.assigned_user = filterContratista;
     if (filterPendientes) p.pendientes = true;
     else if (modoAlerta) p.alerta = true;
     else if (filterEstado) p.estado = filterEstado;
     return p;
-  }, [currentPage, filterEstado, filterTipo, filterSecretaria, filterPendientes, modoAlerta]);
+  }, [currentPage, filterEstado, filterTipo, filterSecretaria, filterContratista, filterPendientes, modoAlerta]);
 
   const { data, isLoading, isError, error } = usePqrsList(listParams);
   const { data: complianceData } = usePqrsCompliance(canAdmin && !isLoading);
@@ -171,6 +182,14 @@ export default function PQRSListPage() {
     { enabled: canVerCorreoAlerta },
   );
   const correoAlertas = correoAlertaData?.results ?? [];
+
+  const { data: contratistas = [] } = useQuery({
+    queryKey: ["pqrs-contratistas", user?.entity?.id],
+    queryFn: () => usersApi.list({ role: "contratista", page_size: 200 }),
+    enabled: isSecretario,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
 
   const { data: secretarias = [] } = useQuery({
     queryKey: ["secretarias", user?.entity?.id],
@@ -279,6 +298,7 @@ export default function PQRSListPage() {
           Filtros de Búsqueda
         </div>
         <div className="grid grid-cols-1 gap-x-4 gap-y-3 p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
+          {canAdmin && (
           <div>
             <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-500">
               <Users className="h-3.5 w-3.5" /> Secretaría
@@ -296,6 +316,26 @@ export default function PQRSListPage() {
               ))}
             </select>
           </div>
+          )}
+          {isSecretario && (
+          <div>
+            <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-500">
+              <Users className="h-3.5 w-3.5" /> Contratista
+            </label>
+            <select
+              value={filterContratista}
+              onChange={(e) => updateParams({ contratista: e.target.value || null })}
+              className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-700 focus:border-[#3eafd4] focus:outline-none focus:ring-1 focus:ring-[#3eafd4]"
+            >
+              <option value="">Todos</option>
+              {contratistas.map((u) => (
+                <option key={u.id} value={String(u.id)}>
+                  {u.full_name || u.email}
+                </option>
+              ))}
+            </select>
+          </div>
+          )}
           <div>
             <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-500">
               <ListFilter className="h-3.5 w-3.5" /> Estado
@@ -345,6 +385,7 @@ export default function PQRSListPage() {
                   estado: null,
                   tipo: null,
                   secretaria: null,
+                  contratista: null,
                   filtro: null,
                 })
               }
@@ -358,6 +399,7 @@ export default function PQRSListPage() {
           <Info className="h-3.5 w-3.5" />
           {filterPendientes && "Filtro: pendientes · "}
           {modoAlerta && "Filtro: vencidas o por vencer (≤5 días) · "}
+          {filterContratista && "Filtro: contratista · "}
           Mostrando {items.length} de {totalCount} PQRS
         </div>
       </div>
@@ -392,6 +434,7 @@ export default function PQRSListPage() {
                 <div className="flex flex-wrap gap-2 text-xs text-slate-500">
                   <span>{TIPO_SOLICITUD_LABEL[p.tipo_solicitud]}</span>
                   <span>{p.assigned_to_nombre || "Sin asignar"}</span>
+                  {isSecretario && <span>{nombresContratistas(p)}</span>}
                   <span className={t.cls}>{t.text}</span>
                 </div>
                 {canDelete && (
@@ -421,6 +464,9 @@ export default function PQRSListPage() {
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Solicitante</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Asunto</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Secretaría</th>
+                {isSecretario && (
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700">Contratista</th>
+                )}
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Estado</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Fecha</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">
@@ -434,14 +480,14 @@ export default function PQRSListPage() {
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={isSecretario ? 10 : 9} className="px-4 py-8 text-center text-slate-500">
                     Cargando…
                   </td>
                 </tr>
               )}
               {!isLoading && !loadError && items.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-12 py-12 text-center text-slate-400">
+                  <td colSpan={isSecretario ? 10 : 9} className="px-12 py-12 text-center text-slate-400">
                     <FileText className="mx-auto mb-2 h-10 w-10" />
                     No hay PQRS para mostrar.
                   </td>
@@ -486,6 +532,11 @@ export default function PQRSListPage() {
                       </span>
                     )}
                   </td>
+                  {isSecretario && (
+                    <td className="max-w-[180px] truncate px-4 py-3 text-slate-600" title={nombresContratistas(p)}>
+                      {nombresContratistas(p)}
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <span
                       className={`rounded px-2 py-0.5 text-[0.72rem] font-medium ${ESTADO_LABEL[p.estado].color}`}

@@ -42,9 +42,15 @@ from .serializers import (
     ResponderSerializer,
 )
 from .services.correo_alerta import descartar_alerta_correo
-from .services.email import enviar_respuesta, merge_corrected_emails, reenviar_correo
+from .services.email import (
+    enviar_notificacion_delegacion_contratista,
+    enviar_respuesta,
+    merge_corrected_emails,
+    reenviar_correo,
+)
 from .services.ai import extraer_pqrs_con_ia
 from .services.creation import (
+    aplicar_asignacion_radicacion,
     attach_archivos_from_uploads,
     crear_pqrs_desde_ia,
     rechazar_asignacion_secretaria,
@@ -85,6 +91,36 @@ def _supervised_user_ids(user) -> set[int]:
     from apps.accounts.memberships import contratista_user_ids_for_secretario
 
     return set(contratista_user_ids_for_secretario(user))
+
+
+def _notificar_delegacion_contratistas(
+    pqrs_id: int,
+    user_ids: list[int],
+    asignado_por_id: int,
+    justificacion: str,
+) -> None:
+    """Correo a contratistas nuevos. Corre después del commit para no revertir la delegación."""
+    pqrs = (
+        PQRS.objects.select_related("entity", "assigned_to")
+        .filter(pk=pqrs_id)
+        .first()
+    )
+    if pqrs is None or not user_ids:
+        return
+    contratistas = list(User.objects.filter(pk__in=user_ids, is_active=True))
+    asignado_por = User.objects.filter(pk=asignado_por_id).first()
+    try:
+        enviar_notificacion_delegacion_contratista(
+            pqrs,
+            contratistas,
+            asignado_por=asignado_por,
+            justificacion=justificacion,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "Error notificando delegación PQRS %s a contratistas",
+            pqrs.numero_radicado,
+        )
 
 
 def _can_create_pqrs(user) -> bool:
@@ -202,7 +238,8 @@ class PQRSViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = PQRS.objects.select_related("entity", "assigned_to", "created_by").prefetch_related(
-            "assigned_secretarias"
+            "assigned_secretarias",
+            "assigned_users",
         )
         if self.action == "list":
             qs = qs.annotate(archivos_count=Count("archivos"))
@@ -304,6 +341,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
                 dias_respuesta=dias,
                 fecha_vencimiento=fecha_venc,
             )
+            aplicar_asignacion_radicacion(pqrs, user)
         # Adjuntos múltiples (multipart con campo "archivos")
         files = self.request.FILES.getlist("archivos") or self.request.FILES.getlist("archivos[]")
         if files:
@@ -408,6 +446,10 @@ class PQRSViewSet(viewsets.ModelViewSet):
         ser.is_valid(raise_exception=True)
         user_ids = ser.validated_data["user_ids"]
         target_users = list(User.objects.filter(pk__in=user_ids, entity_id=pqrs.entity_id))
+        if len(target_users) != len(set(user_ids)):
+            raise ValidationError(
+                {"user_ids": "Uno o más usuarios no existen o no pertenecen a la entidad."}
+            )
 
         allowed = _supervised_user_ids(user)
         invalid = [u.id for u in target_users if u.id not in allowed]
@@ -416,14 +458,33 @@ class PQRSViewSet(viewsets.ModelViewSet):
                 {"user_ids": "Solo puede asignar a contratistas bajo su supervisión."}
             )
 
+        previous_ids = set(pqrs.assigned_users.values_list("id", flat=True))
+        nuevos = [u for u in target_users if u.id not in previous_ids]
+        justificacion = (ser.validated_data.get("justificacion") or "").strip()
+        if not justificacion:
+            if target_users:
+                nombres = ", ".join((u.full_name or u.email) for u in target_users)
+                justificacion = f"Delegada a: {nombres}"
+            else:
+                justificacion = "Se quitó la delegación a contratistas."
+
         with transaction.atomic():
             pqrs.assigned_users.set(target_users)
             AsignacionAuditoria.objects.create(
                 pqrs=pqrs,
                 usuario_nuevo=user,
                 accion="delegacion_usuario",
-                justificacion=ser.validated_data.get("justificacion") or "",
+                justificacion=justificacion,
             )
+            if nuevos:
+                transaction.on_commit(
+                    lambda: _notificar_delegacion_contratistas(
+                        pqrs.pk,
+                        [u.pk for u in nuevos],
+                        user.pk,
+                        justificacion,
+                    )
+                )
         pqrs.refresh_from_db()
         return Response(PQRSSerializer(pqrs, context={"request": request}).data)
 

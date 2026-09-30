@@ -1001,12 +1001,7 @@ export default function PQRSDetailPage() {
                           {a.accion === "edicion" && (
                             <Pencil className="h-3.5 w-3.5 text-blue-500" />
                           )}
-                          {a.accion === "asignacion" && "Asignación"}
-                          {a.accion === "reasignacion" && "Reasignación"}
-                          {a.accion === "rechazo" && "Rechazo de asignación"}
-                          {a.accion === "respuesta" && "Respuesta"}
-                          {a.accion === "reapertura" && "Reapertura"}
-                          {a.accion === "edicion" && "Edición de datos"}
+                          {ACCION_AUDITORIA_LABEL[a.accion] || a.accion}
                         </span>
                         <span className="text-xs text-slate-500">
                           {formatFechaHoraCO(a.fecha_asignacion, "")}
@@ -1091,6 +1086,17 @@ const TIPO_CORREO_LABEL: Record<string, string> = {
   radicacion: "Radicación",
   respuesta: "Respuesta",
   asignacion: "Asignación",
+};
+
+const ACCION_AUDITORIA_LABEL: Record<string, string> = {
+  asignacion: "Asignación",
+  reasignacion: "Reasignación",
+  rechazo: "Rechazo de asignación",
+  respuesta: "Respuesta",
+  reapertura: "Reapertura",
+  edicion: "Edición de datos",
+  delegacion_usuario: "Delegación a contratista",
+  creacion_ia: "Radicación",
 };
 
 function estadoCorreoBadge(estado: string) {

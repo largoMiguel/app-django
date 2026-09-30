@@ -503,7 +503,11 @@ export default function PQRSDashboard() {
                 </thead>
                 <tbody>
                   {contratistaStats.map((s) => (
-                    <tr key={s.user_id} className="border-b border-slate-50 hover:bg-slate-50">
+                    <tr
+                      key={s.user_id}
+                      className="cursor-pointer border-b border-slate-50 hover:bg-slate-50"
+                      onClick={() => navigate(`/pqrs/solicitudes?contratista=${s.user_id}`)}
+                    >
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-800">{s.nombre}</div>
                         <div className="text-xs text-slate-500">{s.email}</div>

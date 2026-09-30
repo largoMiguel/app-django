@@ -172,6 +172,166 @@ def _save_archivo(
     arch.save()
 
 
+def _secretaria_activa(secretaria: Secretaria | None, entity_id: int) -> Secretaria | None:
+    if (
+        secretaria is None
+        or not secretaria.is_active
+        or secretaria.entity_id != entity_id
+    ):
+        return None
+    return secretaria
+
+
+def _rol_y_secretaria_en_entidad(user, entity_id: int) -> tuple[str, Secretaria | None]:
+    """Rol y secretaría del usuario en la entidad de la PQRS.
+
+    En una petición web usa el contexto de la membresía activa. En correo
+    (sin request) lee la membresía de esa entidad, no el caché de otra.
+    """
+    if user is None or not getattr(user, "pk", None):
+        return "", None
+
+    active_entity = getattr(user, "_active_entity_id", None)
+    active_role = (getattr(user, "_active_role", None) or "").lower()
+    if active_entity == entity_id and active_role:
+        return active_role, getattr(user, "secretaria", None)
+
+    from apps.accounts.models import UserEntityMembership
+
+    membership = (
+        UserEntityMembership.objects.filter(
+            user_id=user.pk,
+            entity_id=entity_id,
+            is_active=True,
+        )
+        .select_related("secretaria")
+        .first()
+    )
+    if membership:
+        return (membership.role or "").lower(), membership.secretaria
+
+    if getattr(user, "entity_id", None) == entity_id:
+        return (getattr(user, "role", "") or "").lower(), getattr(user, "secretaria", None)
+    return "", None
+
+
+def _secretarias_sugeridas_por_ia(extraido: dict[str, Any], entity_id: int) -> tuple[list[Secretaria], str]:
+    sec_ids = list(extraido.get("secretaria_ids") or [])
+    if not sec_ids and extraido.get("secretaria_id"):
+        sec_ids = [extraido["secretaria_id"]]
+    secretarias = list(
+        Secretaria.objects.filter(
+            pk__in=sec_ids,
+            entity_id=entity_id,
+            is_active=True,
+        ).order_by("nombre", "id")
+    )
+    just = (extraido.get("secretaria_justificacion") or "").strip()
+    if not just and secretarias:
+        nombres = ", ".join(s.nombre for s in secretarias)
+        just = f"Asignación automática a {nombres}"
+    return secretarias, just
+
+
+def resolver_secretarias_radicacion(
+    user,
+    entity: Entity,
+    extraido: dict[str, Any] | None = None,
+    *,
+    secretaria_fallback: Secretaria | None = None,
+) -> tuple[list[Secretaria], str, str]:
+    """Decide la asignación al radicar.
+
+    - Admin: nunca autoasigna (queda recibida para asignación manual).
+    - Secretario: siempre su secretaría en esa entidad, aunque la IA sugiera otra.
+    - Portal ciudadano u otro rol: sugerencia de la IA, si la hay.
+    """
+    extraido = extraido or {}
+    if user is not None and getattr(user, "pk", None):
+        role, secretaria = _rol_y_secretaria_en_entidad(user, entity.id)
+        if role == "admin":
+            return [], "", "admin"
+        if role == "secretario":
+            chosen = _secretaria_activa(secretaria, entity.id) or _secretaria_activa(
+                secretaria_fallback, entity.id
+            )
+            if chosen is None:
+                from apps.accounts.models import UserEntityMembership
+
+                membership = (
+                    UserEntityMembership.objects.filter(
+                        user_id=user.pk,
+                        entity_id=entity.id,
+                        is_active=True,
+                        role="secretario",
+                    )
+                    .select_related("secretaria")
+                    .first()
+                )
+                if membership:
+                    chosen = _secretaria_activa(membership.secretaria, entity.id)
+            if chosen:
+                return (
+                    [chosen],
+                    f"Asignación automática a {chosen.nombre} (secretario que radica)",
+                    "secretario",
+                )
+            logger.warning(
+                "Secretario %s radicó en la entidad %s sin secretaría activa; la PQRS queda sin asignar.",
+                getattr(user, "email", user.pk),
+                entity.id,
+            )
+            return [], "", "secretario"
+        if role == "":
+            roles = user_roles(user)
+            if "admin" in roles and "secretario" not in roles:
+                return [], "", "admin"
+            if "secretario" in roles and "admin" not in roles:
+                chosen = _secretaria_activa(getattr(user, "secretaria", None), entity.id) or _secretaria_activa(
+                    secretaria_fallback, entity.id
+                )
+                if chosen:
+                    return (
+                        [chosen],
+                        f"Asignación automática a {chosen.nombre} (secretario que radica)",
+                        "secretario",
+                    )
+                return [], "", "secretario"
+            if "admin" in roles:
+                return [], "", "admin"
+
+    secretarias, just = _secretarias_sugeridas_por_ia(extraido, entity.id)
+    return secretarias, just, "ia"
+
+
+def aplicar_asignacion_radicacion(
+    pqrs: PQRS,
+    user,
+    *,
+    extraido: dict[str, Any] | None = None,
+    secretaria_fallback: Secretaria | None = None,
+    notificar: bool = True,
+) -> str:
+    """Aplica la regla de radicación. Retorna el origen: admin, secretario, ia o ninguna."""
+    secretarias, just, origen = resolver_secretarias_radicacion(
+        user,
+        pqrs.entity,
+        extraido,
+        secretaria_fallback=secretaria_fallback,
+    )
+    if not secretarias:
+        return origen
+    prefix = "[IA] " if origen == "ia" else ""
+    sincronizar_asignaciones(
+        pqrs,
+        secretarias,
+        user=user,
+        justificacion=f"{prefix}{just}".strip(),
+        notificar=notificar,
+    )
+    return origen
+
+
 def _sync_assigned_to_principal(pqrs: PQRS, secretarias: list[Secretaria]) -> None:
     pqrs.assigned_to = secretarias[0] if secretarias else None
 
@@ -352,40 +512,13 @@ def crear_pqrs_desde_ia(
             fecha_vencimiento=sumar_dias_habiles(fecha_base, dias),
         )
 
-        roles = user_roles(created_by) if created_by else set()
-        secretarias: list[Secretaria] = []
-        just = ""
-
-        if (
-            "secretario" in roles
-            and secretaria_fallback
-            and secretaria_fallback.is_active
-            and secretaria_fallback.entity_id == entity.id
-        ):
-            secretarias = [secretaria_fallback]
-            just = f"Asignación automática a {secretaria_fallback.nombre} (remitente secretario)"
-        else:
-            sec_ids = extraido.get("secretaria_ids") or []
-            if not sec_ids and extraido.get("secretaria_id"):
-                sec_ids = [extraido["secretaria_id"]]
-            secretarias = list(
-                Secretaria.objects.filter(
-                    pk__in=sec_ids, entity_id=entity.id, is_active=True
-                ).order_by("nombre", "id")
-            )
-            just = extraido.get("secretaria_justificacion") or ""
-            if not just and secretarias:
-                nombres = ", ".join(s.nombre for s in secretarias)
-                just = f"Asignación automática a {nombres}"
-
-        if secretarias:
-            sincronizar_asignaciones(
-                pqrs,
-                secretarias,
-                user=created_by,
-                justificacion=f"[IA] {just}".strip(),
-                notificar=True,
-            )
+        aplicar_asignacion_radicacion(
+            pqrs,
+            created_by,
+            extraido=extraido,
+            secretaria_fallback=secretaria_fallback,
+            notificar=True,
+        )
 
         AsignacionAuditoria.objects.create(
             pqrs=pqrs,
