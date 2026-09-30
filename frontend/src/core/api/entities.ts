@@ -104,8 +104,26 @@ export const secretariasApi = {
         },
       )
       .then((r) => parsePaginated(r.data)),
-  list: (entityId?: number) =>
-    secretariasApi.listPaginated(entityId).then((d) => d.results),
+  /** Todas las secretarías de la entidad (page_size máximo). Evita perder la última página. */
+  list: async (entityId?: number) => {
+    const first = await secretariasApi.listPaginated(entityId, { page_size: 100 });
+    if (!first.next || first.results.length >= first.count) {
+      return first.results;
+    }
+    const all = [...first.results];
+    let page = 2;
+    while (all.length < first.count) {
+      const next = await secretariasApi.listPaginated(entityId, {
+        page_size: 100,
+        page,
+      });
+      if (next.results.length === 0) break;
+      all.push(...next.results);
+      page += 1;
+      if (!next.next) break;
+    }
+    return all;
+  },
   create: (payload: Partial<Secretaria>) =>
     api.post<Secretaria>("/secretarias/", payload).then((r) => r.data),
   update: (id: number, payload: Partial<Secretaria>) =>
