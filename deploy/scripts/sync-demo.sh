@@ -2,7 +2,7 @@
 # Sincroniza el repo hacia /opt/softone-demo (preserva .env).
 set -euo pipefail
 
-REMOTE="${1:-softone@192.168.1.2}"
+REMOTE="${1:-softone-prod}"
 REMOTE_PATH="/opt/softone-demo"
 DEPLOY_KEY="$(cd "$(dirname "$0")/.." && pwd)/keys/softone_deploy"
 RSYNC_SSH="ssh -o StrictHostKeyChecking=accept-new"

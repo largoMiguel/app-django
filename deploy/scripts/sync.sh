@@ -2,7 +2,7 @@
 # Sincroniza el repositorio local hacia el servidor preservando .env y secretos.
 set -euo pipefail
 
-REMOTE="${1:-softone@192.168.1.2}"
+REMOTE="${1:-softone-prod}"
 REMOTE_PATH="/opt/softone-app"
 
 cd "$(dirname "$0")/../.."

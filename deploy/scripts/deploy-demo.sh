@@ -107,5 +107,5 @@ ensure_prod_tunnel_ingress() {
 ensure_prod_tunnel_ingress
 
 echo
-echo "OK. Demo LAN: http://192.168.1.2:\${LAN_HTTP_PORT:-8081}"
+echo "OK. Demo LAN: http://192.168.88.2:\${LAN_HTTP_PORT:-8081}"
 echo "    Demo pública: https://demo.softone360.com"

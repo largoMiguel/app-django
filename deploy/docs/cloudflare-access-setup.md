@@ -18,48 +18,22 @@ Comando usado para DNS:
 cloudflared tunnel route dns 1b010f95-dd5a-4236-bd6d-a71c6ef79d15 ssh.softone360.com
 ```
 
-## Cloudflare Access (opcional, recomendado)
+## Cloudflare Access (opcional)
 
-Con el túnel SSH actual, GitHub Actions y el acceso manual funcionan usando `cloudflared access ssh` + clave ed25519, **sin** Service Token.
+El acceso manual y el despliegue desde tu Mac usan `cloudflared access ssh` + clave ed25519 (`deploy/keys/softone_deploy`), **sin** Service Token.
 
-Para añadir una capa extra (login email OTP + Service Token para CI), configura en **Zero Trust → Access → Applications**:
+Para añadir login email OTP en Zero Trust → Access → Applications:
 
 1. Tipo: **Self-hosted**
 2. Application name: `SoftOne SSH`
 3. Subdomain: `ssh`, Domain: `softone360.com`
-4. Política **Allow** para `contactenos@softone360.com` (o tu email Cloudflare)
-5. (Opcional) Service Token `github-actions-deploy` + política **Service Auth**
-
-Si creas Service Token, añade los secrets `CF_ACCESS_CLIENT_ID` y `CF_ACCESS_CLIENT_SECRET` en GitHub.
+4. Política **Allow** para el correo autorizado (ej. `contactenos@softone360.com`)
 
 Automatización vía API (requiere `CF_API_TOKEN` con permisos Zero Trust):
 
 ```bash
 export CF_API_TOKEN=...
 deploy/scripts/setup-cloudflare-access.sh
-```
-
-## Secrets en GitHub
-
-| Secret | Valor |
-|--------|-------|
-| `SSH_PRIVATE_KEY` | contenido de `deploy/keys/softone_deploy` |
-| `DEPLOY_HOST` | `ssh.softone360.com` |
-| `DEPLOY_USER` | `softone` |
-| `CF_ACCESS_CLIENT_ID` | (opcional) Client ID del Service Token |
-| `CF_ACCESS_CLIENT_SECRET` | (opcional) Client Secret del Service Token |
-
-Configuración automática (requiere PAT con permiso `repo` + secrets):
-
-```bash
-export GITHUB_TOKEN=ghp_...
-python3 deploy/scripts/setup-github-secrets-api.py
-```
-
-O con `gh` CLI:
-
-```bash
-deploy/scripts/setup-github-secrets.sh
 ```
 
 ## Verificar SSH remoto
@@ -74,8 +48,32 @@ O con alias en `~/.ssh/config`:
 Host softone-prod
   HostName ssh.softone360.com
   User softone
+  IdentityFile /ruta/a/app_django/deploy/keys/softone_deploy
   ProxyCommand cloudflared access ssh --hostname %h
 ```
+
+LAN (MikroTik, misma red):
+
+```
+Host softone-lan
+  HostName 192.168.88.2
+  User softone
+  IdentityFile /ruta/a/app_django/deploy/keys/softone_deploy
+```
+
+## Desplegar desde tu máquina
+
+```bash
+# Demo (rama development)
+deploy/scripts/sync-demo.sh softone-prod
+ssh softone-prod 'cd /opt/softone-demo && deploy/scripts/deploy-demo.sh'
+
+# Producción (rama main)
+deploy/scripts/sync.sh softone-prod
+ssh softone-prod 'cd /opt/softone-app && deploy/scripts/deploy.sh'
+```
+
+En LAN puedes usar `softone-lan` en lugar de `softone-prod`.
 
 ## Reiniciar túnel tras cambios de config
 

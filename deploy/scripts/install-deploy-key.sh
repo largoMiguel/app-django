@@ -2,7 +2,7 @@
 # Instala la clave pública de deploy en authorized_keys del servidor.
 set -euo pipefail
 
-REMOTE="${1:-softone@192.168.1.2}"
+REMOTE="${1:-softone-lan}"
 KEY_FILE="$(cd "$(dirname "$0")/.." && pwd)/keys/softone_deploy.pub"
 
 if [[ ! -f "$KEY_FILE" ]]; then

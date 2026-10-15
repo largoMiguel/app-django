@@ -6,7 +6,7 @@ ACCOUNT_ID="${CF_ACCOUNT_ID:-6031fdec2d3f25ad748f6c5519281536}"
 HOSTNAME="${CF_SSH_HOSTNAME:-ssh.softone360.com}"
 ADMIN_EMAIL="${CF_ADMIN_EMAIL:-contactenos@softone360.com}"
 APP_NAME="${CF_ACCESS_APP_NAME:-SoftOne SSH}"
-TOKEN_NAME="${CF_SERVICE_TOKEN_NAME:-github-actions-deploy}"
+TOKEN_NAME="${CF_SERVICE_TOKEN_NAME:-softone-ssh-automation}"
 
 if [[ -z "${CF_API_TOKEN:-}" ]]; then
     echo "ERROR: export CF_API_TOKEN con permisos Zero Trust Access (Apps + Service Tokens Write)" >&2
@@ -59,10 +59,10 @@ api POST "/accounts/${ACCOUNT_ID}/access/apps/${APP_ID}/policies" "$(cat <<JSON
 JSON
 )" >/dev/null
 
-echo "==> Política Service Auth (GitHub Actions)…"
+echo "==> Política Service Auth (token opcional)…"
 api POST "/accounts/${ACCOUNT_ID}/access/apps/${APP_ID}/policies" "$(cat <<JSON
 {
-  "name": "GitHub Actions service token",
+  "name": "Service token automation",
   "decision": "non_identity",
   "include": [{"service_token": {"token_id": "${TOKEN_ID}"}}],
   "precedence": 2
@@ -73,8 +73,8 @@ JSON
 echo
 echo "OK. Cloudflare Access configurado para ${HOSTNAME}"
 echo
-echo "Añade en GitHub Secrets:"
+echo "Service token (opcional; guárdalo en un gestor de secretos):"
 echo "  CF_ACCESS_CLIENT_ID=${CLIENT_ID}"
 echo "  CF_ACCESS_CLIENT_SECRET=${CLIENT_SECRET}"
 echo
-echo "(El client secret solo se muestra una vez; guárdalo ahora.)"
+echo "(El client secret solo se muestra una vez.)"

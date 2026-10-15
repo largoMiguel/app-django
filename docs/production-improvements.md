@@ -26,8 +26,8 @@ El proyecto despliega en Docker Compose productivo con Nginx, Cloudflare Tunnel,
 
 ## Despliegue
 Seguir el flujo descrito en `README.md`:
-- `deploy/scripts/sync.sh softone@192.168.1.2`
-- `ssh softone@192.168.1.2 'cd /opt/softone-app && deploy/scripts/deploy.sh'`
+- `deploy/scripts/sync.sh softone@192.168.88.2`
+- `ssh softone@192.168.88.2 'cd /opt/softone-app && deploy/scripts/deploy.sh'`
 
 ## Rollback
 Si aparece regresion funcional:

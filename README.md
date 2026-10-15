@@ -229,7 +229,7 @@ Complemento al IMAP/ZeptoMail: radicar desde Gmail con add-on HTTP y enviar resp
 - Frontend: `/configuracion/correo`
 - Activar envío: `GOOGLE_GMAIL_SEND_ENABLED=true` + credenciales Google en `.env`
 
-**Demo (servidor `192.168.1.2`, `/opt/softone-demo/.env`):** Gmail operativo en demo (2026-09-23).
+**Demo (servidor `192.168.88.2`, `/opt/softone-demo/.env`):** Gmail operativo en demo (2026-09-23).
 
 | Variable | Valor (demo) |
 |---|---|
@@ -952,24 +952,30 @@ Archivos firmados:
 | Prod | https://files.softone360.com | `softone-pqrs`, `softone-pdm`, `softone-th`, `softone-correspondence`, `softone-planes-612`, `softone-document-management`, `softone-pic` |
 | Demo | https://files-demo.softone360.com | `storage-demo` (todos los módulos) |
 
-Demo y prod comparten el **mismo servidor** (`192.168.1.2`) y el **mismo par B2** (`B2_KEY_ID` / `B2_APP_KEY`); solo cambian bucket y signing key. Merge `development` → `main` no migra archivos entre buckets.
+Demo y prod comparten el **mismo servidor** (`192.168.88.2`) y el **mismo par B2** (`B2_KEY_ID` / `B2_APP_KEY`); solo cambian bucket y signing key. Merge `development` → `main` no migra archivos entre buckets.
 
 **Importante:** `deploy/cloudflared/config.yml` y el regex de buckets en `deploy/nginx/conf.d/app.conf` los monta el stack de **producción**. Deben ser **idénticos en `main` y `development`**; si un deploy de `main` los sobrescribe sin las entradas demo, `demo.softone360.com` deja de responder.
 
 Clerk demo: usar `pk_test_` / `sk_test_` de la instancia development. `CLERK_JWT_KEY` debe ser el PEM del JWKS de esa instancia (`*.clerk.accounts.dev`), **no** el de producción. Webhook opcional: endpoint `https://demo.softone360.com/api/v1/webhooks/clerk` + `CLERK_WEBHOOK_SIGNING_SECRET` en `/opt/softone-demo/.env`.
 
-### GitHub Actions
+### Flujo de despliegue (SSH, sin CI)
 
-| Rama / evento | GitHub Actions |
-|---------------|----------------|
-| Push a `development` | Deploy automático demo → https://demo.softone360.com |
-| Push a `main` | Deploy automático prod → https://app.softone360.com |
+GitHub **solo almacena el código**. Cada release se sube al servidor con `rsync` + `deploy.sh` / `deploy-demo.sh`.
 
 ```
-development (push → deploy demo) → merge → main (deploy prod)
+development (commit + push) → sync-demo + deploy-demo → demo.softone360.com
+       ↓ merge a main
+main (commit + push) → sync + deploy → app.softone360.com
 ```
 
-**Estado actual demo vs prod y checklist para el merge a producción:** [README_MAIN.md](README_MAIN.md)
+| Entorno | Rama habitual | Sync | Deploy en servidor |
+|---|---|---|---|
+| **Demo** | `development` | `deploy/scripts/sync-demo.sh softone-prod` | `cd /opt/softone-demo && deploy/scripts/deploy-demo.sh` |
+| **Producción** | `main` | `deploy/scripts/sync.sh softone-prod` | `cd /opt/softone-app && deploy/scripts/deploy.sh` |
+
+En la **LAN MikroTik** (`192.168.88.2`) puedes usar el alias `softone-lan` en lugar de `softone-prod`.
+
+**Checklist merge a producción:** [README_MAIN.md](README_MAIN.md)
 
 ### Bootstrap demo (una vez en el servidor)
 
@@ -1005,12 +1011,12 @@ cd /opt/softone-app/deploy
 docker compose -f docker-compose.prod.yml --env-file ../.env restart cloudflared
 ```
 
-### Desplegar manualmente demo (LAN)
+### Desplegar demo (SSH)
 
 ```bash
-deploy/scripts/sync-demo.sh softone@192.168.1.2
-ssh softone@192.168.1.2 'cd /opt/softone-demo && deploy/scripts/deploy-demo.sh'
-# LAN: http://192.168.1.2:8081
+deploy/scripts/sync-demo.sh softone-prod
+ssh softone-prod 'cd /opt/softone-demo && deploy/scripts/deploy-demo.sh'
+# LAN: http://192.168.88.2:8081
 ```
 
 ---
@@ -1043,10 +1049,10 @@ Worker demo: `bash deploy/scripts/deploy-cloudflare-worker-demo.sh /opt/softone-
 
 | Método | Cuándo usarlo | Comando |
 |---|---|---|
-| **LAN** | Misma red que el servidor (oficina/casa) | `ssh softone@192.168.1.2` |
-| **Cloudflare** | Desde cualquier red (requiere Access) | `ssh softone-prod` |
+| **LAN** | Red MikroTik (`192.168.88.0/24`) | `ssh softone-lan` |
+| **Cloudflare** | Desde cualquier red (Access + túnel) | `ssh softone-prod` |
 
-**Servidor de producción:** IP LAN `192.168.1.2` · usuario `softone` · ruta app `/opt/softone-app`
+**Servidor de producción:** IP LAN `192.168.88.2` · usuario `softone` · ruta app `/opt/softone-app`
 
 La autenticación SSH usa **clave** (`deploy/keys/softone_deploy`). La contraseña del usuario del sistema no es necesaria para deploy ni administración habitual.
 
@@ -1083,26 +1089,21 @@ ssh softone-prod 'hostname'    # debe responder: softone
 | Síntoma | Causa probable | Solución |
 |---|---|---|
 | `cloudflared: command not found` | CLI no instalado o no está en PATH | Instalar en `~/bin` y actualizar `ProxyCommand` |
-| `Permission denied` con contraseña | El servidor espera clave SSH | Usar la clave de deploy o `ssh softone@192.168.1.2` en LAN |
+| `Permission denied` con contraseña | El servidor espera clave SSH | Usar `deploy/keys/softone_deploy` o `ssh softone-lan` en LAN |
 | `Broken pipe` / timeout remoto | Túnel Cloudflare reconectando | Esperar 1 min o conectar por LAN |
 | `softone-prod` no resuelve | Falta alias SSH | Crear entrada en `~/.ssh/config` |
 
-### Desplegar manualmente (SSH remoto vía Cloudflare)
+### Desplegar producción (SSH)
+
+Nginx publica HTTP en el host en el puerto `LAN_HTTP_PORT` (por defecto **8080**). En el `.env` del servidor, `ALLOWED_HOSTS` y `CORS_ALLOWED_ORIGINS` deben incluir la IP LAN (`192.168.88.2`).
 
 ```bash
 deploy/scripts/sync.sh softone-prod
 ssh softone-prod 'cd /opt/softone-app && deploy/scripts/deploy.sh'
+# LAN: http://192.168.88.2:8080
 ```
 
-### Desplegar en LAN (misma red que el servidor)
-
-Nginx publica HTTP en el host en el puerto `LAN_HTTP_PORT` (por defecto **8080**). Ajusta `ALLOWED_HOSTS` y `CORS_ALLOWED_ORIGINS` con la IP LAN (ej. `192.168.1.2`).
-
-```bash
-deploy/scripts/sync.sh softone@192.168.1.2
-ssh softone@192.168.1.2 'cd /opt/softone-app && deploy/scripts/deploy.sh'
-# App en LAN: http://192.168.1.2:8080
-```
+Equivalente en LAN: `deploy/scripts/sync.sh softone-lan` y el mismo `deploy.sh`.
 
 `deploy.sh` hace `build --pull` y `up -d --remove-orphans`. Es seguro re-ejecutarlo en caliente.
 
@@ -1127,7 +1128,7 @@ export COMPOSE="docker compose -f deploy/docker-compose.prod.yml --env-file .env
 ### Logs y troubleshooting
 
 ```bash
-ssh softone-prod   # o softone@192.168.1.2 en LAN
+ssh softone-prod   # o softone-lan en la red MikroTik
 cd /opt/softone-app
 export COMPOSE="docker compose -f deploy/docker-compose.prod.yml --env-file .env"
 
@@ -1192,8 +1193,8 @@ docker compose -f deploy/docker-compose.prod.yml --env-file .env exec -T db \
 Uso (desde el servidor):
 
 ```bash
-scp deploy/scripts/server-bootstrap.sh softone@192.168.1.2:/tmp/
-ssh softone@192.168.1.2 'bash /tmp/server-bootstrap.sh'
+scp deploy/scripts/server-bootstrap.sh softone@192.168.88.2:/tmp/
+ssh softone@192.168.88.2 'bash /tmp/server-bootstrap.sh'
 ```
 
 Es **destructivo** y pide confirmación (`SI`) antes de borrar nada.
@@ -1346,8 +1347,8 @@ Tras cambiar la config del túnel: `$COMPOSE restart cloudflared`.
 Comandos útiles:
 
 ```bash
-ssh softone@192.168.1.2 'cloudflared tunnel info softone-app'
-ssh softone@192.168.1.2 'cloudflared tunnel list'
+ssh softone@192.168.88.2 'cloudflared tunnel info softone-app'
+ssh softone@192.168.88.2 'cloudflared tunnel list'
 
 # Métricas del túnel (desde dentro del contenedor)
 docker compose -f deploy/docker-compose.prod.yml --env-file .env \
