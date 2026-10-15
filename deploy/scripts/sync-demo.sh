@@ -30,5 +30,5 @@ rsync -az --delete \
     ./ "$REMOTE:$REMOTE_PATH/"
 
 echo "OK. Sincronizado a $REMOTE:$REMOTE_PATH"
-echo "Ahora: ssh softone-lan 'cd $REMOTE_PATH && deploy/scripts/deploy-demo.sh'"
-echo "Keys IA prod→demo: ssh softone-lan 'bash $REMOTE_PATH/deploy/scripts/sync-demo-ai-from-prod.sh'"
+echo "Ahora: ssh softone-prod 'cd $REMOTE_PATH && deploy/scripts/deploy-demo.sh'"
+echo "Keys IA prod→demo: ssh softone-prod 'bash $REMOTE_PATH/deploy/scripts/sync-demo-ai-from-prod.sh'"
