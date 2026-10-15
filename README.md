@@ -240,11 +240,7 @@ Complemento al IMAP/ZeptoMail: radicar desde Gmail con add-on HTTP y enviar resp
 
 El **client secret** OAuth web solo en `.env` del servidor (no en el repo).
 
-Clave Fernet tokens OAuth en PostgreSQL (demo):
-
-```
-GOOGLE_TOKEN_ENCRYPTION_KEY=2FVBMQhCRrHxVmUCkbUluRp37fY/YnIFmpIONNQDBOM=
-```
+Clave Fernet tokens OAuth en PostgreSQL (demo): generar en el servidor con `openssl rand -base64 32` → `GOOGLE_TOKEN_ENCRYPTION_KEY` (no commitear; si cambia, cada usuario debe reconectar Gmail).
 
 Manifiesto add-on: [`deploy/google-addon/deployment.json`](deploy/google-addon/deployment.json) (HTTP Deployments en GCP + **Install**).
 

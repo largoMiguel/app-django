@@ -32,3 +32,14 @@ def decrypt_refresh_token(cipher: bytes) -> str:
         return _fernet().decrypt(cipher).decode("utf-8")
     except InvalidToken as exc:
         raise ValueError("No se pudo descifrar el refresh token.") from exc
+
+
+def refresh_token_stored_valid(cipher: bytes | bytearray | memoryview | None) -> bool:
+    """True si el blob cifrado se puede descifrar con la clave actual del servidor."""
+    if not cipher:
+        return False
+    try:
+        decrypt_refresh_token(bytes(cipher))
+        return True
+    except ValueError:
+        return False

@@ -7,6 +7,18 @@ import {
 } from "@/core/api/googleIntegration";
 import { formatApiError } from "@/core/api/errors";
 
+const GOOGLE_CONNECT_ERRORS: Record<string, string> = {
+  need_consent:
+    "No se pudo renovar el acceso guardado. Pulse DESCONECTAR (si aplica), luego CONECTAR CON GOOGLE y acepte todos los permisos para obtener un token nuevo.",
+  need_consent_key:
+    "La clave de cifrado del servidor cambió o el token quedó inválido. Desconecte y vuelva a conectar Gmail.",
+  token_exchange: "Google no autorizó la conexión. Intente de nuevo.",
+  no_refresh: "Google no entregó un token de renovación. Conecte de nuevo con consentimiento completo.",
+  no_email: "No se pudo leer el correo de la cuenta Google.",
+  invalid_state: "La sesión de conexión expiró. Intente conectar de nuevo.",
+  missing_code: "Respuesta incompleta de Google. Intente conectar de nuevo.",
+};
+
 export default function CorreoInstitucionalPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [status, setStatus] = useState<GoogleGmailStatus | null>(null);
@@ -40,7 +52,8 @@ export default function CorreoInstitucionalPage() {
       setSearchParams({}, { replace: true });
       void load();
     } else if (error) {
-      setErr(`Error al conectar Gmail: ${error}`);
+      const msg = GOOGLE_CONNECT_ERRORS[error] ?? `Error al conectar Gmail: ${error}`;
+      setErr(msg);
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams, load]);

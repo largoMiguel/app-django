@@ -14,7 +14,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.google_integration.crypto import encrypt_refresh_token
+from apps.google_integration.crypto import encrypt_refresh_token, refresh_token_stored_valid
 from apps.google_integration.gmail_client import exchange_oauth_code
 from apps.google_integration.models import GoogleConnectionStatus, GoogleEmailConnection, GoogleOAuthState
 
@@ -51,7 +51,12 @@ class GoogleConnectView(APIView):
             "state": state,
         }
         existing = GoogleEmailConnection.objects.filter(user=request.user).first()
-        if not existing or existing.status == GoogleConnectionStatus.REQUIERE_REAUTORIZACION:
+        need_consent = (
+            not existing
+            or existing.status == GoogleConnectionStatus.REQUIERE_REAUTORIZACION
+            or not refresh_token_stored_valid(existing.encrypted_refresh_token)
+        )
+        if need_consent:
             params["prompt"] = "consent"
         url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         return Response({"authorize_url": url})
@@ -109,7 +114,7 @@ class GoogleCallbackView(APIView):
         entity_id = oauth_state.entity_id or user.entity_id
         if not refresh:
             conn = GoogleEmailConnection.objects.filter(user=user).first()
-            if not conn:
+            if not conn or not refresh_token_stored_valid(conn.encrypted_refresh_token):
                 return HttpResponseRedirect(
                     f"{frontend}/configuracion/correo?error=need_consent"
                 )
@@ -145,13 +150,19 @@ class GoogleStatusView(APIView):
         conn = GoogleEmailConnection.objects.filter(user=request.user).first()
         if not conn or conn.status == GoogleConnectionStatus.REVOCADA:
             return Response({"connected": False})
+        token_ok = refresh_token_stored_valid(conn.encrypted_refresh_token)
+        requires_reauth = (
+            conn.status == GoogleConnectionStatus.REQUIERE_REAUTORIZACION or not token_ok
+        )
+        if not token_ok and conn.status == GoogleConnectionStatus.ACTIVA:
+            conn.status = GoogleConnectionStatus.REQUIERE_REAUTORIZACION
+            conn.save(update_fields=["status", "updated_at"])
         return Response(
             {
-                "connected": conn.status == GoogleConnectionStatus.ACTIVA,
+                "connected": conn.status == GoogleConnectionStatus.ACTIVA and token_ok,
                 "google_email": conn.google_email,
                 "status": conn.status,
-                "requires_reauthorization": conn.status
-                == GoogleConnectionStatus.REQUIERE_REAUTORIZACION,
+                "requires_reauthorization": requires_reauth,
             }
         )
 

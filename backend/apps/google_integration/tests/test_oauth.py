@@ -7,7 +7,8 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.entities.models import Entity
-from apps.google_integration.models import GoogleEmailConnection, GoogleOAuthState
+from apps.google_integration.crypto import encrypt_refresh_token
+from apps.google_integration.models import GoogleConnectionStatus, GoogleEmailConnection, GoogleOAuthState
 from apps.google_integration.oauth_views import GoogleConnectView, GoogleDisconnectView, GoogleStatusView
 
 User = get_user_model()
@@ -18,6 +19,7 @@ User = get_user_model()
     GOOGLE_CLIENT_ID="client-id",
     GOOGLE_CLIENT_SECRET="secret",
     GOOGLE_REDIRECT_URI="https://demo.test/callback",
+    GOOGLE_TOKEN_ENCRYPTION_KEY="test-key-for-fernet-wrap-32bytes!!",
 )
 class OAuthViewsTests(TestCase):
     def setUp(self):
@@ -42,6 +44,26 @@ class OAuthViewsTests(TestCase):
         response = GoogleStatusView.as_view()(request)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data["connected"])
+
+    def test_status_requires_reauth_when_token_not_decryptable(self):
+        entity = Entity.objects.create(name="Ent2", code="E2", slug="ent-oauth-2")
+        with override_settings(GOOGLE_TOKEN_ENCRYPTION_KEY="other-encryption-key-32-chars!!!"):
+            cipher = encrypt_refresh_token("refresh-x")
+        GoogleEmailConnection.objects.create(
+            user=self.user,
+            entity=entity,
+            google_email="x@gov.co",
+            encrypted_refresh_token=cipher,
+            status=GoogleConnectionStatus.ACTIVA,
+        )
+        request = self.factory.get("/integrations/google/status")
+        force_authenticate(request, user=self.user)
+        response = GoogleStatusView.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["connected"])
+        self.assertTrue(response.data["requires_reauthorization"])
+        conn = GoogleEmailConnection.objects.get(user=self.user)
+        self.assertEqual(conn.status, GoogleConnectionStatus.REQUIERE_REAUTORIZACION)
 
     @patch("apps.google_integration.crypto.encrypt_refresh_token")
     def test_disconnect(self, mock_enc):

@@ -77,7 +77,23 @@ def refresh_access_token(refresh_token: str) -> dict[str, Any]:
 
 
 def get_access_token_for_connection(conn: GoogleEmailConnection) -> str:
-    plain = decrypt_refresh_token(bytes(conn.encrypted_refresh_token))
+    if not conn.encrypted_refresh_token:
+        conn.status = GoogleConnectionStatus.REQUIERE_REAUTORIZACION
+        conn.save(update_fields=["status", "updated_at"])
+        raise GmailIntegrationError(
+            "Gmail no está conectado. Vaya a Configuración → Correo institucional y conecte de nuevo.",
+            code="requiere_reautorizacion",
+        )
+    try:
+        plain = decrypt_refresh_token(bytes(conn.encrypted_refresh_token))
+    except ValueError as exc:
+        conn.status = GoogleConnectionStatus.REQUIERE_REAUTORIZACION
+        conn.save(update_fields=["status", "updated_at"])
+        raise GmailIntegrationError(
+            "La conexión Gmail guardada ya no es válida (cambió la clave del servidor o la sesión "
+            "quedó incompleta). Desconecte y vuelva a conectar en Configuración → Correo institucional.",
+            code="requiere_reautorizacion",
+        ) from exc
     token_data = refresh_access_token(plain)
     access = token_data.get("access_token")
     if not access:
