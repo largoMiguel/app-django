@@ -29,7 +29,10 @@ SECURE_HSTS_PRELOAD = True
 SECURE_SSL_REDIRECT = False  # TLS terminates at Cloudflare; nginx serves HTTP internally
 
 # Pool de conexiones: workers × threads del pool Gunicorn (gthread).
-DATABASES["default"]["CONN_MAX_AGE"] = 120  # noqa: F405
+DATABASES["default"]["CONN_MAX_AGE"] = 300  # noqa: F405
+
+# Nginx pasa CF-Connecting-IP; DRF usa REMOTE_ADDR para throttling por ciudadano.
+REST_FRAMEWORK["NUM_PROXIES"] = 1  # noqa: F405
 DATABASES["default"]["OPTIONS"] = {  # noqa: F405
     **DATABASES["default"].get("OPTIONS", {}),  # noqa: F405
     "connect_timeout": 10,

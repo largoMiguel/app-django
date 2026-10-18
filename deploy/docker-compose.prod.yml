@@ -5,6 +5,7 @@ services:
     image: pgvector/pgvector:pg17
     container_name: softone-db
     restart: unless-stopped
+    shm_size: 1g
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -14,9 +15,9 @@ services:
       - -c
       - max_connections=200
       - -c
-      - shared_buffers=512MB
+      - shared_buffers=1GB
       - -c
-      - effective_cache_size=16GB
+      - effective_cache_size=8GB
       - -c
       - maintenance_work_mem=128MB
       - -c
@@ -30,11 +31,23 @@ services:
       - -c
       - effective_io_concurrency=200
       - -c
-      - work_mem=8MB
+      - work_mem=12MB
       - -c
       - min_wal_size=512MB
       - -c
-      - max_wal_size=2GB
+      - max_wal_size=4GB
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - wal_compression=lz4
+      - -c
+      - jit=off
+      - -c
+      - max_worker_processes=8
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - max_parallel_workers_per_gather=2
     volumes:
       - /srv/postgres/prod:/var/lib/postgresql/data
     networks:
@@ -47,7 +60,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 3G
     security_opt:
       - no-new-privileges:true
 
@@ -77,7 +90,7 @@ services:
     image: softone-backend:latest
     container_name: softone-celery-worker
     restart: unless-stopped
-    command: celery -A config worker -l info --concurrency=4
+    command: celery -A config worker -l info --concurrency=6
     healthcheck:
       test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME -t 5"]
       interval: 30s
@@ -132,7 +145,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1536M
+          memory: 2G
     security_opt:
       - no-new-privileges:true
 
@@ -274,7 +287,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3G
+          memory: 4G
     security_opt:
       - no-new-privileges:true
 

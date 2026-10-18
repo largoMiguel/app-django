@@ -5,6 +5,7 @@ services:
     image: pgvector/pgvector:pg17
     container_name: softone-demo-db
     restart: unless-stopped
+    shm_size: 256m
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -15,6 +16,8 @@ services:
       - max_connections=100
       - -c
       - shared_buffers=256MB
+      - -c
+      - jit=off
     volumes:
       - /srv/postgres/demo:/var/lib/postgresql/data
     networks:

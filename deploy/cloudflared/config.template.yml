@@ -6,7 +6,7 @@
 tunnel: 1b010f95-dd5a-4236-bd6d-a71c6ef79d15
 credentials-file: /etc/cloudflared/creds/1b010f95-dd5a-4236-bd6d-a71c6ef79d15.json
 
-protocol: http2
+protocol: quic
 retries: 5
 grace-period: 30s
 edge-ip-version: auto

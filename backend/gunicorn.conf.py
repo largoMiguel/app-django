@@ -13,8 +13,8 @@ def _int_env(name: str, default: int) -> int:
 
 
 _cpu_count = multiprocessing.cpu_count()
-# 4 cores → 5 workers evita sobre-suscripción en CPUs modestas (A10, etc.).
-workers = _int_env("GUNICORN_WORKERS", min(_cpu_count + 1, 6))
+# Default acotado: en hosts grandes el contenedor ve todos los CPUs; usar GUNICORN_WORKERS en .env.
+workers = _int_env("GUNICORN_WORKERS", min(_cpu_count + 1, 8))
 threads = _int_env("GUNICORN_THREADS", 4)
 timeout = _int_env("GUNICORN_TIMEOUT", 120)
 graceful_timeout = 30

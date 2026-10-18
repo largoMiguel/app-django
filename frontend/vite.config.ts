@@ -26,5 +26,25 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: false,
     target: "es2022",
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("@splinetool") || id.includes("physics") || id.includes("navmesh")) {
+            return "spline";
+          }
+          if (id.includes("@clerk")) return "clerk";
+          if (id.includes("recharts") || id.includes("d3-")) return "charts";
+          if (id.includes("xlsx") || id.includes("pdmExcel")) return "excel";
+          if (
+            id.includes("react-dom") ||
+            id.includes("react-router") ||
+            id.includes("/react/")
+          ) {
+            return "react-vendor";
+          }
+        },
+      },
+    },
   },
 });
