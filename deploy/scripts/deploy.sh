@@ -59,6 +59,13 @@ if [[ "$healthy" -ne 1 ]]; then
   exit 1
 fi
 
+echo "==> Migraciones Django…"
+docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T backend \
+  python manage.py migrate --noinput
+docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"' \
+  2>/dev/null || true
+
 echo "==> Smoke test interno…"
 docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T nginx wget -qO- http://127.0.0.1/healthz | grep -q ok
 docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T backend curl -fsS http://localhost:8000/api/health | grep -q ok

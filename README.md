@@ -1087,6 +1087,7 @@ ssh softone-prod 'hostname'    # debe responder: softone
 | `cloudflared: command not found` | CLI no instalado o no está en PATH | Instalar en `~/bin` y actualizar `ProxyCommand` |
 | `Permission denied` con contraseña | El servidor espera clave SSH | Usar `deploy/keys/softone_deploy` o `ssh softone-lan` en LAN |
 | `Broken pipe` / timeout remoto | Túnel Cloudflare reconectando | Esperar 1 min o conectar por LAN |
+| `REMOTE HOST IDENTIFICATION HAS CHANGED` | Servidor nuevo o reinstalado (clave SSH del host distinta) | `ssh-keygen -R ssh.softone360.com` y `ssh-keygen -R 192.168.88.2`; luego `ssh softone-prod` o `ssh softone-lan` |
 | `softone-prod` no resuelve | Falta alias SSH | Crear entrada en `~/.ssh/config` |
 
 ### Desplegar producción (SSH)

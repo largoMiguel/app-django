@@ -134,7 +134,12 @@ export const asistenciaApi = {
   },
 
   equipos: {
-    list: () => api.get<EquipoRegistro[]>("/asistencia/equipos").then((r) => r.data),
+    list: () =>
+      api
+        .get<{ results: EquipoRegistro[] } | EquipoRegistro[]>("/asistencia/equipos/", {
+          params: { page_size: 100 },
+        })
+        .then((r) => (Array.isArray(r.data) ? r.data : r.data.results)),
     create: (payload: Partial<EquipoRegistro>) =>
       api.post<EquipoRegistro>("/asistencia/equipos", payload).then((r) => r.data),
     update: (id: number, payload: Partial<EquipoRegistro>) =>

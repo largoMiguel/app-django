@@ -43,6 +43,9 @@ export default defineConfig({
           ) {
             return "react-vendor";
           }
+          if (id.includes("@vladmandic/face-api") || id.includes("face-api")) return "face-api";
+          if (id.includes("framer-motion")) return "framer-motion";
+          if (id.includes("react-markdown") || id.includes("remark-gfm")) return "markdown";
         },
       },
     },

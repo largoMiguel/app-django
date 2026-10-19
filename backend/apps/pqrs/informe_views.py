@@ -1,6 +1,7 @@
 """ViewSet para informes PQRS institucionales."""
 from __future__ import annotations
 
+import datetime
 import logging
 
 from django.http import HttpResponse
@@ -16,9 +17,12 @@ from apps.rbac.permissions import HasPermOrRole
 
 from .access import pqrs_queryset_for_user
 from .filters import PQRSFilterSet
-from .models import InformePQRS, PQRS
+from apps.common.pagination import StandardPageNumberPagination
+
+from .models import InformePQRS, InformePQRSEstado, PQRS
+from .tasks import generar_informe_pqrs_task
 from .serializers import GenerarInformeSerializer, InformePQRSSerializer
-from .services.informe_service import delete_informe, generate_informe_pqrs, get_informe_file_bytes
+from .services.informe_service import delete_informe, get_informe_file_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +85,11 @@ class InformePQRSViewSet(viewsets.GenericViewSet):
     def list(self, request):
         self._authorize_view(request.user)
         InformePQRS.purge_expired(entity_id=request.user.entity_id)
-        serializer = self.get_serializer(self.get_queryset(), many=True)
-        return Response(serializer.data)
+        qs = self.get_queryset()
+        paginator = StandardPageNumberPagination()
+        page = paginator.paginate_queryset(qs, request)
+        serializer = self.get_serializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     def create(self, request):
         self._authorize_manage(request.user)
@@ -109,21 +116,31 @@ class InformePQRSViewSet(viewsets.GenericViewSet):
 
         filterset = PQRSFilterSet(data=filter_data, queryset=base_qs)
 
-        try:
-            informe = generate_informe_pqrs(
-                entity=entity,
-                user=user,
-                pqrs_queryset=filterset.qs,
-                fecha_inicio=data["fecha_inicio"],
-                fecha_fin=data["fecha_fin"],
-                usar_ia=data.get("usar_ia", True),
-                usuario_firmante_id=data.get("usuario_firmante_id"),
-            )
-        except ValueError as exc:
-            raise ValidationError({"detail": str(exc)}) from exc
-        except Exception as exc:
-            logger.exception("Error generando informe PQRS")
-            raise ValidationError({"detail": f"Error generando informe: {exc}"}) from exc
+        if not filterset.qs.exists():
+            raise ValidationError({"detail": "No se encontraron PQRS en el rango de fechas seleccionado."})
+
+        expires_at = timezone.now() + datetime.timedelta(days=7)
+        generation_params = {
+            "estado": data.get("estado"),
+            "tipo_solicitud": data.get("tipo_solicitud"),
+            "assigned_to": data.get("assigned_to"),
+            "usar_ia": data.get("usar_ia", True),
+            "usuario_firmante_id": data.get("usuario_firmante_id"),
+        }
+        informe = InformePQRS.objects.create(
+            entity=entity,
+            created_by=user,
+            filename="",
+            b2_key="",
+            fecha_inicio=data["fecha_inicio"],
+            fecha_fin=data["fecha_fin"],
+            expires_at=expires_at,
+            estado=InformePQRSEstado.PENDIENTE,
+            generation_params=generation_params,
+        )
+        task = generar_informe_pqrs_task.delay(informe.id)
+        informe.celery_task_id = task.id or ""
+        informe.save(update_fields=["celery_task_id"])
 
         return Response(self.get_serializer(informe).data, status=status.HTTP_201_CREATED)
 
@@ -136,6 +153,8 @@ class InformePQRSViewSet(viewsets.GenericViewSet):
     def download(self, request, pk=None):
         self._authorize_view(request.user)
         informe = self._get_informe_or_404(pk)
+        if informe.estado != InformePQRSEstado.COMPLETADO or not informe.b2_key:
+            raise ValidationError({"detail": "El informe aún se está generando o falló."})
         content = get_informe_file_bytes(informe)
         response = HttpResponse(content, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="{informe.filename}"'

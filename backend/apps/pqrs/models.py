@@ -506,6 +506,13 @@ class CorreoEntrantePQRS(models.Model):
         return f"{self.remitente} — {self.estado}"
 
 
+class InformePQRSEstado(models.TextChoices):
+    PENDIENTE = "PENDIENTE", "En cola"
+    PROCESANDO = "PROCESANDO", "Generando"
+    COMPLETADO = "COMPLETADO", "Completado"
+    ERROR = "ERROR", "Error"
+
+
 class InformePQRS(models.Model):
     """Informe PDF institucional de PQRS (historial con expiración automática)."""
 
@@ -523,8 +530,17 @@ class InformePQRS(models.Model):
         related_name="informes_pqrs_creados",
         db_column="created_by_id",
     )
-    filename = models.CharField(max_length=255)
-    b2_key = models.CharField(max_length=500)
+    filename = models.CharField(max_length=255, blank=True, default="")
+    b2_key = models.CharField(max_length=500, blank=True, default="")
+    estado = models.CharField(
+        max_length=20,
+        choices=InformePQRSEstado.choices,
+        default=InformePQRSEstado.COMPLETADO,
+        db_index=True,
+    )
+    error_detail = models.TextField(blank=True, default="")
+    celery_task_id = models.CharField(max_length=255, blank=True, default="")
+    generation_params = models.JSONField(default=dict, blank=True)
     file_size = models.PositiveIntegerField(default=0)
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()

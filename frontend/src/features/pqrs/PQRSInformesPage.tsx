@@ -278,6 +278,13 @@ export default function PQRSInformesPage() {
     queryKey: ["pqrs-informes", user?.entity?.id],
     queryFn: () => informesApi.list(),
     enabled: canViewPage,
+    refetchInterval: (query) => {
+      const rows = query.state.data ?? [];
+      const pending = rows.some(
+        (i) => i.estado === "PENDIENTE" || i.estado === "PROCESANDO" || (!i.estado && !i.filename),
+      );
+      return pending ? 5000 : false;
+    },
   });
 
   const { data: users = [], isLoading: usersLoading } = useQuery({
@@ -291,6 +298,18 @@ export default function PQRSInformesPage() {
     queryFn: () => secretariasApi.list(user?.entity?.id),
     enabled: canGenerate && Boolean(user?.entity?.id),
   });
+
+  useEffect(() => {
+    if (!readyInformeId) return;
+    const row = informes.find((i) => i.id === readyInformeId);
+    if (row && (row.estado === "COMPLETADO" || (row.filename && row.estado !== "ERROR"))) {
+      setGenState("done");
+    }
+    if (row?.estado === "ERROR") {
+      setGenState("idle");
+      setActionError(row.error_detail || "Error al generar el informe PDF.");
+    }
+  }, [informes, readyInformeId]);
 
   const loading = informesLoading || (canGenerate && (usersLoading || secretariasLoading));
   const loadError = informesError
@@ -371,7 +390,7 @@ export default function PQRSInformesPage() {
       const informe = await informesApi.generate(payload);
       await queryClient.invalidateQueries({ queryKey: ["pqrs-informes"] });
       setReadyInformeId(informe.id);
-      setGenState("done");
+      setGenState(informe.estado === "COMPLETADO" ? "done" : "generating");
     } catch (err) {
       setGenState("idle");
       setActionError(formatApiError(err, "No se pudo generar el informe PDF."));
@@ -494,9 +513,28 @@ export default function PQRSInformesPage() {
                 </div>
               </div>
               <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2 self-end sm:self-auto">
+                {(informe.estado === "PENDIENTE" ||
+                  informe.estado === "PROCESANDO" ||
+                  (!informe.estado && !informe.filename)) && (
+                  <span className="flex items-center gap-1 text-xs text-amber-700">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Generando…
+                  </span>
+                )}
+                {informe.estado === "ERROR" && (
+                  <span className="text-xs text-red-600" title={informe.error_detail}>
+                    Error al generar
+                  </span>
+                )}
                 <button
                   onClick={() => handleDownload(informe)}
-                  disabled={downloadingId === informe.id}
+                  disabled={
+                    downloadingId === informe.id ||
+                    informe.estado === "PENDIENTE" ||
+                    informe.estado === "PROCESANDO" ||
+                    informe.estado === "ERROR" ||
+                    !informe.filename
+                  }
                   className="flex items-center gap-0.5 sm:gap-1.5 rounded-md bg-[#3eafd4] px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white hover:bg-[#2f9fc2] transition-colors whitespace-nowrap disabled:opacity-60"
                 >
                   <Download className="h-3 w-3 sm:h-4 sm:w-4" />

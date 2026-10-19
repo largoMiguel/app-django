@@ -89,7 +89,7 @@ function UsersPageHeader({
 }
 
 export default function UsersPage({ isSuperAdmin = false }: Props) {
-  const { user } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const role = primaryRole(user);
   const superMode = isSuperAdmin || role === "superadmin";
   const secretarioMode = role === "secretario" && !superMode;

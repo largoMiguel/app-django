@@ -14,6 +14,7 @@ export function useAIAlerts(opts?: { unread?: boolean; module?: AIModuleKey; ena
     queryKey: aiKeys.alerts(opts?.module, unread),
     queryFn: () => sharedAiApi.alerts({ unread, module: opts?.module }),
     enabled: opts?.enabled ?? true,
+    staleTime: 60_000,
   });
 }
 
@@ -34,6 +35,7 @@ export function useIgnoredInsights(module: AIModuleKey, enabled = true) {
     queryKey: aiKeys.ignoredInsights(module),
     queryFn: () => sharedAiApi.ignoredInsights(module),
     enabled,
+    staleTime: 60_000,
   });
 }
 

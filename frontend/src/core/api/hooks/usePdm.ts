@@ -125,8 +125,7 @@ export function usePdmResumenEjecucionAnual(slug: string, enabled = true) {
     queryKey: pdmKeys.ejecucionAnual(slug),
     queryFn: () => pdmApi.resumenEjecucionAnualEntidad(),
     enabled: Boolean(slug) && enabled,
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 60_000,
   });
 }
 

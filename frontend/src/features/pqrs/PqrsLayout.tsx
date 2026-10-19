@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { BarChart3, FileText, LayoutDashboard } from "lucide-react";
-import ModuleAIAlertsBanner from "@/components/ai/ModuleAIAlertsBanner";
-import PqrsAICommandBar from "@/components/ai/PqrsAICommandBar";
 import { useAuthStore } from "@/core/auth/store";
+
+const ModuleAIAlertsBanner = lazy(() => import("@/components/ai/ModuleAIAlertsBanner"));
+const PqrsAICommandBar = lazy(() => import("@/components/ai/PqrsAICommandBar"));
 import { canAccessModuleRoute } from "@/core/auth/routes";
 import { PqrsHeaderActionsProvider, usePqrsHeaderActions } from "./PqrsHeaderActionsContext";
 
@@ -15,7 +16,7 @@ const tabsBase = [
 function PqrsLayoutInner() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const { headerActions } = usePqrsHeaderActions();
 
   const showInformesTab = canAccessModuleRoute(user, "reports_pdf");
@@ -58,10 +59,12 @@ function PqrsLayoutInner() {
 
   return (
     <div className="space-y-6">
-      <ModuleAIAlertsBanner
-        module="pqrs"
-        onAlertClick={(a) => a.object_id && navigate(`/pqrs/${a.object_id}`)}
-      />
+      <Suspense fallback={null}>
+        <ModuleAIAlertsBanner
+          module="pqrs"
+          onAlertClick={(a) => a.object_id && navigate(`/pqrs/${a.object_id}`)}
+        />
+      </Suspense>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -106,7 +109,9 @@ function PqrsLayoutInner() {
       )}
 
       {path.includes("/solicitudes") && (
-        <PqrsAICommandBar onResultClick={(r) => navigate(`/pqrs/${r.object_id}`)} />
+        <Suspense fallback={null}>
+          <PqrsAICommandBar onResultClick={(r) => navigate(`/pqrs/${r.object_id}`)} />
+        </Suspense>
       )}
 
       <Outlet />

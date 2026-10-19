@@ -23,6 +23,14 @@ def list_memberships(user) -> list[UserEntityMembership]:
     cached = getattr(user, "_memberships_cache", None)
     if cached is not None:
         return cached
+    prefetched = getattr(user, "_prefetched_objects_cache", None)
+    if prefetched is not None and "memberships" in prefetched:
+        items = sorted(
+            (m for m in prefetched["memberships"] if m.is_active),
+            key=lambda m: (-int(m.is_default), (m.entity.name if m.entity_id else "")),
+        )
+        user._memberships_cache = items
+        return items
     items = list(memberships_queryset(user))
     user._memberships_cache = items
     return items

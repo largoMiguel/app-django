@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { Menu } from "lucide-react";
+import { lazy, Suspense, useState } from "react";
+import { Menu, Bot } from "lucide-react";
 import { Outlet, useLocation } from "react-router-dom";
-import { Bot } from "lucide-react";
 import Sidebar from "./Sidebar";
-import CopilotPanel from "@/components/ai/CopilotPanel";
+import SessionLoadingScreen from "@/components/ui/SessionLoadingScreen";
+
+const CopilotPanel = lazy(() => import("@/components/ai/CopilotPanel"));
 import { useAuthStore } from "@/core/auth/store";
 import {
   getEntityCopilotModules,
@@ -72,13 +73,15 @@ export default function AppLayout() {
       )}
 
       {showCopilot && showGlobalCopilot && (
-        <CopilotPanel
-          mode="global"
-          modules={copilotModules}
-          title="Copiloto SoftOne"
-          onClose={() => setShowGlobalCopilot(false)}
-          className="fixed bottom-4 right-4 z-50 w-[min(400px,calc(100vw-2rem))] max-h-[600px] shadow-2xl"
-        />
+        <Suspense fallback={<SessionLoadingScreen />}>
+          <CopilotPanel
+            mode="global"
+            modules={copilotModules}
+            title="Copiloto SoftOne"
+            onClose={() => setShowGlobalCopilot(false)}
+            className="fixed bottom-4 right-4 z-50 w-[min(400px,calc(100vw-2rem))] max-h-[600px] shadow-2xl"
+          />
+        </Suspense>
       )}
     </div>
   );

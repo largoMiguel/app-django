@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Search, Sparkles, X } from "lucide-react";
 import type { SemanticSearchResult } from "@/core/api/ai/types";
 import { formatApiError } from "@/core/api/errors";
+import { pqrsAiApi } from "@/core/api/ai/pqrs";
 
 interface SearchResponse {
   results: SemanticSearchResult[];
@@ -61,9 +62,7 @@ export default function AICommandBar({
       try {
         const data = searchFn
           ? await searchFn(query, contentTypes, 8)
-          : await import("@/core/api/ai/pqrs").then((m) =>
-              m.pqrsAiApi.search(query, contentTypes, 8),
-            );
+          : await pqrsAiApi.search(query, contentTypes, 8);
         setResults(data.results);
         setHint(data.hint ?? null);
         setSearchMode(data.search_mode ?? null);

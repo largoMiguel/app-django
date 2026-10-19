@@ -58,6 +58,7 @@ from .serializers import (
     SecopListQuerySerializer,
     SecopRefrescarSerializer,
 )
+from .response_cache import get_cached_payload, set_cached_payload
 from .unify import load_secop1_normalized, load_secop2_unified
 
 
@@ -227,6 +228,11 @@ class SecopResumenView(SecopBaseView):
     def get(self, request):
         ser = SecopAnioQuerySerializer(data=request.query_params)
         anio = _validated_anio(ser)
+        cache_extra = {"anio": anio}
+        cached = get_cached_payload(self.entity.id, "resumen", cache_extra)
+        if cached is not None:
+            return Response(cached)
+
         s1, s2 = _load_all(self.entity, anio)
         all_recs = s1 + s2
         kpis = compute_kpis(all_recs)
@@ -240,19 +246,19 @@ class SecopResumenView(SecopBaseView):
             nits_ii=resolve_nits_secop_ii(self.entity),
             anio=anio,
         )
-        return Response(
-            {
-                "anio": anio,
-                "kpis": kpis,
-                "comparativo": compare_kpis(kpis, prev_kpis) if prev_kpis else None,
-                "secop1": {"meta": {"total": len(s1)}, "kpis": compute_kpis(s1)},
-                "secop2": {"meta": {"total": len(s2)}, "kpis": compute_kpis(s2), "analitica": compute_analytics(s2)},
-                "alertas_criticas": [a for a in alerts if a["severidad"] in {"critica", "alta"}][:8],
-                "total_alertas": len(alerts),
-                "vencimientos": buckets_vencimiento(all_recs),
-                "pagos": curva_pagos(all_recs),
-            }
-        )
+        payload = {
+            "anio": anio,
+            "kpis": kpis,
+            "comparativo": compare_kpis(kpis, prev_kpis) if prev_kpis else None,
+            "secop1": {"meta": {"total": len(s1)}, "kpis": compute_kpis(s1)},
+            "secop2": {"meta": {"total": len(s2)}, "kpis": compute_kpis(s2), "analitica": compute_analytics(s2)},
+            "alertas_criticas": [a for a in alerts if a["severidad"] in {"critica", "alta"}][:8],
+            "total_alertas": len(alerts),
+            "vencimientos": buckets_vencimiento(all_recs),
+            "pagos": curva_pagos(all_recs),
+        }
+        set_cached_payload(self.entity.id, "resumen", payload, cache_extra)
+        return Response(payload)
 
 
 class Secop2ListView(SecopBaseView):

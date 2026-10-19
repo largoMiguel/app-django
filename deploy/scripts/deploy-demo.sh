@@ -75,6 +75,10 @@ if [[ "$healthy" -ne 1 ]]; then
   exit 1
 fi
 
+echo "==> Migraciones Django (demo)…"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T demo-backend \
+  python manage.py migrate --noinput
+
 echo "==> Smoke test interno…"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T demo-nginx wget -qO- http://127.0.0.1/healthz | grep -q ok
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T demo-backend curl -fsS http://localhost:8000/api/health | grep -q ok

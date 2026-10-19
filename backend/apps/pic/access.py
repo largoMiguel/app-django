@@ -38,7 +38,7 @@ def actividades_queryset_for_user(user, entity: Entity) -> QuerySet[PicActividad
     qs = (
         PicActividad.objects.filter(entity=entity)
         .select_related("plan", "responsable_secretaria")
-        .prefetch_related("responsables", "ejecuciones", "ejecuciones__archivos")
+        .prefetch_related("responsables", "ejecuciones")
     )
     if _is_admin(user):
         return qs

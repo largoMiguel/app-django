@@ -33,6 +33,9 @@ DATABASES["default"]["CONN_MAX_AGE"] = 300  # noqa: F405
 
 # Nginx pasa CF-Connecting-IP; DRF usa REMOTE_ADDR para throttling por ciudadano.
 REST_FRAMEWORK["NUM_PROXIES"] = 1  # noqa: F405
+REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = (  # noqa: F405
+    "drf_orjson.renderers.ORJSONRenderer",
+)
 DATABASES["default"]["OPTIONS"] = {  # noqa: F405
     **DATABASES["default"].get("OPTIONS", {}),  # noqa: F405
     "connect_timeout": 10,

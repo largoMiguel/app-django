@@ -162,6 +162,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Cache (Redis en prod; locmem en dev si no hay REDIS_URL)
 _redis_url = os.getenv("REDIS_URL", "").strip()
+REDIS_URL = _redis_url
 if _redis_url:
     CACHES = {
         "default": {
@@ -199,6 +200,8 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ),
     "DEFAULT_THROTTLE_CACHE": "default",
+    "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.StandardPageNumberPagination",
+    "PAGE_SIZE": 15,
     "DEFAULT_THROTTLE_RATES": {
         "anon": "60/min",
         "user": "1000/min",
@@ -306,6 +309,10 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 300
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_ACKS_LATE = True
+CELERY_RESULT_EXPIRES = 86400
+CELERY_TASK_SOFT_TIME_LIMIT = 270
 
 # Email (notificaciones PQRS)
 EMAIL_BACKEND = os.getenv(

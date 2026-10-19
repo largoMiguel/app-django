@@ -12,7 +12,7 @@ const tabs = [
 function PicLayoutInner() {
   const location = useLocation();
   const { anio, setAnio, aniosDisponibles } = usePicYear();
-  const role = primaryRole(useAuthStore().user);
+  const role = primaryRole(useAuthStore((s) => s.user));
   const isDetail = Boolean(location.pathname.match(/\/pic\/actividades\/\d+/));
 
   const subtitle = location.pathname.includes("/encargados")

@@ -52,7 +52,7 @@ function pageNumbers(totalPages: number, currentPage: number): (number | "...")[
 }
 
 export default function PQRSListPage() {
-  const { user } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const canAdmin = canAccess(user, { roles: ["admin"], permissions: [PERM.PQRS_CHANGE] });
   const isSecretario =
     canAccess(user, { roles: ["secretario"], permissions: [PERM.PQRS_VIEW] }) && !canAdmin;

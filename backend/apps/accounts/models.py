@@ -174,6 +174,10 @@ class UserEntityMembership(models.Model):
         ordering = ["entity__name", "user__email"]
         verbose_name = "Membresía de entidad"
         verbose_name_plural = "Membresías de entidad"
+        indexes = [
+            models.Index(fields=["user", "is_active"], name="uem_user_active_idx"),
+            models.Index(fields=["entity", "role", "is_active"], name="uem_entity_role_active_idx"),
+        ]
         constraints = [
             models.UniqueConstraint(fields=("user", "entity"), name="unique_user_entity_membership"),
             models.CheckConstraint(

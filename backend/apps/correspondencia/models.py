@@ -141,6 +141,7 @@ class Correspondencia(models.Model):
             models.Index(fields=["entity", "estado"], name="corr_ent_estado_idx"),
             models.Index(fields=["entity", "sentido"], name="corr_ent_sentido_idx"),
             models.Index(fields=["entity", "secretaria"], name="corr_ent_sec_idx"),
+            models.Index(fields=["entity", "assigned_to"], name="corr_ent_assigned_idx"),
         ]
 
     def __str__(self) -> str:

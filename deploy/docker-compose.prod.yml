@@ -48,6 +48,10 @@ services:
       - max_parallel_workers=8
       - -c
       - max_parallel_workers_per_gather=2
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
     volumes:
       - /srv/postgres/prod:/var/lib/postgresql/data
     networks:
@@ -90,7 +94,7 @@ services:
     image: softone-backend:latest
     container_name: softone-celery-worker
     restart: unless-stopped
-    command: celery -A config worker -l info --concurrency=6
+    command: celery -A config worker -l info --concurrency=6 --max-memory-per-child=350000 --max-tasks-per-child=200
     healthcheck:
       test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME -t 5"]
       interval: 30s

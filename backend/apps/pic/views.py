@@ -220,8 +220,13 @@ class PicActividadViewSet(PicBaseMixin, viewsets.ReadOnlyModelViewSet):
     def ejecuciones(self, request, pk=None):
         act = self.get_object()
         if request.method == "GET":
+            from apps.common.pagination import StandardPageNumberPagination
+
             qs = act.ejecuciones.prefetch_related("archivos").order_by("-fecha_ejecucion", "-id")
-            return Response(PicEjecucionSerializer(qs, many=True, context={"request": request}).data)
+            paginator = StandardPageNumberPagination()
+            page = paginator.paginate_queryset(qs, request)
+            ser = PicEjecucionSerializer(page, many=True, context={"request": request})
+            return paginator.get_paginated_response(ser.data)
 
         ser = PicEjecucionWriteSerializer(data=request.data)
         ser.is_valid(raise_exception=True)

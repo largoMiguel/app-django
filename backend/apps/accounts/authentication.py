@@ -5,8 +5,10 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from clerk_backend_api import Clerk
 from clerk_backend_api.security.types import AuthenticateRequestOptions
+
+from apps.accounts.auth_cache import get_cached_user_id, set_cached_user_id
+from apps.accounts.clerk_client import get_clerk_client
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 
@@ -34,7 +36,9 @@ class ClerkAuthentication(BaseAuthentication):
             authorized_parties=settings.CLERK_AUTHORIZED_PARTIES or None,
             jwt_key=settings.CLERK_JWT_KEY or None,
         )
-        sdk = Clerk(bearer_auth=secret)
+        sdk = get_clerk_client()
+        if sdk is None:
+            return None
         state = sdk.authenticate_request(django_request, options)
 
         if not state.is_signed_in:
@@ -50,8 +54,8 @@ class ClerkAuthentication(BaseAuthentication):
         apply_request_entity_context(request, user)
         return (user, payload)
 
-    def _resolve_user(self, clerk_id: str) -> User:
-        user = (
+    def _user_queryset(self):
+        return (
             User.objects.select_related("entity", "secretaria")
             .prefetch_related(
                 "groups",
@@ -61,10 +65,18 @@ class ClerkAuthentication(BaseAuthentication):
                 "memberships__entity",
                 "memberships__secretaria",
             )
-            .filter(clerk_id=clerk_id)
-            .first()
         )
+
+    def _resolve_user(self, clerk_id: str) -> User:
+        cached_id = get_cached_user_id(clerk_id)
+        if cached_id:
+            user = self._user_queryset().filter(pk=cached_id, clerk_id=clerk_id).first()
+            if user:
+                return user
+
+        user = self._user_queryset().filter(clerk_id=clerk_id).first()
         if user:
+            set_cached_user_id(clerk_id, user.pk)
             return user
 
         try:
@@ -79,19 +91,7 @@ class ClerkAuthentication(BaseAuthentication):
                 code="clerk_no_email",
             )
 
-        user = (
-            User.objects.select_related("entity", "secretaria")
-            .prefetch_related(
-                "groups",
-                "groups__permissions",
-                "user_permissions",
-                "memberships",
-                "memberships__entity",
-                "memberships__secretaria",
-            )
-            .filter(email__iexact=email)
-            .first()
-        )
+        user = self._user_queryset().filter(email__iexact=email).first()
         if not user:
             raise AuthenticationFailed(
                 "Tu cuenta no está registrada en SoftOne. Contacta al administrador.",
@@ -100,6 +100,7 @@ class ClerkAuthentication(BaseAuthentication):
 
         user.clerk_id = clerk_id
         user.save(update_fields=["clerk_id"])
+        set_cached_user_id(clerk_id, user.pk)
         return user
 
     def _validate_user(self, user: User) -> None:

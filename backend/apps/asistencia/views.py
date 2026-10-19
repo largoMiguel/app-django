@@ -4,6 +4,7 @@ from __future__ import annotations
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -160,8 +161,10 @@ class EquipoListCreateView(APIView):
         is_active = request.query_params.get("is_active")
         if is_active is not None:
             qs = qs.filter(is_active=is_active.lower() in {"1", "true", "yes"})
-        ser = EquipoRegistroSerializer(qs, many=True)
-        return Response(ser.data)
+        paginator = StandardPageNumberPagination()
+        page = paginator.paginate_queryset(qs, request)
+        ser = EquipoRegistroSerializer(page, many=True)
+        return paginator.get_paginated_response(ser.data)
 
     def post(self, request):
         entity = _entity_for_user(request.user)
@@ -248,7 +251,14 @@ class RegistroDiarioListView(APIView):
         entity = _entity_for_user(request.user)
         _ensure_manage(request.user, entity)
         qs = registros_queryset(request.user, entity)
-        filt = RegistroAsistenciaFilterSet(request.query_params, queryset=qs)
+        params = request.query_params.copy()
+        if not params.get("fecha_desde") and not params.get("fecha_hasta"):
+            from datetime import timedelta
+
+            now = timezone.now()
+            params["fecha_desde"] = (now - timedelta(days=31)).isoformat()
+            params["fecha_hasta"] = now.isoformat()
+        filt = RegistroAsistenciaFilterSet(params, queryset=qs)
         rows = build_diario_rows(entity, filt.qs)
         paginator = StandardPageNumberPagination()
         page = paginator.paginate_queryset(rows, request)

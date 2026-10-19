@@ -225,6 +225,8 @@ export interface PQRSReportPreview {
   }>;
 }
 
+export type InformePQRSEstado = "PENDIENTE" | "PROCESANDO" | "COMPLETADO" | "ERROR";
+
 export interface InformePQRS {
   id: number;
   filename: string;
@@ -234,6 +236,8 @@ export interface InformePQRS {
   tasa_resolucion: number;
   used_ai: boolean;
   file_size: number;
+  estado?: InformePQRSEstado;
+  error_detail?: string;
   created_at: string;
   expires_at: string;
   expires_in_days: number;
@@ -409,11 +413,14 @@ export const pqrsApi = {
 };
 
 export const informesApi = {
-  list: () => api.get<InformePQRS[]>("/pqrs/informes/").then((r) => r.data),
-  generate: (payload: GenerarInformePayload) =>
+  list: () =>
     api
-      .post<InformePQRS>("/pqrs/informes/", payload, { timeout: 300_000 })
-      .then((r) => r.data),
+      .get<InformePQRS[] | { results: InformePQRS[] }>("/pqrs/informes/", {
+        params: { page_size: 100 },
+      })
+      .then((r) => (Array.isArray(r.data) ? r.data : r.data.results)),
+  generate: (payload: GenerarInformePayload) =>
+    api.post<InformePQRS>("/pqrs/informes/", payload, { timeout: 60_000 }).then((r) => r.data),
   download: (id: number, filename: string) =>
     downloadAuthenticatedFile(`/api/v1/pqrs/informes/${id}/download/`, filename),
   remove: (id: number) => api.delete(`/pqrs/informes/${id}/`),

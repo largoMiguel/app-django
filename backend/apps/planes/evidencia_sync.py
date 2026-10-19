@@ -21,12 +21,21 @@ def parse_meta_programada(value: str | None) -> Decimal | None:
         return None
 
 
-def total_ejecutado(actividad: PlanActividad) -> Decimal:
-    """Suma cantidad_ejecutada de evidencias.
+def _evidencias_iter(actividad: PlanActividad):
+    cache = getattr(actividad, "_prefetched_objects_cache", None)
+    if cache is not None and "evidencias" in cache:
+        return cache["evidencias"]
+    return actividad.evidencias.all()
 
-    Consulta la BD directamente cuando la actividad ya existe, para evitar
-    caché de prefetch vacía (p. ej. al crear la primera evidencia vía API).
-    """
+
+def total_ejecutado(actividad: PlanActividad) -> Decimal:
+    """Suma cantidad_ejecutada de evidencias (prefetch en listados; BD si no hay prefetch)."""
+    cache = getattr(actividad, "_prefetched_objects_cache", None)
+    if cache is not None and "evidencias" in cache:
+        total = Decimal("0")
+        for ev in cache["evidencias"]:
+            total += Decimal(ev.cantidad_ejecutada or 0)
+        return total
     if actividad.pk:
         total = Decimal("0")
         for cantidad in PlanEvidencia.objects.filter(actividad_id=actividad.pk).values_list(
@@ -34,7 +43,6 @@ def total_ejecutado(actividad: PlanActividad) -> Decimal:
         ):
             total += Decimal(cantidad or 0)
         return total
-
     total = Decimal("0")
     for ev in actividad.evidencias.all():
         total += Decimal(ev.cantidad_ejecutada or 0)

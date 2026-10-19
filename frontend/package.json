@@ -11,6 +11,8 @@
     "format": "prettier -w ."
   },
   "dependencies": {
+    "@fontsource/figtree": "^5.2.5",
+    "@fontsource/sora": "^5.2.5",
     "@clerk/localizations": "^4.7.1",
     "@clerk/react": "^6.7.3",
     "@clerk/ui": "^1.16.1",

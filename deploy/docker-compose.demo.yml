@@ -18,6 +18,8 @@ services:
       - shared_buffers=256MB
       - -c
       - jit=off
+      - -c
+      - shared_preload_libraries=pg_stat_statements
     volumes:
       - /srv/postgres/demo:/var/lib/postgresql/data
     networks:
@@ -60,7 +62,7 @@ services:
     image: softone-demo-backend:latest
     container_name: softone-demo-celery-worker
     restart: unless-stopped
-    command: celery -A config worker -l info --concurrency=2
+    command: celery -A config worker -l info --concurrency=2 --max-memory-per-child=350000 --max-tasks-per-child=200
     healthcheck:
       test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME -t 5"]
       interval: 30s

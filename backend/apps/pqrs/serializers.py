@@ -421,6 +421,8 @@ class InformePQRSSerializer(serializers.ModelSerializer):
             "tasa_resolucion",
             "used_ai",
             "file_size",
+            "estado",
+            "error_detail",
             "created_at",
             "expires_at",
             "expires_in_days",

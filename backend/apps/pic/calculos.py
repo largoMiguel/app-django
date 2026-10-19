@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from django.db.models import Sum
-
 from .models import PicActividad, Trimestre
 
 
@@ -18,10 +16,15 @@ def calcular_valor_unitario(valor_total: Decimal, total_programado: int) -> Deci
     return _round2(Decimal(valor_total) / Decimal(total_programado))
 
 
+def _ejecuciones_iter(actividad: PicActividad):
+    cache = getattr(actividad, "_prefetched_objects_cache", None)
+    if cache is not None and "ejecuciones" in cache:
+        return cache["ejecuciones"]
+    return actividad.ejecuciones.all()
+
+
 def total_ejecutado(actividad: PicActividad) -> int:
-    return int(
-        actividad.ejecuciones.aggregate(total=Sum("cantidad_ejecutada"))["total"] or 0
-    )
+    return sum(int(ej.cantidad_ejecutada or 0) for ej in _ejecuciones_iter(actividad))
 
 
 def disponible_ejecucion(actividad: PicActividad) -> int:
@@ -42,9 +45,8 @@ def calcular_valor_cobrado(actividad: PicActividad, acum_previo: int, cantidad: 
 
 
 def total_valor_cobrado(actividad: PicActividad) -> Decimal:
-    return _round2(
-        actividad.ejecuciones.aggregate(total=Sum("valor_cobrado"))["total"] or Decimal("0")
-    )
+    total = sum(Decimal(ej.valor_cobrado or 0) for ej in _ejecuciones_iter(actividad))
+    return _round2(total)
 
 
 def trimestre_from_date(fecha, anio: int) -> int:
@@ -69,7 +71,7 @@ def resumen_trimestral(actividad: PicActividad) -> list[dict]:
         actividad.prog_t4,
     ]
     ejecutado_por_tri: dict[int, int] = {1: 0, 2: 0, 3: 0, 4: 0}
-    for ej in actividad.ejecuciones.all():
+    for ej in _ejecuciones_iter(actividad):
         tri = ej.trimestre
         if tri in ejecutado_por_tri:
             ejecutado_por_tri[tri] += ej.cantidad_ejecutada

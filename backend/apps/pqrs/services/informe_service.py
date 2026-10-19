@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from apps.common.b2_client import get_b2_client
 from apps.common.storages import pqrs_storage_for_paths
-from apps.pqrs.models import EstadoPQRS, InformePQRS, PQRS
+from apps.pqrs.models import EstadoPQRS, InformePQRS, InformePQRSEstado, PQRS
 
 from .report_ai import PQRSReportAIService, build_fallback_analysis
 from .report_generator import PQRSReportGenerator
@@ -162,8 +162,110 @@ def generate_informe_pqrs(
         tasa_resolucion=analytics["tasaResolucion"],
         used_ai=used_ai,
         expires_at=expires_at,
+        estado=InformePQRSEstado.COMPLETADO,
     )
     return informe
+
+
+def run_informe_pqrs_generation(informe_id: int) -> None:
+    """Genera el PDF de un informe en cola (Celery)."""
+    from apps.pqrs.access import pqrs_queryset_for_user
+    from apps.pqrs.filters import PQRSFilterSet
+
+    informe = (
+        InformePQRS.objects.select_related("entity", "created_by")
+        .filter(pk=informe_id)
+        .first()
+    )
+    if not informe or informe.estado == InformePQRSEstado.COMPLETADO:
+        return
+
+    informe.estado = InformePQRSEstado.PROCESANDO
+    informe.error_detail = ""
+    informe.save(update_fields=["estado", "error_detail"])
+
+    params = informe.generation_params or {}
+    user = informe.created_by
+    entity = informe.entity
+    if not user or not entity:
+        informe.estado = InformePQRSEstado.ERROR
+        informe.error_detail = "Informe sin usuario o entidad."
+        informe.save(update_fields=["estado", "error_detail"])
+        return
+
+    try:
+        base_qs = pqrs_queryset_for_user(user, PQRS.objects.all())
+        filter_data = {
+            "fecha_desde": informe.fecha_inicio.isoformat(),
+            "fecha_hasta": informe.fecha_fin.isoformat(),
+        }
+        for key in ("estado", "tipo_solicitud", "assigned_to"):
+            if params.get(key) is not None:
+                filter_data[key] = params[key]
+        filterset = PQRSFilterSet(data=filter_data, queryset=base_qs)
+        pqrs_qs = filterset.qs.select_related("assigned_to").order_by("-fecha_solicitud", "-id")
+        if not pqrs_qs.exists():
+            raise ValueError("No se encontraron PQRS en el rango de fechas seleccionado.")
+
+        pqrs_list = [pqrs_to_dict(p) for p in pqrs_qs]
+        analytics = build_report_analytics(pqrs_list)
+        usar_ia = bool(params.get("usar_ia", True))
+        ai_analysis, used_ai = _resolve_ai_analysis(
+            usar_ia=usar_ia,
+            entity=entity,
+            analytics=analytics,
+            fecha_inicio=informe.fecha_inicio.isoformat(),
+            fecha_fin=informe.fecha_fin.isoformat(),
+            pqrs_list=pqrs_list,
+        )
+
+        usuario_firmante = None
+        firmante_id = params.get("usuario_firmante_id")
+        if firmante_id:
+            usuario_firmante = User.objects.filter(pk=firmante_id, entity_id=entity.id).first()
+
+        generator = PQRSReportGenerator(
+            entity=entity,
+            pqrs_list=pqrs_list,
+            analytics=analytics,
+            ai_analysis=ai_analysis,
+            fecha_inicio=informe.fecha_inicio.isoformat(),
+            fecha_fin=informe.fecha_fin.isoformat(),
+            usuario_firmante=usuario_firmante,
+        )
+        pdf_buffer: BytesIO = generator.generate_pdf()
+        pdf_content = pdf_buffer.read()
+
+        timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"informe_pqrs_{informe.fecha_inicio}_{informe.fecha_fin}.pdf"
+        b2_key = f"informes/{entity.id}/informe_{informe.fecha_inicio}_{informe.fecha_fin}_{timestamp}.pdf"
+
+        storage = pqrs_storage_for_paths()
+        storage.save(b2_key, BytesIO(pdf_content))
+
+        informe.filename = filename
+        informe.b2_key = b2_key
+        informe.file_size = len(pdf_content)
+        informe.total_pqrs = analytics["totalPqrs"]
+        informe.tasa_resolucion = analytics["tasaResolucion"]
+        informe.used_ai = used_ai
+        informe.estado = InformePQRSEstado.COMPLETADO
+        informe.save(
+            update_fields=[
+                "filename",
+                "b2_key",
+                "file_size",
+                "total_pqrs",
+                "tasa_resolucion",
+                "used_ai",
+                "estado",
+            ]
+        )
+    except Exception as exc:
+        logger.exception("Error generando informe PQRS %s", informe_id)
+        informe.estado = InformePQRSEstado.ERROR
+        informe.error_detail = str(exc)[:2000]
+        informe.save(update_fields=["estado", "error_detail"])
 
 
 def delete_informe(informe: InformePQRS) -> None:

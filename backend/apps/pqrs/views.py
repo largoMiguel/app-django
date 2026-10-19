@@ -290,7 +290,7 @@ class PQRSViewSet(viewsets.ModelViewSet):
             message="El módulo de reportes no está habilitado para tu usuario.",
         )
         qs = self.filter_queryset(self.get_queryset())
-        max_rows = 20000
+        max_rows = 5000
         total = qs.count()
         rows_qs = qs.order_by("-fecha_solicitud", "-id")[:max_rows]
         rows = PQRSReportRowSerializer(rows_qs, many=True).data
@@ -642,15 +642,16 @@ class PQRSViewSet(viewsets.ModelViewSet):
                 if email_destino != (pqrs.email_ciudadano or "").strip():
                     pqrs.email_ciudadano = email_destino
                     pqrs.save(update_fields=["email_ciudadano", "updated_at"])
-                try:
-                    enviar_respuesta(
-                        pqrs,
-                        ser.validated_data["respuesta"],
-                        email_destino,
-                        enviado_por=user,
+                from .tasks import enviar_respuesta_pqrs_async
+
+                respuesta_text = ser.validated_data["respuesta"]
+                uid = user.id
+                pqrs_id = pqrs.id
+                transaction.on_commit(
+                    lambda: enviar_respuesta_pqrs_async.delay(
+                        pqrs_id, respuesta_text, email_destino, uid
                     )
-                except ValueError as exc:
-                    raise ValidationError({"email_destino": str(exc)}) from exc
+                )
 
         pqrs.refresh_from_db()
         return Response(PQRSSerializer(pqrs, context={"request": request}).data)
@@ -686,10 +687,11 @@ class PQRSViewSet(viewsets.ModelViewSet):
                 pqrs.email_ciudadano = nuevo_email
                 pqrs.save(update_fields=["email_ciudadano", "updated_at"])
 
-        try:
-            reenviar_correo(correo, email_destino or None)
-        except ValueError as exc:
-            raise ValidationError({"email_destino": str(exc)}) from exc
+        from .tasks import reenviar_correo_pqrs_async
+
+        correo_pk = correo.id
+        dest = email_destino or None
+        transaction.on_commit(lambda: reenviar_correo_pqrs_async.delay(correo_pk, dest))
 
         pqrs.refresh_from_db()
         return Response(PQRSSerializer(pqrs, context={"request": request}).data)

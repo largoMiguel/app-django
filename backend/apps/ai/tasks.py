@@ -144,9 +144,14 @@ def reindex_all_embeddings(entity_id: int | None = None):
     """Reindexa embeddings de PQRS (toda la entidad o todas las entidades)."""
     from apps.pqrs.models import PQRS
 
+    from apps.entities.models import Entity
+
     qs = PQRS.objects.all().order_by("-id")
     if entity_id:
         qs = qs.filter(entity_id=entity_id)
+    else:
+        enabled = Entity.objects.filter(enable_pqrs=True).values_list("id", flat=True)
+        qs = qs.filter(entity_id__in=enabled)
     pqrs_ids = qs.values_list("id", flat=True)[:2000]
     logger.info("Reindexando %d PQRS (entity_id=%s)", len(pqrs_ids), entity_id)
     for pqrs_id in pqrs_ids:

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Plus, Search, Pencil, Trash2, X, Save, ScanFace, UserCheck } from "lucide-react";
 import { asistenciaApi, type Funcionario } from "@/core/api/asistencia";
 import { formatApiError } from "@/core/api/errors";
 import { primaryRole, useAuthStore } from "@/core/auth/store";
-import FaceEnrollModal from "@/components/asistencia/FaceEnrollModal";
+const FaceEnrollModal = lazy(() => import("@/components/asistencia/FaceEnrollModal"));
 
 const emptyForm = {
   cedula: "",
@@ -276,13 +276,15 @@ export default function FuncionariosPage() {
       </div>
 
       {enrollTarget && (
-        <FaceEnrollModal
-          funcionario={enrollTarget}
-          onClose={() => setEnrollTarget(null)}
-          onEnrolled={() => {
-            void load();
-          }}
-        />
+        <Suspense fallback={null}>
+          <FaceEnrollModal
+            funcionario={enrollTarget}
+            onClose={() => setEnrollTarget(null)}
+            onEnrolled={() => {
+              void load();
+            }}
+          />
+        </Suspense>
       )}
 
       {modal && (

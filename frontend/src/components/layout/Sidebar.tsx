@@ -5,6 +5,18 @@ import { useState } from "react";
 import { accessibleNavRoutes, primaryRole, useAuthStore } from "@/core/auth/store";
 import { clearClientSession } from "@/core/auth/session";
 
+const MODULE_PREFETCH: Partial<Record<string, () => Promise<unknown>>> = {
+  pqrs: () => import("@/features/pqrs/PqrsLayout"),
+  pdm: () => import("@/features/pdm/PdmLayout"),
+  planes_institucionales: () => import("@/features/planes/PlanesLayout"),
+  asistencia: () => import("@/features/asistencia/AsistenciaLayout"),
+  correspondencia: () => import("@/features/correspondencia/CorrespondenciaLayout"),
+  gestion_documental: () => import("@/features/gestion-documental/GestionDocumentalLayout"),
+  pic: () => import("@/features/pic/PicLayout"),
+  contratacion: () => import("@/features/secop/SecopLayout"),
+  users_admin: () => import("@/features/users/UsersPage"),
+};
+
 const NAV_ICONS: Record<string, LucideIcon> = {
   superadmin: Building2,
   pqrs: FileText,
@@ -25,7 +37,7 @@ interface SidebarProps {
 
 export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { user } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const location = useLocation();
 
   const role = primaryRole(user);
@@ -56,6 +68,8 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
       <NavLink
         key={item.path}
         to={item.path}
+        onMouseEnter={() => MODULE_PREFETCH[item.moduleKey]?.()}
+        onFocus={() => MODULE_PREFETCH[item.moduleKey]?.()}
         onClick={() => onMobileClose?.()}
         className={() =>
           `group flex items-center gap-3 rounded-[0.3rem] px-3 py-2.5 text-sm transition-all ${

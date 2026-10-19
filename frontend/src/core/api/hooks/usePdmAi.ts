@@ -31,5 +31,6 @@ export function usePdmAlerts(unread = true, enabled = true) {
     queryKey: pdmAiKeys.alerts(unread),
     queryFn: () => sharedAiApi.alerts({ unread, module: "pdm" }),
     enabled,
+    staleTime: 60_000,
   });
 }
