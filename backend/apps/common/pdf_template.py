@@ -156,9 +156,56 @@ def _style_for_rect(page, rect: fitz.Rect) -> dict:
     }
 
 
-def _pagination_cell_right_edge(page, line_rect: fitz.Rect) -> float:
-    right = page.rect.x1 - 12
+_PAGINA_LABEL_RE = re.compile(r"p[aá]gina", re.IGNORECASE)
+
+
+def _pagination_span_style(page, line_rect: fitz.Rect) -> dict | None:
+    """Estilo y baseline del span «Página» en la línea de paginación."""
+    data = page.get_text("dict")
+    for block in data.get("blocks", []):
+        for line in block.get("lines", []):
+            line_text = "".join(span["text"] for span in line.get("spans", [])).strip()
+            if not _PAGE_NUM_PHRASE_RE.search(line_text):
+                continue
+            line_bbox = line["bbox"]
+            for span in line.get("spans", []):
+                if not _PAGINA_LABEL_RE.search(span.get("text", "")):
+                    continue
+                origin = span.get("origin")
+                if origin:
+                    baseline = float(origin[1])
+                else:
+                    baseline = float(span["bbox"][3]) - 0.8
+                return {
+                    "size": float(span.get("size", 9.0)),
+                    "color": _int_color_to_rgb(span.get("color", 0)),
+                    "fontname": _fontname_from_span(span),
+                    "baseline": baseline,
+                    "line_x0": float(line_bbox[0]),
+                    "line_x1": float(line_bbox[2]),
+                }
+            first = line["spans"][0]
+            origin = first.get("origin")
+            baseline = float(origin[1]) if origin else float(line_bbox[3]) - 0.8
+            return {
+                "size": float(first.get("size", 9.0)),
+                "color": _int_color_to_rgb(first.get("color", 0)),
+                "fontname": _fontname_from_span(first),
+                "baseline": baseline,
+                "line_x0": float(line_bbox[0]),
+                "line_x1": float(line_bbox[2]),
+            }
+    return None
+
+
+def _pagination_cell_bounds(page, line_rect: fitz.Rect) -> tuple[float, float]:
+    cell_x0 = max(0.0, line_rect.x0 - 24.0)
+    cell_x1 = min(page.rect.x1 - 12.0, line_rect.x1 + 24.0)
     tol_y = max(6.0, line_rect.height * 2.5)
+    phrase_center = (line_rect.x0 + line_rect.x1) / 2
+    left_edges: list[float] = []
+    right_edges: list[float] = []
+
     for draw in page.get_drawings():
         rect = draw.get("rect")
         if rect is None:
@@ -168,144 +215,87 @@ def _pagination_cell_right_edge(page, line_rect: fitz.Rect) -> float:
         if rect.y1 < line_rect.y0 - tol_y or rect.y0 > line_rect.y1 + tol_y:
             continue
         x = float(rect.x0)
-        if x > line_rect.x0 + 8 and x < right:
-            right = x
-    return max(right, line_rect.x1 + 4)
+        if x < phrase_center - 2:
+            left_edges.append(x)
+        elif x > phrase_center + 2:
+            right_edges.append(x)
+
+    if left_edges:
+        cell_x0 = max(left_edges)
+    if right_edges:
+        cell_x1 = min(right_edges)
+    if cell_x1 <= cell_x0 + 8:
+        cell_x0 = line_rect.x0 - 2
+        cell_x1 = line_rect.x1 + 2
+    return cell_x0, cell_x1
 
 
-def _fit_pagination_fontsize(
-    fontsize: float,
-    *,
-    new_a: str,
-    new_b: str,
-    font_a: str,
-    font_b: str,
-    num_a_x0: float,
-    de_rect: fitz.Rect,
-    num_b_x0: float,
-    cell_right: float,
-) -> float:
-    size = fontsize
-    for _ in range(24):
-        w_a = fitz.get_text_length(new_a, fontname=font_a, fontsize=size)
-        w_b = fitz.get_text_length(new_b, fontname=font_b, fontsize=size)
-        limit_a = max(4.0, de_rect.x0 - 2.0 - num_a_x0)
-        limit_b = max(4.0, cell_right - 2.0 - num_b_x0)
-        if w_a <= limit_a and w_b <= limit_b:
-            return max(5.5, size)
-        scale = 1.0
-        if w_a > limit_a:
-            scale = min(scale, limit_a / w_a)
-        if w_b > limit_b:
-            scale = min(scale, limit_b / w_b)
-        size = max(5.5, size * scale * 0.97)
-    return max(5.5, size)
+def _render_pagination_in_cell(page, line_rect: fitz.Rect, text: str) -> None:
+    """Redibuja la frase completa dentro de la celda del membrete."""
+    style = _pagination_span_style(page, line_rect)
+    if style is None:
+        fallback = _style_for_rect(page, line_rect)
+        style = {
+            **fallback,
+            "baseline": line_rect.y1 - 0.8,
+            "line_x0": line_rect.x0,
+            "line_x1": line_rect.x1,
+        }
 
-
-def _insert_styled_text(
-    page,
-    origin: tuple[float, float],
-    text: str,
-    *,
-    fontsize: float,
-    fontname: str,
-    color: tuple[float, float, float],
-) -> None:
-    page.insert_text(
-        origin,
-        text,
-        fontsize=fontsize,
-        fontname=fontname,
-        color=color,
+    cell_x0, cell_x1 = _pagination_cell_bounds(page, line_rect)
+    clear_rect = fitz.Rect(
+        cell_x0 + 1,
+        line_rect.y0 - 1,
+        cell_x1 - 1,
+        line_rect.y1 + 1,
     )
+    page.add_redact_annot(clear_rect, fill=(1, 1, 1))
+    page.apply_redactions()
 
-
-def _replace_pagination_numbers_only(page, page_index: int, total_pages: int) -> bool:
-    """Sustituye solo los dígitos, conservando 'Página' y 'de' del membrete original."""
-    words = page.get_text("words")
-    indices = _find_page_number_word_indices(words)
-    if indices is None:
-        return False
-    start_idx, num_a_idx, de_idx, num_b_idx = indices
-    if not _words_on_same_line(words, start_idx, num_b_idx):
-        return False
-
-    new_a = str(page_index + 1)
-    new_b = str(total_pages)
-    num_a_rect = _word_rect(words[num_a_idx])
-    num_b_rect = _word_rect(words[num_b_idx])
-    de_rect = _word_rect(words[de_idx])
-    line_rect = _find_pagina_line_rect(page) or (num_a_rect | num_b_rect)
-
-    style_a = _style_for_rect(page, num_a_rect)
-    style_b = _style_for_rect(page, num_b_rect)
-    fontsize = min(style_a["size"], style_b["size"])
-    cell_right = _pagination_cell_right_edge(page, line_rect)
-    fontsize = _fit_pagination_fontsize(
-        fontsize,
-        new_a=new_a,
-        new_b=new_b,
-        font_a=style_a["fontname"],
-        font_b=style_b["fontname"],
-        num_a_x0=num_a_rect.x0,
-        de_rect=de_rect,
-        num_b_x0=num_b_rect.x0,
-        cell_right=cell_right,
-    )
-
-    _cover_rect_white(page, num_a_rect, pad_x=2, pad_y=1)
-    _cover_rect_white(page, num_b_rect, pad_x=2, pad_y=1)
-    baseline = num_a_rect.y1 - 1
-    _insert_styled_text(
-        page,
-        (num_a_rect.x0, baseline),
-        new_a,
-        fontsize=fontsize,
-        fontname=style_a["fontname"],
-        color=style_a["color"],
-    )
-    _insert_styled_text(
-        page,
-        (num_b_rect.x0, baseline),
-        new_b,
-        fontsize=fontsize,
-        fontname=style_b["fontname"],
-        color=style_b["color"],
-    )
-    return True
-
-
-def _insert_page_number_text(page, rect: fitz.Rect, text: str) -> None:
-    """Respaldo: reescribe la frase completa ajustada al ancho de la celda."""
-    style = _style_for_rect(page, rect)
     fontsize = style["size"]
     fontname = style["fontname"]
     color = style["color"]
-    cell_right = _pagination_cell_right_edge(page, rect)
-    available = max(rect.width, cell_right - rect.x0)
-    text_width = fitz.get_text_length(text, fontname=fontname, fontsize=fontsize)
-    if text_width > available and text_width > 0:
-        fontsize = max(5.5, fontsize * (available / text_width))
+    hard_limit = cell_x1 - cell_x0 - 2
+    draw_width = fitz.get_text_length(text, fontname=fontname, fontsize=fontsize)
+    for _ in range(32):
+        if draw_width <= hard_limit:
+            break
+        fontsize = max(5.0, fontsize * (hard_limit / draw_width) * 0.98)
+        draw_width = fitz.get_text_length(text, fontname=fontname, fontsize=fontsize)
+
+    old_center = (style["line_x0"] + style["line_x1"]) / 2
+    cell_center = (cell_x0 + cell_x1) / 2
+    if abs(old_center - cell_center) <= 2:
+        x = cell_center - draw_width / 2
+    else:
+        x = style["line_x0"]
+    x = max(cell_x0 + 2, min(x, cell_x1 - 2 - draw_width))
+    if x + draw_width > cell_x1 - 1:
+        fontsize = max(
+            5.0,
+            fontsize * ((cell_x1 - 1 - x) / draw_width) * 0.98,
+        )
+        draw_width = fitz.get_text_length(text, fontname=fontname, fontsize=fontsize)
+        if abs(old_center - cell_center) <= 2:
+            x = cell_center - draw_width / 2
+        x = max(cell_x0 + 2, min(x, cell_x1 - 2 - draw_width))
+
     page.insert_text(
-        (rect.x0, rect.y1 - 1),
+        (x, style["baseline"]),
         text,
         fontsize=fontsize,
-        color=color,
         fontname=fontname,
+        color=color,
     )
 
 
 def replace_page_number(page, page_index: int, total_pages: int) -> None:
-    """Reemplaza 'Página X de Y' conservando el estilo del membrete cuando es posible."""
-    if _replace_pagination_numbers_only(page, page_index, total_pages):
-        return
-
+    """Reemplaza 'Página X de Y' redibujando la frase completa al estilo del membrete."""
     new_text = f"Página {page_index + 1} de {total_pages}"
 
     line_rect = _find_pagina_line_rect(page)
     if line_rect is not None:
-        _cover_rect_white(page, line_rect, pad_x=4, pad_y=1)
-        _insert_page_number_text(page, line_rect, new_text)
+        _render_pagination_in_cell(page, line_rect, new_text)
         return
 
     words = page.get_text("words")
@@ -316,8 +306,7 @@ def replace_page_number(page, page_index: int, total_pages: int) -> None:
             union = _word_rect(words[start_idx])
             for i in range(start_idx + 1, end_idx + 1):
                 union |= _word_rect(words[i])
-            _cover_rect_white(page, union, pad_x=4, pad_y=1)
-            _insert_page_number_text(page, union, new_text)
+            _render_pagination_in_cell(page, union, new_text)
             return
 
     for block in page.get_text("blocks"):
@@ -330,8 +319,7 @@ def replace_page_number(page, page_index: int, total_pages: int) -> None:
         rect = fitz.Rect(block[:4])
         line_height = max(8, rect.height * 0.35)
         line_rect = fitz.Rect(rect.x0, rect.y0, rect.x1, rect.y0 + line_height)
-        _cover_rect_white(page, line_rect, pad_x=4, pad_y=1)
-        _insert_page_number_text(page, line_rect, new_text)
+        _render_pagination_in_cell(page, line_rect, new_text)
         return
 
 

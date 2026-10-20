@@ -118,4 +118,4 @@ table.setStyle(TableStyle(banner_style_cmds()))
 - Evitar colores saturados (verde, azul, rojo, naranja) en informes institucionales
 - Las gráficas matplotlib deben usar escala de grises, sin semáforo de colores
 - El membrete institucional (plantilla PDF de entidad) se superpone por detrás; el contenido respeta los márgenes detectados automáticamente
-- La paginación **Página X de Y** se reemplaza en `apps/common/pdf_template.py` sin redibujar toda la frase: se conservan «Página» y «de» del PDF original y solo se actualizan los dígitos, con ajuste de tamaño al ancho de la celda del membrete
+- La paginación **Página X de Y** se redibuja en `apps/common/pdf_template.py` como frase completa (mismo estilo y baseline que el membrete), centrada en la celda cuando aplica y con reducción de tamaño solo si no cabe
