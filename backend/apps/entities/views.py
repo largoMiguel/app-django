@@ -93,7 +93,7 @@ class EntityViewSet(viewsets.ModelViewSet):
         raw = upload.read()
         from apps.common.docx_template import analyze_docx_fonts
 
-        fonts, missing = analyze_docx_fonts(raw)
+        fonts, missing, installed_fonts = analyze_docx_fonts(raw)
 
         timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
         key = f"templates/{entity.id}/template_{timestamp}.docx"
@@ -108,6 +108,7 @@ class EntityViewSet(viewsets.ModelViewSet):
                 "has_template": True,
                 "fonts": fonts,
                 "missing_fonts": missing,
+                "installed_fonts": installed_fonts,
             }
         )
 

@@ -26,8 +26,8 @@ case "${1:-}" in
 esac
 
 # Volúmenes Docker (static/media) se crean como root; appuser debe poder escribir.
-mkdir -p /app/staticfiles /app/media
-chown -R appuser:appuser /app/staticfiles /app/media
+mkdir -p /app/staticfiles /app/media /app/data/fonts
+chown -R appuser:appuser /app/staticfiles /app/media /app/data/fonts
 
 echo ">> Migraciones"
 gosu appuser python manage.py migrate --noinput

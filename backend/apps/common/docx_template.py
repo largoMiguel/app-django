@@ -78,7 +78,18 @@ def collect_requested_fonts(docx_bytes: bytes) -> set[str]:
     return families
 
 
+_fc_available_cache: set[str] | None = None
+
+
+def invalidate_fc_available_cache() -> None:
+    global _fc_available_cache
+    _fc_available_cache = None
+
+
 def _fc_available_families() -> set[str]:
+    global _fc_available_cache
+    if _fc_available_cache is not None:
+        return _fc_available_cache
     try:
         proc = subprocess.run(
             ["fc-list", "--format=%{family}\n"],
@@ -88,15 +99,18 @@ def _fc_available_families() -> set[str]:
             check=False,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
-        return set()
+        _fc_available_cache = set()
+        return _fc_available_cache
     if proc.returncode != 0:
-        return set()
+        _fc_available_cache = set()
+        return _fc_available_cache
     out: set[str] = set()
     for line in proc.stdout.splitlines():
         for part in line.split(","):
             key = _normalize_font_key(part)
             if key:
                 out.add(key)
+    _fc_available_cache = out
     return out
 
 
@@ -118,9 +132,24 @@ def missing_fonts(requested: set[str] | list[str]) -> list[str]:
     return missing
 
 
-def analyze_docx_fonts(docx_bytes: bytes) -> tuple[list[str], list[str]]:
-    requested = sorted(collect_requested_fonts(docx_bytes), key=str.lower)
-    return requested, missing_fonts(requested)
+def analyze_docx_fonts(
+    docx_bytes: bytes,
+    *,
+    auto_install: bool | None = None,
+) -> tuple[list[str], list[str], list[str]]:
+    """Devuelve (fuentes solicitadas, aún faltantes, instaladas en esta pasada)."""
+    if auto_install is None:
+        auto_install = bool(getattr(settings, "DOCX_AUTO_INSTALL_FONTS", True))
+    requested_set = collect_requested_fonts(docx_bytes)
+    installed: list[str] = []
+    if auto_install and requested_set:
+        from apps.common.font_install import ensure_fonts_for_docx
+
+        result = ensure_fonts_for_docx(docx_bytes, requested_set)
+        installed = result.installed
+    requested = sorted(requested_set, key=str.lower)
+    missing = missing_fonts(requested)
+    return requested, missing, installed
 
 
 def load_entity_docx_template(entity) -> bytes | None:
@@ -321,6 +350,10 @@ def _convert_with_libreoffice(docx_path: str, outdir: str) -> str:
 
 def render_template_pdf(docx_bytes: bytes, total_pages: int) -> bytes:
     """Genera PDF del membrete con total_pages hojas y paginación resuelta."""
+    if getattr(settings, "DOCX_AUTO_INSTALL_FONTS", True):
+        from apps.common.font_install import ensure_fonts_for_docx
+
+        ensure_fonts_for_docx(docx_bytes)
     document = Document(BytesIO(docx_bytes))
     normalize_pagination_fields(document)
     append_page_breaks(document, max(0, total_pages - 1))

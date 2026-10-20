@@ -356,6 +356,11 @@ GOOGLE_TOKEN_ENCRYPTION_KEY = (os.getenv("GOOGLE_TOKEN_ENCRYPTION_KEY", "") or "
 GOOGLE_GMAIL_SEND_ENABLED = env_bool("GOOGLE_GMAIL_SEND_ENABLED", False)
 APP_PUBLIC_URL = (os.getenv("APP_PUBLIC_URL", "") or APP_BASE_URL or "").strip()
 
+# Fuentes del membrete Word: directorio escribible + descarga/instalación automática
+DOCX_CUSTOM_FONT_DIR = BASE_DIR / "data" / "fonts"
+DOCX_AUTO_INSTALL_FONTS = env_bool("DOCX_AUTO_INSTALL_FONTS", True)
+DOCX_FONT_DOWNLOAD_TIMEOUT = int(os.getenv("DOCX_FONT_DOWNLOAD_TIMEOUT", "30"))
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

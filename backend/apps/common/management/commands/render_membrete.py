@@ -44,8 +44,12 @@ class Command(BaseCommand):
         if not docx_bytes:
             raise CommandError(f"La entidad {slug} no tiene membrete .docx configurado.")
 
-        fonts, missing = analyze_docx_fonts(docx_bytes)
+        fonts, missing, installed = analyze_docx_fonts(docx_bytes)
         self.stdout.write(f"Fuentes en el documento: {', '.join(fonts) or '(ninguna explícita)'}")
+        if installed:
+            self.stdout.write(self.style.SUCCESS(
+                f"Fuentes instaladas automáticamente: {', '.join(installed)}"
+            ))
         if missing:
             self.stdout.write(self.style.WARNING(
                 f"Fuentes sin sustituto métrico: {', '.join(missing)}"

@@ -413,6 +413,7 @@ function ReportTemplateSection({
   const [uploading, setUploading] = useState(false);
   const [templateMsg, setTemplateMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [missingFonts, setMissingFonts] = useState<string[]>([]);
+  const [installedFonts, setInstalledFonts] = useState<string[]>([]);
 
   async function handleUpload(ev: React.ChangeEvent<HTMLInputElement>) {
     const file = ev.target.files?.[0];
@@ -428,7 +429,15 @@ function ReportTemplateSection({
       const result = await entitiesApi.uploadDocxTemplate(entity.id, file);
       set("docx_template_url", result.docx_template_url);
       setMissingFonts(result.missing_fonts ?? []);
-      setTemplateMsg({ kind: "ok", text: `Membrete cargado: ${result.filename}` });
+      setInstalledFonts(result.installed_fonts ?? []);
+      const installedNote =
+        result.installed_fonts?.length ?
+          ` Fuentes instaladas en el servidor: ${result.installed_fonts.join(", ")}.`
+        : "";
+      setTemplateMsg({
+        kind: "ok",
+        text: `Membrete cargado: ${result.filename}.${installedNote}`,
+      });
       onSaved();
     } catch (err) {
       setTemplateMsg({ kind: "err", text: formatApiError(err, "Error al subir el membrete Word.") });
@@ -444,6 +453,7 @@ function ReportTemplateSection({
       await entitiesApi.deleteDocxTemplate(entity.id);
       set("docx_template_url", null);
       setMissingFonts([]);
+      setInstalledFonts([]);
       setTemplateMsg({ kind: "ok", text: "Membrete eliminado." });
       onSaved();
     } catch (err) {
@@ -509,12 +519,19 @@ function ReportTemplateSection({
             {templateMsg.text}
           </p>
         )}
+        {installedFonts.length > 0 && (
+          <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900">
+            Se instalaron automáticamente en el servidor:{" "}
+            <strong>{installedFonts.join(", ")}</strong> (embebidas en el Word o descargadas como
+            fuente libre equivalente).
+          </p>
+        )}
         {missingFonts.length > 0 && (
           <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-            Fuentes del documento sin equivalente métrico en el servidor:{" "}
+            Fuentes del documento sin equivalente en el servidor:{" "}
             <strong>{missingFonts.join(", ")}</strong>. LibreOffice las sustituirá y el membrete
-            puede verse distinto (saltos de línea o tamaños). Use Arial, Calibri, Times New Roman o
-            Cambria, o avise al equipo técnico.
+            puede verse distinto. Incruste la fuente en Word (Archivo → Opciones → Guardar) o use
+            Arial, Calibri, Times New Roman o Cambria.
           </p>
         )}
       </div>

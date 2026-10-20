@@ -350,7 +350,7 @@ Generación PDF **asíncrona** con Celery (membrete institucional, gráficas mat
 
 **Membrete Word por entidad:** cada entidad sube su plantilla **.docx** (Superadmin → entidad → **Subir .docx**). Al generar informes (PDM, Planes, PQRS), el backend convierte el membrete a PDF con LibreOffice (campos **PAGE** / **NUMPAGES** o marcadores `{{PAGINA}}` / `{{TOTAL}}`) y lo superpone página a página. Los membretes PDF antiguos **dejan de usarse**: hay que volver a subir el formato en Word. Lógica en `backend/apps/common/docx_template.py`.
 
-**Tipografía:** el contenedor incluye fuentes con métricas equivalentes a Word (Liberation/Arial, Carlito/Calibri, Caladea/Cambria, etc.). Al subir el membrete, la API devuelve `missing_fonts` si el documento usa una fuente sin sustituto. Verificación en servidor: `python manage.py render_membrete <slug> --pages 12 --out /tmp/membrete.pdf --png`.
+**Tipografía:** el contenedor incluye fuentes con métricas equivalentes a Word (Liberation/Arial, Carlito/Calibri, Caladea/Cambria, etc.). Al subir el membrete, el backend **instala automáticamente** fuentes embebidas en el `.docx` o, si existen como fuente libre, las **descarga** (Fontsource) en `/app/data/fonts`. La API devuelve `installed_fonts` y `missing_fonts` si aún queda alguna sin sustituto. Desactivar descarga: `DOCX_AUTO_INSTALL_FONTS=false`. Verificación: `python manage.py render_membrete <slug> --pages 12 --out /tmp/membrete.pdf --png`.
 
 | Método | Endpoint | Descripción |
 |---|---|---|

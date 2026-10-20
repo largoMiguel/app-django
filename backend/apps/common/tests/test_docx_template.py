@@ -14,8 +14,13 @@ from apps.common.docx_template import (
     _find_soffice,
     append_page_breaks,
     collect_requested_fonts,
+    invalidate_fc_available_cache,
     missing_fonts,
     normalize_pagination_fields,
+)
+from apps.common.font_install import (
+    _deobfuscate_font,
+    ensure_fonts_for_docx,
 )
 from apps.common.pdf_template import apply_template_overlay
 
@@ -112,6 +117,48 @@ def test_missing_fonts_arial_has_substitute(monkeypatch):
         lambda: {"liberation sans"},
     )
     assert missing_fonts({"Arial"}) == []
+
+
+def test_deobfuscate_font_restores_prefix():
+    key = "001B70DC-AA60-4AD5-90EC-18A0948E1EAE"
+    obfuscated = bytearray(b"\x00" * 32 + b"rest")
+    key_bytes = bytes.fromhex(key.replace("-", ""))[::-1]
+    for i in range(32):
+        obfuscated[i] ^= key_bytes[i % 16]
+    restored = _deobfuscate_font(bytes(obfuscated), key)
+    assert restored is not None
+    assert restored[:32] == b"\x00" * 32
+    assert restored[32:] == b"rest"
+
+
+def test_ensure_fonts_downloads_when_missing(tmp_path, monkeypatch):
+    font_dir = tmp_path / "fonts"
+    monkeypatch.setattr("apps.common.font_install.custom_font_dir", lambda: font_dir)
+    monkeypatch.setattr(
+        "apps.common.docx_template._fc_available_families",
+        lambda: {"liberation sans"},
+    )
+    invalidate_fc_available_cache()
+
+    fake_ttf = b"\x00" * 512
+
+    def fake_download(family: str):
+        assert family == "Roboto"
+        return fake_ttf
+
+    monkeypatch.setattr(
+        "apps.common.font_install._download_from_fontsource",
+        fake_download,
+    )
+    monkeypatch.setattr(
+        "apps.common.font_install._run_fc_cache",
+        lambda: None,
+    )
+
+    docx_bytes = _docx_with_font("Roboto")
+    result = ensure_fonts_for_docx(docx_bytes)
+    assert "Roboto" in result.installed
+    assert any(font_dir.glob("*.ttf"))
 
 
 @pytest.mark.skipif(_find_soffice() is None, reason="LibreOffice no instalado")

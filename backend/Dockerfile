@@ -17,7 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY deploy/fonts/60-softone-msfonts.conf /etc/fonts/conf.d/60-softone-msfonts.conf
-RUN fc-cache -f
+COPY deploy/fonts/61-softone-custom.conf /etc/fonts/conf.d/61-softone-custom.conf
+RUN mkdir -p /app/data/fonts && fc-cache -f
 
 WORKDIR /app
 

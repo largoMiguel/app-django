@@ -89,6 +89,7 @@ export const entitiesApi = {
         has_template: boolean;
         fonts: string[];
         missing_fonts: string[];
+        installed_fonts: string[];
       }>(
         `/entities/${id}/docx-template/`,
         fd,
