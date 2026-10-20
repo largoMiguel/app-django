@@ -83,7 +83,13 @@ export const entitiesApi = {
     const fd = new FormData();
     fd.append("file", file);
     return api
-      .post<{ docx_template_url: string; filename: string; has_template: boolean }>(
+      .post<{
+        docx_template_url: string;
+        filename: string;
+        has_template: boolean;
+        fonts: string[];
+        missing_fonts: string[];
+      }>(
         `/entities/${id}/docx-template/`,
         fd,
         { headers: { "Content-Type": "multipart/form-data" } },

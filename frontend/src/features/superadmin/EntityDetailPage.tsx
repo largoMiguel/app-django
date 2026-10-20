@@ -412,6 +412,7 @@ function ReportTemplateSection({
 }) {
   const [uploading, setUploading] = useState(false);
   const [templateMsg, setTemplateMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [missingFonts, setMissingFonts] = useState<string[]>([]);
 
   async function handleUpload(ev: React.ChangeEvent<HTMLInputElement>) {
     const file = ev.target.files?.[0];
@@ -426,6 +427,7 @@ function ReportTemplateSection({
     try {
       const result = await entitiesApi.uploadDocxTemplate(entity.id, file);
       set("docx_template_url", result.docx_template_url);
+      setMissingFonts(result.missing_fonts ?? []);
       setTemplateMsg({ kind: "ok", text: `Membrete cargado: ${result.filename}` });
       onSaved();
     } catch (err) {
@@ -441,6 +443,7 @@ function ReportTemplateSection({
     try {
       await entitiesApi.deleteDocxTemplate(entity.id);
       set("docx_template_url", null);
+      setMissingFonts([]);
       setTemplateMsg({ kind: "ok", text: "Membrete eliminado." });
       onSaved();
     } catch (err) {
@@ -504,6 +507,14 @@ function ReportTemplateSection({
             }`}
           >
             {templateMsg.text}
+          </p>
+        )}
+        {missingFonts.length > 0 && (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+            Fuentes del documento sin equivalente métrico en el servidor:{" "}
+            <strong>{missingFonts.join(", ")}</strong>. LibreOffice las sustituirá y el membrete
+            puede verse distinto (saltos de línea o tamaños). Use Arial, Calibri, Times New Roman o
+            Cambria, o avise al equipo técnico.
           </p>
         )}
       </div>

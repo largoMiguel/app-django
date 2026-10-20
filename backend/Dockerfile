@@ -10,9 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential libpq5 curl gosu \
         tesseract-ocr tesseract-ocr-spa \
         poppler-utils \
-        libreoffice-writer \
-        fonts-liberation fonts-dejavu-core \
+        libreoffice-writer fontconfig \
+        fonts-liberation fonts-liberation2 fonts-liberation-sans-narrow \
+        fonts-crosextra-carlito fonts-crosextra-caladea \
+        fonts-urw-base35 fonts-freefont-ttf fonts-dejavu-core fonts-dejavu \
     && rm -rf /var/lib/apt/lists/*
+
+COPY deploy/fonts/60-softone-msfonts.conf /etc/fonts/conf.d/60-softone-msfonts.conf
+RUN fc-cache -f
 
 WORKDIR /app
 

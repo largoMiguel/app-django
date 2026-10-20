@@ -90,10 +90,15 @@ class EntityViewSet(viewsets.ModelViewSet):
         if entity.docx_template_url:
             delete_pqrs_storage_key(entity.docx_template_url)
 
+        raw = upload.read()
+        from apps.common.docx_template import analyze_docx_fonts
+
+        fonts, missing = analyze_docx_fonts(raw)
+
         timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
         key = f"templates/{entity.id}/template_{timestamp}.docx"
         storage = pqrs_storage_for_paths()
-        storage.save(key, ContentFile(upload.read()))
+        storage.save(key, ContentFile(raw))
         entity.docx_template_url = key
         entity.save(update_fields=["docx_template_url", "updated_at"])
         return Response(
@@ -101,6 +106,8 @@ class EntityViewSet(viewsets.ModelViewSet):
                 "docx_template_url": key,
                 "filename": upload.name,
                 "has_template": True,
+                "fonts": fonts,
+                "missing_fonts": missing,
             }
         )
 

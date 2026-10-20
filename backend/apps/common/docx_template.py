@@ -7,9 +7,11 @@ import re
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from copy import deepcopy
 from dataclasses import dataclass
 from io import BytesIO
+from xml.etree import ElementTree as ET
 
 import fitz
 from django.conf import settings
@@ -31,6 +33,94 @@ _MARKER_PAGINA = "{{PAGINA}}"
 _MARKER_TOTAL = "{{TOTAL}}"
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_W_TAG = f"{{{W_NS}}}"
+
+# Fuente solicitada en Word → familias instaladas que la sustituyen con métricas compatibles.
+_FONT_EQUIVALENTS: dict[str, frozenset[str]] = {
+    "arial": frozenset({"arial", "liberation sans", "helvetica", "nimbus sans l"}),
+    "helvetica": frozenset({"helvetica", "liberation sans", "arial", "nimbus sans l"}),
+    "times new roman": frozenset({"times new roman", "liberation serif", "nimbus roman"}),
+    "courier new": frozenset({"courier new", "liberation mono", "nimbus mono l"}),
+    "arial narrow": frozenset({"arial narrow", "liberation sans narrow"}),
+    "calibri": frozenset({"calibri", "carlito"}),
+    "cambria": frozenset({"cambria", "caladea"}),
+    "century gothic": frozenset({"century gothic", "urw gothic", "urw gothic l"}),
+    "verdana": frozenset({"verdana", "dejavu sans"}),
+    "tahoma": frozenset({"tahoma", "dejavu sans condensed"}),
+    "palatino linotype": frozenset({"palatino linotype", "p052", "urw palladio l"}),
+    "bookman old style": frozenset({"bookman old style", "urw bookman l"}),
+    "century schoolbook": frozenset({"century schoolbook", "century schoolbook l", "nimbus roman"}),
+}
+
+
+def _normalize_font_key(name: str) -> str:
+    return " ".join(name.strip().lower().split())
+
+
+def collect_requested_fonts(docx_bytes: bytes) -> set[str]:
+    """Familias tipográficas referenciadas en el .docx (runs y estilos)."""
+    families: set[str] = set()
+    with zipfile.ZipFile(BytesIO(docx_bytes)) as zf:
+        for name in zf.namelist():
+            if not name.startswith("word/") or not name.endswith(".xml"):
+                continue
+            if name.endswith("fontTable.xml"):
+                continue
+            try:
+                root = ET.fromstring(zf.read(name))
+            except ET.ParseError:
+                continue
+            for node in root.iter(f"{_W_TAG}rFonts"):
+                for attr in ("ascii", "hAnsi", "cs", "eastAsia"):
+                    val = node.get(f"{_W_TAG}{attr}")
+                    if val and val.strip():
+                        families.add(val.strip())
+    return families
+
+
+def _fc_available_families() -> set[str]:
+    try:
+        proc = subprocess.run(
+            ["fc-list", "--format=%{family}\n"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return set()
+    if proc.returncode != 0:
+        return set()
+    out: set[str] = set()
+    for line in proc.stdout.splitlines():
+        for part in line.split(","):
+            key = _normalize_font_key(part)
+            if key:
+                out.add(key)
+    return out
+
+
+def _font_is_available(requested: str, available: set[str]) -> bool:
+    key = _normalize_font_key(requested)
+    if key in available:
+        return True
+    equivalents = _FONT_EQUIVALENTS.get(key, frozenset({key}))
+    return bool(equivalents & available)
+
+
+def missing_fonts(requested: set[str] | list[str]) -> list[str]:
+    """Fuentes del documento sin sustituto métrico conocido en el servidor."""
+    available = _fc_available_families()
+    missing: list[str] = []
+    for font in sorted(requested, key=str.lower):
+        if not _font_is_available(font, available):
+            missing.append(font)
+    return missing
+
+
+def analyze_docx_fonts(docx_bytes: bytes) -> tuple[list[str], list[str]]:
+    requested = sorted(collect_requested_fonts(docx_bytes), key=str.lower)
+    return requested, missing_fonts(requested)
 
 
 def load_entity_docx_template(entity) -> bytes | None:

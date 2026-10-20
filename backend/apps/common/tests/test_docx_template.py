@@ -7,13 +7,30 @@ from io import BytesIO
 import fitz
 import pytest
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 from apps.common.docx_template import (
     _find_soffice,
     append_page_breaks,
+    collect_requested_fonts,
+    missing_fonts,
     normalize_pagination_fields,
 )
 from apps.common.pdf_template import apply_template_overlay
+
+
+def _docx_with_font(font_name: str) -> bytes:
+    doc = Document()
+    paragraph = doc.add_paragraph()
+    run = paragraph.add_run("Texto de prueba")
+    rfonts = OxmlElement("w:rFonts")
+    rfonts.set(qn("w:ascii"), font_name)
+    rfonts.set(qn("w:hAnsi"), font_name)
+    run._element.get_or_add_rPr().append(rfonts)
+    buf = BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
 
 
 def _docx_with_header_text(text: str) -> bytes:
@@ -73,6 +90,28 @@ def test_apply_template_overlay_multipage():
     assert "Membrete B" in doc[1].get_text()
     assert "Membrete C" in doc[2].get_text()
     doc.close()
+
+
+def test_collect_requested_fonts_detects_arial():
+    docx_bytes = _docx_with_font("Arial")
+    assert "Arial" in collect_requested_fonts(docx_bytes)
+
+
+def test_missing_fonts_flags_unknown(monkeypatch):
+    monkeypatch.setattr(
+        "apps.common.docx_template._fc_available_families",
+        lambda: {"liberation sans", "dejavu sans"},
+    )
+    missing = missing_fonts({"FuenteInexistenteXYZ"})
+    assert missing == ["FuenteInexistenteXYZ"]
+
+
+def test_missing_fonts_arial_has_substitute(monkeypatch):
+    monkeypatch.setattr(
+        "apps.common.docx_template._fc_available_families",
+        lambda: {"liberation sans"},
+    )
+    assert missing_fonts({"Arial"}) == []
 
 
 @pytest.mark.skipif(_find_soffice() is None, reason="LibreOffice no instalado")
