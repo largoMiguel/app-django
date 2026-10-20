@@ -29,7 +29,7 @@ class EntitySerializer(serializers.ModelSerializer):
             "horario_atencion",
             "tiempo_respuesta",
             "plan_name",
-            "pdf_template_url",
+            "docx_template_url",
             "is_active",
             "enable_pqrs",
             "enable_users_admin",

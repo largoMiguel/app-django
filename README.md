@@ -348,7 +348,7 @@ Pestaña **Informes** en el módulo PDM (roles `admin` y `secretario`). La secci
 
 Generación PDF **asíncrona** con Celery (membrete institucional, gráficas matplotlib, ejecución por producto y evidencias opcionales).
 
-**Membrete PDF por entidad:** cada entidad sube su plantilla (Superadmin → entidad → **Subir PDF**). Al generar informes (PDM, Planes, PQRS), el backend superpone ese membrete y redibuja **Página X de Y** al estilo original (baseline, negrita, celda del formato), reduciendo el tamaño solo si la frase no cabe. Lógica en `backend/apps/common/pdf_template.py`.
+**Membrete Word por entidad:** cada entidad sube su plantilla **.docx** (Superadmin → entidad → **Subir .docx**). Al generar informes (PDM, Planes, PQRS), el backend convierte el membrete a PDF con LibreOffice (campos **PAGE** / **NUMPAGES** o marcadores `{{PAGINA}}` / `{{TOTAL}}`) y lo superpone página a página. Los membretes PDF antiguos **dejan de usarse**: hay que volver a subir el formato en Word. Lógica en `backend/apps/common/docx_template.py`.
 
 | Método | Endpoint | Descripción |
 |---|---|---|

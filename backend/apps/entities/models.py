@@ -50,7 +50,7 @@ class Entity(models.Model):
     horario_atencion = models.CharField(max_length=200, blank=True, null=True)
     tiempo_respuesta = models.CharField(max_length=100, blank=True, null=True)
     plan_name = models.CharField(max_length=500, blank=True, null=True)
-    pdf_template_url = models.CharField(max_length=500, blank=True, null=True)
+    docx_template_url = models.CharField(max_length=500, blank=True, null=True)
 
     is_active = models.BooleanField(default=True)
     enable_pqrs = models.BooleanField(default=True)

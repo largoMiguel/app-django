@@ -515,25 +515,12 @@ class PlanesReportGenerator:
         return pdf_bytes
 
     def generate_pdf(self) -> BytesIO:
-        from apps.common.pdf_template import (
-            apply_template_overlay,
-            detect_template_margins,
-            load_entity_template,
-        )
+        from apps.common.docx_template import prepare_entity_template
 
-        template_pdf_bytes = load_entity_template(self.entity)
-        top_margin = 0.8 * inch
-        bottom_margin = 0.8 * inch
-        use_template = False
-
-        if template_pdf_bytes:
-            try:
-                top_in, bottom_in = detect_template_margins(template_pdf_bytes)
-                top_margin = top_in * inch
-                bottom_margin = bottom_in * inch
-                use_template = True
-            except Exception:
-                template_pdf_bytes = None
+        prepared = prepare_entity_template(self.entity)
+        top_margin = (prepared.top_margin_in if prepared else 0.8) * inch
+        bottom_margin = (prepared.bottom_margin_in if prepared else 0.8) * inch
+        use_template = prepared is not None
 
         pdf_bytes = self._build_content_pdf(
             top_margin=top_margin,
@@ -541,12 +528,9 @@ class PlanesReportGenerator:
             use_template=use_template,
         )
 
-        if template_pdf_bytes:
+        if prepared:
             try:
-                return apply_template_overlay(
-                    pdf_bytes,
-                    template_pdf_bytes,
-                )
+                return prepared.render_overlay(pdf_bytes)
             except Exception:
                 pass
 

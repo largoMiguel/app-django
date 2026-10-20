@@ -28,8 +28,6 @@ import tempfile
 import os
 import re
 
-import fitz  # PyMuPDF
-
 # Configurar matplotlib para uso en servidor
 import matplotlib
 matplotlib.use('Agg')
@@ -464,63 +462,6 @@ class PQRSReportGenerator:
         print(f"✅ {len(charts)} gráficas generadas exitosamente")
         return charts
     
-    @staticmethod
-    def _detect_template_margins(template_pdf_bytes: bytes):
-        from apps.common.pdf_template import detect_template_margins
-
-        top_in, bottom_in = detect_template_margins(template_pdf_bytes)
-        print(f"📐 Márgenes detectados → top: {top_in}in  bottom: {bottom_in}in")
-        return top_in, bottom_in
-
-    @staticmethod
-    def _find_page_number_word_indices(words: list) -> tuple[int, int, int, int] | None:
-        """Ubica índices de [Página, num_actual, de, num_total] en la lista de palabras."""
-        for idx in range(len(words) - 3):
-            label = str(words[idx][4]).strip().lower()
-            num_a = str(words[idx + 1][4]).strip()
-            linker = str(words[idx + 2][4]).strip().lower()
-            num_b = str(words[idx + 3][4]).strip()
-            if not re.match(r"p[aá]gina", label, re.IGNORECASE):
-                continue
-            if linker != "de" or not num_a.isdigit() or not num_b.isdigit():
-                continue
-            return idx, idx + 1, idx + 2, idx + 3
-        return None
-
-    @staticmethod
-    def _word_rect(word) -> fitz.Rect:
-        return fitz.Rect(word[0], word[1], word[2], word[3])
-
-    @staticmethod
-    def _redact_tight(page, rect: fitz.Rect) -> None:
-        pad = 0.5
-        tight = fitz.Rect(
-            rect.x0 - pad,
-            rect.y0 - pad,
-            rect.x1 + pad,
-            rect.y1 + pad,
-        )
-        page.add_redact_annot(tight)
-        page.apply_redactions()
-
-    @staticmethod
-    def _insert_at_word(page, word, text: str) -> None:
-        rect = PQRSReportGenerator._word_rect(word)
-        fontsize = max(7, min(14, rect.height * 0.9))
-        page.insert_text(
-            (rect.x0, rect.y1 - 1),
-            str(text),
-            fontsize=fontsize,
-            color=(0, 0, 0),
-            fontname="helv",
-        )
-
-    @staticmethod
-    def _replace_page_number(page, page_index: int, total_pages: int) -> None:
-        from apps.common.pdf_template import replace_page_number
-
-        replace_page_number(page, page_index, total_pages)
-
     def _create_content_pdf(self, top_margin: float = 1.6, bottom_margin: float = 1.0) -> BytesIO:
         """
         Crea el PDF con el contenido del informe (sin template, solo contenido).
@@ -1112,37 +1053,24 @@ class PQRSReportGenerator:
         automáticamente, genera el contenido con esos márgenes y aplica
         el template vectorial como fondo en cada página.
         """
-        from apps.common.pdf_template import (
-            apply_template_overlay,
-            detect_template_margins,
-            load_entity_template,
-            replace_page_number,
-        )
+        from apps.common.docx_template import prepare_entity_template
 
-        template_pdf_bytes = load_entity_template(self.entity)
-        top_margin = 1.6
-        bottom_margin = 1.0
+        prepared = prepare_entity_template(self.entity)
+        top_margin = prepared.top_margin_in if prepared else 1.6
+        bottom_margin = prepared.bottom_margin_in if prepared else 1.0
 
-        if template_pdf_bytes:
-            try:
-                top_margin, bottom_margin = detect_template_margins(template_pdf_bytes)
-            except Exception as e:
-                print(f"⚠️ Error detectando márgenes del template: {e}")
-                template_pdf_bytes = None
-
-        # Generar contenido con los márgenes correctos para este template
         content_buffer = self._create_content_pdf(
             top_margin=top_margin,
-            bottom_margin=bottom_margin
+            bottom_margin=bottom_margin,
         )
 
-        if not template_pdf_bytes:
+        if not prepared:
             return content_buffer
 
         try:
             content_buffer.seek(0)
-            final_buffer = apply_template_overlay(content_buffer.read(), template_pdf_bytes)
-            print(f"✅ PDF con membrete institucional generado")
+            final_buffer = prepared.render_overlay(content_buffer.read())
+            print("✅ PDF con membrete institucional generado")
             return final_buffer
 
         except Exception as e:

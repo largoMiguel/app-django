@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential libpq5 curl gosu \
         tesseract-ocr tesseract-ocr-spa \
         poppler-utils \
+        libreoffice-writer \
+        fonts-liberation fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

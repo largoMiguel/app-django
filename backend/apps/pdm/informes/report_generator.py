@@ -1756,25 +1756,12 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
 
     def generate_pdf(self) -> BytesIO:
         """Genera PDF con membrete institucional de la entidad cuando existe plantilla."""
-        from apps.common.pdf_template import (
-            apply_template_overlay,
-            detect_template_margins,
-            load_entity_template,
-        )
+        from apps.common.docx_template import prepare_entity_template
 
-        template_pdf_bytes = load_entity_template(self.entity)
-        top_margin = 0.8 * inch
-        bottom_margin = 0.8 * inch
-        use_template = False
-
-        if template_pdf_bytes:
-            try:
-                top_in, bottom_in = detect_template_margins(template_pdf_bytes)
-                top_margin = top_in * inch
-                bottom_margin = bottom_in * inch
-                use_template = True
-            except Exception:
-                template_pdf_bytes = None
+        prepared = prepare_entity_template(self.entity)
+        top_margin = (prepared.top_margin_in if prepared else 0.8) * inch
+        bottom_margin = (prepared.bottom_margin_in if prepared else 0.8) * inch
+        use_template = prepared is not None
 
         pdf_bytes = self._build_content_pdf(
             top_margin=top_margin,
@@ -1783,12 +1770,9 @@ Límite: 250 palabras. Usa lenguaje formal y técnico apropiado para gestión p�
         )
         print(f"✅ PDF generado exitosamente ({len(pdf_bytes)} bytes)")
 
-        if template_pdf_bytes:
+        if prepared:
             try:
-                return apply_template_overlay(
-                    pdf_bytes,
-                    template_pdf_bytes,
-                )
+                return prepared.render_overlay(pdf_bytes)
             except Exception as exc:
                 print(f"⚠️ Error aplicando plantilla institucional: {exc}")
 

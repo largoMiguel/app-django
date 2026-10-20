@@ -110,6 +110,8 @@ table.setStyle(TableStyle(banner_style_cmds()))
 | `backend/apps/planes/informes/report_generator.py` | Generador Planes Institucionales |
 | `backend/apps/pdm/informes/report_generator.py` | Generador PDM |
 | `backend/apps/pqrs/services/report_generator.py` | Generador PQRS |
+| `backend/apps/common/docx_template.py` | Membrete Word → PDF (LibreOffice) |
+| `backend/apps/common/pdf_template.py` | Márgenes y superposición multipágina |
 
 ## Reglas generales
 
@@ -118,4 +120,4 @@ table.setStyle(TableStyle(banner_style_cmds()))
 - Evitar colores saturados (verde, azul, rojo, naranja) en informes institucionales
 - Las gráficas matplotlib deben usar escala de grises, sin semáforo de colores
 - El membrete institucional (plantilla PDF de entidad) se superpone por detrás; el contenido respeta los márgenes detectados automáticamente
-- La paginación **Página X de Y** se redibuja en `apps/common/pdf_template.py` como frase completa (mismo estilo y baseline que el membrete), centrada en la celda cuando aplica y con reducción de tamaño solo si no cabe
+- El membrete institucional es un **.docx** por entidad (`docx_template_url`). La paginación va en el encabezado/pie con campos de Word o `{{PAGINA}}` / `{{TOTAL}}`; la conversión a PDF la hace LibreOffice en `apps/common/docx_template.py`

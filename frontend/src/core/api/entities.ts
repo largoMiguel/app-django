@@ -36,7 +36,7 @@ export interface Entity {
   enable_pic: boolean;
   enabled_modules: string[];
   plan_name: string | null;
-  pdf_template_url: string | null;
+  docx_template_url: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -79,19 +79,19 @@ export const entitiesApi = {
   remove: (id: number, confirmSlug: string) =>
     api.delete(`/entities/${id}/`, { params: { confirm: confirmSlug } }),
   mine: () => api.get<Entity>("/entities/mine/").then((r) => r.data),
-  uploadPdfTemplate: (id: number, file: File) => {
+  uploadDocxTemplate: (id: number, file: File) => {
     const fd = new FormData();
     fd.append("file", file);
     return api
-      .post<{ pdf_template_url: string; filename: string; has_template: boolean }>(
-        `/entities/${id}/pdf-template/`,
+      .post<{ docx_template_url: string; filename: string; has_template: boolean }>(
+        `/entities/${id}/docx-template/`,
         fd,
         { headers: { "Content-Type": "multipart/form-data" } },
       )
       .then((r) => r.data);
   },
-  deletePdfTemplate: (id: number) =>
-    api.delete<{ has_template: boolean }>(`/entities/${id}/pdf-template/`).then((r) => r.data),
+  deleteDocxTemplate: (id: number) =>
+    api.delete<{ has_template: boolean }>(`/entities/${id}/docx-template/`).then((r) => r.data),
 };
 
 export const secretariasApi = {

@@ -63,38 +63,42 @@ class EntityViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post", "delete"],
-        url_path="pdf-template",
+        url_path="docx-template",
         parser_classes=(MultiPartParser, FormParser),
     )
-    def pdf_template(self, request, pk=None):
+    def docx_template(self, request, pk=None):
         entity = self.get_object()
         if request.method == "DELETE":
-            if entity.pdf_template_url:
-                delete_pqrs_storage_key(entity.pdf_template_url)
-                entity.pdf_template_url = None
-                entity.save(update_fields=["pdf_template_url", "updated_at"])
+            if entity.docx_template_url:
+                delete_pqrs_storage_key(entity.docx_template_url)
+                entity.docx_template_url = None
+                entity.save(update_fields=["docx_template_url", "updated_at"])
             return Response({"has_template": False})
 
         upload = request.FILES.get("file")
         if not upload:
-            raise ValidationError({"file": "Debes subir un archivo PDF."})
-        if not upload.name.lower().endswith(".pdf"):
-            raise ValidationError({"file": "Solo se aceptan archivos PDF."})
-        if upload.content_type and upload.content_type not in ("application/pdf", "application/octet-stream"):
-            raise ValidationError({"file": "El archivo debe ser PDF."})
+            raise ValidationError({"file": "Debes subir un archivo Word (.docx)."})
+        if not upload.name.lower().endswith(".docx"):
+            raise ValidationError({"file": "Solo se aceptan archivos .docx."})
+        allowed_types = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/octet-stream",
+        )
+        if upload.content_type and upload.content_type not in allowed_types:
+            raise ValidationError({"file": "El archivo debe ser Word (.docx)."})
 
-        if entity.pdf_template_url:
-            delete_pqrs_storage_key(entity.pdf_template_url)
+        if entity.docx_template_url:
+            delete_pqrs_storage_key(entity.docx_template_url)
 
         timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
-        key = f"templates/{entity.id}/template_{timestamp}.pdf"
+        key = f"templates/{entity.id}/template_{timestamp}.docx"
         storage = pqrs_storage_for_paths()
         storage.save(key, ContentFile(upload.read()))
-        entity.pdf_template_url = key
-        entity.save(update_fields=["pdf_template_url", "updated_at"])
+        entity.docx_template_url = key
+        entity.save(update_fields=["docx_template_url", "updated_at"])
         return Response(
             {
-                "pdf_template_url": key,
+                "docx_template_url": key,
                 "filename": upload.name,
                 "has_template": True,
             }

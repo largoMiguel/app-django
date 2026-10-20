@@ -417,19 +417,19 @@ function ReportTemplateSection({
     const file = ev.target.files?.[0];
     ev.target.value = "";
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setTemplateMsg({ kind: "err", text: "Solo se aceptan archivos PDF." });
+    if (!file.name.toLowerCase().endsWith(".docx")) {
+      setTemplateMsg({ kind: "err", text: "Solo se aceptan archivos Word (.docx)." });
       return;
     }
     setUploading(true);
     setTemplateMsg(null);
     try {
-      const result = await entitiesApi.uploadPdfTemplate(entity.id, file);
-      set("pdf_template_url", result.pdf_template_url);
+      const result = await entitiesApi.uploadDocxTemplate(entity.id, file);
+      set("docx_template_url", result.docx_template_url);
       setTemplateMsg({ kind: "ok", text: `Membrete cargado: ${result.filename}` });
       onSaved();
     } catch (err) {
-      setTemplateMsg({ kind: "err", text: formatApiError(err, "Error al subir el membrete PDF.") });
+      setTemplateMsg({ kind: "err", text: formatApiError(err, "Error al subir el membrete Word.") });
     } finally {
       setUploading(false);
     }
@@ -439,8 +439,8 @@ function ReportTemplateSection({
     setUploading(true);
     setTemplateMsg(null);
     try {
-      await entitiesApi.deletePdfTemplate(entity.id);
-      set("pdf_template_url", null);
+      await entitiesApi.deleteDocxTemplate(entity.id);
+      set("docx_template_url", null);
       setTemplateMsg({ kind: "ok", text: "Membrete eliminado." });
       onSaved();
     } catch (err) {
@@ -453,10 +453,12 @@ function ReportTemplateSection({
   return (
     <section>
       <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-600 border-b border-slate-200 pb-1.5">
-        Plantilla de informes PQRS
+        Membrete Word (informes)
       </h3>
       <p className="mb-3 text-xs text-slate-500">
-        Sube el membrete institucional PDF que se usará como fondo al generar informes PQRS.
+        Sube el membrete institucional en Word (.docx) para informes PQRS, PDM y Planes. La
+        paginación puede ir con campos automáticos de Word (Insertar → Número de página) o con los
+        marcadores {"{{PAGINA}}"} y {"{{TOTAL}}"} en el encabezado.
       </p>
 
       <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
@@ -464,23 +466,23 @@ function ReportTemplateSection({
           <div className="flex items-center gap-2 text-sm text-slate-700">
             <FileText className="h-4 w-4 text-[#3eafd4]" />
             <span>
-              Membrete PDF:{" "}
-              <strong>{form.pdf_template_url ? "Configurado" : "Sin membrete"}</strong>
+              Membrete Word:{" "}
+              <strong>{form.docx_template_url ? "Configurado" : "Sin membrete"}</strong>
             </span>
           </div>
           <div className="flex items-center gap-2">
             <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100">
               <Upload className="h-3.5 w-3.5" />
-              {uploading ? "Subiendo…" : form.pdf_template_url ? "Reemplazar" : "Subir PDF"}
+              {uploading ? "Subiendo…" : form.docx_template_url ? "Reemplazar" : "Subir .docx"}
               <input
                 type="file"
-                accept="application/pdf,.pdf"
+                accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 className="hidden"
                 disabled={uploading}
                 onChange={handleUpload}
               />
             </label>
-            {form.pdf_template_url && (
+            {form.docx_template_url && (
               <button
                 type="button"
                 onClick={handleDeleteTemplate}
@@ -492,8 +494,8 @@ function ReportTemplateSection({
             )}
           </div>
         </div>
-        {form.pdf_template_url && (
-          <p className="mt-2 truncate text-[0.68rem] text-slate-500">{form.pdf_template_url}</p>
+        {form.docx_template_url && (
+          <p className="mt-2 truncate text-[0.68rem] text-slate-500">{form.docx_template_url}</p>
         )}
         {templateMsg && (
           <p
