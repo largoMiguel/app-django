@@ -13,6 +13,9 @@ from apps.common.b2_client import get_b2_client
 
 logger = logging.getLogger(__name__)
 
+_PAGE_NUM_PHRASE_RE = re.compile(r"P[aá]gina\s+\d+\s+de\s+\d+", re.IGNORECASE)
+_TEXT_FONT_BOLD = 16
+
 
 def detect_template_margins(template_pdf_bytes: bytes) -> tuple[float, float]:
     """
@@ -93,12 +96,11 @@ def _cover_rect_white(page, rect: fitz.Rect, pad_x: float = 4, pad_y: float = 1)
 
 def _find_pagina_line_rect(page) -> fitz.Rect | None:
     """Localiza solo la línea 'Página X de Y' sin incluir Versión u otros textos."""
-    page_num_re = re.compile(r"P[aá]gina\s+\d+\s+de\s+\d+", re.IGNORECASE)
     data = page.get_text("dict")
     for block in data.get("blocks", []):
         for line in block.get("lines", []):
             line_text = "".join(span["text"] for span in line.get("spans", [])).strip()
-            if page_num_re.search(line_text):
+            if _PAGE_NUM_PHRASE_RE.search(line_text):
                 bbox = line["bbox"]
                 return fitz.Rect(bbox)
     return None
@@ -109,19 +111,195 @@ def _words_on_same_line(words: list, start_idx: int, end_idx: int, tolerance: fl
     return (max(y_values) - min(y_values)) <= tolerance
 
 
+def _int_color_to_rgb(color) -> tuple[float, float, float]:
+    if isinstance(color, (list, tuple)) and len(color) >= 3:
+        return (float(color[0]), float(color[1]), float(color[2]))
+    packed = int(color)
+    return (
+        ((packed >> 16) & 255) / 255.0,
+        ((packed >> 8) & 255) / 255.0,
+        (packed & 255) / 255.0,
+    )
+
+
+def _fontname_from_span(span: dict) -> str:
+    flags = int(span.get("flags", 0))
+    if flags & _TEXT_FONT_BOLD:
+        return "hebo"
+    font = (span.get("font") or "").lower()
+    if "bold" in font or "black" in font:
+        return "hebo"
+    return "helv"
+
+
+def _style_for_rect(page, rect: fitz.Rect) -> dict:
+    best_overlap = 0.0
+    best: dict | None = None
+    data = page.get_text("dict")
+    for block in data.get("blocks", []):
+        for line in block.get("lines", []):
+            for span in line.get("spans", []):
+                srect = fitz.Rect(span["bbox"])
+                overlap = srect & rect
+                if overlap.is_empty:
+                    continue
+                area = overlap.width * overlap.height
+                if area > best_overlap:
+                    best_overlap = area
+                    best = span
+    if best is None:
+        return {"size": 9.0, "color": (0.0, 0.0, 0.0), "fontname": "helv"}
+    return {
+        "size": float(best.get("size", 9.0)),
+        "color": _int_color_to_rgb(best.get("color", 0)),
+        "fontname": _fontname_from_span(best),
+    }
+
+
+def _pagination_cell_right_edge(page, line_rect: fitz.Rect) -> float:
+    right = page.rect.x1 - 12
+    tol_y = max(6.0, line_rect.height * 2.5)
+    for draw in page.get_drawings():
+        rect = draw.get("rect")
+        if rect is None:
+            continue
+        if rect.width > 4:
+            continue
+        if rect.y1 < line_rect.y0 - tol_y or rect.y0 > line_rect.y1 + tol_y:
+            continue
+        x = float(rect.x0)
+        if x > line_rect.x0 + 8 and x < right:
+            right = x
+    return max(right, line_rect.x1 + 4)
+
+
+def _fit_pagination_fontsize(
+    fontsize: float,
+    *,
+    new_a: str,
+    new_b: str,
+    font_a: str,
+    font_b: str,
+    num_a_x0: float,
+    de_rect: fitz.Rect,
+    num_b_x0: float,
+    cell_right: float,
+) -> float:
+    size = fontsize
+    for _ in range(24):
+        w_a = fitz.get_text_length(new_a, fontname=font_a, fontsize=size)
+        w_b = fitz.get_text_length(new_b, fontname=font_b, fontsize=size)
+        limit_a = max(4.0, de_rect.x0 - 2.0 - num_a_x0)
+        limit_b = max(4.0, cell_right - 2.0 - num_b_x0)
+        if w_a <= limit_a and w_b <= limit_b:
+            return max(5.5, size)
+        scale = 1.0
+        if w_a > limit_a:
+            scale = min(scale, limit_a / w_a)
+        if w_b > limit_b:
+            scale = min(scale, limit_b / w_b)
+        size = max(5.5, size * scale * 0.97)
+    return max(5.5, size)
+
+
+def _insert_styled_text(
+    page,
+    origin: tuple[float, float],
+    text: str,
+    *,
+    fontsize: float,
+    fontname: str,
+    color: tuple[float, float, float],
+) -> None:
+    page.insert_text(
+        origin,
+        text,
+        fontsize=fontsize,
+        fontname=fontname,
+        color=color,
+    )
+
+
+def _replace_pagination_numbers_only(page, page_index: int, total_pages: int) -> bool:
+    """Sustituye solo los dígitos, conservando 'Página' y 'de' del membrete original."""
+    words = page.get_text("words")
+    indices = _find_page_number_word_indices(words)
+    if indices is None:
+        return False
+    start_idx, num_a_idx, de_idx, num_b_idx = indices
+    if not _words_on_same_line(words, start_idx, num_b_idx):
+        return False
+
+    new_a = str(page_index + 1)
+    new_b = str(total_pages)
+    num_a_rect = _word_rect(words[num_a_idx])
+    num_b_rect = _word_rect(words[num_b_idx])
+    de_rect = _word_rect(words[de_idx])
+    line_rect = _find_pagina_line_rect(page) or (num_a_rect | num_b_rect)
+
+    style_a = _style_for_rect(page, num_a_rect)
+    style_b = _style_for_rect(page, num_b_rect)
+    fontsize = min(style_a["size"], style_b["size"])
+    cell_right = _pagination_cell_right_edge(page, line_rect)
+    fontsize = _fit_pagination_fontsize(
+        fontsize,
+        new_a=new_a,
+        new_b=new_b,
+        font_a=style_a["fontname"],
+        font_b=style_b["fontname"],
+        num_a_x0=num_a_rect.x0,
+        de_rect=de_rect,
+        num_b_x0=num_b_rect.x0,
+        cell_right=cell_right,
+    )
+
+    _cover_rect_white(page, num_a_rect, pad_x=2, pad_y=1)
+    _cover_rect_white(page, num_b_rect, pad_x=2, pad_y=1)
+    baseline = num_a_rect.y1 - 1
+    _insert_styled_text(
+        page,
+        (num_a_rect.x0, baseline),
+        new_a,
+        fontsize=fontsize,
+        fontname=style_a["fontname"],
+        color=style_a["color"],
+    )
+    _insert_styled_text(
+        page,
+        (num_b_rect.x0, baseline),
+        new_b,
+        fontsize=fontsize,
+        fontname=style_b["fontname"],
+        color=style_b["color"],
+    )
+    return True
+
+
 def _insert_page_number_text(page, rect: fitz.Rect, text: str) -> None:
-    fontsize = max(7, min(14, rect.height * 0.95))
+    """Respaldo: reescribe la frase completa ajustada al ancho de la celda."""
+    style = _style_for_rect(page, rect)
+    fontsize = style["size"]
+    fontname = style["fontname"]
+    color = style["color"]
+    cell_right = _pagination_cell_right_edge(page, rect)
+    available = max(rect.width, cell_right - rect.x0)
+    text_width = fitz.get_text_length(text, fontname=fontname, fontsize=fontsize)
+    if text_width > available and text_width > 0:
+        fontsize = max(5.5, fontsize * (available / text_width))
     page.insert_text(
         (rect.x0, rect.y1 - 1),
         text,
         fontsize=fontsize,
-        color=(0, 0, 0),
-        fontname="helv",
+        color=color,
+        fontname=fontname,
     )
 
 
 def replace_page_number(page, page_index: int, total_pages: int) -> None:
-    """Reemplaza la frase completa 'Página X de Y' en el membrete."""
+    """Reemplaza 'Página X de Y' conservando el estilo del membrete cuando es posible."""
+    if _replace_pagination_numbers_only(page, page_index, total_pages):
+        return
+
     new_text = f"Página {page_index + 1} de {total_pages}"
 
     line_rect = _find_pagina_line_rect(page)
@@ -142,12 +320,11 @@ def replace_page_number(page, page_index: int, total_pages: int) -> None:
             _insert_page_number_text(page, union, new_text)
             return
 
-    page_num_re = re.compile(r"P[aá]gina\s+\d+\s+de\s+\d+", re.IGNORECASE)
     for block in page.get_text("blocks"):
         if len(block) < 5:
             continue
         text = str(block[4]).strip()
-        match = page_num_re.search(text)
+        match = _PAGE_NUM_PHRASE_RE.search(text)
         if not match:
             continue
         rect = fitz.Rect(block[:4])
