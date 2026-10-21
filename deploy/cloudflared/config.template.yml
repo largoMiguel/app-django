@@ -37,4 +37,6 @@ ingress:
     service: http://softone-lavonia:80
   - hostname: ssh.softone360.com
     service: ssh://host.docker.internal:22
+  - hostname: monitor.softone360.com
+    service: http://softone-beszel:8090
   - service: http_status:404
