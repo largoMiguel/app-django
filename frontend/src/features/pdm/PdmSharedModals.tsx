@@ -255,8 +255,8 @@ export default function PdmSharedModals() {
         </select>
         <div className="mt-3">
           <PdmAlert tone="info">
-            Actualiza contratos existentes y agrega nuevos según producto y No. CRP (no elimina los que no vengan en el
-            archivo).
+            Reemplaza todos los contratos del año seleccionado: los registros del archivo sustituyen la carga anterior
+            (mismo criterio que la ejecución presupuestal anual).
           </PdmAlert>
         </div>
         <PdmFilePicker

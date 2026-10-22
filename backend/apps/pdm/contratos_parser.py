@@ -136,6 +136,7 @@ def parse_contratos_rps(content: bytes, filename: str, anio: int) -> pd.DataFram
 
     df = df.dropna(subset=["PRODUCTO", "NO CRP", "VALOR"])
     df["PRODUCTO"] = df["PRODUCTO"].apply(_clean_producto)
+    df = df[df["PRODUCTO"].astype(str).str.strip() != ""]
     df["NO CRP"] = pd.to_numeric(df["NO CRP"], errors="coerce").fillna(0).astype(int).astype(str)
     df["VALOR"] = pd.to_numeric(df["VALOR"], errors="coerce").fillna(0)
     df["CONCEPTO"] = df["CONCEPTO"].fillna("").astype(str)
