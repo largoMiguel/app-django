@@ -1199,54 +1199,41 @@ class PdmContratosUploadView(APIView):
         anio = int(request.query_params.get("anio") or timezone.now().year)
         grouped = parse_contratos_rps(content, archivo.name, anio)
         rows = grouped.to_dict("records")
-        existing_map = {
-            (c.anio, c.codigo_producto, c.no_crp): c
-            for c in PDMContratoRPS.objects.filter(entity=entity, anio=anio)
-        }
         to_create: list[PDMContratoRPS] = []
-        to_update: list[PDMContratoRPS] = []
-        creados = 0
-        actualizados = 0
+        for r in rows:
+            row_anio = int(r["AÑO"])
+            codigo_producto = str(r["PRODUCTO"])
+            no_crp = str(r["NO CRP"])
+            concepto = str(r["CONCEPTO"]) or None
+            valor = Decimal(str(_to_float(r["VALOR"])))
+            contratista = str(r["CONTRATISTA"]) or None
+            to_create.append(
+                PDMContratoRPS(
+                    entity=entity,
+                    anio=row_anio,
+                    codigo_producto=codigo_producto,
+                    no_crp=no_crp,
+                    concepto=concepto,
+                    valor=valor,
+                    contratista=contratista,
+                )
+            )
+
         with transaction.atomic():
-            for r in rows:
-                row_anio = int(r["AÑO"])
-                codigo_producto = str(r["PRODUCTO"])
-                no_crp = str(r["NO CRP"])
-                concepto = str(r["CONCEPTO"]) or None
-                valor = Decimal(str(_to_float(r["VALOR"])))
-                contratista = str(r["CONTRATISTA"]) or None
-                key = (row_anio, codigo_producto, no_crp)
-                existing = existing_map.get(key)
-                if existing is None:
-                    to_create.append(
-                        PDMContratoRPS(
-                            entity=entity,
-                            anio=row_anio,
-                            codigo_producto=codigo_producto,
-                            no_crp=no_crp,
-                            concepto=concepto,
-                            valor=valor,
-                            contratista=contratista,
-                        )
-                    )
-                    creados += 1
-                else:
-                    existing.concepto = concepto
-                    existing.valor = valor
-                    existing.contratista = contratista
-                    to_update.append(existing)
-                    actualizados += 1
+            deleted = PDMContratoRPS.objects.filter(entity=entity, anio=anio).delete()[0]
             if to_create:
                 PDMContratoRPS.objects.bulk_create(to_create)
-            if to_update:
-                PDMContratoRPS.objects.bulk_update(to_update, fields=["concepto", "valor", "contratista", "updated_at"])
+
         contratos = list(PDMContratoRPS.objects.filter(entity=entity, anio=anio).order_by("codigo_producto", "no_crp"))
         return Response(
             {
-                "mensaje": f"{len(grouped)} filas procesadas: {creados} nuevos, {actualizados} actualizados (año {anio})",
-                "registros_insertados": creados,
-                "registros_actualizados": actualizados,
-                "registros_eliminados": 0,
+                "mensaje": (
+                    f"Archivo procesado para el año {anio}: {len(to_create)} contratos cargados, "
+                    f"{deleted} registros anteriores eliminados."
+                ),
+                "registros_insertados": len(to_create),
+                "registros_actualizados": 0,
+                "registros_eliminados": deleted,
                 "errores": [],
                 "procesados": len(grouped),
                 "contratos_agrupados": len(contratos),

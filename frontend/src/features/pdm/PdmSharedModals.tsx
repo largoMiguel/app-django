@@ -224,7 +224,7 @@ export default function PdmSharedModals() {
                       title: "Contratos RPS cargados",
                       detail:
                         result.mensaje ||
-                        `${result.registros_insertados ?? 0} nuevos, ${result.registros_actualizados ?? 0} actualizados (año ${anioContratos}).`,
+                        `${result.registros_insertados ?? 0} contratos cargados, ${result.registros_eliminados ?? 0} eliminados del año ${anioContratos}.`,
                     });
                   } catch (e) {
                     const detail = formatApiError(e, "Error al cargar.");
