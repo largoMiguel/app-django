@@ -136,7 +136,7 @@ export const asistenciaApi = {
   equipos: {
     list: () =>
       api
-        .get<{ results: EquipoRegistro[] } | EquipoRegistro[]>("/asistencia/equipos/", {
+        .get<{ results: EquipoRegistro[] } | EquipoRegistro[]>("/asistencia/equipos", {
           params: { page_size: 100 },
         })
         .then((r) => (Array.isArray(r.data) ? r.data : r.data.results)),
